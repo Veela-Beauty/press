@@ -6,8 +6,8 @@ import json
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
-import boto3
 import frappe
+import requests
 from frappe.core.utils import find
 from frappe.model.document import Document
 from frappe.utils.caching import redis_cache
@@ -15,8 +15,6 @@ from frappe.utils.caching import redis_cache
 from press.utils import log_error
 
 if TYPE_CHECKING:
-	from collections.abc import Iterable
-
 	from press.press.doctype.proxy_server.proxy_server import ProxyServer
 
 
@@ -29,12 +27,11 @@ class RootDomain(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
-		aws_access_key_id: DF.Data | None
-		aws_region: DF.Data | None
-		aws_secret_access_key: DF.Password | None
+		cloudflare_api_token: DF.Password | None
+		cloudflare_zone_id: DF.Data | None
 		default_cluster: DF.Link
 		default_proxy_server: DF.Link | None
-		dns_provider: DF.Literal["AWS Route 53", "Generic"]
+		dns_provider: DF.Literal["Cloudflare", "AWS Route 53", "Generic"]
 		enabled: DF.Check
 		team: DF.Link | None
 	# end: auto-generated types
@@ -73,44 +70,55 @@ class RootDomain(Document):
 		return self._generic_dns_provider
 
 	@property
-	def boto3_client(self):
-		if not hasattr(self, "_boto3_client"):
-			self._boto3_client = boto3.client(
-				"route53",
-				aws_access_key_id=self.aws_access_key_id,
-				aws_secret_access_key=self.get_password("aws_secret_access_key"),
-				region_name=self.aws_region,
-			)
-		return self._boto3_client
+	def cloudflare_headers(self):
+		return {
+			"Authorization": f"Bearer {self.get_password('cloudflare_api_token')}",
+			"Content-Type": "application/json",
+		}
 
-	@property
-	def hosted_zone(self):
-		zones = self.boto3_client.list_hosted_zones_by_name()["HostedZones"]
-		return find(reversed(zones), lambda x: self.name.endswith(x["Name"][:-1]))["Id"]
-
-	def get_dns_record_pages(self) -> Iterable:
+	def get_dns_records(self, record_type=None, page=1, per_page=100):
+		"""Fetch DNS records from Cloudflare API with pagination."""
+		params = {"page": page, "per_page": per_page}
+		if record_type:
+			params["type"] = record_type
 		try:
-			paginator = self.boto3_client.get_paginator("list_resource_record_sets")
-			return paginator.paginate(
-				PaginationConfig={"MaxItems": 10000, "PageSize": 300, "StartingToken": "0"},
-				HostedZoneId=self.hosted_zone.split("/")[-1],
+			resp = requests.get(
+				f"https://api.cloudflare.com/client/v4/zones/{self.cloudflare_zone_id}/dns_records",
+				headers=self.cloudflare_headers,
+				params=params,
 			)
+			resp.raise_for_status()
+			return resp.json().get("result", [])
 		except Exception:
-			log_error("Route 53 Pagination Error", domain=self.name)
+			log_error("Cloudflare DNS Pagination Error", domain=self.name)
 		return []
 
-	def delete_dns_records(self, records: list[str]):
+	def get_all_dns_records(self, record_type=None):
+		"""Fetch all DNS records with auto-pagination."""
+		all_records = []
+		page = 1
+		while True:
+			records = self.get_dns_records(record_type=record_type, page=page, per_page=100)
+			if not records:
+				break
+			all_records.extend(records)
+			if len(records) < 100:
+				break
+			page += 1
+		return all_records
+
+	def delete_dns_records(self, records: list[dict]):
 		try:
-			changes = []
 			for record in records:
-				changes.append({"Action": "DELETE", "ResourceRecordSet": record})
-
-			self.boto3_client.change_resource_record_sets(
-				ChangeBatch={"Changes": changes}, HostedZoneId=self.hosted_zone
-			)
-
+				record_id = record.get("id")
+				if not record_id:
+					continue
+				requests.delete(
+					f"https://api.cloudflare.com/client/v4/zones/{self.cloudflare_zone_id}/dns_records/{record_id}",
+					headers=self.cloudflare_headers,
+				).raise_for_status()
 		except Exception:
-			log_error("Route 53 Record Deletion Error", domain=self.name)
+			log_error("Cloudflare DNS Record Deletion Error", domain=self.name)
 
 	def get_sites_being_renamed(self):
 		# get sites renamed in Server but doc not renamed in press
@@ -143,31 +151,24 @@ class RootDomain(Document):
 
 	def remove_unused_cname_records(self):
 		proxies = frappe.get_all("Proxy Server", {"status": "Active"}, pluck="name")
-
 		default_proxies = self.get_default_cluster_proxies()
 
-		for page in self.get_dns_record_pages():
-			to_delete = []
+		cname_records = self.get_all_dns_records(record_type="CNAME")
+		frappe.db.commit()
+		active_domains = self.get_active_domains()
 
-			frappe.db.commit()
-			active_domains = self.get_active_domains()
+		to_delete = []
+		for record in cname_records:
+			value = record.get("content", "")
+			if value in proxies:
+				domain = record["name"]
+				if domain not in active_domains:
+					to_delete.append(record)
+				elif value in default_proxies:
+					to_delete.append(record)
 
-			for record in page["ResourceRecordSets"]:
-				# Only look at CNAME records that point to a proxy server
-				value = record["ResourceRecords"][0]["Value"]
-				if record["Type"] == "CNAME" and value in proxies:
-					domain = record["Name"].strip(".")
-					# Delete inactive records
-					if domain not in active_domains:  # noqa: SIM114
-						record["Name"] = domain
-						to_delete.append(record)
-					# Delete records that point to a proxy in the default_cluster
-					# These are covered by * records
-					elif value in default_proxies:
-						record["Name"] = domain
-						to_delete.append(record)
-			if to_delete:
-				self.delete_dns_records(to_delete)
+		if to_delete:
+			self.delete_dns_records(to_delete)
 
 	def update_dns_records_for_sites(
 		self, sites: list[str], proxy_server: str, batch_size: int = 500, ttl: int = 600
@@ -175,25 +176,34 @@ class RootDomain(Document):
 		if self.generic_dns_provider:
 			return
 
-		# update records in batches
-		for i in range(0, len(sites), batch_size):
-			changes = []
-			for site in sites[i : i + batch_size]:
-				changes.append(
-					{
-						"Action": "UPSERT",
-						"ResourceRecordSet": {
-							"Name": site,
-							"Type": "CNAME",
-							"TTL": ttl,
-							"ResourceRecords": [{"Value": proxy_server}],
-						},
-					}
-				)
+		headers = self.cloudflare_headers
+		zone_id = self.cloudflare_zone_id
 
-			self.boto3_client.change_resource_record_sets(
-				ChangeBatch={"Changes": changes}, HostedZoneId=self.hosted_zone
-			)
+		for site in sites:
+			payload = {"type": "CNAME", "name": site, "content": proxy_server, "ttl": ttl, "proxied": False}
+			try:
+				# Check if record exists
+				resp = requests.get(
+					f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records",
+					headers=headers,
+					params={"type": "CNAME", "name": site},
+				)
+				resp.raise_for_status()
+				existing = resp.json().get("result", [])
+				if existing:
+					requests.put(
+						f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{existing[0]['id']}",
+						headers=headers,
+						json=payload,
+					).raise_for_status()
+				else:
+					requests.post(
+						f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records",
+						headers=headers,
+						json=payload,
+					).raise_for_status()
+			except Exception:
+				log_error("Cloudflare DNS Update Error", domain=self.name, site=site)
 
 	@frappe.whitelist()
 	def add_to_proxies(self):

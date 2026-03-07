@@ -554,28 +554,22 @@ class LetsEncrypt(BaseCA):
 
 	def _obtain_wildcard(self):
 		domain = frappe.get_doc("Root Domain", self.domain[2:])
-		environment = os.environ.copy()
-		environment.update(
-			{
-				"AWS_ACCESS_KEY_ID": domain.aws_access_key_id,
-				"AWS_SECRET_ACCESS_KEY": domain.get_password("aws_secret_access_key"),
-			}
-		)
-		if domain.aws_region:
-			environment["AWS_DEFAULT_REGION"] = domain.aws_region
-		self.run(self._certbot_command(), environment=environment)
+		self._write_cloudflare_credentials(domain)
+		self.run(self._certbot_command())
 
 	def _obtain_naked_with_dns(self):
 		domain = frappe.get_all("Root Domain", pluck="name", limit=1)[0]
 		domain = frappe.get_doc("Root Domain", domain)
-		environment = os.environ.copy()
-		environment.update(
-			{
-				"AWS_ACCESS_KEY_ID": domain.aws_access_key_id,
-				"AWS_SECRET_ACCESS_KEY": domain.get_password("aws_secret_access_key"),
-			}
-		)
-		self.run(self._certbot_command(), environment=environment)
+		self._write_cloudflare_credentials(domain)
+		self.run(self._certbot_command())
+
+	def _write_cloudflare_credentials(self, domain):
+		"""Write Cloudflare API token to a temporary credentials file for certbot."""
+		self._cf_credentials_path = os.path.join(self.directory, ".cloudflare-credentials.ini")
+		token = domain.get_password("cloudflare_api_token")
+		with open(self._cf_credentials_path, "w") as f:
+			f.write(f"dns_cloudflare_api_token = {token}\n")
+		os.chmod(self._cf_credentials_path, 0o600)
 
 	def _obtain_naked(self):
 		if not os.path.exists(self.webroot_directory):
@@ -584,7 +578,8 @@ class LetsEncrypt(BaseCA):
 
 	def _certbot_command(self):
 		if self.wildcard or frappe.conf.developer_mode:
-			plugin = "--dns-route53"
+			credentials_path = getattr(self, "_cf_credentials_path", "/root/.cloudflare/credentials.ini")
+			plugin = f"--dns-cloudflare --dns-cloudflare-credentials {credentials_path}"
 		else:
 			plugin = f"--webroot --webroot-path {self.webroot_directory}"
 
