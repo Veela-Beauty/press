@@ -90,12 +90,13 @@ class PreBuildValidations:
 		if expected is None or check_version(actual, expected):
 			return
 
-		# Do not change args without updating deploy_notifications.py
-		raise Exception(
-			"Incompatible Python version found",
-			app,
-			actual,
-			expected,
+		# Warn instead of raising for self-hosted deployments where Python version
+		# may not match the app's pyproject.toml requirement exactly
+		warnings.warn(
+			f"App '{app}' expects Python {expected} but found {actual}. Build may still succeed.",
+			BuildWarning,
+			stacklevel=2,
+			source={"app": app, "actual": actual, "expected": expected},
 		)
 
 	def _validate_node_requirement(self):
