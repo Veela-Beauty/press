@@ -12,24 +12,38 @@
   "enabled",
   "column_break_4",
   "dns_provider",
+  "cloudflare_api_token",
+  "cloudflare_zone_id",
   "aws_access_key_id",
   "aws_secret_access_key",
   "aws_region"
  ],
  "fields": [
   {
-   "default": "AWS Route 53",
+   "default": "Cloudflare",
    "fieldname": "dns_provider",
    "fieldtype": "Select",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "DNS Provider",
-   "options": "AWS Route 53\nGeneric",
+   "options": "Cloudflare\nAWS Route 53\nGeneric",
    "reqd": 1
   },
   {
    "fieldname": "column_break_4",
    "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.dns_provider=='Cloudflare'",
+   "fieldname": "cloudflare_api_token",
+   "fieldtype": "Password",
+   "label": "Cloudflare API Token"
+  },
+  {
+   "depends_on": "eval:doc.dns_provider=='Cloudflare'",
+   "fieldname": "cloudflare_zone_id",
+   "fieldtype": "Data",
+   "label": "Cloudflare Zone ID"
   },
   {
    "depends_on": "eval:doc.dns_provider=='AWS Route 53'",
@@ -108,7 +122,7 @@
    "link_fieldname": "domain"
   }
  ],
- "modified": "2025-12-09 14:04:47.403558",
+ "modified": "2026-03-07 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Press",
  "name": "Root Domain",

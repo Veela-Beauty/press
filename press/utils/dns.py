@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import boto3
 import frappe
 import requests
 from dns.exception import DNSException
@@ -67,53 +66,58 @@ def create_dns_record(doc, record_name=None):
 
 def _change_dns_record(method: str, domain: RootDomain, proxy_server: str, record_name: str | None = None):
 	"""
-	Change dns record of site
+	Change dns record of site via Cloudflare API.
 
 	method: CREATE | DELETE | UPSERT
 	"""
 	if domain.generic_dns_provider:
 		return
 
-	client = boto3.client(
-		"route53",
-		aws_access_key_id=domain.aws_access_key_id,
-		aws_secret_access_key=domain.get_password("aws_secret_access_key"),
-		region_name=domain.aws_region,
-	)
+	headers = domain.cloudflare_headers
+	zone_id = domain.cloudflare_zone_id
+
 	try:
-		zones = client.list_hosted_zones_by_name()["HostedZones"]
-		hosted_zone = find(reversed(zones), lambda x: domain.name.endswith(x["Name"][:-1]))["Id"]
-		client.change_resource_record_sets(
-			ChangeBatch={
-				"Changes": [
-					{
-						"Action": method,
-						"ResourceRecordSet": {
-							"Name": record_name,
-							"Type": "CNAME",
-							"TTL": 600,
-							"ResourceRecords": [{"Value": proxy_server}],
-						},
-					}
-				]
-			},
-			HostedZoneId=hosted_zone,
-		)
-	except client.exceptions.InvalidChangeBatch as e:
-		# If we're attempting to DELETE and record is not found, ignore the error
-		# e.response["Error"]["Message"] looks like
-		# [Tried to delete resource record set [name='xxx.frappe.cloud.', type='CNAME'] but it was not found]
-		if method == "DELETE" and "but it was not found" in e.response["Error"]["Message"]:
-			return
-		log_error(
-			"Route 53 Record Creation Error",
-			domain=domain.name,
-			site=record_name,
-			proxy_server=proxy_server,
-		)
+		if method == "DELETE":
+			# Find existing record first
+			resp = requests.get(
+				f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records",
+				headers=headers,
+				params={"type": "CNAME", "name": record_name},
+			)
+			resp.raise_for_status()
+			records = resp.json().get("result", [])
+			if not records:
+				return  # Record not found, nothing to delete
+			for rec in records:
+				requests.delete(
+					f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{rec['id']}",
+					headers=headers,
+				).raise_for_status()
+		else:
+			# UPSERT: check if exists, then PUT or POST
+			resp = requests.get(
+				f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records",
+				headers=headers,
+				params={"type": "CNAME", "name": record_name},
+			)
+			resp.raise_for_status()
+			records = resp.json().get("result", [])
+			payload = {"type": "CNAME", "name": record_name, "content": proxy_server, "ttl": 600, "proxied": False}
+			if records:
+				requests.put(
+					f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{records[0]['id']}",
+					headers=headers,
+					json=payload,
+				).raise_for_status()
+			else:
+				requests.post(
+					f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records",
+					headers=headers,
+					json=payload,
+				).raise_for_status()
 	except Exception:
 		log_error(
-			"Route 53 Record Creation Error",
+			"Cloudflare DNS Record Error",
 			domain=domain.name,
 			site=record_name,
 			proxy_server=proxy_server,
