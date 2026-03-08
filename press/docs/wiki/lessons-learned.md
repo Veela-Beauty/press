@@ -201,3 +201,43 @@
 **What happened:** Build failure notification tries to send email, crashes because no Email Account configured
 **Fix:** Create dummy Email Account with `default_outgoing=1` or set `disable_mail_notifications=1` in site_config.json
 **Lesson:** Press notification system requires an Email Account even if emails are disabled in Press Settings.
+
+## Domain & DNS Gotchas
+
+### 37. Docker images tagged with old domain
+**Fix:** `docker tag old new && docker push new`. Update `docker_image` + `docker_image_repository` in `tabDeploy Candidate Build`.
+
+### 38. Port already allocated on deploy
+**Fix:** `docker stop $(docker ps -q) && docker rm $(docker ps -aq)` — old containers hold ports.
+
+### 39. SSL cert mismatch breaks agent callbacks
+**Fix:** Update Nginx `ssl_certificate` path to new domain cert.
+
+### 40. Cloudflare zone ID mismatch
+**Fix:** `curl zones?name=mvpstorm.com` to find correct zone ID. Zone ID in Root Domain may be wrong.
+
+### 41. Cloudflare API token management — save in ONE place
+**Problem:** Token was changed 3 times across sessions. Had to hunt for it in certbot ini, Press Root Domain x2, memory files.
+**Fix:** Single source of truth at `/root/.cloudflare/credentials.ini` on press-ctrl. When rotating:
+1. Update `/root/.cloudflare/credentials.ini`
+2. Update Press Root Domains via `bench execute` script
+3. Update docs
+**Lesson:** Centralize credentials. Never store the same secret in 3+ unlinked places.
+
+### 42. Cloudflare token verify endpoint differs for account-scoped tokens
+**Problem:** `/user/tokens/verify` returns "Invalid API Token" for account-scoped tokens.
+**Fix:** Use `/accounts/{account_id}/tokens/verify` instead.
+
+## Demo Provisioning Gotchas
+
+### 43. Programmatically created DocTypes need `bench migrate` for tables
+**Problem:** Creating DocType via script creates JSON but NOT the DB table.
+**Fix:** Run `bench migrate` after. Never rely on lazy table creation in API endpoints.
+
+### 44. `frappe.db.table_exists()` takes doctype name, NOT `tab` prefix
+**Problem:** `frappe.db.table_exists("tabDemo Invite Code")` returns False even when table exists.
+**Fix:** Use `frappe.db.table_exists("Demo Invite Code")` — Frappe adds `tab` prefix internally.
+
+### 45. Press Site controller role guards run even with `ignore_permissions=True`
+**Problem:** Guest user calling `site.insert(ignore_permissions=True)` hits `get_current_team()` AuthenticationError.
+**Fix:** Wrap with `frappe.set_user("Administrator")` before insert, restore after.

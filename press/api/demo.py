@@ -4,19 +4,19 @@ Demo Site Provisioning API
 Public API for creating demo sites from a landing page.
 
 Endpoint: POST /api/method/press.api.demo.create
-Input: {"company": "Acme Corp", "email": "user@example.com", "phone": "+1234567890"}
-Output: {"site": "acme-corp.demo.mvpstorm.com", "status": "creating"}
+Input: {"company": "Acme Corp", "email": "user@example.com", "invite_code": "ACCU-DEMO-2026"}
+Output: {"site": "acme-corp.sandbox.mvpstorm.com", "status": "creating"}
 
-The site is created on the AccuBuild Demo bench (bench-0005) with all apps pre-installed.
+Invite codes are managed via the Demo Invite Code DocType in Press.
 """
 
 import re
 
 import frappe
-from frappe.utils import now_datetime
+from frappe.utils import getdate, now_datetime, nowdate
 
 
-# Configuration — change these for your setup
+# Configuration
 DEMO_RELEASE_GROUP = "bench-0005"
 DEMO_PLAN = "Free"
 DEMO_ADMIN_PASSWORD = "demo1234"
@@ -25,13 +25,17 @@ MAX_TOTAL_DEMO_SITES = 50
 
 
 @frappe.whitelist(allow_guest=True)
-def create(company: str, email: str, phone: str = ""):
+def create(company: str, email: str, phone: str = "", invite_code: str = ""):
     """Create a demo site for a potential customer."""
 
-    # 1. Validate input
-    company = (company or "").strip()
+    invite_code = (invite_code or "").strip()
     email = (email or "").strip().lower()
+    company = (company or "").strip()
 
+    # 0. Validate invite code
+    _validate_invite_code(invite_code, email)
+
+    # 1. Validate input
     if not company or len(company) < 2:
         frappe.throw("Company name is required (min 2 characters)")
 
@@ -93,7 +97,9 @@ def create(company: str, email: str, phone: str = ""):
     rg = frappe.get_doc("Release Group", DEMO_RELEASE_GROUP)
     apps = [{"app": a.app} for a in rg.apps]
 
-    # 8. Create site
+    # 8. Create site (run as Administrator to bypass role guards)
+    original_user = frappe.session.user
+    frappe.set_user("Administrator")
     site = frappe.get_doc({
         "doctype": "Site",
         "subdomain": subdomain,
@@ -107,9 +113,11 @@ def create(company: str, email: str, phone: str = ""):
         "apps": apps,
     })
     site.insert(ignore_permissions=True)
+    frappe.set_user(original_user)
 
-    # 9. Log the request
-    _log_demo_request(company, email, phone, site.name)
+    # 9. Log the request and increment invite code usage
+    _log_demo_request(company, email, phone, site.name, invite_code)
+    _increment_invite_usage(invite_code)
 
     frappe.db.commit()
 
@@ -137,49 +145,55 @@ def check_status(site: str):
     }
 
 
+def _validate_invite_code(code: str, email: str):
+    """Validate invite code against Demo Invite Code DocType."""
+    if not code:
+        frappe.throw("Invite code is required")
+
+    if not frappe.db.exists("Demo Invite Code", code):
+        frappe.throw("Invalid invite code")
+
+    doc = frappe.get_doc("Demo Invite Code", code)
+
+    if not doc.enabled:
+        frappe.throw("This invite code has been disabled")
+
+    if doc.expires_on and getdate(doc.expires_on) < getdate(nowdate()):
+        frappe.throw("This invite code has expired")
+
+    if doc.max_uses and doc.used_count >= doc.max_uses:
+        frappe.throw("This invite code has reached its usage limit")
+
+    if doc.email and doc.email.lower() != email:
+        frappe.throw("This invite code is not valid for your email address")
+
+
+def _increment_invite_usage(code: str):
+    """Increment the used_count on the invite code."""
+    if code and frappe.db.exists("Demo Invite Code", code):
+        frappe.db.set_value("Demo Invite Code", code, "used_count",
+            frappe.db.get_value("Demo Invite Code", code, "used_count") + 1)
+
+
 def _slugify(text: str) -> str:
     """Convert company name to valid subdomain."""
     slug = text.lower().strip()
-    slug = re.sub(r"[^a-z0-9]+", "-", slug)  # Replace non-alphanumeric with hyphens
-    slug = re.sub(r"-+", "-", slug)  # Collapse multiple hyphens
-    slug = slug.strip("-")  # Remove leading/trailing hyphens
-    return slug[:30]  # Max 30 chars
+    slug = re.sub(r"[^a-z0-9]+", "-", slug)
+    slug = re.sub(r"-+", "-", slug)
+    slug = slug.strip("-")
+    return slug[:30]
 
 
-def _log_demo_request(company: str, email: str, phone: str, site: str):
-    """Log the demo request. Creates Demo Site Request doctype if it doesn't exist."""
+def _log_demo_request(company: str, email: str, phone: str, site: str, invite_code: str = ""):
+    """Log the demo request."""
     try:
-        if not frappe.db.table_exists("Demo Site Request"):
-            _create_demo_request_doctype()
-
         frappe.get_doc({
             "doctype": "Demo Site Request",
             "company": company,
             "email": email,
             "phone": phone,
             "site": site,
+            "invite_code": invite_code,
         }).insert(ignore_permissions=True)
     except Exception:
-        pass  # Don't fail site creation if logging fails
-
-
-def _create_demo_request_doctype():
-    """Create the Demo Site Request DocType for logging."""
-    if frappe.db.exists("DocType", "Demo Site Request"):
-        return
-
-    dt = frappe.get_doc({
-        "doctype": "DocType",
-        "name": "Demo Site Request",
-        "module": "Press",
-        "autoname": "autoincrement",
-        "fields": [
-            {"fieldname": "company", "fieldtype": "Data", "label": "Company", "in_list_view": 1},
-            {"fieldname": "email", "fieldtype": "Data", "label": "Email", "options": "Email", "in_list_view": 1},
-            {"fieldname": "phone", "fieldtype": "Data", "label": "Phone"},
-            {"fieldname": "site", "fieldtype": "Data", "label": "Site", "in_list_view": 1},
-        ],
-        "permissions": [{"role": "System Manager", "read": 1, "write": 1, "create": 1}],
-    })
-    dt.insert(ignore_permissions=True)
-    frappe.db.commit()
+        pass
