@@ -1,7 +1,7 @@
 <template>
 	<div
 		@click="toggle"
-		class="as-nav-group mt-0.5 flex cursor-pointer select-none items-center rounded px-2 py-1 transition"
+		class="as-nav-group mt-0.5 flex cursor-pointer select-none items-center rounded px-2 py-2 transition"
 		:class="[
 			item.disabled ? 'pointer-events-none opacity-50' : '',
 			$attrs.class,
@@ -11,7 +11,7 @@
 			<span class="grid h-5 w-6 place-items-center">
 				<component :is="item.icon" class="h-4 w-4 as-nav-icon" />
 			</span>
-			<span class="text-sm">{{ item.name }}</span>
+			<span class="text-[13.5px]">{{ item.name }}</span>
 			<component :is="item.badge" />
 			<span class="!ml-auto">
 				<lucide-chevron-down v-if="isOpened" class="h-4 w-4 as-nav-chevron" />
