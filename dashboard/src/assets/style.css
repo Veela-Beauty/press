@@ -23,13 +23,13 @@ input[type='tel'],
 textarea,
 select,
 .form-select {
-	min-height: 36px;
+	min-height: 40px;
 	border-radius: 6px !important;
 }
 button,
 .btn,
 [role='button'] {
-	min-height: 34px;
+	min-height: 38px;
 	border-radius: 6px !important;
 }
 
