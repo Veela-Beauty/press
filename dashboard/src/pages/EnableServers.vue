@@ -6,7 +6,7 @@
 			<div class="prose prose-sm max-w-none">
 				<h1 class="text-2xl font-semibold">Servers</h1>
 				<p class="text-p-base">
-					With Servers on Frappe Cloud, you now get dedicated compute resources
+					With Servers on Accurate Systems Cloud, you now get dedicated compute resources
 					for your sites. Servers come in pairs (Application + Database). You
 					can run as many sites and benches as you want. All other features
 					like Private Benches, SSH Access, Database Access work as is with
@@ -25,7 +25,7 @@
 				</ul>
 				<div>
 					<Link
-						href="https://docs.frappe.io/cloud/servers/servers-introduction"
+						href="https://accuratesystems.com.sa/docs/servers/servers-introduction"
 						target="_blank"
 						class="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-700"
 						>Read more →</Link

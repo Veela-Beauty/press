@@ -37,7 +37,7 @@
 						<FCLogo class="mb-1 h-8 w-8 shrink-0 rounded" />
 						<div class="ml-2 flex flex-1 flex-col overflow-hidden">
 							<div class="text-base font-medium leading-none text-gray-900">
-								Frappe Cloud
+								Accurate Systems
 							</div>
 							<Tooltip :text="$team?.doc?.user || null">
 								<div
@@ -95,11 +95,13 @@ export default {
 	},
 	methods: {
 		docs() {
-			window.open('https://docs.frappe.io/cloud', '_blank');
+			/* Rebrand: Accurate Systems support/docs URL */
+			window.open('https://accuratesystems.com.sa/docs', '_blank');
 		},
 		feedback() {
+			/* Rebrand: Accurate Systems feedback URL */
 			window.open(
-				'https://frappecloud.com/frappe-cloud-feedback/new',
+				'https://accuratesystems.com.sa/feedback',
 				'_blank',
 			);
 		},

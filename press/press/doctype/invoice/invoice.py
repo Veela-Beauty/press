@@ -484,7 +484,7 @@ class Invoice(Document):
 		if self.stripe_invoice_id:
 			return
 		# if stripe invoice was created, find it and set it
-		# so that we avoid scenarios where Stripe Invoice was created but not set in Frappe Cloud
+		# so that we avoid scenarios where Stripe Invoice was created but not set in Accurate Systems Cloud
 		stripe = get_stripe()
 		invoices = stripe.Invoice.list(customer=frappe.db.get_value("Team", self.team, "stripe_customer_id"))
 		description = self.get_stripe_invoice_item_description()
@@ -499,7 +499,7 @@ class Invoice(Document):
 		start = getdate(self.period_start)
 		end = getdate(self.period_end)
 		period_string = f"{start.strftime('%b %d')} - {end.strftime('%b %d')} {end.year}"
-		return f"Frappe Cloud Subscription ({period_string})"
+		return f"Accurate Systems Cloud Subscription ({period_string})"
 
 	@frappe.whitelist()
 	def finalize_stripe_invoice(self):
@@ -1217,7 +1217,7 @@ def create_sales_invoice_on_external_site(transaction_response):
 			"due_date": frappe.utils.add_days(frappe.utils.nowdate(), 30),
 			"items": [
 				{
-					"item_code": "Frappe Cloud Payment",
+					"item_code": "Accurate Systems Cloud Payment",
 					"qty": 1,
 					"rate": transaction_response.get("Amount"),
 					"description": "Payment for Mpesa transaction",

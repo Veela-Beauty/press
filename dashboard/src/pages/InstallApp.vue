@@ -174,7 +174,7 @@
 					</div>
 					<a
 						class="text-sm underline"
-						href="https://docs.frappe.io/cloud/installing-an-app"
+						href="https://accuratesystems.com.sa/docs/installing-an-app"
 						target="_blank"
 					>
 						Read documentation
@@ -202,7 +202,7 @@ export default {
 	},
 	pageMeta() {
 		return {
-			title: `Install ${this.appDoc.title} - Frappe Cloud`,
+			title: `Install ${this.appDoc.title} - Accurate Systems Cloud`,
 		};
 	},
 	components: {

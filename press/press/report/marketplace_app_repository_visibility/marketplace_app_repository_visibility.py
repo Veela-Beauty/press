@@ -9,7 +9,7 @@ def send_developer_email(email, app_name, repository_url):
 	developer_name = dev.full_name
 	email_args = {
 		"recipients": email,
-		"subject": "Frappe Cloud: Make your app's GitHub Repository Public",
+		"subject": "Accurate Systems Cloud: Make your app's GitHub Repository Public",
 		"template": "marketplace_app_visibility",
 		"args": {
 			"developer_name": developer_name,

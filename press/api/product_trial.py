@@ -70,7 +70,7 @@ def login_using_code(email: str, product: str, code: str):
 	if not team.enabled:
 		frappe.throw("Your account is disabled. Please contact support.")
 	if team.enforce_2fa:
-		frappe.throw("Your account has 2FA enabled. Please go to frappecloud.com to login.")
+		frappe.throw("Your account has 2FA enabled. Please go to accuratesystems.com.sa to login.")
 
 	# validate code
 	code_hash_from_cache = frappe.cache.get_value(f"product_trial_login_verification_code:{email}")

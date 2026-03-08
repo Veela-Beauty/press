@@ -42,7 +42,7 @@
 					<p class="mt-1.5 text-sm text-gray-700">
 						<secret>Note:</secret> Secret is optional. Check
 						<a
-							href="https://docs.frappe.io/cloud/webhook-introduction"
+							href="https://accuratesystems.com.sa/docs/webhook-introduction"
 							class="underline"
 							target="_blank"
 							>the documentation</a

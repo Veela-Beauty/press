@@ -27,7 +27,7 @@
 			<Button
 				class="ml-auto min-w-[7rem]"
 				variant="outline"
-				link="https://docs.frappe.io/cloud/faq/site#my-site-is-suspended-what-do-i-do"
+				link="https://accuratesystems.com.sa/docs/faq/site#my-site-is-suspended-what-do-i-do"
 			>
 				More Info
 			</Button>
@@ -42,7 +42,7 @@
 			<Button
 				class="ml-auto min-w-[7rem]"
 				variant="outline"
-				link="https://docs.frappe.io/cloud/faq/site#my-site-is-suspended-what-do-i-do"
+				link="https://accuratesystems.com.sa/docs/faq/site#my-site-is-suspended-what-do-i-do"
 			>
 				More Info
 			</Button>
@@ -91,7 +91,7 @@
 			<Button
 				class="ml-auto min-w-[7rem]"
 				variant="outline"
-				link="https://docs.frappe.io/cloud/sites/version-upgrade"
+				link="https://accuratesystems.com.sa/docs/sites/version-upgrade"
 			>
 				Upgrade Now
 			</Button>
@@ -105,7 +105,7 @@
 				$site.doc.status !== 'Archived'
 			"
 			class="col-span-1 lg:col-span-2"
-			title="Your site is currently on a shared bench. Upgrade plan to enjoy <a href='https://frappecloud.com/shared-hosting#benches' class='underline' target='_blank'>more benefits</a>."
+			title="Your site is currently on a shared bench. Upgrade plan to enjoy <a href='https://accuratesystems.com.sa/shared-hosting#benches' class='underline' target='_blank'>more benefits</a>."
 			:id="$site.name"
 			type="gray"
 		>
@@ -253,7 +253,7 @@
 									: 0) >= 80
 							"
 							variant="ghost"
-							link="https://docs.frappe.io/cloud/faq/site#what-is-using-up-all-my-database-size"
+							link="https://accuratesystems.com.sa/docs/faq/site#what-is-using-up-all-my-database-size"
 							icon="help-circle"
 						/>
 					</div>

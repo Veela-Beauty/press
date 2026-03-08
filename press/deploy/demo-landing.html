@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Try AccuBuild - Construction Management Demo</title>
+    <style>
+        :root {
+            --brand: #046bd2;
+            --brand-dark: #045cb4;
+            --brand-light: #edf4fc;
+            --text-dark: #1e293b;
+            --text-body: #333e54;
+            --text-muted: #6b7280;
+            --border: #D1D5DB;
+            --bg: #F0F5FA;
+            --white: #FFFFFF;
+            --success: #059669;
+            --error: #dc2626;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+            background: var(--bg); color: var(--text-dark); min-height: 100vh;
+            display: flex; align-items: center; justify-content: center; padding: 20px;
+        }
+        .demo-container { max-width: 600px; width: 100%; }
+        .demo-header { text-align: center; margin-bottom: 32px; }
+        .demo-logo {
+            display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 10px;
+        }
+        .demo-logo img { height: 52px; width: auto; }
+        .demo-logo-divider { width: 1px; height: 36px; background: var(--border); }
+        .demo-logo-product {
+            font-size: 1.5rem; font-weight: 700; color: var(--text-dark); letter-spacing: -0.3px;
+        }
+        .demo-header p { color: var(--text-muted); font-size: 1rem; margin-top: 4px; }
+        .demo-card {
+            background: var(--white); border: 1px solid var(--border); border-radius: 12px;
+            padding: 32px; box-shadow: 0 4px 20px rgba(4,107,210,0.06);
+        }
+        .demo-field { margin-bottom: 20px; }
+        .demo-field label { display: block; font-weight: 600; margin-bottom: 6px; color: var(--text-body); font-size: 0.9rem; }
+        .demo-field input, .demo-field select, .demo-field textarea {
+            width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px;
+            font-size: 1rem; transition: border-color 0.2s; font-family: inherit;
+        }
+        .demo-field input:focus, .demo-field select:focus, .demo-field textarea:focus {
+            outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(4,107,210,0.1);
+        }
+        .demo-field textarea { min-height: 60px; resize: vertical; }
+        .demo-btn {
+            width: 100%; padding: 12px; background: var(--brand); color: var(--white); border: none;
+            border-radius: 6px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+        }
+        .demo-btn:hover { background: var(--brand-dark); }
+        .demo-btn:disabled { background: #93b8e0; cursor: not-allowed; }
+        .demo-btn-secondary {
+            width: 100%; padding: 12px; background: var(--white); color: var(--brand); border: 1px solid var(--brand);
+            border-radius: 6px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 10px;
+        }
+        .demo-btn-secondary:hover { background: var(--brand-light); }
+        .demo-btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .demo-btn-outline {
+            width: 100%; padding: 12px; background: var(--white); color: var(--text-body); border: 1px solid var(--border);
+            border-radius: 6px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 10px;
+        }
+        .demo-btn-outline:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-light); }
+        .demo-link {
+            display: block; text-align: center; margin-top: 16px;
+            color: var(--brand); font-size: 0.9rem; cursor: pointer; text-decoration: underline;
+        }
+        .demo-link:hover { color: var(--brand-dark); }
+        .demo-divider {
+            display: flex; align-items: center; gap: 12px; margin: 20px 0; color: #9ca3af; font-size: 0.85rem;
+        }
+        .demo-divider::before, .demo-divider::after {
+            content: ""; flex: 1; height: 1px; background: var(--border);
+        }
+        .demo-status { display: none; text-align: center; padding: 24px; }
+        .spinner {
+            width: 40px; height: 40px; border: 4px solid #e5e7eb; border-top-color: var(--brand);
+            border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .demo-status h3 { color: var(--text-dark); margin-bottom: 8px; }
+        .demo-status p { color: var(--text-muted); }
+        .demo-ready { display: none; text-align: center; padding: 24px; }
+        .demo-ready h3 { color: var(--success); margin-bottom: 12px; }
+        .demo-ready .site-url {
+            display: inline-block; padding: 10px 20px; background: #ecfdf5; border: 1px solid #a7f3d0;
+            border-radius: 6px; font-size: 1.1rem; font-weight: 600; color: var(--success); text-decoration: none; margin: 12px 0;
+        }
+        .demo-ready .site-url:hover { background: #d1fae5; }
+        .demo-ready .credentials {
+            margin-top: 16px; padding: 16px; background: #f9fafb; border-radius: 8px; text-align: left; font-size: 0.9rem;
+        }
+        .demo-ready .credentials code { background: #e5e7eb; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+        .demo-error {
+            display: none; text-align: center; padding: 16px; background: #fef2f2; border: 1px solid #fecaca;
+            border-radius: 6px; color: var(--error); margin-top: 16px;
+        }
+        .demo-success {
+            display: none; text-align: center; padding: 16px; background: #ecfdf5; border: 1px solid #a7f3d0;
+            border-radius: 6px; color: var(--success); margin-top: 16px;
+        }
+        .demo-info {
+            display: none; text-align: center; padding: 20px; background: var(--brand-light); border: 1px solid #b8d4f0;
+            border-radius: 8px; color: var(--brand-dark);
+        }
+        .demo-info h3 { margin-bottom: 8px; }
+        .demo-info p { font-size: 0.9rem; line-height: 1.5; }
+        .demo-features { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 24px; }
+        .demo-feature {
+            padding: 14px; background: var(--white); border: 1px solid var(--border); border-radius: 8px;
+            font-size: 0.85rem; color: var(--text-body); transition: border-color 0.2s;
+        }
+        .demo-feature:hover { border-color: var(--brand); }
+        .demo-feature strong { color: var(--brand); display: block; margin-bottom: 4px; }
+
+        /* Requirements Form */
+        .req-wizard { display: none; margin-top: 20px; }
+        .req-wizard h3 { color: var(--text-dark); margin-bottom: 4px; font-size: 1.1rem; }
+        .req-wizard .req-subtitle { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 16px; }
+        .req-progress { display: flex; gap: 6px; margin-bottom: 20px; }
+        .req-progress .step { flex: 1; height: 4px; background: #e5e7eb; border-radius: 2px; transition: background 0.3s; }
+        .req-progress .step.active { background: var(--brand); }
+        .req-progress .step.done { background: var(--success); }
+        .req-step { display: none; }
+        .req-step.active { display: block; }
+        .req-step h4 { color: var(--text-dark); font-size: 0.95rem; margin-bottom: 12px; font-weight: 600; }
+        .req-field { margin-bottom: 14px; }
+        .req-field label { display: block; font-weight: 500; color: var(--text-body); margin-bottom: 4px; font-size: 0.85rem; }
+        .req-field select, .req-field input, .req-field textarea {
+            width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; font-family: inherit;
+        }
+        .req-field select:focus, .req-field input:focus, .req-field textarea:focus {
+            outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px rgba(4,107,210,0.1);
+        }
+        .req-field textarea { min-height: 60px; resize: vertical; }
+        .req-checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        .req-checks label {
+            display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+            border: 1px solid #e5e7eb; border-radius: 6px; cursor: pointer; font-weight: 400; font-size: 0.85rem;
+        }
+        .req-checks label:hover { border-color: var(--brand); background: var(--brand-light); }
+        .req-checks input[type="checkbox"] { accent-color: var(--brand); }
+        .req-nav { display: flex; gap: 8px; margin-top: 16px; }
+        .req-nav .req-back { flex: 0 0 auto; padding: 8px 16px; background: #f3f4f6; color: var(--text-body); border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+        .req-nav .req-next { flex: 1; padding: 8px 16px; background: var(--brand); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 600; }
+        .req-nav .req-next:hover { background: var(--brand-dark); }
+        .req-nav .req-back:hover { background: #e5e7eb; }
+        .req-nav .req-skip { flex: 0 0 auto; padding: 8px 16px; background: transparent; color: var(--text-muted); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+        .req-done { display: none; text-align: center; padding: 16px; }
+        .req-done p { color: var(--success); font-weight: 600; }
+
+        @media (max-width: 480px) {
+            .demo-features { grid-template-columns: 1fr; }
+            .demo-card { padding: 24px; }
+            .req-checks { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="demo-container">
+    <div class="demo-header">
+        <div class="demo-logo">
+            <img src="https://accuratesystems.com.sa/wp-content/uploads/2025/12/logo-new.png" alt="Accurate Systems">
+            <div class="demo-logo-divider"></div>
+            <div class="demo-logo-product">AccuBuild</div>
+        </div>
+        <p>Get your own construction management demo</p>
+    </div>
+
+    <div class="demo-card">
+
+        <!-- LANDING: Two choices -->
+        <div id="landing-choice">
+            <button class="demo-btn" onclick="showInviteForm()">
+                I Have an Invite Code
+            </button>
+            <div class="demo-divider">or</div>
+            <button class="demo-btn-outline" onclick="showRequestForm()">
+                Request a Demo
+            </button>
+            <span class="demo-link" onclick="showRecoverForm()">Forgot your credentials?</span>
+        </div>
+
+        <!-- PATH A: Has invite code → create site -->
+        <div id="invite-form" style="display:none;">
+            <h3 style="margin-bottom:20px;font-size:1.1rem;">Create Your Demo Site</h3>
+            <div class="demo-field">
+                <label>Company Name *</label>
+                <input type="text" id="company" placeholder="e.g. Acme Construction" required>
+            </div>
+            <div class="demo-field">
+                <label>Email *</label>
+                <input type="email" id="email" placeholder="you@company.com" required>
+            </div>
+            <div class="demo-field">
+                <label>Phone</label>
+                <input type="tel" id="phone" placeholder="+1 (555) 000-0000">
+            </div>
+            <div class="demo-field">
+                <label>Invite Code *</label>
+                <input type="text" id="invite_code" placeholder="Enter your invite code" required>
+            </div>
+            <button class="demo-btn" onclick="createDemo()">
+                Create My Demo Site
+            </button>
+            <span class="demo-link" onclick="showLanding()">Back</span>
+            <div class="demo-error" id="error-msg"></div>
+        </div>
+
+        <!-- PATH B: Request demo (no invite code yet) -->
+        <div id="request-form" style="display:none;">
+            <h3 style="margin-bottom:4px;font-size:1.1rem;">Request a Demo</h3>
+            <p style="color:#6b7280;font-size:0.85rem;margin-bottom:20px;">Tell us about your company and we'll send you an invite code</p>
+            <div class="demo-field">
+                <label>Company Name *</label>
+                <input type="text" id="req-company" placeholder="e.g. Acme Construction" required>
+            </div>
+            <div class="demo-field">
+                <label>Email *</label>
+                <input type="email" id="req-email" placeholder="you@company.com" required>
+            </div>
+            <div class="demo-field">
+                <label>Phone</label>
+                <input type="tel" id="req-phone" placeholder="+1 (555) 000-0000">
+            </div>
+            <div class="demo-field">
+                <label>Industry</label>
+                <select id="req-industry-field">
+                    <option value="">Select Industry</option>
+                    <option value="Trading">Trading</option>
+                    <option value="Services">Services</option>
+                    <option value="Manufacturing">Manufacturing</option>
+                    <option value="Construction/Contracting">Construction/Contracting</option>
+                    <option value="Retail">Retail</option>
+                    <option value="Distribution">Distribution</option>
+                    <option value="Healthcare">Healthcare</option>
+                    <option value="Education">Education</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="demo-field">
+                <label>What are you looking for? (optional)</label>
+                <textarea id="req-message" placeholder="Tell us about your needs, current system, team size..."></textarea>
+            </div>
+            <button class="demo-btn" id="request-btn" onclick="requestDemo()">
+                Submit Request
+            </button>
+            <span class="demo-link" onclick="showLanding()">Back</span>
+            <div class="demo-error" id="request-error"></div>
+        </div>
+
+        <!-- REQUEST SUBMITTED confirmation -->
+        <div class="demo-info" id="request-submitted">
+            <h3>Request Received!</h3>
+            <p>Thank you. We'll review your request and send an invite code to <strong id="submitted-email"></strong> shortly.</p>
+            <p style="margin-top:12px;">Already have a code? <span class="demo-link" onclick="showInviteForm()" style="display:inline;margin:0;">Enter it here</span></p>
+        </div>
+
+        <!-- RECOVER CREDENTIALS FORM -->
+        <div id="recover-form" style="display:none;">
+            <div class="demo-field">
+                <label>Enter your email to receive your demo credentials</label>
+                <input type="email" id="recover-email" placeholder="you@company.com" required>
+            </div>
+            <button class="demo-btn" id="recover-btn" onclick="resendCredentials()">
+                Send My Credentials
+            </button>
+            <span class="demo-link" onclick="showLanding()">Back</span>
+            <div class="demo-error" id="recover-error"></div>
+            <div class="demo-success" id="recover-success"></div>
+        </div>
+
+        <!-- CREATING STATUS -->
+        <div class="demo-status" id="demo-creating">
+            <div class="spinner"></div>
+            <h3>Creating your demo site...</h3>
+            <p>This takes about 2 minutes. Please wait.</p>
+        </div>
+
+        <!-- SITE READY -->
+        <div class="demo-ready" id="demo-ready">
+            <h3>Your demo site is ready!</h3>
+            <a class="site-url" id="site-link" href="#" target="_blank">Open Your Site</a>
+            <div class="credentials">
+                <p><strong>Login credentials have been sent to your email.</strong></p>
+                <p>URL: <code id="site-url-text"></code></p>
+                <p>Username: <em>Your email address</em></p>
+                <p>Password: <em>Check your email</em></p>
+            </div>
+            <button class="demo-btn-secondary" onclick="resendFromReady()" id="resend-ready-btn">
+                Resend Credentials to My Email
+            </button>
+            <button class="demo-btn" onclick="showRequirementsForm()" id="start-req-btn" style="margin-top:12px;">
+                Tell Us About Your Needs
+            </button>
+
+            <!-- REQUIREMENTS WIZARD (10 steps) -->
+            <div class="req-wizard" id="req-wizard">
+                <h3>Help us understand your business</h3>
+                <p class="req-subtitle">10 quick steps so we can tailor the demo to your needs</p>
+                <div class="req-progress" id="req-progress">
+                    <div class="step active"></div><div class="step"></div><div class="step"></div><div class="step"></div><div class="step"></div><div class="step"></div><div class="step"></div><div class="step"></div><div class="step"></div><div class="step"></div>
+                </div>
+
+                <!-- Step 1: Company & Scale -->
+                <div class="req-step active" data-step="1">
+                    <h4>1. Company &amp; Scale</h4>
+                    <div class="req-field"><label>Industry</label>
+                        <select id="req-industry"><option value="">Select</option><option value="Trading">Trading</option><option value="Services">Services</option><option value="Manufacturing">Manufacturing</option><option value="Construction/Contracting">Construction/Contracting</option><option value="Retail">Retail</option><option value="Distribution">Distribution</option><option value="Healthcare">Healthcare</option><option value="Education">Education</option><option value="Other">Other</option></select></div>
+                    <div class="req-field"><label>Business Model</label>
+                        <div class="req-checks" id="req-biz-model"><label><input type="checkbox" value="Trading (Buy & Sell)"> Trading</label><label><input type="checkbox" value="Services"> Services</label><label><input type="checkbox" value="Manufacturing"> Manufacturing</label><label><input type="checkbox" value="Projects/Contracting"> Projects</label></div></div>
+                    <div class="req-field"><label>Number of Employees</label>
+                        <select id="req-employees"><option value="">Select</option><option value="1-10">1-10</option><option value="11-50">11-50</option><option value="51-100">51-100</option><option value="101-250">101-250</option><option value="251-500">251-500</option><option value="500+">500+</option></select></div>
+                    <div class="req-field"><label>Expected ERPNext Users</label><input type="number" id="req-users" min="1" placeholder="e.g. 10"></div>
+                    <div class="req-field"><label>Number of Branches</label><input type="number" id="req-branches" min="1" value="1"></div>
+                    <div class="req-field"><label>Monthly Transaction Volume</label>
+                        <select id="req-txn-volume"><option value="">Select</option><option value="<100">&lt;100</option><option value="100-500">100-500</option><option value="500-1000">500-1,000</option><option value="1000-5000">1,000-5,000</option><option value="5000+">5,000+</option></select></div>
+                    <div class="req-nav"><button class="req-skip" onclick="skipRequirements()">Skip All</button><button class="req-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 2: Compliance & Localization -->
+                <div class="req-step" data-step="2">
+                    <h4>2. Compliance &amp; Localization</h4>
+                    <div class="req-field"><label>VAT Status</label>
+                        <select id="req-vat"><option value="">Select</option><option value="VAT Registered">VAT Registered</option><option value="Not Registered">Not Registered</option><option value="Planning to Register">Planning to Register</option></select></div>
+                    <div class="req-field"><label>ZATCA e-Invoicing</label>
+                        <select id="req-zatca"><option value="">Select</option><option value="Phase 1 (Generation)">Phase 1 (Generation)</option><option value="Phase 2 (Integration)">Phase 2 (Integration)</option><option value="Not Required">Not Required</option></select></div>
+                    <div class="req-field"><label>Languages Needed</label>
+                        <div class="req-checks" id="req-languages"><label><input type="checkbox" value="English" checked> English</label><label><input type="checkbox" value="Arabic"> Arabic</label></div></div>
+                    <div class="req-field"><label>Other Compliance Requirements</label><textarea id="req-compliance-other" placeholder="Other regulatory needs, certifications..."></textarea></div>
+                    <div class="req-nav"><button class="req-back" onclick="reqPrev()">Back</button><button class="req-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 3: Current Systems -->
+                <div class="req-step" data-step="3">
+                    <h4>3. Current Systems &amp; Pain Points</h4>
+                    <div class="req-field"><label>Current ERP / Accounting System</label>
+                        <select id="req-current-system"><option value="">Select</option><option value="Excel Spreadsheets">Excel Spreadsheets</option><option value="QuickBooks">QuickBooks</option><option value="Sage">Sage</option><option value="Odoo">Odoo</option><option value="SAP">SAP</option><option value="Oracle">Oracle</option><option value="Legacy/Custom System">Legacy/Custom</option><option value="No System (Manual)">No System</option><option value="Other">Other</option></select></div>
+                    <div class="req-field"><label>Key Pain Points</label><textarea id="req-pain-points" placeholder="Main challenges with your current system..."></textarea></div>
+                    <div class="req-field"><label>Departments Using Software</label>
+                        <div class="req-checks" id="req-depts"><label><input type="checkbox" value="Finance/Accounting"> Finance</label><label><input type="checkbox" value="Sales"> Sales</label><label><input type="checkbox" value="Purchasing"> Purchasing</label><label><input type="checkbox" value="Warehouse/Inventory"> Warehouse</label><label><input type="checkbox" value="HR/Payroll"> HR/Payroll</label><label><input type="checkbox" value="Projects"> Projects</label></div></div>
+                    <div class="req-nav"><button class="req-back" onclick="reqPrev()">Back</button><button class="req-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 4: Modules Needed -->
+                <div class="req-step" data-step="4">
+                    <h4>4. ERPNext Modules Required</h4>
+                    <div class="req-field"><label>Select all modules you need</label>
+                        <div class="req-checks" id="req-modules"><label><input type="checkbox" value="Accounting & Finance"> Accounting</label><label><input type="checkbox" value="Sales & CRM"> Sales & CRM</label><label><input type="checkbox" value="Purchasing"> Purchasing</label><label><input type="checkbox" value="Inventory/Stock"> Inventory</label><label><input type="checkbox" value="Projects"> Projects</label><label><input type="checkbox" value="Manufacturing"> Manufacturing</label><label><input type="checkbox" value="HR & Payroll"> HR & Payroll</label><label><input type="checkbox" value="Asset Management"> Assets</label><label><input type="checkbox" value="Quality Management"> Quality</label><label><input type="checkbox" value="Maintenance"> Maintenance</label></div></div>
+                    <div class="req-field"><label>Top 3 Priority Modules</label><input type="text" id="req-priority" placeholder="e.g. Accounting, Sales, Inventory"></div>
+                    <div class="req-nav"><button class="req-back" onclick="reqPrev()">Back</button><button class="req-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 5: Finance & Accounting -->
+                <div class="req-step" data-step="5">
+                    <h4>5. Finance &amp; Accounting</h4>
+                    <div class="req-field"><label>Chart of Accounts</label>
+                        <select id="req-coa"><option value="">Select</option><option value="Standard ERPNext">Standard ERPNext</option><option value="Customized Required">Customized Required</option></select></div>
+                    <div class="req-field"><label>Accounting Features</label>
+                        <div class="req-checks" id="req-acct-features"><label><input type="checkbox" value="Multi-company Accounting"> Multi-company</label><label><input type="checkbox" value="Cost Centers"> Cost Centers</label><label><input type="checkbox" value="Profit Center Tracking"> Profit Centers</label><label><input type="checkbox" value="Budget Control"> Budget Control</label><label><input type="checkbox" value="Fixed Assets Management"> Fixed Assets</label></div></div>
+                    <div class="req-field"><label>Period Closing Requirements</label><textarea id="req-period-closing" placeholder="Month-end/year-end closing requirements..."></textarea></div>
+                    <div class="req-field"><label>Financial Reports Needed</label><textarea id="req-fin-reports" placeholder="P&L by cost center, consolidated balance sheet, cash flow..."></textarea></div>
+                    <div class="req-nav"><button class="req-back" onclick="reqPrev()">Back</button><button class="req-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 6: Sales, Purchasing, Inventory -->
+                <div class="req-step" data-step="6">
+                    <h4>6. Sales, Purchasing &amp; Inventory</h4>
+                    <div class="req-field"><label>Sales Features</label>
+                        <div class="req-checks" id="req-sales"><label><input type="checkbox" value="Lead Management"> Lead Mgmt</label><label><input type="checkbox" value="Opportunity Tracking"> Opportunities</label><label><input type="checkbox" value="Quotation Approval"> Quote Approval</label><label><input type="checkbox" value="Pricing Rules & Discounts"> Pricing Rules</label><label><input type="checkbox" value="Customer Credit Limits"> Credit Limits</label><label><input type="checkbox" value="Sales Commissions"> Commissions</label><label><input type="checkbox" value="Customer Portal"> Customer Portal</label></div></div>
+                    <div class="req-field"><label>Purchasing Features</label>
+                        <div class="req-checks" id="req-purchasing"><label><input type="checkbox" value="PO Approval Workflows"> PO Approval</label><label><input type="checkbox" value="Blanket Purchase Orders"> Blanket POs</label><label><input type="checkbox" value="Landed Cost Handling"> Landed Cost</label><label><input type="checkbox" value="Supplier Evaluation"> Supplier Eval</label></div></div>
+                    <div class="req-field"><label>Inventory Type</label>
+                        <select id="req-inv-type"><option value="">Select</option><option value="Non-stock (Services)">Non-stock (Services)</option><option value="Stock Items">Stock Items</option><option value="Mixed (Stock + Non-stock)">Mixed</option></select></div>
+                    <div class="req-field"><label>Stock Valuation</label>
+                        <select id="req-valuation"><option value="">Select</option><option value="FIFO">FIFO</option><option value="Moving Average">Moving Average</option></select></div>
+                    <div class="req-field"><label>Inventory Features</label>
+                        <div class="req-checks" id="req-inv-features"><label><input type="checkbox" value="Batch Tracking"> Batch Tracking</label><label><input type="checkbox" value="Serial Numbers"> Serial Numbers</label><label><input type="checkbox" value="Stock Reservations"> Reservations</label><label><input type="checkbox" value="Auto Reorder"> Auto Reorder</label><label><input type="checkbox" value="Barcode Scanning"> Barcode</label></div></div>
+                    <div class="req-nav"><button class="req-back" onclick="reqPrev()">Back</button><button class="req-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 7: Projects, Manufacturing, HR -->
+                <div class="req-step" data-step="7">
+                    <h4>7. Projects, Manufacturing &amp; HR</h4>
+                    <div class="req-field"><label>Project Features</label>
+                        <div class="req-checks" id="req-projects"><label><input type="checkbox" value="Project-based Costing"> Project Costing</label><label><input type="checkbox" value="Timesheets"> Timesheets</label><label><input type="checkbox" value="Milestone Billing"> Milestone Billing</label><label><input type="checkbox" value="Retention Handling"> Retention</label><label><input type="checkbox" value="Variation Orders"> Variation Orders</label></div></div>
+                    <div class="req-field"><label>Manufacturing Type</label>
+                        <select id="req-mfg-type"><option value="">Select</option><option value="Make-to-Stock">Make-to-Stock</option><option value="Make-to-Order">Make-to-Order</option><option value="Both">Both</option><option value="Not Applicable">N/A</option></select></div>
+                    <div class="req-field"><label>Manufacturing Features</label>
+                        <div class="req-checks" id="req-mfg"><label><input type="checkbox" value="Work Orders"> Work Orders</label><label><input type="checkbox" value="Subcontracting"> Subcontracting</label><label><input type="checkbox" value="Quality Inspection"> Quality Inspection</label></div></div>
+                    <div class="req-field"><label>HR Features</label>
+                        <div class="req-checks" id="req-hr"><label><input type="checkbox" value="Attendance Tracking"> Attendance</label><label><input type="checkbox" value="Leave Management"> Leave Mgmt</label><label><input type="checkbox" value="Payroll Processing"> Payroll</label><label><input type="checkbox" value="EOSB"> EOSB</label><label><input type="checkbox" value="Payroll-Accounting Integration"> Payroll-Acct</label></div></div>
+                    <div class="req-field"><label>Payroll Frequency</label>
+                        <select id="req-payroll-freq"><option value="">Select</option><option value="Monthly">Monthly</option><option value="Semi-Monthly">Semi-Monthly</option><option value="Bi-Weekly">Bi-Weekly</option></select></div>
+                    <div class="req-nav"><button class="req-back" onclick="reqPrev()">Back</button><button class="req-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 8: Integrations & Security -->
+                <div class="req-step" data-step="8">
+                    <h4>8. Integrations &amp; Security</h4>
+                    <div class="req-field"><label>Integration Requirements</label>
+                        <div class="req-checks" id="req-integrations-list"><label><input type="checkbox" value="Bank Integration"> Bank</label><label><input type="checkbox" value="Payment Gateway"> Payment Gateway</label><label><input type="checkbox" value="E-commerce"> E-commerce</label><label><input type="checkbox" value="Biometric Attendance"> Biometric</label><label><input type="checkbox" value="Shipping/Logistics"> Shipping</label><label><input type="checkbox" value="POS System"> POS</label></div></div>
+                    <div class="req-field"><label>Other Systems to Integrate</label><textarea id="req-other-integrations" placeholder="Third-party systems, APIs..."></textarea></div>
+                    <div class="req-field"><label>Approval Workflows Needed</label>
+                        <div class="req-checks" id="req-approvals"><label><input type="checkbox" value="Purchase Orders"> PO Approval</label><label><input type="checkbox" value="Quotations/Sales Orders"> Quotes/SO</label><label><input type="checkbox" value="Expense Claims"> Expenses</label><label><input type="checkbox" value="Leave Applications"> Leave</label><label><input type="checkbox" value="Payment Entries"> Payments</label><label><input type="checkbox" value="Journal Entries"> Journal</label></div></div>
+                    <div class="req-nav"><button class="req-back" onclick="reqPrev()">Back</button><button class="req-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 9: Data Migration & Training -->
+                <div class="req-step" data-step="9">
+                    <h4>9. Data Migration &amp; Training</h4>
+                    <div class="req-field"><label>Data Migration Scope</label>
+                        <select id="req-data-scope"><option value="">Select</option><option value="Masters Only">Masters Only (Customers, Items, CoA)</option><option value="Masters + Opening Balances">Masters + Opening Balances</option><option value="Full Transaction History">Full Transaction History</option></select></div>
+                    <div class="req-field"><label>Data Quality</label>
+                        <select id="req-data-quality"><option value="">Select</option><option value="Clean & Ready">Clean & Ready</option><option value="Needs Cleaning">Needs Cleaning</option><option value="Not Sure">Not Sure</option></select></div>
+                    <div class="req-field"><label>User Technical Skill Level</label>
+                        <select id="req-skill-level"><option value="">Select</option><option value="Basic">Basic</option><option value="Intermediate">Intermediate</option><option value="Advanced">Advanced</option><option value="Mixed">Mixed</option></select></div>
+                    <div class="req-field"><label>Training Language</label>
+                        <div class="req-checks" id="req-train-lang"><label><input type="checkbox" value="English"> English</label><label><input type="checkbox" value="Arabic"> Arabic</label></div></div>
+                    <div class="req-field"><label>Asset Categories (if applicable)</label><textarea id="req-assets" placeholder="Vehicles, Computers, Machinery, Furniture..."></textarea></div>
+                    <div class="req-nav"><button class="req-back" onclick="reqPrev()">Back</button><button class="req-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 10: Reporting, Implementation & Success -->
+                <div class="req-step" data-step="10">
+                    <h4>10. Reporting &amp; Implementation</h4>
+                    <div class="req-field"><label>Custom Reports Needed?</label>
+                        <select id="req-reports"><option value="">Select</option><option value="Standard reports sufficient">Standard Sufficient</option><option value="Custom reports required">Custom Required</option><option value="Not sure">Not Sure</option></select></div>
+                    <div class="req-field"><label>Print Format Customization</label>
+                        <div class="req-checks" id="req-prints"><label><input type="checkbox" value="Custom Invoice"> Invoice</label><label><input type="checkbox" value="Custom Quotation"> Quotation</label><label><input type="checkbox" value="Custom PO"> Purchase Order</label><label><input type="checkbox" value="Custom Delivery Note"> Delivery Note</label><label><input type="checkbox" value="Custom Payslip"> Payslip</label></div></div>
+                    <div class="req-field"><label>Implementation Approach</label>
+                        <select id="req-impl"><option value="">Select</option><option value="Phased (Module by module)">Phased</option><option value="Big-Bang (All at once)">Big-Bang</option></select></div>
+                    <div class="req-field"><label>Timeline</label>
+                        <select id="req-timeline"><option value="">Select</option><option value="Urgent (1-2 months)">Urgent (1-2 months)</option><option value="Normal (3-4 months)">Normal (3-4 months)</option><option value="Flexible (5-6 months)">Flexible (5-6 months)</option><option value="Phased (6+ months)">Phased (6+ months)</option></select></div>
+                    <div class="req-field"><label>Budget Range</label>
+                        <select id="req-budget"><option value="">Select</option><option value="< SAR 25,000">&lt; SAR 25K</option><option value="SAR 25-50K">SAR 25-50K</option><option value="SAR 50-100K">SAR 50-100K</option><option value="SAR 100-200K">SAR 100-200K</option><option value="SAR 200K+">SAR 200K+</option><option value="Flexible">Flexible</option></select></div>
+                    <div class="req-field"><label>Deployment Preference</label>
+                        <select id="req-deploy"><option value="">Select</option><option value="Cloud Hosted">Cloud Hosted</option><option value="On-Premise">On-Premise</option><option value="Need Guidance">Need Guidance</option></select></div>
+                    <div class="req-field"><label>Top 3 Business Outcomes Expected</label><textarea id="req-outcomes" placeholder="e.g. 1. Reduce order processing time 2. Full VAT compliance 3. Real-time visibility"></textarea></div>
+                    <div class="req-field"><label>Additional Notes</label><textarea id="req-notes" placeholder="Concerns, special needs, questions..."></textarea></div>
+                    <div class="req-nav"><button class="req-back" onclick="reqPrev()">Back</button><button class="req-next" onclick="submitRequirements()">Submit</button></div>
+                </div>
+
+                <!-- Done -->
+                <div class="req-done" id="req-done">
+                    <p>Thank you! Your requirements have been saved.</p>
+                    <p style="color:#6b7280;font-size:0.85rem;margin-top:8px;">Our team will review and tailor the demo to your needs.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="demo-features">
+        <div class="demo-feature"><strong>Bid Management</strong>Create bids, estimation trees, RFPs</div>
+        <div class="demo-feature"><strong>WBS &amp; Budgets</strong>Track costs against work breakdown</div>
+        <div class="demo-feature"><strong>Contracts</strong>Manage construction contracts &amp; changes</div>
+        <div class="demo-feature"><strong>HR &amp; Payroll</strong>Crew management, attendance, payroll</div>
+    </div>
+</div>
+
+<script>
+var API_BASE = "https://autodeploypanel.mvpstorm.com";
+var currentEmail = "";
+var currentSite = "";
+
+// --- Navigation helpers ---
+function hideAll() {
+    var ids = ["landing-choice","invite-form","request-form","request-submitted","recover-form","demo-creating","demo-ready"];
+    ids.forEach(function(id) { document.getElementById(id).style.display = "none"; });
+}
+
+function showLanding() {
+    hideAll();
+    document.getElementById("landing-choice").style.display = "block";
+}
+
+function showInviteForm() {
+    hideAll();
+    document.getElementById("invite-form").style.display = "block";
+}
+
+function showRequestForm() {
+    hideAll();
+    document.getElementById("request-form").style.display = "block";
+}
+
+function showRecoverForm() {
+    hideAll();
+    document.getElementById("recover-form").style.display = "block";
+}
+
+// --- PATH A: Create demo with invite code ---
+function createDemo() {
+    var company = document.getElementById("company").value.trim();
+    var email = document.getElementById("email").value.trim();
+    var phone = document.getElementById("phone").value.trim();
+    var invite_code = document.getElementById("invite_code").value.trim();
+
+    if (!company || company.length < 2) { showError("error-msg", "Please enter your company name"); return; }
+    if (!email || !email.includes("@")) { showError("error-msg", "Please enter a valid email"); return; }
+    if (!invite_code) { showError("error-msg", "Please enter your invite code"); return; }
+
+    currentEmail = email;
+    hideAll();
+    document.getElementById("demo-creating").style.display = "block";
+
+    fetch(API_BASE + "/api/method/press.api.demo.create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company: company, email: email, phone: phone, invite_code: invite_code })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.exc) {
+            hideAll();
+            document.getElementById("invite-form").style.display = "block";
+            var msg = "Something went wrong. Please try again.";
+            try { msg = JSON.parse(data.exc)[0].split(":").pop().trim(); } catch(e) {}
+            showError("error-msg", msg);
+            return;
+        }
+        var result = data.message;
+        if (result.ready || result.status === "exists") {
+            showReady(result.url, result.site);
+            return;
+        }
+        pollSiteStatus(result.site);
+    })
+    .catch(function() {
+        hideAll();
+        document.getElementById("invite-form").style.display = "block";
+        showError("error-msg", "Network error. Please try again.");
+    });
+}
+
+// --- PATH B: Request demo (no code) ---
+function requestDemo() {
+    var company = document.getElementById("req-company").value.trim();
+    var email = document.getElementById("req-email").value.trim();
+    var phone = document.getElementById("req-phone").value.trim();
+    var industry = document.getElementById("req-industry-field").value;
+    var message = document.getElementById("req-message").value.trim();
+
+    if (!company || company.length < 2) { showError("request-error", "Please enter your company name"); return; }
+    if (!email || !email.includes("@")) { showError("request-error", "Please enter a valid email"); return; }
+
+    var btn = document.getElementById("request-btn");
+    btn.disabled = true;
+    btn.textContent = "Submitting...";
+
+    fetch(API_BASE + "/api/method/press.api.demo.request_demo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company: company, email: email, phone: phone, industry: industry, message: message })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        btn.disabled = false;
+        btn.textContent = "Submit Request";
+        if (data.exc) {
+            var msg = "Something went wrong.";
+            try { msg = JSON.parse(data.exc)[0].split(":").pop().trim(); } catch(e) {}
+            showError("request-error", msg);
+            return;
+        }
+        hideAll();
+        document.getElementById("submitted-email").textContent = email;
+        document.getElementById("request-submitted").style.display = "block";
+    })
+    .catch(function() {
+        btn.disabled = false;
+        btn.textContent = "Submit Request";
+        showError("request-error", "Network error. Please try again.");
+    });
+}
+
+// --- Polling & Ready ---
+function pollSiteStatus(site) {
+    var attempts = 0;
+    var interval = setInterval(function() {
+        attempts++;
+        if (attempts > 60) { clearInterval(interval); showReady("https://" + site, site); return; }
+        fetch(API_BASE + "/api/method/press.api.demo.check_status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ site: site })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.message && data.message.ready) {
+                clearInterval(interval);
+                showReady(data.message.url, site);
+            }
+        })
+        .catch(function() {});
+    }, 5000);
+}
+
+function showReady(url, site) {
+    currentSite = site;
+    hideAll();
+    document.getElementById("demo-ready").style.display = "block";
+    document.getElementById("site-link").href = url;
+    document.getElementById("site-link").textContent = site;
+    document.getElementById("site-url-text").textContent = url;
+}
+
+// --- Resend credentials ---
+function resendCredentials() {
+    var email = document.getElementById("recover-email").value.trim();
+    if (!email || !email.includes("@")) { showError("recover-error", "Please enter a valid email"); return; }
+
+    currentEmail = email;
+    var btn = document.getElementById("recover-btn");
+    btn.disabled = true;
+    btn.textContent = "Sending...";
+
+    fetch(API_BASE + "/api/method/press.api.demo.resend_credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        btn.disabled = false;
+        btn.textContent = "Send My Credentials";
+        if (data.exc) {
+            var msg = "Something went wrong.";
+            try { msg = JSON.parse(data.exc)[0].split(":").pop().trim(); } catch(e) {}
+            showError("recover-error", msg);
+            return;
+        }
+        showSuccess("recover-success", "Credentials sent! Check your email.");
+    })
+    .catch(function() {
+        btn.disabled = false;
+        btn.textContent = "Send My Credentials";
+        showError("recover-error", "Network error. Please try again.");
+    });
+}
+
+function resendFromReady() {
+    var email = currentEmail || document.getElementById("email").value.trim();
+    if (!email) { return; }
+
+    var btn = document.getElementById("resend-ready-btn");
+    btn.disabled = true;
+    btn.textContent = "Sending...";
+
+    fetch(API_BASE + "/api/method/press.api.demo.resend_credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        btn.disabled = false;
+        btn.textContent = "Resend Credentials to My Email";
+        if (data.exc) { btn.textContent = "Failed - Try Again"; return; }
+        btn.textContent = "Sent! Check your email";
+        setTimeout(function() { btn.textContent = "Resend Credentials to My Email"; }, 3000);
+    })
+    .catch(function() {
+        btn.disabled = false;
+        btn.textContent = "Failed - Try Again";
+    });
+}
+
+// --- Helpers ---
+function showError(id, msg) {
+    var el = document.getElementById(id);
+    el.textContent = msg;
+    el.style.display = "block";
+    setTimeout(function() { el.style.display = "none"; }, 5000);
+}
+
+function showSuccess(id, msg) {
+    var el = document.getElementById(id);
+    el.textContent = msg;
+    el.style.display = "block";
+    setTimeout(function() { el.style.display = "none"; }, 5000);
+}
+
+// --- Requirements Wizard ---
+var reqStep = 1;
+var reqTotal = 10;
+
+function showRequirementsForm() {
+    document.getElementById("start-req-btn").style.display = "none";
+    document.getElementById("req-wizard").style.display = "block";
+}
+
+function skipRequirements() {
+    document.getElementById("req-wizard").style.display = "none";
+    document.getElementById("start-req-btn").style.display = "none";
+}
+
+function reqNext() {
+    if (reqStep >= reqTotal) return;
+    var steps = document.querySelectorAll(".req-step");
+    steps[reqStep - 1].classList.remove("active");
+    reqStep++;
+    steps[reqStep - 1].classList.add("active");
+    updateReqProgress();
+}
+
+function reqPrev() {
+    if (reqStep <= 1) return;
+    var steps = document.querySelectorAll(".req-step");
+    steps[reqStep - 1].classList.remove("active");
+    reqStep--;
+    steps[reqStep - 1].classList.add("active");
+    updateReqProgress();
+}
+
+function updateReqProgress() {
+    var bars = document.querySelectorAll("#req-progress .step");
+    for (var i = 0; i < bars.length; i++) {
+        bars[i].className = "step";
+        if (i < reqStep - 1) bars[i].className = "step done";
+        if (i === reqStep - 1) bars[i].className = "step active";
+    }
+}
+
+function collectAnswers() {
+    var answers = [];
+    function add(section, question, value) {
+        if (value) answers.push({ section: section, question: question, answer: value });
+    }
+    function addChecks(section, question, containerId) {
+        var vals = [];
+        document.querySelectorAll("#" + containerId + " input:checked").forEach(function(cb) { vals.push(cb.value); });
+        if (vals.length) add(section, question, vals.join(", "));
+    }
+
+    // Step 1: Company & Scale
+    add("Company & Scale", "Industry", document.getElementById("req-industry").value);
+    addChecks("Company & Scale", "Business Model", "req-biz-model");
+    add("Company & Scale", "Number of Employees", document.getElementById("req-employees").value);
+    add("Company & Scale", "Expected ERPNext Users", document.getElementById("req-users").value);
+    add("Company & Scale", "Number of Branches", document.getElementById("req-branches").value);
+    add("Company & Scale", "Monthly Transaction Volume", document.getElementById("req-txn-volume").value);
+
+    // Step 2: Compliance & Localization
+    add("Compliance & Localization", "VAT Status", document.getElementById("req-vat").value);
+    add("Compliance & Localization", "ZATCA e-Invoicing", document.getElementById("req-zatca").value);
+    addChecks("Compliance & Localization", "Languages Needed", "req-languages");
+    add("Compliance & Localization", "Other Compliance", document.getElementById("req-compliance-other").value);
+
+    // Step 3: Current Systems
+    add("Current Systems", "Current ERP/Accounting System", document.getElementById("req-current-system").value);
+    add("Current Systems", "Key Pain Points", document.getElementById("req-pain-points").value);
+    addChecks("Current Systems", "Departments Using Software", "req-depts");
+
+    // Step 4: Modules Needed
+    addChecks("Modules", "Selected Modules", "req-modules");
+    add("Modules", "Priority Modules", document.getElementById("req-priority").value);
+
+    // Step 5: Finance & Accounting
+    add("Finance & Accounting", "Chart of Accounts", document.getElementById("req-coa").value);
+    addChecks("Finance & Accounting", "Accounting Features", "req-acct-features");
+    add("Finance & Accounting", "Period Closing Requirements", document.getElementById("req-period-closing").value);
+    add("Finance & Accounting", "Financial Reports Needed", document.getElementById("req-fin-reports").value);
+
+    // Step 6: Sales, Purchasing & Inventory
+    addChecks("Sales, Purchasing & Inventory", "Sales Features", "req-sales");
+    addChecks("Sales, Purchasing & Inventory", "Purchasing Features", "req-purchasing");
+    add("Sales, Purchasing & Inventory", "Inventory Type", document.getElementById("req-inv-type").value);
+    add("Sales, Purchasing & Inventory", "Stock Valuation", document.getElementById("req-valuation").value);
+    addChecks("Sales, Purchasing & Inventory", "Inventory Features", "req-inv-features");
+
+    // Step 7: Projects, Manufacturing & HR
+    addChecks("Projects, Manufacturing & HR", "Project Features", "req-projects");
+    add("Projects, Manufacturing & HR", "Manufacturing Type", document.getElementById("req-mfg-type").value);
+    addChecks("Projects, Manufacturing & HR", "Manufacturing Features", "req-mfg");
+    addChecks("Projects, Manufacturing & HR", "HR Features", "req-hr");
+    add("Projects, Manufacturing & HR", "Payroll Frequency", document.getElementById("req-payroll-freq").value);
+
+    // Step 8: Integrations & Security
+    addChecks("Integrations & Security", "Integration Requirements", "req-integrations-list");
+    add("Integrations & Security", "Other Systems to Integrate", document.getElementById("req-other-integrations").value);
+    addChecks("Integrations & Security", "Approval Workflows Needed", "req-approvals");
+
+    // Step 9: Data Migration & Training
+    add("Data Migration & Training", "Data Migration Scope", document.getElementById("req-data-scope").value);
+    add("Data Migration & Training", "Data Quality", document.getElementById("req-data-quality").value);
+    add("Data Migration & Training", "User Skill Level", document.getElementById("req-skill-level").value);
+    addChecks("Data Migration & Training", "Training Language", "req-train-lang");
+    add("Data Migration & Training", "Asset Categories", document.getElementById("req-assets").value);
+
+    // Step 10: Reporting & Implementation
+    add("Reporting & Implementation", "Custom Reports", document.getElementById("req-reports").value);
+    addChecks("Reporting & Implementation", "Print Format Customization", "req-prints");
+    add("Reporting & Implementation", "Implementation Approach", document.getElementById("req-impl").value);
+    add("Reporting & Implementation", "Timeline", document.getElementById("req-timeline").value);
+    add("Reporting & Implementation", "Budget Range", document.getElementById("req-budget").value);
+    add("Reporting & Implementation", "Deployment Preference", document.getElementById("req-deploy").value);
+    add("Reporting & Implementation", "Business Outcomes", document.getElementById("req-outcomes").value);
+    add("Reporting & Implementation", "Additional Notes", document.getElementById("req-notes").value);
+
+    return answers;
+}
+
+function submitRequirements() {
+    var answers = collectAnswers();
+    if (!answers.length) { return; }
+
+    var site = currentSite || document.getElementById("site-link").textContent;
+    var btn = document.querySelector(".req-step[data-step='10'] .req-next");
+    btn.disabled = true;
+    btn.textContent = "Submitting...";
+
+    fetch(API_BASE + "/api/method/press.api.demo.submit_requirements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ site: site, answers: JSON.stringify(answers) })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        btn.disabled = false;
+        btn.textContent = "Submit";
+        if (data.exc) { btn.textContent = "Failed - Try Again"; return; }
+        document.querySelectorAll(".req-step").forEach(function(s) { s.style.display = "none"; });
+        document.getElementById("req-done").style.display = "block";
+        var bars = document.querySelectorAll("#req-progress .step");
+        for (var i = 0; i < bars.length; i++) bars[i].className = "step done";
+    })
+    .catch(function() {
+        btn.disabled = false;
+        btn.textContent = "Failed - Try Again";
+    });
+}
+</script>
+
+</body>
+</html>

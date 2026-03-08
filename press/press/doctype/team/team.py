@@ -1284,7 +1284,7 @@ class Team(Document):
 		payment_method = self.default_payment_method
 		last_4 = frappe.db.get_value("Stripe Payment Method", payment_method, "last_4")
 		account_update_link = frappe.utils.get_url("/dashboard")
-		subject = "Invoice Payment Failed for Frappe Cloud Subscription"
+		subject = "Invoice Payment Failed for Accurate Systems Cloud Subscription"
 
 		frappe.sendmail(
 			recipients=email,
@@ -1732,7 +1732,7 @@ def send_budget_alert_email(team_info, invoice):
 		alert_threshold = f"{currency}{team_info['monthly_alert_threshold']}"
 		excess_amount = f"{currency}{round(invoice['total'] - team_info['monthly_alert_threshold'], 2)}"
 
-		subject = f"Frappe Cloud Budget Alert for {team_user}"
+		subject = f"Accurate Systems Cloud Budget Alert for {team_user}"
 
 		frappe.sendmail(
 			recipients=team_user,

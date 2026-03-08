@@ -462,7 +462,7 @@ export default {
 					condition: () => app.doc.status === 'Draft',
 					onClick() {
 						window.open(
-							'https://docs.frappe.io/cloud/marketplace/marketplace-guidelines',
+							'https://accuratesystems.com.sa/docs/marketplace/marketplace-guidelines',
 							'_blank',
 						);
 					},

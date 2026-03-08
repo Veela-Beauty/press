@@ -24,9 +24,9 @@ class SessionMetadata:
 class OtpLogin:
 	def __init__(self, email: str):
 		self.email = email
-		self.opt_url = "https://frappecloud.com/api/method/press.api.account.send_otp"
-		self.login_url = "https://frappecloud.com/api/method/press.api.account.verify_otp_and_login"
-		self.me = "https://frappecloud.com/api/method/press.api.account.get"
+		self.opt_url = "https://accuratesystems.com.sa/api/method/press.api.account.send_otp"
+		self.login_url = "https://accuratesystems.com.sa/api/method/press.api.account.verify_otp_and_login"
+		self.me = "https://accuratesystems.com.sa/api/method/press.api.account.get"
 
 	def send_otp(self):
 		"""Send otp to the email address"""

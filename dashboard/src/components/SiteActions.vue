@@ -69,7 +69,7 @@ export default {
 	methods: {
 		openSiteMigrationsDoc() {
 			window.open(
-				'https://docs.frappe.io/cloud/site/site-migrations/introduction-to-site-migration',
+				'https://accuratesystems.com.sa/docs/site/site-migrations/introduction-to-site-migration',
 				'_blank',
 			);
 		},

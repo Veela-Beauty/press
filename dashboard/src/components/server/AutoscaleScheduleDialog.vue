@@ -65,7 +65,7 @@
 				<p class="text-gray-600">
 					Please read the
 					<a
-						href="https://docs.frappe.io/cloud/application-server-horizontal-scaling"
+						href="https://accuratesystems.com.sa/docs/application-server-horizontal-scaling"
 						target="_blank"
 						class="text-gray-900 underline hover:text-gray-700"
 					>

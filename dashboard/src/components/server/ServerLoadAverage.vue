@@ -6,7 +6,7 @@
 				<Button
 					icon="help-circle"
 					variant="ghost"
-					:link="'https://docs.frappe.io/cloud/server-analytics#load-average'"
+					:link="'https://accuratesystems.com.sa/docs/server-analytics#load-average'"
 				/>
 				<router-link
 					class="text-base text-gray-600 hover:text-gray-700"

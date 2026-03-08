@@ -37,7 +37,7 @@ export default {
 		slowQueriesOptions() {
 			return {
 				experimental: true,
-				documentation: 'https://docs.frappe.io/cloud/performance-tuning',
+				documentation: 'https://accuratesystems.com.sa/docs/performance-tuning',
 				data: () => this.$resources.slowQueries.data.data,
 				onRowClick: (row) => {
 					this.selectedQuery = row.query;

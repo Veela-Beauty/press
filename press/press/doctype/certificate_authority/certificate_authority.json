@@ -92,7 +92,7 @@
    "read_only": 1
   },
   {
-   "default": "Frappe Cloud",
+   "default": "Accurate Systems Cloud",
    "fieldname": "organizational_unit",
    "fieldtype": "Data",
    "label": "Organizational Unit",

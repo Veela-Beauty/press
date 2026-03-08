@@ -79,7 +79,7 @@
 							</h2>
 							<div>
 								<Button
-									link="https://docs.frappe.io/cloud/servers/provider-comparision"
+									link="https://accuratesystems.com.sa/docs/servers/provider-comparision"
 									variant="ghost"
 									size="sm"
 								>
@@ -225,7 +225,7 @@
 							</h2>
 							<div>
 								<Button
-									link="https://frappecloud.com/pricing#dedicated"
+									link="https://accuratesystems.com.sa/pricing#dedicated"
 									variant="ghost"
 								>
 									<template #prefix>
@@ -296,7 +296,7 @@
 
 									<div v-if="!unifiedServer">
 										<Button
-											link="https://docs.frappe.io/cloud/servers/instance-types"
+											link="https://accuratesystems.com.sa/docs/servers/instance-types"
 											variant="ghost"
 											size="sm"
 										>
@@ -311,7 +311,7 @@
 									</div>
 									<div v-else>
 										<Button
-											link="https://docs.frappe.io/cloud/servers/instance-types#unified-server"
+											link="https://accuratesystems.com.sa/docs/servers/instance-types#unified-server"
 											variant="ghost"
 											size="sm"
 										>
@@ -417,7 +417,7 @@
 									</h2>
 									<div>
 										<Button
-											link="https://docs.frappe.io/cloud/servers/instance-types"
+											link="https://accuratesystems.com.sa/docs/servers/instance-types"
 											variant="ghost"
 											size="sm"
 										>
@@ -953,7 +953,7 @@
 			Or you can
 			<a
 				class="underline"
-				href="https://frappecloud.com/support"
+				href="https://accuratesystems.com.sa/support"
 				target="_blank"
 				>contact support</a
 			>

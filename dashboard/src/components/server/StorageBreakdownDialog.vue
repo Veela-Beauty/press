@@ -89,7 +89,7 @@
 						<Button
 							class="ml-auto"
 							variant="outline"
-							link="https://docs.frappe.io/cloud/database-server-actions#view--purge-binlogs"
+							link="https://accuratesystems.com.sa/docs/database-server-actions#view--purge-binlogs"
 						>
 							Docs
 						</Button>

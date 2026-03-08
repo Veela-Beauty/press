@@ -224,7 +224,7 @@
 						>
 							If the region you're looking for isn't available, please follow
 							<a
-								href="https://docs.frappe.io/cloud/site/site-migrations/move-site-to-different-region"
+								href="https://accuratesystems.com.sa/docs/site/site-migrations/move-site-to-different-region"
 								target="_blank"
 								class="underline"
 								>this documentation</a

@@ -118,7 +118,7 @@ export default {
 					button: {
 						label: 'Read docs',
 						variant: 'outline',
-						link: 'https://docs.frappe.io/cloud/benches/create-new',
+						link: 'https://accuratesystems.com.sa/docs/benches/create-new',
 					},
 				};
 			}
@@ -233,7 +233,7 @@ export default {
 										h(
 											'a',
 											{
-												href: 'https://docs.frappe.io/cloud/faq/app-installation-issue',
+												href: 'https://accuratesystems.com.sa/docs/faq/app-installation-issue',
 												target: '_blank',
 											},
 											[h(icon('help-circle', 'w-3 h-3'), {})],

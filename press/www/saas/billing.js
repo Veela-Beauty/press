@@ -1,4 +1,4 @@
-const frappe_cloud_base_endpoint = 'https://frappecloud.com';
+const frappe_cloud_base_endpoint = 'https://accuratesystems.com.sa';
 
 function calculate_trial_end_days() {
 	// try to check for trial_end_date in frappe.boot.subscription_conf
@@ -102,7 +102,7 @@ function add_frappe_cloud_dashboard_link() {
 	$('.dropdown-navbar-user .dropdown-menu .dropdown-divider').before(
 		`<a class="dropdown-item"
 		onclick="initiateRequestForLoginToFrappeCloud()"
-		>Log In to Frappe Cloud</a>`,
+		>Log In to Accurate Systems Cloud</a>`,
 	);
 }
 
@@ -125,10 +125,10 @@ function showBanner() {
 	d.show();
 }
 
-// Frappe Cloud login related
+// Accurate Systems Cloud login related
 function initiateRequestForLoginToFrappeCloud() {
 	frappe.confirm(
-		'Are you sure you want to login to Frappe Cloud dashboard ?',
+		'Are you sure you want to login to Accurate Systems Cloud dashboard ?',
 		() => {
 			requestLoginToFC();
 		},
@@ -143,13 +143,13 @@ function requestLoginToFC(freezing_msg) {
 			domain: window.location.hostname,
 		},
 		freeze: true,
-		freeze_message: freezing_msg || 'Initiating login to Frappe Cloud',
+		freeze_message: freezing_msg || 'Initiating login to Accurate Systems Cloud',
 		success: function (r) {
 			showFCLogindialog(r.message.email);
 			setErrorMessage('');
 		},
 		error: function (r) {
-			frappe.throw('Failed to login to Frappe Cloud. Please try again');
+			frappe.throw('Failed to login to Accurate Systems Cloud. Please try again');
 		},
 	});
 }
@@ -161,7 +161,7 @@ function setErrorMessage(message) {
 function showFCLogindialog(email) {
 	if (!window.fc_login_dialog) {
 		var d = new frappe.ui.Dialog({
-			title: __('Login to Frappe Cloud'),
+			title: __('Login to Accurate Systems Cloud'),
 			primary_action_label: __('Verify', null, 'Submit verification code'),
 			primary_action: verifyCode,
 		});
@@ -215,10 +215,10 @@ function showFCLogindialog(email) {
 						'_blank',
 					);
 					frappe.msgprint({
-						title: __('Frappe Cloud Login Successful'),
+						title: __('Accurate Systems Cloud Login Successful'),
 						indicator: 'green',
 						message: __(
-							`<p>You will be redirected to Frappe Cloud soon.</p><p>If you haven\'t been redirected, <a href="${frappe_cloud_base_endpoint}/api/method/press.api.developer.saas.login_to_fc?token=${r.login_token}" target="_blank">Click here to login</a></p>`,
+							`<p>You will be redirected to Accurate Systems Cloud soon.</p><p>If you haven\'t been redirected, <a href="${frappe_cloud_base_endpoint}/api/method/press.api.developer.saas.login_to_fc?token=${r.login_token}" target="_blank">Click here to login</a></p>`,
 						),
 					});
 				} else {

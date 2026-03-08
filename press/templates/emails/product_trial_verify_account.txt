@@ -11,6 +11,6 @@ Verification Code: {{ otp }}
 Verification Link: {{ link }}
 {% endif %}
 
-Team Frappe
+Team Accurate Systems
 
-This email was sent by Frappe Cloud
+This email was sent by Accurate Systems Cloud

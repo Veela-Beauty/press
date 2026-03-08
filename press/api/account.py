@@ -304,7 +304,7 @@ def send_login_link(email):
 		print()
 
 	frappe.sendmail(
-		subject="Login to Frappe Cloud",
+		subject="Login to Accurate Systems Cloud",
 		recipients=email,
 		template="one_time_login_link",
 		args={"link": link, "minutes": minutes},
@@ -1161,7 +1161,7 @@ def get_2fa_qr_code_url():
 		).insert()
 
 	return pyotp.totp.TOTP(user_totp_secret).provisioning_uri(
-		name=frappe.session.user, issuer_name="Frappe Cloud"
+		name=frappe.session.user, issuer_name="Accurate Systems Cloud"
 	)
 
 

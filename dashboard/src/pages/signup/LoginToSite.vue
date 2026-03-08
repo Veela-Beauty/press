@@ -23,8 +23,8 @@
 							<p>It looks like something went wrong!</p>
 							<p class="">
 								Contact
-								<a href="mailto:support@frappe.io" class="underline">
-									support@frappe.io
+								<a href="mailto:support@accuratesystems.com.sa" class="underline">
+									support@accuratesystems.com.sa
 								</a>
 								to resolve the issue
 							</p>

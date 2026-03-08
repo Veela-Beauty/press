@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rebrand Prototype — Accurate Systems Cloud Hosting Solutions</title>
+    <link rel="icon" href="https://accuratesystems.com.sa/wp-content/uploads/2025/12/cropped-New-Project.png">
+    <style>
+        /* ===== RESET ===== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        /* ===== BRAND TOKENS ===== */
+        :root {
+            --as-primary: #046BD2;
+            --as-primary-hover: #045CB4;
+            --as-primary-light: #E8F2FC;
+            --as-dark: #1E293B;
+            --as-text: #333E54;
+            --as-text-muted: #64748B;
+            --as-bg-light: #F0F5FA;
+            --as-bg-white: #FFFFFF;
+            --as-border: #D1D5DB;
+            --as-border-light: #E5E7EB;
+            --as-success: #10B981;
+            --as-danger: #EF4444;
+            --as-radius: 8px;
+            --as-radius-lg: 12px;
+            --as-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+            --as-shadow-lg: 0 10px 25px rgba(4,107,210,0.12), 0 4px 10px rgba(0,0,0,0.06);
+            --as-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+        }
+
+        body {
+            font-family: var(--as-font);
+            color: var(--as-text);
+            background: var(--as-bg-light);
+            line-height: 1.5;
+        }
+
+        /* ===== PROTOTYPE NAVIGATION ===== */
+        .proto-nav {
+            background: var(--as-dark);
+            color: white;
+            padding: 12px 24px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            flex-wrap: wrap;
+        }
+        .proto-nav h1 { font-size: 14px; font-weight: 600; margin-right: 16px; }
+        .proto-nav a {
+            color: rgba(255,255,255,0.7);
+            text-decoration: none;
+            font-size: 13px;
+            padding: 4px 12px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .proto-nav a:hover, .proto-nav a.active {
+            color: white;
+            background: rgba(255,255,255,0.15);
+        }
+
+        /* ===== SECTIONS ===== */
+        .proto-section {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 24px;
+        }
+        .proto-section h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--as-dark);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .proto-section h2 .badge {
+            font-size: 11px;
+            font-weight: 500;
+            background: var(--as-primary-light);
+            color: var(--as-primary);
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        .proto-section .desc {
+            color: var(--as-text-muted);
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+        .proto-section .before-after {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        .proto-section .label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--as-text-muted);
+            margin-bottom: 8px;
+        }
+        .label.before { color: var(--as-danger); }
+        .label.after { color: var(--as-success); }
+
+        .card-frame {
+            border: 1px solid var(--as-border-light);
+            border-radius: var(--as-radius-lg);
+            overflow: hidden;
+            background: white;
+            box-shadow: var(--as-shadow);
+        }
+
+        /* ===== 1. LOGIN PAGE ===== */
+        .login-page {
+            min-height: 600px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #F0F5FA 0%, #E0EDFA 50%, #D4E6F9 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        .login-page::before {
+            content: '';
+            position: absolute;
+            top: -200px;
+            right: -200px;
+            width: 500px;
+            height: 500px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(4,107,210,0.08) 0%, transparent 70%);
+        }
+        .login-page::after {
+            content: '';
+            position: absolute;
+            bottom: -150px;
+            left: -150px;
+            width: 400px;
+            height: 400px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(4,107,210,0.06) 0%, transparent 70%);
+        }
+        .login-card {
+            background: white;
+            border-radius: var(--as-radius-lg);
+            box-shadow: var(--as-shadow-lg);
+            padding: 40px;
+            width: 420px;
+            max-width: 90%;
+            position: relative;
+            z-index: 1;
+        }
+        .login-card .logo-area {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+        .login-card .logo-area img {
+            height: 56px;
+            width: auto;
+            margin-bottom: 12px;
+        }
+        .login-card .logo-area h1 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--as-dark);
+            line-height: 1.3;
+        }
+        .login-card .logo-area p {
+            font-size: 13px;
+            color: var(--as-text-muted);
+            margin-top: 4px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--as-text);
+            margin-bottom: 6px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--as-border);
+            border-radius: var(--as-radius);
+            font-size: 14px;
+            font-family: var(--as-font);
+            transition: border-color 0.2s, box-shadow 0.2s;
+            outline: none;
+        }
+        .form-group input:focus {
+            border-color: var(--as-primary);
+            box-shadow: 0 0 0 3px rgba(4,107,210,0.12);
+        }
+        .form-group input::placeholder { color: #94A3B8; }
+        .forgot-link {
+            display: block;
+            text-align: right;
+            font-size: 13px;
+            color: var(--as-primary);
+            text-decoration: none;
+            margin-top: -8px;
+            margin-bottom: 16px;
+        }
+        .forgot-link:hover { text-decoration: underline; }
+        .btn-primary {
+            width: 100%;
+            padding: 11px 20px;
+            background: var(--as-primary);
+            color: white;
+            border: none;
+            border-radius: var(--as-radius);
+            font-size: 14px;
+            font-weight: 600;
+            font-family: var(--as-font);
+            cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+        .btn-primary:hover {
+            background: var(--as-primary-hover);
+            box-shadow: 0 4px 12px rgba(4,107,210,0.3);
+        }
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 20px 0;
+            color: var(--as-text-muted);
+            font-size: 12px;
+        }
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--as-border-light);
+        }
+        .social-btns {
+            display: flex;
+            gap: 12px;
+        }
+        .social-btns button {
+            flex: 1;
+            padding: 10px;
+            background: white;
+            border: 1px solid var(--as-border);
+            border-radius: var(--as-radius);
+            font-size: 13px;
+            font-family: var(--as-font);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: var(--as-text);
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .social-btns button:hover {
+            background: var(--as-bg-light);
+            border-color: var(--as-primary);
+        }
+        .login-footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 13px;
+            color: var(--as-text-muted);
+        }
+        .login-footer a {
+            color: var(--as-primary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .login-footer a:hover { text-decoration: underline; }
+        .login-branding-footer {
+            text-align: center;
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid var(--as-border-light);
+            font-size: 11px;
+            color: #94A3B8;
+        }
+
+        /* ===== 2. SIDEBAR ===== */
+        .sidebar-demo {
+            display: flex;
+            height: 600px;
+            background: white;
+        }
+        .sidebar {
+            width: 220px;
+            background: var(--as-dark);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+            flex-shrink: 0;
+        }
+        .sidebar-header {
+            padding: 16px 16px 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .sidebar-header img {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: white;
+            padding: 2px;
+        }
+        .sidebar-header .brand-text {
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.2;
+            color: rgba(255,255,255,0.95);
+        }
+        .sidebar-header .brand-sub {
+            font-size: 10px;
+            color: rgba(255,255,255,0.5);
+            font-weight: 400;
+        }
+        .sidebar-nav {
+            padding: 12px 8px;
+            flex: 1;
+        }
+        .sidebar-nav a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            color: rgba(255,255,255,0.65);
+            text-decoration: none;
+            font-size: 13px;
+            border-radius: 6px;
+            transition: all 0.15s;
+            margin-bottom: 2px;
+        }
+        .sidebar-nav a:hover { color: white; background: rgba(255,255,255,0.08); }
+        .sidebar-nav a.active {
+            color: white;
+            background: var(--as-primary);
+        }
+        .sidebar-nav a svg {
+            width: 16px;
+            height: 16px;
+            opacity: 0.7;
+        }
+        .sidebar-nav a.active svg { opacity: 1; }
+        .sidebar-nav .section-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: rgba(255,255,255,0.35);
+            padding: 16px 12px 6px;
+            font-weight: 600;
+        }
+        .sidebar-footer {
+            padding: 12px 16px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sidebar-footer .avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--as-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+        }
+        .sidebar-footer .user-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .sidebar-footer .user-name {
+            font-size: 12px;
+            font-weight: 500;
+            color: rgba(255,255,255,0.9);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .sidebar-footer .user-team {
+            font-size: 10px;
+            color: rgba(255,255,255,0.4);
+        }
+        .main-content {
+            flex: 1;
+            background: var(--as-bg-light);
+            padding: 24px;
+        }
+        .main-content h2 {
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+        .main-content .subtitle {
+            font-size: 13px;
+            color: var(--as-text-muted);
+        }
+
+        /* ===== 3. SIGNUP PAGE ===== */
+        .signup-page {
+            min-height: 600px;
+            display: flex;
+            background: white;
+        }
+        .signup-left {
+            flex: 1;
+            background: linear-gradient(160deg, var(--as-primary) 0%, #0353A4 100%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 60px 48px;
+            position: relative;
+            overflow: hidden;
+        }
+        .signup-left::before {
+            content: '';
+            position: absolute;
+            top: -100px;
+            right: -100px;
+            width: 350px;
+            height: 350px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.06);
+        }
+        .signup-left::after {
+            content: '';
+            position: absolute;
+            bottom: -80px;
+            left: -80px;
+            width: 280px;
+            height: 280px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.04);
+        }
+        .signup-left img {
+            height: 48px;
+            width: auto;
+            margin-bottom: 32px;
+            filter: brightness(0) invert(1);
+            position: relative;
+            z-index: 1;
+        }
+        .signup-left h2 {
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1.3;
+            margin-bottom: 16px;
+            position: relative;
+            z-index: 1;
+            color: white;
+        }
+        .signup-left p {
+            font-size: 15px;
+            line-height: 1.6;
+            color: rgba(255,255,255,0.8);
+            position: relative;
+            z-index: 1;
+        }
+        .signup-features {
+            margin-top: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            position: relative;
+            z-index: 1;
+        }
+        .signup-features .feature {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            color: rgba(255,255,255,0.9);
+        }
+        .signup-features .feature .check {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            flex-shrink: 0;
+        }
+        .signup-right {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 48px;
+        }
+        .signup-form {
+            width: 100%;
+            max-width: 380px;
+        }
+        .signup-form h2 {
+            font-size: 22px;
+            color: var(--as-dark);
+            margin-bottom: 4px;
+        }
+        .signup-form .sub {
+            font-size: 14px;
+            color: var(--as-text-muted);
+            margin-bottom: 24px;
+        }
+        .signup-form .terms {
+            font-size: 12px;
+            color: var(--as-text-muted);
+            margin-top: 16px;
+            line-height: 1.5;
+        }
+        .signup-form .terms a {
+            color: var(--as-primary);
+            text-decoration: none;
+        }
+
+        /* ===== 4. EMAIL TEMPLATE ===== */
+        .email-preview {
+            background: #f4f4f4;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .email-card {
+            background: white;
+            width: 560px;
+            max-width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .email-header {
+            background: var(--as-dark);
+            padding: 20px 32px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .email-header img {
+            height: 32px;
+            width: auto;
+            filter: brightness(0) invert(1);
+        }
+        .email-header span {
+            color: white;
+            font-size: 15px;
+            font-weight: 600;
+        }
+        .email-body {
+            padding: 32px;
+        }
+        .email-body h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--as-dark);
+            margin-bottom: 16px;
+        }
+        .email-body p {
+            font-size: 14px;
+            color: var(--as-text);
+            line-height: 1.7;
+            margin-bottom: 12px;
+        }
+        .email-body .btn-email {
+            display: inline-block;
+            padding: 12px 28px;
+            background: var(--as-primary);
+            color: white;
+            text-decoration: none;
+            border-radius: var(--as-radius);
+            font-size: 14px;
+            font-weight: 600;
+            margin: 12px 0;
+        }
+        .email-body .signature {
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid var(--as-border-light);
+            font-size: 13px;
+            color: var(--as-text-muted);
+        }
+        .email-footer {
+            background: var(--as-bg-light);
+            padding: 16px 32px;
+            text-align: center;
+            font-size: 11px;
+            color: #94A3B8;
+            border-top: 1px solid var(--as-border-light);
+        }
+        .email-footer a { color: var(--as-primary); text-decoration: none; }
+
+        /* ===== 5. MOBILE NAV ===== */
+        .mobile-demo {
+            width: 375px;
+            margin: 0 auto;
+            background: white;
+            border-radius: var(--as-radius-lg);
+            overflow: hidden;
+        }
+        .mobile-header {
+            background: white;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--as-border-light);
+        }
+        .mobile-header .left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .mobile-header img {
+            height: 28px;
+            width: auto;
+        }
+        .mobile-header .brand-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--as-dark);
+        }
+        .mobile-header .hamburger {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+        .mobile-header .hamburger span {
+            display: block;
+            width: 18px;
+            height: 2px;
+            background: var(--as-text);
+            border-radius: 1px;
+        }
+        .mobile-body {
+            padding: 20px 16px;
+            background: var(--as-bg-light);
+            min-height: 300px;
+        }
+
+        /* ===== 6. ONBOARDING ===== */
+        .onboarding-page {
+            min-height: 500px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #F0F5FA 0%, #E0EDFA 100%);
+            padding: 40px 20px;
+        }
+        .onboarding-card {
+            background: white;
+            border-radius: var(--as-radius-lg);
+            box-shadow: var(--as-shadow-lg);
+            padding: 48px 40px;
+            width: 500px;
+            max-width: 100%;
+            text-align: center;
+        }
+        .onboarding-card img {
+            height: 52px;
+            margin-bottom: 20px;
+        }
+        .onboarding-card h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--as-dark);
+            margin-bottom: 8px;
+            justify-content: center;
+        }
+        .onboarding-card p {
+            font-size: 14px;
+            color: var(--as-text-muted);
+            line-height: 1.6;
+            margin-bottom: 28px;
+        }
+        .onboarding-steps {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            margin-bottom: 32px;
+        }
+        .onboarding-steps .step {
+            text-align: center;
+        }
+        .onboarding-steps .step .num {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--as-primary-light);
+            color: var(--as-primary);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .onboarding-steps .step .num.active {
+            background: var(--as-primary);
+            color: white;
+        }
+        .onboarding-steps .step .step-label {
+            font-size: 12px;
+            color: var(--as-text-muted);
+        }
+
+        /* ===== 7. MARKETPLACE HEADER ===== */
+        .marketplace-header {
+            background: white;
+            border-bottom: 1px solid var(--as-border-light);
+            padding: 0 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 56px;
+        }
+        .marketplace-header .left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .marketplace-header img {
+            height: 28px;
+            width: auto;
+        }
+        .marketplace-header .brand {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--as-dark);
+        }
+        .marketplace-header .brand span {
+            color: var(--as-text-muted);
+            font-weight: 400;
+        }
+        .marketplace-header nav {
+            display: flex;
+            gap: 24px;
+        }
+        .marketplace-header nav a {
+            font-size: 13px;
+            color: var(--as-text-muted);
+            text-decoration: none;
+        }
+        .marketplace-header nav a:hover { color: var(--as-primary); }
+        .marketplace-footer-demo {
+            background: var(--as-dark);
+            padding: 32px;
+            color: rgba(255,255,255,0.6);
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .marketplace-footer-demo img {
+            height: 24px;
+            filter: brightness(0) invert(1);
+        }
+        .marketplace-footer-demo a {
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            margin-left: 20px;
+        }
+        .marketplace-footer-demo a:hover { color: white; }
+
+        /* ===== CHANGE MAP TABLE ===== */
+        .change-map {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin-top: 16px;
+        }
+        .change-map th {
+            text-align: left;
+            padding: 10px 12px;
+            background: var(--as-bg-light);
+            border-bottom: 2px solid var(--as-border);
+            font-weight: 600;
+            font-size: 12px;
+            color: var(--as-text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .change-map td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--as-border-light);
+            vertical-align: top;
+        }
+        .change-map .old { color: var(--as-danger); text-decoration: line-through; }
+        .change-map .new { color: var(--as-success); font-weight: 500; }
+        .change-map code {
+            background: var(--as-bg-light);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-family: 'SF Mono', Consolas, monospace;
+        }
+        .priority-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .priority-badge.p1 { background: #FEE2E2; color: #DC2626; }
+        .priority-badge.p2 { background: #FEF3C7; color: #D97706; }
+        .priority-badge.p3 { background: #E0E7FF; color: #4F46E5; }
+
+        hr.section-divider {
+            border: none;
+            border-top: 2px dashed var(--as-border-light);
+            margin: 60px 0;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ===== PROTOTYPE NAV ===== -->
+<div class="proto-nav">
+    <h1>REBRAND PROTOTYPE</h1>
+    <a href="#login" class="active">Login</a>
+    <a href="#signup">Signup</a>
+    <a href="#sidebar">Sidebar</a>
+    <a href="#mobile">Mobile</a>
+    <a href="#onboarding">Onboarding</a>
+    <a href="#email">Email</a>
+    <a href="#marketplace">Marketplace</a>
+    <a href="#changemap">Change Map</a>
+</div>
+
+<!-- ===== 1. LOGIN PAGE ===== -->
+<div class="proto-section" id="login">
+    <h2>Login Page <span class="badge">Priority 1</span></h2>
+    <p class="desc">Replace Frappe Cloud logo + branding with Accurate Systems identity. Blue gradient background matches brand.</p>
+    <div class="card-frame">
+        <div class="login-page">
+            <div class="login-card">
+                <div class="logo-area">
+                    <img src="https://accuratesystems.com.sa/wp-content/uploads/2025/12/logo-new.png" alt="Accurate Systems">
+                    <h1>Accurate Systems</h1>
+                    <p>Cloud Hosting Solutions</p>
+                </div>
+
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" placeholder="you@company.com">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" placeholder="Enter your password">
+                </div>
+                <a href="#" class="forgot-link">Forgot password?</a>
+
+                <button class="btn-primary">Log in</button>
+
+                <div class="divider">or continue with</div>
+
+                <div class="social-btns">
+                    <button>
+                        <svg width="16" height="16" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                        Google
+                    </button>
+                    <button>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#333"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                        GitHub
+                    </button>
+                </div>
+
+                <div class="login-footer">
+                    Don't have an account? <a href="#">Sign up</a>
+                </div>
+
+                <div class="login-branding-footer">
+                    accuratesystems.com.sa
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<hr class="section-divider">
+
+<!-- ===== 2. SIGNUP PAGE ===== -->
+<div class="proto-section" id="signup">
+    <h2>Signup Page <span class="badge">Priority 2</span></h2>
+    <p class="desc">Split-panel signup with brand messaging on left, form on right. All policy links point to accuratesystems.com.sa.</p>
+    <div class="card-frame">
+        <div class="signup-page">
+            <div class="signup-left">
+                <img src="https://accuratesystems.com.sa/wp-content/uploads/2025/12/logo-new.png" alt="Accurate Systems">
+                <h2>Deploy, manage, and scale your ERPNext sites</h2>
+                <p>Accurate Systems Cloud gives you enterprise-grade hosting with automated backups, monitoring, and one-click deployments.</p>
+                <div class="signup-features">
+                    <div class="feature"><div class="check">&#10003;</div> Managed hosting on Saudi infrastructure</div>
+                    <div class="feature"><div class="check">&#10003;</div> Automatic backups &amp; disaster recovery</div>
+                    <div class="feature"><div class="check">&#10003;</div> Custom apps &amp; private benches</div>
+                    <div class="feature"><div class="check">&#10003;</div> 24/7 support from certified ERPNext partners</div>
+                </div>
+            </div>
+            <div class="signup-right">
+                <div class="signup-form">
+                    <h2>Create your account</h2>
+                    <p class="sub">Start your free trial — no credit card required.</p>
+
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" placeholder="Ahmed Al-Rashid">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" placeholder="ahmed@company.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" placeholder="Min 8 characters">
+                    </div>
+                    <div class="form-group">
+                        <label>Country</label>
+                        <input type="text" placeholder="Saudi Arabia" value="Saudi Arabia">
+                    </div>
+
+                    <button class="btn-primary">Create Account</button>
+
+                    <p class="terms">
+                        By signing up, you agree to our
+                        <a href="#">Terms of Service</a>,
+                        <a href="#">Privacy Policy</a> &amp;
+                        <a href="#">Cookie Policy</a>.
+                    </p>
+
+                    <div class="login-footer" style="margin-top: 20px;">
+                        Already have an account? <a href="#">Log in</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<hr class="section-divider">
+
+<!-- ===== 3. SIDEBAR ===== -->
+<div class="proto-section" id="sidebar">
+    <h2>Dashboard Sidebar <span class="badge">Priority 1</span></h2>
+    <p class="desc">Dark sidebar with Accurate Systems logo, brand name, and updated navigation links. Replaces FCLogo + "Frappe Cloud" text.</p>
+    <div class="card-frame">
+        <div class="sidebar-demo">
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <img src="https://accuratesystems.com.sa/wp-content/uploads/2025/12/logo-new.png" alt="AS">
+                    <div>
+                        <div class="brand-text">Accurate Systems</div>
+                        <div class="brand-sub">Cloud Hosting</div>
+                    </div>
+                </div>
+                <div class="sidebar-nav">
+                    <a href="#" class="active">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                        Sites
+                    </a>
+                    <a href="#">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                        Benches
+                    </a>
+                    <a href="#">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        Apps
+                    </a>
+
+                    <div class="section-label">Infrastructure</div>
+                    <a href="#">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/></svg>
+                        Servers
+                    </a>
+                    <a href="#">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        Security
+                    </a>
+
+                    <div class="section-label">Account</div>
+                    <a href="#">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                        Billing
+                    </a>
+                    <a href="#">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                        Settings
+                    </a>
+                </div>
+                <div class="sidebar-footer">
+                    <div class="avatar">AE</div>
+                    <div class="user-info">
+                        <div class="user-name">Ahmed ElGogary</div>
+                        <div class="user-team">Accurate Systems</div>
+                    </div>
+                </div>
+            </div>
+            <div class="main-content">
+                <h2>Sites</h2>
+                <p class="subtitle">Manage your hosted ERPNext sites</p>
+                <div style="margin-top: 24px; padding: 40px; background: white; border-radius: 8px; border: 1px solid var(--as-border-light); color: var(--as-text-muted); text-align: center; font-size: 14px;">
+                    Dashboard content area — all branding in sidebar and header replaced
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<hr class="section-divider">
+
+<!-- ===== 4. MOBILE NAV ===== -->
+<div class="proto-section" id="mobile">
+    <h2>Mobile Navigation <span class="badge">Priority 2</span></h2>
+    <p class="desc">Mobile header with compact logo. Replaces frappecloud-logo.png.</p>
+    <div class="card-frame">
+        <div class="mobile-demo">
+            <div class="mobile-header">
+                <div class="left">
+                    <img src="https://accuratesystems.com.sa/wp-content/uploads/2025/12/logo-new.png" alt="AS">
+                    <span class="brand-name">Accurate Systems</span>
+                </div>
+                <div class="hamburger">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+            <div class="mobile-body">
+                <div style="padding: 24px; text-align: center; color: var(--as-text-muted); font-size: 14px;">
+                    Mobile dashboard content
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<hr class="section-divider">
+
+<!-- ===== 5. ONBOARDING ===== -->
+<div class="proto-section" id="onboarding">
+    <h2>Onboarding Welcome <span class="badge">Priority 2</span></h2>
+    <p class="desc">Replaces "Welcome to Frappe Cloud" with Accurate Systems branding and messaging.</p>
+    <div class="card-frame">
+        <div class="onboarding-page">
+            <div class="onboarding-card">
+                <img src="https://accuratesystems.com.sa/wp-content/uploads/2025/12/logo-new.png" alt="Accurate Systems">
+                <h2>Welcome to Accurate Systems Cloud</h2>
+                <p>Deploy and manage your ERPNext sites with enterprise-grade hosting. Let's get you set up in a few quick steps.</p>
+
+                <div class="onboarding-steps">
+                    <div class="step">
+                        <div class="num active">1</div>
+                        <div class="step-label">Create Site</div>
+                    </div>
+                    <div class="step">
+                        <div class="num">2</div>
+                        <div class="step-label">Add Apps</div>
+                    </div>
+                    <div class="step">
+                        <div class="num">3</div>
+                        <div class="step-label">Set Billing</div>
+                    </div>
+                </div>
+
+                <button class="btn-primary" style="width: auto; padding: 12px 48px;">Get Started</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<hr class="section-divider">
+
+<!-- ===== 6. EMAIL TEMPLATE ===== -->
+<div class="proto-section" id="email">
+    <h2>Email Templates <span class="badge">Priority 3</span></h2>
+    <p class="desc">All transactional emails rebranded. Header, signature ("Team Accurate Systems"), and footer updated. 20+ templates affected.</p>
+    <div class="card-frame">
+        <div class="email-preview">
+            <div class="email-card">
+                <div class="email-header">
+                    <img src="https://accuratesystems.com.sa/wp-content/uploads/2025/12/logo-new.png" alt="Accurate Systems">
+                    <span>Accurate Systems Cloud</span>
+                </div>
+                <div class="email-body">
+                    <h3>Verify your email address</h3>
+                    <p>Hi Ahmed,</p>
+                    <p>Thank you for signing up for Accurate Systems Cloud! Please verify your email address to get started.</p>
+                    <a href="#" class="btn-email">Verify Email Address</a>
+                    <p>If you didn't create an account, you can safely ignore this email.</p>
+                    <div class="signature">
+                        Best regards,<br>
+                        <strong>Team Accurate Systems</strong>
+                    </div>
+                </div>
+                <div class="email-footer">
+                    This email was sent by Accurate Systems Cloud Hosting Solutions<br>
+                    <a href="#">accuratesystems.com.sa</a> &middot; <a href="#">Privacy Policy</a> &middot; <a href="#">Unsubscribe</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<hr class="section-divider">
+
+<!-- ===== 7. MARKETPLACE ===== -->
+<div class="proto-section" id="marketplace">
+    <h2>Marketplace Header &amp; Footer <span class="badge">Priority 3</span></h2>
+    <p class="desc">Marketplace navbar and footer with Accurate Systems branding. Replaces inline SVG and external Frappe logo.</p>
+    <div class="card-frame">
+        <div class="marketplace-header">
+            <div class="left">
+                <img src="https://accuratesystems.com.sa/wp-content/uploads/2025/12/logo-new.png" alt="AS">
+                <div class="brand">Accurate Systems <span>Marketplace</span></div>
+            </div>
+            <nav>
+                <a href="#">Apps</a>
+                <a href="#">Publishers</a>
+                <a href="#">Pricing</a>
+                <a href="#">Docs</a>
+            </nav>
+        </div>
+        <div style="padding: 60px; text-align: center; background: var(--as-bg-light); color: var(--as-text-muted); font-size: 14px;">
+            Marketplace content area
+        </div>
+        <div class="marketplace-footer-demo">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <img src="https://accuratesystems.com.sa/wp-content/uploads/2025/12/logo-new.png" alt="AS">
+                <span>&copy; 2026 Accurate Systems. All rights reserved.</span>
+            </div>
+            <div>
+                <a href="#">Terms</a>
+                <a href="#">Privacy</a>
+                <a href="#">Support</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<hr class="section-divider">
+
+<!-- ===== 8. CHANGE MAP ===== -->
+<div class="proto-section" id="changemap">
+    <h2>Complete Change Map</h2>
+    <p class="desc">Every file that needs modification, what to change, and the priority level. Use this as the implementation checklist.</p>
+    <div class="card-frame" style="padding: 24px; overflow-x: auto;">
+
+        <h3 style="font-size: 15px; color: var(--as-dark); margin-bottom: 12px;">Priority 1 — Login, Sidebar, Favicon (User-Facing)</h3>
+        <table class="change-map">
+            <thead>
+                <tr>
+                    <th>File</th>
+                    <th>What to Change</th>
+                    <th>Old</th>
+                    <th>New</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>dashboard/index.html</code></td>
+                    <td>Page title + noscript text</td>
+                    <td class="old">Frappe Cloud</td>
+                    <td class="new">Accurate Systems Cloud</td>
+                </tr>
+                <tr>
+                    <td><code>dashboard/index.html</code></td>
+                    <td>Favicon link</td>
+                    <td class="old">/assets/press/dashboard/favicon.png</td>
+                    <td class="new">Replace file with AS favicon</td>
+                </tr>
+                <tr>
+                    <td><code>press/public/dashboard/favicon.png</code></td>
+                    <td>Replace favicon image file</td>
+                    <td class="old">Frappe spiral icon</td>
+                    <td class="new">Accurate Systems icon (cropped-New-Project.png)</td>
+                </tr>
+                <tr>
+                    <td><code>dashboard/src/assets/frappe-cloud.svg</code></td>
+                    <td>Replace SVG with AS logo</td>
+                    <td class="old">Frappe spiral SVG</td>
+                    <td class="new">Accurate Systems logo SVG</td>
+                </tr>
+                <tr>
+                    <td><code>dashboard/src/components/AppSidebar.vue</code></td>
+                    <td>Brand name text (line 40)</td>
+                    <td class="old">Frappe Cloud</td>
+                    <td class="new">Accurate Systems</td>
+                </tr>
+                <tr>
+                    <td><code>dashboard/src/components/AppSidebar.vue</code></td>
+                    <td>Docs URL (line 98)</td>
+                    <td class="old">docs.frappe.io/cloud</td>
+                    <td class="new">accuratesystems.com.sa/docs</td>
+                </tr>
+                <tr>
+                    <td><code>dashboard/src/components/AppSidebar.vue</code></td>
+                    <td>Feedback URL (line 102)</td>
+                    <td class="old">frappecloud.com/frappe-cloud-feedback</td>
+                    <td class="new">accuratesystems.com.sa/feedback</td>
+                </tr>
+                <tr>
+                    <td><code>dashboard/src/components/MobileNav.vue</code></td>
+                    <td>Logo image + alt text</td>
+                    <td class="old">frappecloud-logo.png / "Frappe Cloud Logo"</td>
+                    <td class="new">AS logo / "Accurate Systems"</td>
+                </tr>
+                <tr>
+                    <td><code>press/public/images/frappecloud-logo.png</code></td>
+                    <td>Replace logo image file</td>
+                    <td class="old">Frappe Cloud wordmark</td>
+                    <td class="new">Accurate Systems logo</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3 style="font-size: 15px; color: var(--as-dark); margin: 24px 0 12px;">Priority 2 — Auth Flow &amp; Onboarding</h3>
+        <table class="change-map">
+            <thead>
+                <tr><th>File</th><th>What to Change</th><th>Old</th><th>New</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>dashboard/src/components/auth/LoginBox.vue</code></td>
+                    <td>FCLogo component usage</td>
+                    <td class="old">&lt;FCLogo&gt;</td>
+                    <td class="new">&lt;ASLogo&gt; (or &lt;img&gt; tag)</td>
+                </tr>
+                <tr>
+                    <td><code>dashboard/src/components/auth/SaaSLoginBox.vue</code></td>
+                    <td>FCLogo fallback</td>
+                    <td class="old">&lt;FCLogo&gt;</td>
+                    <td class="new">&lt;ASLogo&gt;</td>
+                </tr>
+                <tr>
+                    <td><code>dashboard/src/pages/LoginSignup.vue</code></td>
+                    <td>Page title (line 914)</td>
+                    <td class="old">Create your Frappe Cloud account</td>
+                    <td class="new">Create your Accurate Systems Cloud account</td>
+                </tr>
+                <tr>
+                    <td><code>dashboard/src/pages/LoginSignup.vue</code></td>
+                    <td>Policy links (lines 304, 387)</td>
+                    <td class="old">frappecloud.com/policies</td>
+                    <td class="new">accuratesystems.com.sa/policies</td>
+                </tr>
+                <tr>
+                    <td><code>dashboard/src/pages/signup/Signup.vue</code></td>
+                    <td>ToS/Privacy/Cookie links</td>
+                    <td class="old">frappecloud.com/terms, /privacy, /cookie-policy</td>
+                    <td class="new">accuratesystems.com.sa/terms, /privacy, /cookie-policy</td>
+                </tr>
+                <tr>
+                    <td><code>dashboard/src/components/Onboarding.vue</code></td>
+                    <td>Welcome text + support text</td>
+                    <td class="old">Welcome to Frappe Cloud</td>
+                    <td class="new">Welcome to Accurate Systems Cloud</td>
+                </tr>
+                <tr>
+                    <td><code>dashboard/src/components/OnboardingWithoutPayment.vue</code></td>
+                    <td>FCLogo usage</td>
+                    <td class="old">&lt;FCLogo&gt;</td>
+                    <td class="new">&lt;ASLogo&gt;</td>
+                </tr>
+                <tr>
+                    <td><code>dashboard/src/pages/SetupAccount.vue</code></td>
+                    <td>Policy link (line 132)</td>
+                    <td class="old">frappecloud.com/policies</td>
+                    <td class="new">accuratesystems.com.sa/policies</td>
+                </tr>
+                <tr>
+                    <td><code>press/www/saas-oauth.html</code></td>
+                    <td>Logo image</td>
+                    <td class="old">/files/frappe.png</td>
+                    <td class="new">AS logo path</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3 style="font-size: 15px; color: var(--as-dark); margin: 24px 0 12px;">Priority 3 — Email Templates (20+ files)</h3>
+        <table class="change-map">
+            <thead>
+                <tr><th>File</th><th>What to Change</th><th>Old</th><th>New</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>press/templates/emails/base.html</code></td>
+                    <td>Header title (line 13)</td>
+                    <td class="old">Frappe Cloud</td>
+                    <td class="new">Accurate Systems Cloud</td>
+                </tr>
+                <tr>
+                    <td><code>press/templates/emails/saas.html</code></td>
+                    <td>Footer text (line 20)</td>
+                    <td class="old">sent by Frappe Cloud</td>
+                    <td class="new">sent by Accurate Systems Cloud</td>
+                </tr>
+                <tr>
+                    <td><code>press/templates/emails/macros.html</code></td>
+                    <td>Email signature (line 34)</td>
+                    <td class="old">Team Frappe</td>
+                    <td class="new">Team Accurate Systems</td>
+                </tr>
+                <tr>
+                    <td colspan="4" style="text-align: center; color: var(--as-text-muted); font-style: italic; padding: 12px;">
+                        + 20 individual email templates: Replace all "Frappe Cloud" mentions, support@frappe.io → support@accuratesystems.com.sa,
+                        frappecloud.com/* → accuratesystems.com.sa/*, "Team Frappe" → "Team Accurate Systems"
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3 style="font-size: 15px; color: var(--as-dark); margin: 24px 0 12px;">Priority 4 — Marketplace &amp; In-App Copy</h3>
+        <table class="change-map">
+            <thead>
+                <tr><th>File</th><th>What to Change</th><th>Old</th><th>New</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>press/templates/marketplace/base.html</code></td>
+                    <td>Title + favicon</td>
+                    <td class="old">Frappe Cloud Marketplace</td>
+                    <td class="new">Accurate Systems Marketplace</td>
+                </tr>
+                <tr>
+                    <td><code>press/templates/marketplace/navbar.html</code></td>
+                    <td>Inline SVG logo</td>
+                    <td class="old">Frappe gradient SVG</td>
+                    <td class="new">Accurate Systems logo</td>
+                </tr>
+                <tr>
+                    <td><code>press/templates/marketplace/footer.html</code></td>
+                    <td>Logo, links, "Built on Frappe"</td>
+                    <td class="old">frappecloud.com, frappe.io, frappe.school, support@frappe.io</td>
+                    <td class="new">accuratesystems.com.sa, support email, remove external Frappe links</td>
+                </tr>
+                <tr>
+                    <td><code>ChurnFeedbackDialog.vue</code></td>
+                    <td>All "Frappe Cloud" strings</td>
+                    <td class="old">leaving Frappe Cloud because...</td>
+                    <td class="new">leaving Accurate Systems Cloud because...</td>
+                </tr>
+                <tr>
+                    <td><code>AlertBudgetThreshold.vue</code></td>
+                    <td>Budget alert text</td>
+                    <td class="old">Frappe Cloud cost</td>
+                    <td class="new">Accurate Systems Cloud cost</td>
+                </tr>
+                <tr>
+                    <td><code>AccountReferral.vue</code></td>
+                    <td>Referral text</td>
+                    <td class="old">Frappe Cloud credits</td>
+                    <td class="new">Accurate Systems Cloud credits</td>
+                </tr>
+                <tr>
+                    <td><code>PaymentDetails.vue</code></td>
+                    <td>Payment options link</td>
+                    <td class="old">frappecloud.com/payment-options</td>
+                    <td class="new">accuratesystems.com.sa/payment-options</td>
+                </tr>
+                <tr>
+                    <td><code>PartnerOverview.vue, PartnerCertificates.vue</code></td>
+                    <td>Partner/School links</td>
+                    <td class="old">frappe.io/partners, school.frappe.io</td>
+                    <td class="new">accuratesystems.com.sa equivalents or remove</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div style="margin-top: 24px; padding: 16px; background: var(--as-primary-light); border-radius: 8px; font-size: 13px; color: var(--as-dark);">
+            <strong>Summary:</strong> ~50 files need changes across 4 priority levels. Priority 1 (9 files) covers everything a user sees on login and navigation.
+            Priority 2 (9 files) covers signup and onboarding. Priority 3 (23+ files) covers emails. Priority 4 (8+ files) covers marketplace and in-app copy.
+        </div>
+    </div>
+</div>
+
+<div style="height: 80px;"></div>
+
+<!-- Smooth scroll -->
+<script>
+    document.querySelectorAll('.proto-nav a').forEach(link => {
+        link.addEventListener('click', e => {
+            e.preventDefault();
+            const target = document.querySelector(link.getAttribute('href'));
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                document.querySelectorAll('.proto-nav a').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+            }
+        });
+    });
+
+    // Highlight active section on scroll
+    const sections = document.querySelectorAll('.proto-section');
+    const navLinks = document.querySelectorAll('.proto-nav a');
+    window.addEventListener('scroll', () => {
+        let current = '';
+        sections.forEach(section => {
+            const rect = section.getBoundingClientRect();
+            if (rect.top <= 100) current = '#' + section.id;
+        });
+        navLinks.forEach(link => {
+            link.classList.toggle('active', link.getAttribute('href') === current);
+        });
+    });
+</script>
+
+</body>
+</html>
