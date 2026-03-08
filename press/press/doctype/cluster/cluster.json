@@ -86,7 +86,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Cloud Provider",
-   "options": "AWS EC2\nGeneric\nOCI\nHetzner\nDigitalOcean",
+   "options": "AWS EC2\nGeneric\nOCI\nHetzner\nDigitalOcean\nAlibaba Cloud",
    "reqd": 1,
    "set_only_once": 1
   },
@@ -409,6 +409,35 @@
    "fieldname": "digital_ocean_api_token",
    "fieldtype": "Password",
    "label": "Digital Ocean API Token"
+  },
+  {
+   "fieldname": "alibaba_cloud_section",
+   "fieldtype": "Section Break",
+   "label": "Alibaba Cloud",
+   "depends_on": "eval: doc.cloud_provider == \"Alibaba Cloud\""
+  },
+  {
+   "fieldname": "alibaba_access_key_id",
+   "fieldtype": "Data",
+   "label": "Alibaba Access Key ID",
+   "mandatory_depends_on": "eval: doc.cloud_provider == \"Alibaba Cloud\""
+  },
+  {
+   "fieldname": "alibaba_access_key_secret",
+   "fieldtype": "Password",
+   "label": "Alibaba Access Key Secret",
+   "mandatory_depends_on": "eval: doc.cloud_provider == \"Alibaba Cloud\""
+  },
+  {
+   "fieldname": "alibaba_column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "alibaba_region_id",
+   "fieldtype": "Data",
+   "label": "Alibaba Region ID",
+   "description": "e.g. me-central-1 (UAE), ap-southeast-1 (Singapore)",
+   "mandatory_depends_on": "eval: doc.cloud_provider == \"Alibaba Cloud\""
   },
   {
    "fieldname": "database_section",
