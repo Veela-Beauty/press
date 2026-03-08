@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="relative flex min-h-screen w-[220px] flex-col border-r bg-gray-50"
+		class="as-sidebar relative flex min-h-screen w-[220px] flex-col"
 	>
 		<div class="p-2">
 			<Dropdown
@@ -32,16 +32,16 @@
 				<template v-slot="{ open }">
 					<button
 						class="flex w-[204px] items-center rounded-md px-2 py-2 text-left"
-						:class="open ? 'bg-white shadow-sm' : 'hover:bg-gray-200'"
+						:class="open ? 'as-sidebar-btn-open' : 'as-sidebar-btn-closed'"
 					>
-						<FCLogo class="mb-1 h-8 w-8 shrink-0 rounded" />
+						<FCLogo class="mb-1 h-9 w-9 shrink-0 rounded-lg bg-white p-0.5" />
 						<div class="ml-2 flex flex-1 flex-col overflow-hidden">
-							<div class="text-base font-medium leading-none text-gray-900">
+							<div class="text-sm font-semibold leading-tight as-sidebar-brand">
 								Accurate Systems
 							</div>
 							<Tooltip :text="$team?.doc?.user || null">
 								<div
-									class="mt-1 hidden overflow-hidden text-ellipsis whitespace-nowrap pb-1 text-sm leading-none text-gray-700 sm:inline"
+									class="mt-0.5 hidden overflow-hidden text-ellipsis whitespace-nowrap pb-1 text-xs leading-none as-sidebar-user sm:inline"
 								>
 									{{ $team?.get.loading ? 'Loading...' : $team?.doc?.user }}
 								</div>
@@ -49,7 +49,7 @@
 						</div>
 						<FeatherIcon
 							name="chevron-down"
-							class="ml-auto h-5 w-5 text-gray-700"
+							class="ml-auto h-5 w-5 as-sidebar-chevron"
 						/>
 					</button>
 				</template>
@@ -108,3 +108,26 @@ export default {
 	},
 };
 </script>
+
+<style scoped>
+/* Rebrand: Accurate Systems dark sidebar matching prototype */
+.as-sidebar {
+	background: #1E293B;
+	border-right: 1px solid rgba(255,255,255,0.06);
+}
+.as-sidebar-brand {
+	color: rgba(255,255,255,0.95);
+}
+.as-sidebar-user {
+	color: rgba(255,255,255,0.5);
+}
+.as-sidebar-chevron {
+	color: rgba(255,255,255,0.5);
+}
+.as-sidebar-btn-open {
+	background: rgba(255,255,255,0.1);
+}
+.as-sidebar-btn-closed:hover {
+	background: rgba(255,255,255,0.08);
+}
+</style>
