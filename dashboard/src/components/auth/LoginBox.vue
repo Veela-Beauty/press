@@ -43,7 +43,7 @@
 			</div>
 
 			<!-- Footer -->
-			<div class="mt-6 text-center text-xs text-gray-400">
+			<div class="mt-6 text-center text-xs text-white/60">
 				accuratesystems.com.sa
 			</div>
 			<slot name="footer"></slot>
@@ -80,13 +80,12 @@ export default {
 /* Rebrand: Accurate Systems gradient background with decorative elements */
 .login-page-bg {
 	min-height: 100vh;
-	background: linear-gradient(135deg, #F0F5FA 0%, #E0EDFA 50%, #D4E6F9 100%);
+	background: linear-gradient(135deg, #046BD2 0%, #197972 100%);
 	position: relative;
 	overflow: hidden;
 }
 .login-card {
-	box-shadow: 0 10px 25px rgba(4, 107, 210, 0.12),
-		0 4px 10px rgba(0, 0, 0, 0.06);
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 .login-circle-1 {
 	position: absolute;
@@ -95,7 +94,7 @@ export default {
 	width: 500px;
 	height: 500px;
 	border-radius: 50%;
-	background: radial-gradient(circle, rgba(4,107,210,0.08) 0%, transparent 70%);
+	background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%);
 	pointer-events: none;
 }
 .login-circle-2 {
@@ -105,7 +104,7 @@ export default {
 	width: 400px;
 	height: 400px;
 	border-radius: 50%;
-	background: radial-gradient(circle, rgba(4,107,210,0.06) 0%, transparent 70%);
+	background: radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%);
 	pointer-events: none;
 }
 </style>
