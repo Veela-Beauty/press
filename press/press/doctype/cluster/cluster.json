@@ -440,6 +440,13 @@
    "mandatory_depends_on": "eval: doc.cloud_provider == \"Alibaba Cloud\""
   },
   {
+   "fieldname": "alibaba_vswitch_id",
+   "fieldtype": "Data",
+   "label": "Alibaba VSwitch ID",
+   "description": "Auto-populated during cluster provisioning",
+   "read_only": 1
+  },
+  {
    "fieldname": "database_section",
    "fieldtype": "Section Break",
    "label": "Database"
