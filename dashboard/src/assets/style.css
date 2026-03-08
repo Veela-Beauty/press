@@ -1,5 +1,17 @@
 @import 'frappe-ui/src/style.css';
 
+/* Rebrand: Accurate Systems brand color overrides (#046BD2) */
+:root {
+	--blue-400: #3B9AE8;
+	--blue-500: #046BD2;
+	--blue-600: #045CB4;
+	--blue-700: #044D96;
+	--surface-blue-3: #046BD2;
+	--ink-blue-2: #046BD2;
+	--ink-blue-3: #045CB4;
+	--ink-blue-link: #046BD2;
+}
+
 @layer components {
 	/* Works on Firefox */
 	* {

@@ -3,16 +3,16 @@
 		<a
 			:href="href"
 			@click="navigate"
-			class="flex items-center rounded px-2 py-1 text-gray-800 transition"
+			class="as-nav-item flex items-center rounded px-2 py-1 transition"
 			:class="[
-				item.isActive ? 'bg-white shadow-sm' : 'hover:bg-gray-100',
+				item.isActive ? 'as-nav-active' : 'as-nav-inactive',
 				item.disabled ? 'pointer-events-none opacity-50' : '',
 				$attrs.class,
 			]"
 		>
 			<div class="flex w-full items-center space-x-2">
 				<span class="grid h-5 w-6 place-items-center">
-					<component :is="item.icon" class="h-4 w-4 text-gray-500" />
+					<component :is="item.icon" class="h-4 w-4 as-nav-icon" />
 				</span>
 				<span class="text-sm">{{ item.name }}</span>
 				<component :is="item.badge" />
@@ -29,3 +29,27 @@ let props = defineProps({
 	},
 });
 </script>
+
+<style scoped>
+/* Rebrand: Dark sidebar nav items */
+.as-nav-item {
+	color: rgba(255,255,255,0.65);
+}
+.as-nav-icon {
+	color: rgba(255,255,255,0.5);
+}
+.as-nav-inactive:hover {
+	color: white;
+	background: rgba(255,255,255,0.08);
+}
+.as-nav-inactive:hover .as-nav-icon {
+	color: rgba(255,255,255,0.8);
+}
+.as-nav-active {
+	color: white;
+	background: #046BD2;
+}
+.as-nav-active .as-nav-icon {
+	color: white;
+}
+</style>
