@@ -65,9 +65,7 @@ def provision_on_alibaba(cluster):
 
     # 2. Create VSwitch (subnet)
     try:
-        # Get first available zone
-        zone_request = vpc_models.DescribeZonesRequest(region_id=cluster.alibaba_region_id)
-        # Use ECS to get zones
+        # Get first available zone via ECS
         ecs_client = get_alibaba_ecs_client(cluster)
         zone_ecs_request = ecs_models.DescribeZonesRequest(region_id=cluster.alibaba_region_id)
         zone_response = ecs_client.describe_zones(zone_ecs_request)
@@ -82,9 +80,7 @@ def provision_on_alibaba(cluster):
         )
         vswitch_response = vpc_client.create_v_switch(vswitch_request)
         cluster.availability_zone = zone_id
-        # Store vswitch_id — we'll need it for VM creation
-        # Using route_table_id field to store vswitch_id (reusing existing field)
-        cluster.route_table_id = vswitch_response.body.v_switch_id
+        cluster.alibaba_vswitch_id = vswitch_response.body.v_switch_id
         cluster.save()
     except Exception as e:
         frappe.throw(f"Failed to create VSwitch on Alibaba Cloud: {e!s}")

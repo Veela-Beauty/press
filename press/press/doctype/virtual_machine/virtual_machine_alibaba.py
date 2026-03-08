@@ -1,15 +1,15 @@
 """Alibaba Cloud integration methods for Virtual Machine doctype."""
 
 import frappe
-from frappe.utils import cint
 
 
-def get_alibaba_client(vm):
-    """Get Alibaba ECS client from VM's cluster config."""
+def get_alibaba_client(vm, cluster=None):
+    """Get Alibaba ECS client from VM's cluster config. Pass cluster doc to avoid extra DB fetch."""
     from alibabacloud_ecs20140526.client import Client as EcsClient
     from alibabacloud_tea_openapi import models as open_api_models
 
-    cluster = frappe.get_doc("Cluster", vm.cluster)
+    if cluster is None:
+        cluster = frappe.get_doc("Cluster", vm.cluster)
     config = open_api_models.Config(
         access_key_id=cluster.alibaba_access_key_id,
         access_key_secret=cluster.get_password("alibaba_access_key_secret"),
@@ -37,10 +37,9 @@ def provision_alibaba(vm):
         frappe.throw("Machine Image is required to provision Alibaba Cloud Virtual Machine.")
 
     cluster = frappe.get_doc("Cluster", vm.cluster)
-    client = get_alibaba_client(vm)
+    client = get_alibaba_client(vm, cluster=cluster)
 
-    # vswitch_id stored in cluster.route_table_id
-    vswitch_id = cluster.route_table_id
+    vswitch_id = cluster.alibaba_vswitch_id
     if not vswitch_id:
         frappe.throw("VSwitch ID not found. Please provision cluster infrastructure first.")
 
@@ -71,10 +70,10 @@ def provision_alibaba(vm):
 
         response = client.run_instances(request)
         instance_id = response.body.instance_id_sets.instance_id_set[0]
-        vm.instance_id = instance_id
-        vm.status = "Pending"
-        vm.save()
-        frappe.db.commit()
+        frappe.db.set_value("Virtual Machine", vm.name, {
+            "instance_id": instance_id,
+            "status": "Pending",
+        })
 
     except Exception as e:
         frappe.throw(f"Failed to provision Alibaba Cloud ECS instance: {e!s}")
@@ -84,8 +83,8 @@ def sync_alibaba(vm, *args, **kwargs):
     """Sync VM state from Alibaba Cloud."""
     from alibabacloud_ecs20140526 import models as ecs_models
 
-    client = get_alibaba_client(vm)
     cluster = frappe.get_doc("Cluster", vm.cluster)
+    client = get_alibaba_client(vm, cluster=cluster)
 
     try:
         request = ecs_models.DescribeInstancesRequest(
@@ -183,8 +182,8 @@ def resize_alibaba(vm, machine_type):
 def get_latest_ubuntu_image_alibaba(vm):
     """Find latest Ubuntu 22.04 image on Alibaba Cloud."""
     from alibabacloud_ecs20140526 import models as ecs_models
-    client = get_alibaba_client(vm)
     cluster = frappe.get_doc("Cluster", vm.cluster)
+    client = get_alibaba_client(vm, cluster=cluster)
 
     request = ecs_models.DescribeImagesRequest(
         region_id=cluster.alibaba_region_id,
