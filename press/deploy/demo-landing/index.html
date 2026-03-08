@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Try AccuBuild - Construction Management Demo</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div class="header-logo">
+            <img src="logo.png" alt="Accurate Systems" onerror="this.style.display='none'">
+            <div class="header-logo-divider"></div>
+            <div class="header-logo-product">AccuBuild</div>
+        </div>
+        <p>Get your own construction management demo environment</p>
+        <div class="progress-bar"><div class="progress-fill" id="progressBar"></div></div>
+    </div>
+
+    <div class="form-content">
+
+        <!-- ===== LANDING: Two choices ===== -->
+        <div class="section active" id="landing-choice">
+            <h2 class="section-title">Get Started</h2>
+            <p class="section-subtitle">Choose how you'd like to proceed</p>
+
+            <div class="info-box">
+                <p><strong>How it works:</strong> Request a demo and our team will review your request and send you an invite code. Already have a code? Create your site instantly.</p>
+            </div>
+
+            <div class="form-group">
+                <button class="btn-next" style="width:100%;padding:16px;" onclick="showInviteForm()">I Have an Invite Code</button>
+            </div>
+            <div class="demo-divider">or</div>
+            <div class="form-group">
+                <button class="btn-prev" style="width:100%;padding:16px;border:2px solid #e5e7eb;" onclick="showRequestForm()">Request a Demo</button>
+            </div>
+            <span class="demo-link" onclick="showRecoverForm()">Forgot your credentials?</span>
+
+            <div class="feature-grid">
+                <div class="feature-card"><strong>Bid Management</strong>Create bids, estimation trees, RFPs</div>
+                <div class="feature-card"><strong>WBS &amp; Budgets</strong>Track costs against work breakdown</div>
+                <div class="feature-card"><strong>Contracts</strong>Manage construction contracts &amp; changes</div>
+                <div class="feature-card"><strong>HR &amp; Payroll</strong>Crew management, attendance, payroll</div>
+            </div>
+        </div>
+
+        <!-- ===== PATH A: Has invite code ===== -->
+        <div class="section" id="invite-form">
+            <h2 class="section-title">Create Your Demo Site</h2>
+            <p class="section-subtitle">Enter your details and invite code to create your site instantly</p>
+
+            <div class="form-group">
+                <label>Company Name <span class="required">*</span></label>
+                <input type="text" id="company" placeholder="e.g. Acme Construction" required>
+            </div>
+            <div class="two-column">
+                <div class="form-group">
+                    <label>Email <span class="required">*</span></label>
+                    <input type="email" id="email" placeholder="you@company.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="tel" id="phone" placeholder="+1 (555) 000-0000">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Invite Code <span class="required">*</span></label>
+                <input type="text" id="invite_code" placeholder="Enter your invite code" required>
+                <p class="help-text">You received this code in your email after your demo request was approved</p>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-prev" onclick="showLanding()">Back</button>
+                <button class="btn-next" onclick="createDemo()">Create My Demo Site</button>
+            </div>
+            <div class="demo-error" id="error-msg"></div>
+        </div>
+
+        <!-- ===== PATH B: Request demo ===== -->
+        <div class="section" id="request-form">
+            <h2 class="section-title">Request a Demo</h2>
+            <p class="section-subtitle">Tell us about your company and we'll send you an invite code</p>
+
+            <div class="form-group">
+                <label>Company Name <span class="required">*</span></label>
+                <input type="text" id="req-company" placeholder="e.g. Acme Construction" required>
+            </div>
+            <div class="two-column">
+                <div class="form-group">
+                    <label>Email <span class="required">*</span></label>
+                    <input type="email" id="req-email" placeholder="you@company.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="tel" id="req-phone" placeholder="+1 (555) 000-0000">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Industry</label>
+                <select id="req-industry-field">
+                    <option value="">Select Industry</option>
+                    <option value="Trading">Trading</option>
+                    <option value="Services">Services</option>
+                    <option value="Manufacturing">Manufacturing</option>
+                    <option value="Construction/Contracting">Construction/Contracting</option>
+                    <option value="Retail">Retail</option>
+                    <option value="Distribution">Distribution</option>
+                    <option value="Healthcare">Healthcare</option>
+                    <option value="Education">Education</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>What are you looking for? (optional)</label>
+                <textarea id="req-message" placeholder="Tell us about your needs, current system, team size..."></textarea>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-prev" onclick="showLanding()">Back</button>
+                <button class="btn-next" id="request-btn" onclick="requestDemo()">Submit Request</button>
+            </div>
+            <div class="demo-error" id="request-error"></div>
+        </div>
+
+        <!-- ===== REQUEST SUBMITTED ===== -->
+        <div class="demo-info" id="request-submitted">
+            <h3>Request Received!</h3>
+            <p>Thank you. We'll review your request and send an invite code to <strong id="submitted-email"></strong> shortly.</p>
+            <p style="margin-top:12px;">Already have a code? <span class="demo-link" onclick="showInviteForm()" style="display:inline;margin:0;">Enter it here</span></p>
+        </div>
+
+        <!-- ===== RECOVER CREDENTIALS ===== -->
+        <div class="section" id="recover-form">
+            <h2 class="section-title">Recover Credentials</h2>
+            <p class="section-subtitle">Enter your email to receive your demo site credentials</p>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="recover-email" placeholder="you@company.com" required>
+            </div>
+            <div class="button-group">
+                <button class="btn-prev" onclick="showLanding()">Back</button>
+                <button class="btn-next" id="recover-btn" onclick="resendCredentials()">Send My Credentials</button>
+            </div>
+            <div class="demo-error" id="recover-error"></div>
+            <div class="demo-success" id="recover-success"></div>
+        </div>
+
+        <!-- ===== CREATING STATUS ===== -->
+        <div class="demo-status" id="demo-creating">
+            <div class="spinner"></div>
+            <h3>Creating your demo site...</h3>
+            <p>This takes about 2 minutes. Please wait.</p>
+        </div>
+
+        <!-- ===== SITE READY ===== -->
+        <div class="demo-ready" id="demo-ready">
+            <div class="success-icon">&#10003;</div>
+            <h3>Your demo site is ready!</h3>
+            <a class="site-url" id="site-link" href="#" target="_blank">Open Your Site</a>
+            <div class="credentials">
+                <p><strong>Login credentials have been sent to your email.</strong></p>
+                <p>URL: <code id="site-url-text"></code></p>
+                <p>Username: <em>Your email address</em></p>
+                <p>Password: <em>Check your email</em></p>
+            </div>
+            <div style="margin-top:20px;">
+                <button class="btn-prev" onclick="resendFromReady()" id="resend-ready-btn" style="width:100%;padding:14px;">Resend Credentials to My Email</button>
+            </div>
+            <div style="margin-top:12px;">
+                <button class="btn-next" onclick="showRequirementsForm()" id="start-req-btn" style="width:100%;padding:14px;">Tell Us About Your Needs</button>
+            </div>
+
+            <!-- ===== REQUIREMENTS WIZARD (21 steps) ===== -->
+            <div id="req-wizard" style="display:none;margin-top:30px;text-align:left;">
+
+                <!-- Step 1: Company Profile -->
+                <div class="section active" data-step="1">
+                    <h2 class="section-title">Company Profile</h2>
+                    <p class="section-subtitle">Step 1 of 21 &mdash; Let's start with some basic information about your company</p>
+
+                    <div class="form-group">
+                        <label>Company Name <span class="required">*</span></label>
+                        <input type="text" id="req-company-name" placeholder="Your company name"
+                            data-section="Company Profile" data-question="Company Name">
+                    </div>
+                    <div class="two-column">
+                        <div class="form-group">
+                            <label>Contact Person <span class="required">*</span></label>
+                            <input type="text" id="req-contact-person" placeholder="Full name"
+                                data-section="Company Profile" data-question="Contact Person">
+                        </div>
+                        <div class="form-group">
+                            <label>Email <span class="required">*</span></label>
+                            <input type="email" id="req-contact-email" placeholder="you@company.com"
+                                data-section="Company Profile" data-question="Email">
+                        </div>
+                    </div>
+                    <div class="two-column">
+                        <div class="form-group">
+                            <label>Phone Number</label>
+                            <input type="text" id="req-contact-phone" placeholder="+966 5x xxx xxxx"
+                                data-section="Company Profile" data-question="Phone">
+                        </div>
+                        <div class="form-group">
+                            <label>Company Website</label>
+                            <input type="text" id="req-website" placeholder="https://..."
+                                data-section="Company Profile" data-question="Website">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Industry <span class="required">*</span></label>
+                        <select id="req-industry" data-section="Company Profile" data-question="Industry">
+                            <option value="">Select Industry</option>
+                            <option value="Trading">Trading</option>
+                            <option value="Services">Services</option>
+                            <option value="Manufacturing">Manufacturing</option>
+                            <option value="Construction/Contracting">Construction/Contracting</option>
+                            <option value="Retail">Retail</option>
+                            <option value="Distribution">Distribution</option>
+                            <option value="Healthcare">Healthcare</option>
+                            <option value="Education">Education</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Business Model <span class="required">*</span></label>
+                        <div class="checkbox-group" data-section="Company Profile" data-question="Business Model" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="Trading (Buy & Sell)"><label>Trading (Buy &amp; Sell)</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Services"><label>Services</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Manufacturing"><label>Manufacturing</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Projects/Contracting"><label>Projects/Contracting</label></div>
+                        </div>
+                    </div>
+                    <div class="button-group"><button class="btn-skip" onclick="skipRequirements()">Skip All</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 2: Company Scale -->
+                <div class="section" data-step="2">
+                    <h2 class="section-title">Company Scale</h2>
+                    <p class="section-subtitle">Step 2 of 21 &mdash; Tell us about your organization's size and structure</p>
+
+                    <div class="two-column">
+                        <div class="form-group">
+                            <label>Number of Employees <span class="required">*</span></label>
+                            <select id="req-employees" data-section="Company Scale" data-question="Number of Employees">
+                                <option value="">Select Range</option>
+                                <option value="1-10">1-10</option>
+                                <option value="11-50">11-50</option>
+                                <option value="51-100">51-100</option>
+                                <option value="101-250">101-250</option>
+                                <option value="251-500">251-500</option>
+                                <option value="500+">500+</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Expected ERPNext Users <span class="required">*</span></label>
+                            <input type="number" id="req-users" min="1" placeholder="e.g. 10"
+                                data-section="Company Scale" data-question="Expected ERPNext Users">
+                        </div>
+                    </div>
+                    <div class="two-column">
+                        <div class="form-group">
+                            <label>Number of Branches/Locations <span class="required">*</span></label>
+                            <input type="number" id="req-branches" min="1" value="1"
+                                data-section="Company Scale" data-question="Number of Branches">
+                        </div>
+                        <div class="form-group">
+                            <label>Monthly Transaction Volume</label>
+                            <select id="req-txn-volume" data-section="Company Scale" data-question="Monthly Transaction Volume">
+                                <option value="">Select Range</option>
+                                <option value="<100">&lt;100</option>
+                                <option value="100-500">100-500</option>
+                                <option value="500-1000">500-1,000</option>
+                                <option value="1000-5000">1,000-5,000</option>
+                                <option value="5000+">5,000+</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Growth Plans (Next 1-3 Years)</label>
+                        <textarea id="req-growth-plans" placeholder="Describe expansion plans, new branches, expected growth..."
+                            data-section="Company Scale" data-question="Growth Plans"></textarea>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 3: Compliance & Localization -->
+                <div class="section" data-step="3">
+                    <h2 class="section-title">Compliance &amp; Localization</h2>
+                    <p class="section-subtitle">Step 3 of 21 &mdash; Understanding your regulatory requirements</p>
+
+                    <div class="info-box"><p><strong>Important:</strong> Saudi Arabia has specific compliance requirements including VAT, ZATCA e-Invoicing, and Arabic localization that we'll configure in your ERPNext system.</p></div>
+
+                    <div class="form-group">
+                        <label>VAT Registration Status <span class="required">*</span></label>
+                        <div class="radio-group" data-section="Compliance & Localization" data-question="VAT Status" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-vat-status" value="VAT Registered"><label>VAT Registered</label></div>
+                            <div class="radio-item"><input type="radio" name="req-vat-status" value="Not VAT Registered"><label>Not VAT Registered</label></div>
+                            <div class="radio-item"><input type="radio" name="req-vat-status" value="Planning to Register"><label>Planning to Register</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>VAT Registration Number</label>
+                        <input type="text" id="req-vat-number" placeholder="15-digit VAT number"
+                            data-section="Compliance & Localization" data-question="VAT Number">
+                        <p class="help-text">Example: 300000000000003</p>
+                    </div>
+                    <div class="form-group">
+                        <label>ZATCA e-Invoicing Status <span class="required">*</span></label>
+                        <div class="radio-group" data-section="Compliance & Localization" data-question="ZATCA Status" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-zatca-status" value="Phase 1 Compliant (Generation)"><label>Phase 1 Compliant (Generation)</label></div>
+                            <div class="radio-item"><input type="radio" name="req-zatca-status" value="Phase 2 Required (Integration)"><label>Phase 2 Required (Integration)</label></div>
+                            <div class="radio-item"><input type="radio" name="req-zatca-status" value="Not Required Yet"><label>Not Required Yet</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Language Requirements <span class="required">*</span></label>
+                        <div class="checkbox-group" data-section="Compliance & Localization" data-question="Languages" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="English" checked><label>English</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Arabic"><label>Arabic</label></div>
+                        </div>
+                        <p class="help-text">Select all languages you need for the system interface and documents</p>
+                    </div>
+                    <div class="form-group">
+                        <label>Other Compliance Requirements</label>
+                        <textarea id="req-compliance-other" placeholder="Any other regulatory requirements, certifications, or compliance needs..."
+                            data-section="Compliance & Localization" data-question="Other Compliance"></textarea>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 4: Current Systems & Processes -->
+                <div class="section" data-step="4">
+                    <h2 class="section-title">Current Systems &amp; Processes</h2>
+                    <p class="section-subtitle">Step 4 of 21 &mdash; Tell us about your existing setup</p>
+
+                    <div class="form-group">
+                        <label>Current ERP/Accounting System <span class="required">*</span></label>
+                        <select id="req-current-system" data-section="Current Systems" data-question="Current System">
+                            <option value="">Select Current System</option>
+                            <option value="Excel Spreadsheets">Excel Spreadsheets</option>
+                            <option value="QuickBooks">QuickBooks</option>
+                            <option value="Sage">Sage</option>
+                            <option value="Odoo">Odoo</option>
+                            <option value="SAP">SAP</option>
+                            <option value="Oracle">Oracle</option>
+                            <option value="Legacy/Custom System">Legacy/Custom System</option>
+                            <option value="No System (Manual)">No System (Manual)</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Key Pain Points <span class="required">*</span></label>
+                        <textarea id="req-pain-points" placeholder="Main challenges with your current system..."
+                            data-section="Current Systems" data-question="Pain Points"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Which departments currently use software systems?</label>
+                        <div class="checkbox-group" data-section="Current Systems" data-question="Departments Using Software" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="Finance/Accounting"><label>Finance/Accounting</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Sales"><label>Sales</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Purchasing"><label>Purchasing</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Warehouse/Inventory"><label>Warehouse/Inventory</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="HR/Payroll"><label>HR/Payroll</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Projects"><label>Projects</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Data Migration Requirements</label>
+                        <textarea id="req-data-migration-notes" placeholder="What historical data do you need migrated?"
+                            data-section="Current Systems" data-question="Data Migration Requirements"></textarea>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 5: ERPNext Modules Required -->
+                <div class="section" data-step="5">
+                    <h2 class="section-title">ERPNext Modules Required</h2>
+                    <p class="section-subtitle">Step 5 of 21 &mdash; Select the modules you need</p>
+
+                    <div class="info-box"><p><strong>Note:</strong> We recommend starting with core modules and adding others in later phases.</p></div>
+
+                    <div class="form-group">
+                        <label>Core Modules (Recommended)</label>
+                        <div class="module-grid" data-section="ERPNext Modules" data-question="Core Modules" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="Accounting & Finance" checked><label>Accounting &amp; Finance</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Sales & CRM"><label>Sales &amp; CRM</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Purchasing"><label>Purchasing</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Inventory/Stock"><label>Inventory/Stock</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Additional Modules</label>
+                        <div class="module-grid" data-section="ERPNext Modules" data-question="Additional Modules" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="Projects"><label>Projects</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Manufacturing"><label>Manufacturing</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="HR & Payroll"><label>HR &amp; Payroll</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Asset Management"><label>Asset Management</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Quality Management"><label>Quality Management</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Maintenance"><label>Maintenance</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Priority Modules (Top 3)</label>
+                        <input type="text" id="req-priority" placeholder="e.g., Accounting, Sales, Inventory"
+                            data-section="ERPNext Modules" data-question="Priority Modules">
+                        <p class="help-text">These will be implemented first</p>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 6: Finance & Accounting -->
+                <div class="section" data-step="6">
+                    <h2 class="section-title">Finance &amp; Accounting</h2>
+                    <p class="section-subtitle">Step 6 of 21 &mdash; Detailed accounting requirements</p>
+
+                    <div class="two-column">
+                        <div class="form-group">
+                            <label>Fiscal Year Start Date <span class="required">*</span></label>
+                            <input type="date" id="req-fiscal-start" data-section="Finance & Accounting" data-question="Fiscal Year Start">
+                        </div>
+                        <div class="form-group">
+                            <label>Fiscal Year End Date <span class="required">*</span></label>
+                            <input type="date" id="req-fiscal-end" data-section="Finance & Accounting" data-question="Fiscal Year End">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Chart of Accounts <span class="required">*</span></label>
+                        <div class="radio-group" data-section="Finance & Accounting" data-question="Chart of Accounts" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-coa" value="Standard ERPNext Chart of Accounts"><label>Standard ERPNext Chart of Accounts</label></div>
+                            <div class="radio-item"><input type="radio" name="req-coa" value="Customized Chart of Accounts Required"><label>Customized Chart of Accounts Required</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Accounting Features Required</label>
+                        <div class="checkbox-group" data-section="Finance & Accounting" data-question="Accounting Features" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="Multi-company Accounting"><label>Multi-company Accounting</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Cost Centers"><label>Cost Centers</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Profit Center Tracking"><label>Profit Center Tracking</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Budget Control"><label>Budget Control</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Fixed Assets Management"><label>Fixed Assets Management</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Period Closing Process</label>
+                        <textarea id="req-period-closing" placeholder="Month-end/year-end closing requirements..."
+                            data-section="Finance & Accounting" data-question="Period Closing"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Financial Reports Required</label>
+                        <textarea id="req-fin-reports" placeholder="P&L by cost center, consolidated balance sheet, cash flow..."
+                            data-section="Finance & Accounting" data-question="Financial Reports"></textarea>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 7: Sales & CRM -->
+                <div class="section" data-step="7">
+                    <h2 class="section-title">Sales &amp; CRM</h2>
+                    <p class="section-subtitle">Step 7 of 21 &mdash; Sales process and customer management</p>
+
+                    <div class="form-group">
+                        <label>Sales Features Required</label>
+                        <div class="checkbox-group" data-section="Sales & CRM" data-question="Sales Features" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="Lead Management"><label>Lead Management</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Opportunity Tracking"><label>Opportunity Tracking</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Quotation Approval Workflow"><label>Quotation Approval Workflow</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Pricing Rules & Discounts"><label>Pricing Rules &amp; Discounts</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Customer Credit Limits"><label>Customer Credit Limits</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Sales Commissions Tracking"><label>Sales Commissions Tracking</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Customer Portal"><label>Customer Portal</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Sales Order Process Description</label>
+                        <textarea id="req-sales-process" placeholder="Describe your typical sales process from quotation to delivery..."
+                            data-section="Sales & CRM" data-question="Sales Order Process"></textarea>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 8: Purchasing & Suppliers -->
+                <div class="section" data-step="8">
+                    <h2 class="section-title">Purchasing &amp; Suppliers</h2>
+                    <p class="section-subtitle">Step 8 of 21 &mdash; Procurement and supplier management</p>
+
+                    <div class="form-group">
+                        <label>Purchasing Features Required</label>
+                        <div class="checkbox-group" data-section="Purchasing & Suppliers" data-question="Purchasing Features" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="Purchase Order Approval Workflows"><label>Purchase Order Approval Workflows</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Blanket Purchase Orders"><label>Blanket Purchase Orders</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Landed Cost Handling"><label>Landed Cost Handling</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Supplier Performance Evaluation"><label>Supplier Performance Evaluation</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Supplier Onboarding Process</label>
+                        <textarea id="req-supplier-onboarding" placeholder="How new suppliers are onboarded and approved..."
+                            data-section="Purchasing & Suppliers" data-question="Supplier Onboarding"></textarea>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 9: Inventory & Warehouse -->
+                <div class="section" data-step="9">
+                    <h2 class="section-title">Inventory &amp; Warehouse Management</h2>
+                    <p class="section-subtitle">Step 9 of 21 &mdash; Stock management and warehouse operations</p>
+
+                    <div class="form-group">
+                        <label>Inventory Type <span class="required">*</span></label>
+                        <div class="radio-group" data-section="Inventory & Warehouse" data-question="Inventory Type" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-inv-type" value="Non-stock Items Only (Services)"><label>Non-stock Items Only (Services)</label></div>
+                            <div class="radio-item"><input type="radio" name="req-inv-type" value="Stock Items"><label>Stock Items</label></div>
+                            <div class="radio-item"><input type="radio" name="req-inv-type" value="Mixed (Stock + Non-stock)"><label>Mixed (Stock + Non-stock)</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Number of Warehouses <span class="required">*</span></label>
+                        <input type="number" id="req-warehouse-count" min="0" value="1"
+                            data-section="Inventory & Warehouse" data-question="Warehouse Count">
+                    </div>
+                    <div class="form-group">
+                        <label>Stock Valuation Method <span class="required">*</span></label>
+                        <div class="radio-group" data-section="Inventory & Warehouse" data-question="Stock Valuation" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-valuation" value="FIFO (First In First Out)"><label>FIFO (First In First Out)</label></div>
+                            <div class="radio-item"><input type="radio" name="req-valuation" value="Moving Average"><label>Moving Average</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Inventory Features Required</label>
+                        <div class="checkbox-group" data-section="Inventory & Warehouse" data-question="Inventory Features" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="Batch Tracking (Food, Pharma)"><label>Batch Tracking (Food, Pharma)</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Serial Number Tracking (Electronics)"><label>Serial Number Tracking (Electronics)</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Stock Reservations"><label>Stock Reservations</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Automatic Reordering Rules"><label>Automatic Reordering Rules</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Barcode Scanning"><label>Barcode Scanning</label></div>
+                        </div>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 10: Projects & Contracting -->
+                <div class="section" data-step="10">
+                    <h2 class="section-title">Projects &amp; Contracting</h2>
+                    <p class="section-subtitle">Step 10 of 21 &mdash; For project-based or contracting businesses</p>
+
+                    <div class="info-box"><p><strong>Skip this section</strong> if you don't have project-based work.</p></div>
+
+                    <div class="form-group">
+                        <label>Project Features Required</label>
+                        <div class="checkbox-group" data-section="Projects & Contracting" data-question="Project Features" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="Project-based Costing"><label>Project-based Costing</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Timesheets"><label>Timesheets</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Milestone-based Billing"><label>Milestone-based Billing</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Retention Handling (Construction)"><label>Retention Handling (Construction)</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Variation Orders"><label>Variation Orders</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Project Management Details</label>
+                        <textarea id="req-project-details" placeholder="Describe your typical project lifecycle..."
+                            data-section="Projects & Contracting" data-question="Project Details"></textarea>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 11: Manufacturing -->
+                <div class="section" data-step="11">
+                    <h2 class="section-title">Manufacturing</h2>
+                    <p class="section-subtitle">Step 11 of 21 &mdash; For manufacturing operations</p>
+
+                    <div class="info-box"><p><strong>Skip this section</strong> if you don't have manufacturing operations.</p></div>
+
+                    <div class="form-group">
+                        <label>Manufacturing Type</label>
+                        <div class="radio-group" data-section="Manufacturing" data-question="Manufacturing Type" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-mfg-type" value="Make-to-Stock"><label>Make-to-Stock</label></div>
+                            <div class="radio-item"><input type="radio" name="req-mfg-type" value="Make-to-Order"><label>Make-to-Order</label></div>
+                            <div class="radio-item"><input type="radio" name="req-mfg-type" value="Both"><label>Both</label></div>
+                            <div class="radio-item"><input type="radio" name="req-mfg-type" value="Not Applicable"><label>Not Applicable</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>BOM (Bill of Materials) Complexity</label>
+                        <div class="radio-group" data-section="Manufacturing" data-question="BOM Complexity" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-bom" value="Simple (Single Level)"><label>Simple (Single Level)</label></div>
+                            <div class="radio-item"><input type="radio" name="req-bom" value="Multi-level BOMs"><label>Multi-level BOMs</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Manufacturing Features Required</label>
+                        <div class="checkbox-group" data-section="Manufacturing" data-question="Manufacturing Features" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="Work Orders"><label>Work Orders</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Subcontracting"><label>Subcontracting</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Quality Inspection"><label>Quality Inspection</label></div>
+                        </div>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 12: HR & Payroll -->
+                <div class="section" data-step="12">
+                    <h2 class="section-title">HR &amp; Payroll</h2>
+                    <p class="section-subtitle">Step 12 of 21 &mdash; Human resources and payroll management</p>
+
+                    <div class="form-group">
+                        <label>HR Features Required</label>
+                        <div class="checkbox-group" data-section="HR & Payroll" data-question="HR Features" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="Attendance Tracking"><label>Attendance Tracking</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Leave Management"><label>Leave Management</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Payroll Processing"><label>Payroll Processing</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="End-of-Service Benefits (EOSB)"><label>End-of-Service Benefits (EOSB)</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Payroll-Accounting Integration"><label>Payroll-Accounting Integration</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Payroll Frequency</label>
+                        <div class="radio-group" data-section="HR & Payroll" data-question="Payroll Frequency" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-payroll-freq" value="Monthly"><label>Monthly</label></div>
+                            <div class="radio-item"><input type="radio" name="req-payroll-freq" value="Semi-Monthly"><label>Semi-Monthly</label></div>
+                            <div class="radio-item"><input type="radio" name="req-payroll-freq" value="Bi-Weekly"><label>Bi-Weekly</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Allowances &amp; Deductions Complexity</label>
+                        <textarea id="req-allowances" placeholder="Housing allowance, transport, GOSI, loans, etc..."
+                            data-section="HR & Payroll" data-question="Allowances & Deductions"></textarea>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 13: Asset Management -->
+                <div class="section" data-step="13">
+                    <h2 class="section-title">Asset Management</h2>
+                    <p class="section-subtitle">Step 13 of 21 &mdash; Fixed assets tracking and maintenance</p>
+
+                    <div class="form-group">
+                        <label>Asset Categories</label>
+                        <textarea id="req-asset-categories" placeholder="Vehicles, Computers, Machinery, Furniture, Buildings..."
+                            data-section="Asset Management" data-question="Asset Categories"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Depreciation Methods</label>
+                        <textarea id="req-depreciation" placeholder="Straight Line, Declining Balance, Units of Production..."
+                            data-section="Asset Management" data-question="Depreciation Methods"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Asset Management Features</label>
+                        <div class="checkbox-group" data-section="Asset Management" data-question="Asset Features" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="Asset Transfers Between Locations"><label>Asset Transfers Between Locations</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Asset Maintenance Tracking"><label>Asset Maintenance Tracking</label></div>
+                        </div>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 14: System Integrations -->
+                <div class="section" data-step="14">
+                    <h2 class="section-title">System Integrations</h2>
+                    <p class="section-subtitle">Step 14 of 21 &mdash; External systems and integrations</p>
+
+                    <div class="form-group">
+                        <label>Integration Requirements</label>
+                        <div class="checkbox-group" data-section="System Integrations" data-question="Integration Requirements" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="Bank Integration"><label>Bank Integration</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Payment Gateway"><label>Payment Gateway</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="E-commerce Platform"><label>E-commerce Platform</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Biometric Attendance"><label>Biometric Attendance</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Shipping/Logistics"><label>Shipping/Logistics</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="POS System"><label>POS System</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>ZATCA Integration Method</label>
+                        <div class="radio-group" data-section="System Integrations" data-question="ZATCA Integration" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-zatca-int" value="ERPNext ZATCA App"><label>ERPNext ZATCA App</label></div>
+                            <div class="radio-item"><input type="radio" name="req-zatca-int" value="Custom Integration"><label>Custom Integration</label></div>
+                            <div class="radio-item"><input type="radio" name="req-zatca-int" value="Need Guidance"><label>Need Guidance</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Third-party Systems to Integrate</label>
+                        <textarea id="req-third-party" placeholder="List systems that need to integrate with ERPNext..."
+                            data-section="System Integrations" data-question="Third-party Systems"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>API Availability</label>
+                        <textarea id="req-api-availability" placeholder="Do external systems have APIs available?"
+                            data-section="System Integrations" data-question="API Availability"></textarea>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 15: Security, Roles & Approvals -->
+                <div class="section" data-step="15">
+                    <h2 class="section-title">Security, Roles &amp; Approvals</h2>
+                    <p class="section-subtitle">Step 15 of 21 &mdash; User access and approval workflows</p>
+
+                    <div class="form-group">
+                        <label>Security &amp; Access Requirements</label>
+                        <div class="checkbox-group" data-section="Security & Approvals" data-question="Security Features" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="Role-based Access Control"><label>Role-based Access Control</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Multi-level Approval Workflows"><label>Multi-level Approval Workflows</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Segregation of Duties"><label>Segregation of Duties</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Approval Workflows Needed</label>
+                        <div class="checkbox-group" data-section="Security & Approvals" data-question="Approval Workflows" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="Purchase Orders"><label>Purchase Orders</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Quotations/Sales Orders"><label>Quotations/Sales Orders</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Expense Claims"><label>Expense Claims</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Leave Applications"><label>Leave Applications</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Payment Entries"><label>Payment Entries</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Journal Entries"><label>Journal Entries</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Segregation of Duties Concerns</label>
+                        <textarea id="req-segregation" placeholder="PO creator cannot approve, invoice creator cannot make payments..."
+                            data-section="Security & Approvals" data-question="Segregation Concerns"></textarea>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 16: Data Migration -->
+                <div class="section" data-step="16">
+                    <h2 class="section-title">Data Migration</h2>
+                    <p class="section-subtitle">Step 16 of 21 &mdash; Historical data and migration planning</p>
+
+                    <div class="form-group">
+                        <label>Historical Data to Migrate <span class="required">*</span></label>
+                        <div class="radio-group" data-section="Data Migration" data-question="Data Scope" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-data-scope" value="Masters Only (Customers, Suppliers, Items, CoA)"><label>Masters Only (Customers, Suppliers, Items, CoA)</label></div>
+                            <div class="radio-item"><input type="radio" name="req-data-scope" value="Masters + Opening Balances"><label>Masters + Opening Balances</label></div>
+                            <div class="radio-item"><input type="radio" name="req-data-scope" value="Full Transaction History"><label>Full Transaction History</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Data Quality Status</label>
+                        <div class="radio-group" data-section="Data Migration" data-question="Data Quality" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-data-quality" value="Clean & Ready"><label>Clean &amp; Ready</label></div>
+                            <div class="radio-item"><input type="radio" name="req-data-quality" value="Needs Cleaning & Standardization"><label>Needs Cleaning &amp; Standardization</label></div>
+                            <div class="radio-item"><input type="radio" name="req-data-quality" value="Not Sure"><label>Not Sure</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Data Cleanup Responsibility</label>
+                        <div class="radio-group" data-section="Data Migration" data-question="Cleanup Responsibility" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-data-cleanup" value="We will handle data cleanup"><label>We will handle data cleanup</label></div>
+                            <div class="radio-item"><input type="radio" name="req-data-cleanup" value="Need consultant assistance"><label>Need consultant assistance</label></div>
+                            <div class="radio-item"><input type="radio" name="req-data-cleanup" value="Joint effort"><label>Joint effort</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Specific Data Migration Concerns</label>
+                        <textarea id="req-migration-concerns" placeholder="Data volume, system compatibility, downtime concerns..."
+                            data-section="Data Migration" data-question="Migration Concerns"></textarea>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 17: Change Management & Training -->
+                <div class="section" data-step="17">
+                    <h2 class="section-title">Change Management &amp; Training</h2>
+                    <p class="section-subtitle">Step 17 of 21 &mdash; User readiness and training needs</p>
+
+                    <div class="form-group">
+                        <label>User Technical Skill Level</label>
+                        <div class="radio-group" data-section="Change Management" data-question="Skill Level" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-skill" value="Basic (Limited computer experience)"><label>Basic (Limited computer experience)</label></div>
+                            <div class="radio-item"><input type="radio" name="req-skill" value="Intermediate (Regular computer users)"><label>Intermediate (Regular computer users)</label></div>
+                            <div class="radio-item"><input type="radio" name="req-skill" value="Advanced (Tech-savvy users)"><label>Advanced (Tech-savvy users)</label></div>
+                            <div class="radio-item"><input type="radio" name="req-skill" value="Mixed (Varies by department)"><label>Mixed (Varies by department)</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Training Language Preference <span class="required">*</span></label>
+                        <div class="checkbox-group" data-section="Change Management" data-question="Training Language" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="English"><label>English</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Arabic"><label>Arabic</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Super Users Identified</label>
+                        <div class="radio-group" data-section="Change Management" data-question="Super Users" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-super-users" value="Yes, we have identified super users"><label>Yes, we have identified super users</label></div>
+                            <div class="radio-item"><input type="radio" name="req-super-users" value="No, need help identifying"><label>No, need help identifying</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Go-live Support Expectations</label>
+                        <textarea id="req-golive-support" placeholder="On-site support, remote support duration, weekend coverage..."
+                            data-section="Change Management" data-question="Go-live Support"></textarea>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 18: Reporting & Dashboards -->
+                <div class="section" data-step="18">
+                    <h2 class="section-title">Reporting &amp; Dashboards</h2>
+                    <p class="section-subtitle">Step 18 of 21 &mdash; Reporting requirements and KPIs</p>
+
+                    <div class="form-group">
+                        <label>Standard Reports Sufficient?</label>
+                        <div class="radio-group" data-section="Reporting & Dashboards" data-question="Standard Reports" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-reports" value="Yes, standard ERPNext reports are sufficient"><label>Yes, standard ERPNext reports are sufficient</label></div>
+                            <div class="radio-item"><input type="radio" name="req-reports" value="No, custom reports required"><label>No, custom reports required</label></div>
+                            <div class="radio-item"><input type="radio" name="req-reports" value="Not sure yet"><label>Not sure yet</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Custom Reports Required</label>
+                        <textarea id="req-custom-reports" placeholder="List specific custom reports needed..."
+                            data-section="Reporting & Dashboards" data-question="Custom Reports"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Management Dashboards Required?</label>
+                        <div class="radio-group" data-section="Reporting & Dashboards" data-question="Dashboards" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-dashboards" value="Yes"><label>Yes</label></div>
+                            <div class="radio-item"><input type="radio" name="req-dashboards" value="No"><label>No</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>KPIs to Track</label>
+                        <textarea id="req-kpis" placeholder="Sales growth, Collection efficiency, Inventory turnover, Project margins..."
+                            data-section="Reporting & Dashboards" data-question="KPIs"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Print Format Customization</label>
+                        <div class="checkbox-group" data-section="Reporting & Dashboards" data-question="Print Formats" data-type="checks">
+                            <div class="checkbox-item"><input type="checkbox" value="Custom Invoice Format"><label>Custom Invoice Format</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Custom Quotation Format"><label>Custom Quotation Format</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Custom Purchase Order Format"><label>Custom Purchase Order Format</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Custom Delivery Note Format"><label>Custom Delivery Note Format</label></div>
+                            <div class="checkbox-item"><input type="checkbox" value="Custom Payslip Format"><label>Custom Payslip Format</label></div>
+                        </div>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 19: Implementation Preferences -->
+                <div class="section" data-step="19">
+                    <h2 class="section-title">Implementation Preferences</h2>
+                    <p class="section-subtitle">Step 19 of 21 &mdash; Timeline, budget, and deployment</p>
+
+                    <div class="form-group">
+                        <label>Implementation Approach <span class="required">*</span></label>
+                        <div class="radio-group" data-section="Implementation" data-question="Approach" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-impl" value="Phased (Module by module)"><label>Phased (Module by module)</label></div>
+                            <div class="radio-item"><input type="radio" name="req-impl" value="Big-Bang (All modules at once)"><label>Big-Bang (All modules at once)</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Desired Timeline <span class="required">*</span></label>
+                        <div class="radio-group" data-section="Implementation" data-question="Timeline" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-timeline" value="Urgent (1-2 months)"><label>Urgent (1-2 months)</label></div>
+                            <div class="radio-item"><input type="radio" name="req-timeline" value="Normal (3-4 months)"><label>Normal (3-4 months)</label></div>
+                            <div class="radio-item"><input type="radio" name="req-timeline" value="Flexible (5-6 months)"><label>Flexible (5-6 months)</label></div>
+                            <div class="radio-item"><input type="radio" name="req-timeline" value="Phased (6+ months)"><label>Phased (6+ months)</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Target Go-Live Date</label>
+                        <input type="date" id="req-golive-date" data-section="Implementation" data-question="Go-Live Date">
+                        <p class="help-text">If you have a specific date in mind</p>
+                    </div>
+                    <div class="form-group">
+                        <label>Budget Range</label>
+                        <select id="req-budget" data-section="Implementation" data-question="Budget Range">
+                            <option value="">Select Budget Range</option>
+                            <option value="< SAR 25,000">&lt; SAR 25,000</option>
+                            <option value="SAR 25,000 - 50,000">SAR 25,000 - 50,000</option>
+                            <option value="SAR 50,000 - 100,000">SAR 50,000 - 100,000</option>
+                            <option value="SAR 100,000 - 200,000">SAR 100,000 - 200,000</option>
+                            <option value="SAR 200,000+">SAR 200,000+</option>
+                            <option value="Flexible based on requirements">Flexible based on requirements</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Deployment Preference <span class="required">*</span></label>
+                        <div class="radio-group" data-section="Implementation" data-question="Deployment" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-deploy" value="Cloud Hosted (Recommended)"><label>Cloud Hosted (Recommended)</label></div>
+                            <div class="radio-item"><input type="radio" name="req-deploy" value="On-Premise (Your Server)"><label>On-Premise (Your Server)</label></div>
+                            <div class="radio-item"><input type="radio" name="req-deploy" value="Not Sure - Need Guidance"><label>Not Sure - Need Guidance</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Project Priority/Urgency</label>
+                        <textarea id="req-urgency" placeholder="Contract expiry, regulatory deadline, business expansion..."
+                            data-section="Implementation" data-question="Urgency Reason"></textarea>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Next</button></div>
+                </div>
+
+                <!-- Step 20: Success Criteria & Final Details -->
+                <div class="section" data-step="20">
+                    <h2 class="section-title">Success Criteria &amp; Final Details</h2>
+                    <p class="section-subtitle">Step 20 of 21 &mdash; Define what success looks like</p>
+
+                    <div class="form-group">
+                        <label>Key Success Indicators <span class="required">*</span></label>
+                        <textarea id="req-success-indicators" placeholder="Faster month-end closing, 99% invoice accuracy, Real-time inventory visibility..."
+                            data-section="Success Criteria" data-question="Success Indicators"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Top 3 Business Outcomes Expected <span class="required">*</span></label>
+                        <textarea id="req-outcomes" placeholder="1. Reduce order processing time by 50% 2. Full VAT compliance 3. Real-time financial visibility"
+                            data-section="Success Criteria" data-question="Top 3 Outcomes"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Biggest Concerns About Implementation</label>
+                        <textarea id="req-concerns" placeholder="Data migration, User adoption, Business disruption, Training..."
+                            data-section="Success Criteria" data-question="Concerns"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Internal IT Resources Available</label>
+                        <div class="radio-group" data-section="Success Criteria" data-question="IT Resources" data-type="radio">
+                            <div class="radio-item"><input type="radio" name="req-it" value="Dedicated IT Team"><label>Dedicated IT Team</label></div>
+                            <div class="radio-item"><input type="radio" name="req-it" value="Part-time IT Person"><label>Part-time IT Person</label></div>
+                            <div class="radio-item"><input type="radio" name="req-it" value="No Internal IT Support"><label>No Internal IT Support</label></div>
+                            <div class="radio-item"><input type="radio" name="req-it" value="External IT Vendor"><label>External IT Vendor</label></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Decision Timeline</label>
+                        <input type="text" id="req-decision-timeline" placeholder="When do you expect to decide?"
+                            data-section="Success Criteria" data-question="Decision Timeline">
+                    </div>
+                    <div class="form-group">
+                        <label>Additional Comments or Questions</label>
+                        <textarea id="req-notes" placeholder="Anything else you'd like us to know..."
+                            data-section="Success Criteria" data-question="Additional Notes"></textarea>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-next" onclick="reqNext()">Review Submission</button></div>
+                </div>
+
+                <!-- Step 21: Review & Submit -->
+                <div class="section" data-step="21">
+                    <h2 class="section-title">Review Your Information</h2>
+                    <p class="section-subtitle">Step 21 of 21 &mdash; Please review your responses before submitting</p>
+
+                    <div id="summaryContent"></div>
+
+                    <div class="form-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="req-confirm-accuracy">
+                            <label>I confirm that the information provided is accurate to the best of my knowledge</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="req-agree-contact">
+                            <label>I agree to be contacted by your team to discuss these requirements</label>
+                        </div>
+                    </div>
+                    <div class="button-group"><button class="btn-prev" onclick="reqPrev()">Previous</button><button class="btn-submit" onclick="submitRequirements()">Submit Requirements</button></div>
+                    <div class="demo-error" id="req-submit-error"></div>
+                </div>
+
+                <!-- Done -->
+                <div id="req-done" style="display:none;text-align:center;padding:40px 0;">
+                    <div class="success-icon">&#10003;</div>
+                    <h2 style="color:#059669;margin-bottom:8px;">Thank You!</h2>
+                    <p style="color:#6b7280;font-size:16px;">Your requirements have been submitted successfully.</p>
+                    <p style="color:#6b7280;font-size:14px;margin-top:12px;">Our team will review your information and contact you within 2 business days.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
