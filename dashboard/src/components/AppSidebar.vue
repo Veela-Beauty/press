@@ -34,7 +34,7 @@
 						class="flex w-[204px] items-center rounded-md px-2 py-2 text-left"
 						:class="open ? 'as-sidebar-btn-open' : 'as-sidebar-btn-closed'"
 					>
-						<FCLogo class="mb-1 h-9 w-9 shrink-0 rounded-lg bg-white p-0.5" />
+						<FCLogo class="as-sidebar-logo mb-1 h-9 w-9 shrink-0" />
 						<div class="ml-2 flex flex-1 flex-col overflow-hidden">
 							<div class="text-sm font-semibold leading-tight as-sidebar-brand">
 								Accurate Systems
@@ -114,6 +114,9 @@ export default {
 .as-sidebar {
 	background: #1E293B;
 	border-right: 1px solid rgba(255,255,255,0.06);
+}
+.as-sidebar-logo {
+	filter: brightness(0) invert(1);
 }
 .as-sidebar-brand {
 	color: rgba(255,255,255,0.95);
