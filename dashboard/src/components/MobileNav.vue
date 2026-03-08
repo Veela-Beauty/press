@@ -1,16 +1,15 @@
 <template>
 	<Disclosure as="div" v-slot="{ open }">
 		<div class="flex h-12 items-center border-b px-5">
-			<span class="font-semibold">
-				<router-link :to="{ name: 'Site List' }">
-					<!-- Rebrand: Accurate Systems logo -->
-					<img
-						:src="'/assets/press/images/accurate-systems-logo.png'"
-						class="h-7 w-7 shrink-0"
-						alt="Accurate Systems Logo"
-					/>
-				</router-link>
-			</span>
+			<router-link :to="{ name: 'Site List' }" class="flex items-center gap-2">
+				<!-- Rebrand: Accurate Systems logo + brand name -->
+				<img
+					:src="'/assets/press/images/accurate-systems-logo.png'"
+					class="h-7 w-7 shrink-0"
+					alt="Accurate Systems Logo"
+				/>
+				<span class="text-base font-semibold text-gray-900">Accurate Systems</span>
+			</router-link>
 			<Dropdown
 				class="ml-auto"
 				:options="[
