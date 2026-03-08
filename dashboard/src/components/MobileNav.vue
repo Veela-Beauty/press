@@ -5,7 +5,7 @@
 				<router-link :to="{ name: 'Site List' }">
 					<!-- Rebrand: Accurate Systems logo -->
 					<img
-						src="/assets/press/images/accurate-systems-logo.png"
+						:src="'/assets/press/images/accurate-systems-logo.png'"
 						class="h-7 w-7 shrink-0"
 						alt="Accurate Systems Logo"
 					/>
