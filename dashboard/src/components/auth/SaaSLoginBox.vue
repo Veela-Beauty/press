@@ -5,26 +5,25 @@
 		<div class="login-circle-2"></div>
 
 		<div class="relative z-10 w-full max-w-[480px] px-4 py-8 sm:py-16">
-			<!-- Logo area (on gradient, white) -->
-			<div class="mb-6 flex flex-col items-center">
-				<img
-					v-if="logo"
-					class="login-logo inline-block h-14 w-14 rounded-md"
-					:src="logo"
-				/>
-				<FCLogo v-else class="login-logo inline-block h-14 w-14" />
-				<h1 class="mt-3 text-lg font-bold text-white">
-					Accurate Systems
-				</h1>
-				<p class="mt-1 text-sm text-white/70">
-					Cloud Hosting Solutions
-				</p>
-			</div>
-
 			<div
 				class="login-card rounded-xl bg-white p-8 shadow-lg sm:p-10"
 				@dblclick="redirectForFrappeioAuth"
 			>
+				<!-- Logo area -->
+				<div class="mb-7 flex flex-col items-center">
+					<img
+						v-if="logo"
+						class="inline-block h-14 w-14 rounded-md"
+						:src="logo"
+					/>
+					<FCLogo v-else class="inline-block h-14 w-14" />
+					<h1 class="mt-3 text-lg font-bold text-gray-900">
+						Accurate Systems
+					</h1>
+					<p class="mt-1 text-sm text-gray-500">
+						Cloud Hosting Solutions
+					</p>
+				</div>
 				<!-- Title & Subtitle -->
 				<div class="mb-7.5 text-center">
 					<p class="mb-2 text-2xl font-semibold leading-6 text-gray-900">
@@ -103,9 +102,6 @@ export default {
 	border-radius: 50%;
 	background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%);
 	pointer-events: none;
-}
-.login-logo {
-	filter: brightness(0) invert(1);
 }
 .login-circle-2 {
 	position: absolute;
