@@ -1,0 +1,71 @@
+{
+  "press_settings": {
+    "domain": "demo.mvpstorm.com",
+    "cluster": "Default",
+    "docker_registry_url": "89.167.116.92:5000",
+    "build_server": "press-f1.demo.mvpstorm.com",
+    "clone_directory": "/home/frappe/frappe-bench/clones",
+    "build_directory": "/home/frappe/frappe-bench/builds",
+    "bench_configuration": "{}",
+    "free_credits_usd": 100.0,
+    "backup_interval": 6,
+    "backup_limit": 3,
+    "disable_physical_backup": 0,
+    "offsite_backups_count": 0,
+    "use_asset_store": 0,
+    "suspend_builds": 0,
+    "minimum_rebuild_memory": 2,
+    "use_agent_job_callbacks": 1,
+    "send_telegram_notifications": 0,
+    "send_email_notifications": 0,
+    "certbot_directory": "/etc/letsencrypt",
+    "eff_registration_email": "admin@mvpstorm.com",
+    "rsa_key_size": "2048",
+    "agent_repository_owner": "frappe",
+    "branch": "master",
+    "github_app_id": "REPLACE_ME",
+    "github_app_client_id": "REPLACE_ME",
+    "github_app_public_link": "https://github.com/apps/mvpstorm-press",
+    "github_app_client_secret": "REPLACE_WITH_SECRET",
+    "github_app_private_key": "REPLACE_WITH_PEM"
+  },
+  "default_apps": ["frappe", "erpnext"],
+  "erpnext_apps": ["erpnext", "hrms", "payments", "webshop", "lending"],
+  "cluster": {
+    "name": "Default",
+    "title": "Europe (Germany)",
+    "image": "/assets/press/flags/de.svg",
+    "public": 1
+  },
+  "frappe_versions": {
+    "Version 14": {"status": "Stable", "public": 1, "default": 0},
+    "Version 15": {"status": "Stable", "public": 1, "default": 1},
+    "Version 16": {"status": "Stable", "public": 0, "default": 0}
+  },
+  "v15_apps": {
+    "frappe": {"repo": "https://github.com/frappe/frappe", "branch": "version-15"},
+    "erpnext": {"repo": "https://github.com/frappe/erpnext", "branch": "version-15"},
+    "hrms": {"repo": "https://github.com/frappe/hrms", "branch": "version-15"},
+    "payments": {"repo": "https://github.com/frappe/payments", "branch": "version-15"},
+    "webshop": {"repo": "https://github.com/frappe/webshop", "branch": "version-15"},
+    "lending": {"repo": "https://github.com/frappe/lending", "branch": "version-15"}
+  },
+  "v14_apps": {
+    "frappe": {"repo": "https://github.com/frappe/frappe", "branch": "version-14"},
+    "erpnext": {"repo": "https://github.com/frappe/erpnext", "branch": "version-14"},
+    "hrms": {"repo": "https://github.com/frappe/hrms", "branch": "version-14"},
+    "payments": {"repo": "https://github.com/frappe/payments", "branch": "version-14"}
+  },
+  "site_plans": [
+    {"name": "Free", "price_usd": 0, "cpu_time_per_day": 1, "max_storage_usage": 10240, "max_database_usage": 1024},
+    {"name": "USD 10", "price_usd": 10, "cpu_time_per_day": 2, "max_storage_usage": 20480, "max_database_usage": 2048},
+    {"name": "USD 25", "price_usd": 25, "cpu_time_per_day": 3, "max_storage_usage": 30720, "max_database_usage": 3072}
+  ],
+  "server": {
+    "name": "press-f1.demo.mvpstorm.com",
+    "cluster": "Default",
+    "use_for_new_benches": 1,
+    "use_for_new_sites": 1,
+    "use_for_build": 1
+  }
+}
