@@ -1,7 +1,11 @@
 <template>
 	<!-- Rebrand: Accurate Systems branded login page -->
 	<div class="login-page-bg relative flex min-h-full items-center justify-center">
-		<div class="relative z-10 w-full max-w-[420px] px-4 py-8 sm:py-16">
+		<!-- Decorative circles matching prototype -->
+		<div class="login-circle-1"></div>
+		<div class="login-circle-2"></div>
+
+		<div class="relative z-10 w-full max-w-[480px] px-4 py-8 sm:py-16">
 			<div
 				class="login-card rounded-xl bg-white p-8 shadow-lg sm:p-10"
 				@dblclick="redirectForFrappeioAuth"
@@ -73,13 +77,35 @@ export default {
 </script>
 
 <style scoped>
-/* Rebrand: Accurate Systems gradient background */
+/* Rebrand: Accurate Systems gradient background with decorative elements */
 .login-page-bg {
 	min-height: 100vh;
 	background: linear-gradient(135deg, #F0F5FA 0%, #E0EDFA 50%, #D4E6F9 100%);
+	position: relative;
+	overflow: hidden;
 }
 .login-card {
 	box-shadow: 0 10px 25px rgba(4, 107, 210, 0.12),
 		0 4px 10px rgba(0, 0, 0, 0.06);
+}
+.login-circle-1 {
+	position: absolute;
+	top: -200px;
+	right: -200px;
+	width: 500px;
+	height: 500px;
+	border-radius: 50%;
+	background: radial-gradient(circle, rgba(4,107,210,0.08) 0%, transparent 70%);
+	pointer-events: none;
+}
+.login-circle-2 {
+	position: absolute;
+	bottom: -150px;
+	left: -150px;
+	width: 400px;
+	height: 400px;
+	border-radius: 50%;
+	background: radial-gradient(circle, rgba(4,107,210,0.06) 0%, transparent 70%);
+	pointer-events: none;
 }
 </style>
