@@ -21,6 +21,9 @@ Self-hosted Frappe Press deployment on `demo.mvpstorm.com` with Cloudflare DNS.
 - [Backups & Restore](02-operations/backups.md) — Backup configuration and restore flow
 - [Troubleshooting](02-operations/troubleshooting.md) — Common errors and fixes
 
+### 03 — Demo System
+- [Demo Provisioning](03-demo/demo-provisioning.md) — Landing page, invite codes, site creation flow
+
 ## Patches (cloudflare-dns branch)
 
 7 files patched on `accurate-systems/press` fork, `cloudflare-dns` branch:
