@@ -127,7 +127,7 @@ def validate_plan(secret_key):
 	except Exception as e:
 		frappe.throw(
 			str(e)
-			or "Something went wrong fetching subscription details of Email Delivery Service. Please raise a ticket at support.frappe.io",
+			or "Something went wrong fetching subscription details of Email Delivery Service. Please raise a ticket at accuratesystems.com.sa/support",
 			type(e),
 		)
 
@@ -236,7 +236,7 @@ def send_mime_mail(**data):
 		frappe.throw(f"Something went wrong with sending emails: {err_msg}", InvalidEmail)
 	log_error("Email Delivery Service: Sending error", response=resp.text, data=data, message=message)
 	frappe.throw(
-		"Something went wrong with sending emails. Please try again later or raise a support ticket with support.frappe.io",
+		"Something went wrong with sending emails. Please try again later or raise a support ticket with accuratesystems.com.sa/support",
 		EmailSendError,
 	)
 	return None

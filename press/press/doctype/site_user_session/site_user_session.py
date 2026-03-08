@@ -42,7 +42,7 @@ class SiteUserSession(Document):
 			print()
 			return
 
-		subject = f"{self.otp} - OTP for Frappe Cloud Site Login"
+		subject = f"{self.otp} - OTP for Accurate Systems Cloud Site Login"
 		args = {}
 
 		args.update(

@@ -1053,11 +1053,11 @@ class ReleaseGroup(Document, TagHelpers):
 		if team and not team.ssh_access_enabled:
 			if team.creation > add_to_date(None, days=-7):
 				frappe.throw(
-					"SSH access is unavailable because your team was created less than 7 days ago.\nIf you need urgent access, please create a support ticket at support.frappe.io using your team email ID."
+					"SSH access is unavailable because your team was created less than 7 days ago.\nIf you need urgent access, please create a support ticket at accuratesystems.com.sa/support using your team email ID."
 				)
 			else:
 				frappe.throw(
-					"SSH access is not enabled for your team.\nTo request access, please open a ticket at support.frappe.io using your team email ID."
+					"SSH access is not enabled for your team.\nTo request access, please open a ticket at accuratesystems.com.sa/support using your team email ID."
 				)
 
 		ssh_key = frappe.get_all(

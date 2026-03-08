@@ -11,7 +11,7 @@
 			<Button
 				class="ml-auto min-w-[7rem]"
 				variant="outline"
-				link="https://docs.frappe.io/cloud/sites/version-upgrade"
+				link="https://accuratesystems.com.sa/docs/sites/version-upgrade"
 			>
 				Upgrade Now
 			</Button>
@@ -159,7 +159,7 @@ export default {
 								<Tooltip text="Apps in this bench may have been patched">
 									<a
 										class="p-1 ml-2 text-gray-700 bg-gray-100 rounded"
-										href="https://docs.frappe.io/cloud/benches/app-patches"
+										href="https://accuratesystems.com.sa/docs/benches/app-patches"
 										target="_blank"
 									>
 										<IconHash />
@@ -170,7 +170,7 @@ export default {
 								<Tooltip text="This bench has been updated in place">
 									<a
 										class="p-1 ml-2 text-gray-700 bg-gray-100 rounded"
-										href="https://docs.frappe.io/cloud/in-place-updates"
+										href="https://accuratesystems.com.sa/docs/in-place-updates"
 										target="_blank"
 									>
 										<IconStar />

@@ -27,7 +27,7 @@ def handle_suspended_site_redirection():
 @dashboard_whitelist()
 def download_ssl_cert(domain: str):
 	if (
-		not (domain.endswith("frappe.cloud") or domain.endswith("frappecloud.com"))
+		not (domain.endswith("frappe.cloud") or domain.endswith("frappecloud.com") or domain.endswith("accuratesystems.com.sa") or domain.endswith("sandbox.mvpstorm.com"))
 		and not frappe.conf.developer_mode
 	):
 		frappe.throw("Invalid domain provided")

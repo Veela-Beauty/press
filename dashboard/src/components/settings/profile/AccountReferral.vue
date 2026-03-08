@@ -8,10 +8,10 @@
 		<div class="flex flex-col space-y-4 overflow-hidden">
 			<ClickToCopyField :textContent="referralLink" />
 			<span class="text-sm font-medium leading-4 text-gray-700">
-				Invite someone to Frappe Cloud and
+				Invite someone to Accurate Systems Cloud and
 				<strong>
 					get
-					{{ creditAmountInTeamCurrency }} in Frappe Cloud credits</strong
+					{{ creditAmountInTeamCurrency }} in Accurate Systems Cloud credits</strong
 				>
 				when they sign up and spend at least {{ minimumSpentAmount }}!
 			</span>

@@ -836,14 +836,14 @@ def update_lead_status(lead_name, status, **kwargs):  # noqa: C901
 			)
 			result = query.run(as_dict=True)
 			if not result:
-				frappe.throw("Server not found in Frappe Cloud")
+				frappe.throw("Server not found in Accurate Systems Cloud")
 
 			amount = calculate_total_amount(result[0].name)
 
 		elif team:
 			team_id = frappe.db.exists("Team", {"user": team, "enabled": 1})
 			if not team_id:
-				frappe.throw("Team not found in Frappe Cloud")
+				frappe.throw("Team not found in Accurate Systems Cloud")
 			else:
 				amount = calculate_total_team_amount(team_id)
 
@@ -856,7 +856,7 @@ def update_lead_status(lead_name, status, **kwargs):  # noqa: C901
 			)
 			result = query.run(as_dict=True)
 			if not result:
-				frappe.throw("Site not found in Frappe Cloud")
+				frappe.throw("Site not found in Accurate Systems Cloud")
 
 			SitePlan = frappe.qb.DocType("Site Plan")
 			paid_plans = (
@@ -872,7 +872,7 @@ def update_lead_status(lead_name, status, **kwargs):  # noqa: C901
 		status_dict.update(
 			{
 				"conversion_date": frappe.utils.getdate(),
-				"hosting": "Frappe Cloud",
+				"hosting": "Accurate Systems Cloud",
 				"site_url": site,
 				"server_name": server,
 				"team_name": team,

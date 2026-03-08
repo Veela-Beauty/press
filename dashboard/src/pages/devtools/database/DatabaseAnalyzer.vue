@@ -152,7 +152,7 @@
 					<Button
 						class="ml-auto"
 						variant="outline"
-						link="https://docs.frappe.io/cloud/sites/monitoring#how-to-check-for-reclaimable-space"
+						link="https://accuratesystems.com.sa/docs/sites/monitoring#how-to-check-for-reclaimable-space"
 					>
 						Documentation
 					</Button>
@@ -813,7 +813,7 @@ export default {
 				title: 'Optimize Database Tables',
 				message: tableName
 					? `Do you want to optimize the table <strong>${tableName}</strong> to reclaim space ?<br>`
-					: `Frappe Cloud will find tables where reclaimable space exceeds 100 MB or 20% of the table size.<br>Are you sure you want to optimize the database tables ?<br>`,
+					: `Accurate Systems Cloud will find tables where reclaimable space exceeds 100 MB or 20% of the table size.<br>Are you sure you want to optimize the database tables ?<br>`,
 				primaryAction: {
 					label: 'Optimize',
 					variant: 'solid',

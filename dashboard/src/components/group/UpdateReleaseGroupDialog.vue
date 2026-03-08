@@ -20,7 +20,7 @@
 					)
 				"
 				class="mb-4"
-				title="A few commits have been yanked, <a href='https://docs.frappe.io/cloud/benches/updating_a_bench#yanked-app-releases' target='_blank' style='font-weight: bold;'>click here</a> to know more."
+				title="A few commits have been yanked, <a href='https://accuratesystems.com.sa/docs/benches/updating_a_bench#yanked-app-releases' target='_blank' style='font-weight: bold;'>click here</a> to know more."
 				type="info"
 			/>
 			<!-- Update Steps -->
@@ -72,7 +72,7 @@
 					<div class="flex items-center gap-2">
 						<h2 class="text-lg font-medium">Build might fail</h2>
 						<a
-							href="https://docs.frappe.io/cloud/common-issues/build-might-fail"
+							href="https://accuratesystems.com.sa/docs/common-issues/build-might-fail"
 							target="_blank"
 							class="cursor-pointer rounded-full border border-gray-200 bg-gray-100 p-0.5 text-base text-gray-700"
 						>
@@ -100,7 +100,7 @@
 					/>
 					<Tooltip text="View documentation">
 						<a
-							href="https://docs.frappe.io/cloud/in-place-updates"
+							href="https://accuratesystems.com.sa/docs/in-place-updates"
 							target="_blank"
 						>
 							<lucide-help-circle :class="`h-4 w-4 text-gray-600`" />

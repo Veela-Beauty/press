@@ -437,11 +437,11 @@ def push_stats_message(stats, message):
 		message += f"**Total Trials**: {stats['total_trials']}\n\n"
 		message = (
 			message
-			+ f"[Succeeded trial requests](https://frappecloud.com/app/product-trial-request?status=Site+Created): {stats['succeeded_trials']}\n"
+			+ f"[Succeeded trial requests](https://accuratesystems.com.sa/app/product-trial-request?status=Site+Created): {stats['succeeded_trials']}\n"
 		)
 		message = (
 			message
-			+ f"[Failed trial requests](https://frappecloud.com/app/product-trial-request?status=Error): {stats['failed_trials']}\n"
+			+ f"[Failed trial requests](https://accuratesystems.com.sa/app/product-trial-request?status=Error): {stats['failed_trials']}\n"
 		)
 
 		# add app failure counts to message

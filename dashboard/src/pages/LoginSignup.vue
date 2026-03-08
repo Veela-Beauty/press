@@ -301,7 +301,7 @@
 								</span>
 								<a
 									class="text-base font-normal text-gray-900 underline hover:text-gray-700"
-									href="https://frappecloud.com/policies"
+									href="https://accuratesystems.com.sa/policies"
 								>
 									Terms & Policies
 								</a>
@@ -384,7 +384,7 @@
 								</span>
 								<a
 									class="text-base font-normal text-gray-900 underline hover:text-gray-700"
-									href="https://frappecloud.com/policies"
+									href="https://accuratesystems.com.sa/policies"
 								>
 									Terms & Policies
 								</a>
@@ -472,7 +472,7 @@ export default {
 		this.email = localStorage.getItem('login_email');
 		if (window.posthog?.__loaded) {
 			window.posthog.identify(this.email || window.posthog.get_distinct_id(), {
-				app: 'frappe_cloud',
+				app: 'accurate_systems_cloud',
 				action: 'login_signup',
 			});
 
@@ -493,7 +493,7 @@ export default {
 							You are not part of an active team<br/>
 							<span class="text-sm text-gray-800">
 								If the issue persists, please contact 
-								<a href="https://support.frappe.io" class="font-medium underline" target="_blank" rel="noopener noreferrer">
+								<a href="https://accuratesystems.com.sa/support" class="font-medium underline" target="_blank" rel="noopener noreferrer">
 									support.
 								</a>
 							</span>
@@ -911,7 +911,8 @@ export default {
 					return `Sign up to create your ${this.saasProduct.title} site`;
 				}
 
-				return 'Create your Frappe Cloud account';
+				/* Rebrand: Accurate Systems */
+				return 'Create your Accurate Systems Cloud account';
 			}
 		},
 		subtitle() {
@@ -921,7 +922,8 @@ export default {
 				if (this.saasProduct) {
 					return `Get started and explore the easiest way to use ${this.saasProduct.title}`;
 				}
-				return 'Get started and explore the easiest way to use all Frappe apps';
+				/* Rebrand: Accurate Systems */
+				return 'Get started and explore the easiest way to manage your cloud sites';
 			}
 		},
 	},

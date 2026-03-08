@@ -55,7 +55,7 @@ class PartnerLead(Document):
 		feedback_to_partner: DF.SmallText | None
 		followup: DF.Table[LeadFollowup]
 		full_name: DF.Data | None
-		hosting: DF.Literal["Frappe Cloud", "Self Hosted"]
+		hosting: DF.Literal["Accurate Systems Cloud", "Self Hosted"]
 		is_starter_pack: DF.Check
 		lead_name: DF.Data | None
 		lead_owner: DF.Link | None

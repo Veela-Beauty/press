@@ -35,7 +35,7 @@
 								If the update fails, rollback will not occur as there is no
 								backup. You will have to manually fix the issues over
 								<a
-									href="https://docs.frappe.io/cloud/benches/ssh"
+									href="https://accuratesystems.com.sa/docs/benches/ssh"
 									target="_blank"
 									class="underline"
 									>ssh</a

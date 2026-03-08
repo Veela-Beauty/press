@@ -113,7 +113,7 @@ function onTeardownSecondaryServer() {
 
 				<p class="mt-3">
 					See the docs to learn more about autoscaling:<br>
-					<a href="https://docs.frappe.io/cloud/application-server-horizontal-scaling#opting-out"
+					<a href="https://accuratesystems.com.sa/docs/application-server-horizontal-scaling#opting-out"
 					target="_blank" rel="noopener" style="text-decoration: underline;">
 					<strong>Secondary Server Teardown Guide</strong>
 					</a>
@@ -176,7 +176,7 @@ function onSetupSecondaryServer() {
 
 				<p class="mt-3">
 					See the docs to learn more about autoscaling:<br>
-					<a href="https://docs.frappe.io/cloud/application-server-horizontal-scaling#setting-up-a-secondary-server"
+					<a href="https://accuratesystems.com.sa/docs/application-server-horizontal-scaling#setting-up-a-secondary-server"
 					target="_blank" rel="noopener" style="text-decoration: underline;">
 					<strong>Secondary Server Setup Guide</strong>
 					</a>
@@ -299,7 +299,7 @@ function onEnableAutoDiskExpansion() {
 function onDisableAutoDiskExpansion() {
 	confirmDialog({
 		title: 'Disable automatic storage disk expansion',
-		message: `<div class="prose text-base">Disable auto add on storage?<br>This can effect server uptime <a href="https://docs.frappe.io/cloud/storage-addons">Know more</a></br></div>`,
+		message: `<div class="prose text-base">Disable auto add on storage?<br>This can effect server uptime <a href="https://accuratesystems.com.sa/docs/storage-addons">Know more</a></br></div>`,
 		primaryAction: {
 			label: 'Disable',
 			theme: 'red',

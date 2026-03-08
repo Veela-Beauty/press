@@ -23,7 +23,7 @@ export function getPatchesTab(forBench: boolean) {
 		type: 'list',
 		list: {
 			experimental: true, // If removing this, uncheck App Patch doctype beta flag.
-			documentation: 'https://docs.frappe.io/cloud/benches/app-patches',
+			documentation: 'https://accuratesystems.com.sa/docs/benches/app-patches',
 			doctype: 'App Patch',
 			filters: (res) => ({ [forBench ? 'bench' : 'group']: res.name }),
 			searchField: 'filename',

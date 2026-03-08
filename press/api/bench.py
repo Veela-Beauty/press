@@ -785,7 +785,7 @@ def validate_app_hashes(apps: list[dict[str, str]]):
 	if has_yanked_apps:
 		frappe.throw(
 			"Some app versions have been yanked and cannot be deployed, please refresh and retry deploy. "
-			'<a href="https://docs.frappe.io/cloud/benches/updating_a_bench#yanked-app-releases" target="_blank">Learn more</a>'
+			'<a href="https://accuratesystems.com.sa/docs/benches/updating_a_bench#yanked-app-releases" target="_blank">Learn more</a>'
 		)
 
 

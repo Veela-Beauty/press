@@ -62,7 +62,7 @@ def build_and_upload_assets(
 		typer.Option("--app", "-a", help="App name to build and upload assets for", prompt_required=True),
 	],
 ):
-	"""Builds the specified app and uploads its assets to Frappe Cloud."""
+	"""Builds the specified app and uploads its assets to Accurate Systems Cloud."""
 	session: CloudSession = ctx.obj
 
 	if not session:
@@ -84,7 +84,7 @@ def build_and_upload_assets(
 
 	Print.code(console=console, message=f"$ bench build --app {app}")
 	subprocess.run(["bench", "build", "--app", app], check=True)
-	Print.info(console=console, message=f"Uploading assets for app '{app}' to Frappe Cloud...")
+	Print.info(console=console, message=f"Uploading assets for app '{app}' to Accurate Systems Cloud...")
 
 	# Since we moved into the bench directory we can get the current directory and build the path to the assets
 	assets_folder = os.path.join(os.getcwd(), "sites", "assets", app)

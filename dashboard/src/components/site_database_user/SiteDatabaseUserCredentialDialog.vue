@@ -77,7 +77,7 @@
 					<p class="text-sm">
 						Please check out the
 						<a
-							href="https://docs.frappe.io/cloud/database-users-and-permission-manager#faq"
+							href="https://accuratesystems.com.sa/docs/database-users-and-permission-manager#faq"
 							target="_blank"
 							class="underline"
 							>documentation</a

@@ -19,7 +19,7 @@
 					:showIcon="false"
 					class="mb-3"
 					title="When both CPU and Memory thresholds are set, scaling will trigger if either condition is met.
-					<br>Please refer to the <a href='https://docs.frappe.io/cloud/application-server-horizontal-scaling#application-server-horizontal-scaling'
+					<br>Please refer to the <a href='https://accuratesystems.com.sa/docs/application-server-horizontal-scaling#application-server-horizontal-scaling'
 					target='_blank' class='underline'>documentation</a> for more information."
 				/>
 				<div class="flex justify-end gap-2">

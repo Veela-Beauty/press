@@ -348,7 +348,7 @@ def upload_files(files):
 			files_uploaded[file_type] = uploaded_file
 		else:
 			print(f"Upload failed for: {file_path}")
-			print("Cannot create site on Frappe Cloud without all site backup files uploaded.")
+			print("Cannot create site on Accurate Systems Cloud without all site backup files uploaded.")
 			print("Exiting...")
 			sys.exit(1)
 	print("Uploaded backup files! ✅")
@@ -440,7 +440,7 @@ def restore_site(local_site):
 	| retry_if_exception_type(SystemExit) & retry_unless_exception_type(KeyboardInterrupt)
 )
 def create_session():
-	print("\nFrappe Cloud credentials @ {}".format(remote_site))
+	print("\nAccurate Systems Cloud credentials @ {}".format(remote_site))
 
 	# take user input from STDIN
 	username = click.prompt("Username").strip()
@@ -530,7 +530,7 @@ def main():
 		atexit.register(cleanup, current_file)
 
 	frappe_provider = click.prompt(
-		"Frappe provider (default: frappecloud.com)", default="frappecloud.com"
+		"Frappe provider (default: accuratesystems.com.sa)", default="accuratesystems.com.sa"
 	)
 
 	restore_choice = click.prompt(

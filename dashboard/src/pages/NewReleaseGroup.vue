@@ -121,7 +121,7 @@
 					<div>
 						You can only create USD 25 or higher plan sites in the bench.
 						<a
-							href="https://docs.frappe.io/cloud/benches#pricing"
+							href="https://accuratesystems.com.sa/docs/benches#pricing"
 							target="_blank"
 							class="underline"
 							>Why?</a

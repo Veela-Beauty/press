@@ -309,7 +309,7 @@ const paymentModeOptions = [
 							h(
 								'a',
 								{
-									href: 'https://frappecloud.com/payment-options',
+									href: 'https://accuratesystems.com.sa/payment-options',
 									target: '_blank',
 								},
 								'Alternate Payment Methods',

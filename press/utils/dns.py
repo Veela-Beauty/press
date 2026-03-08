@@ -304,7 +304,7 @@ def check_domain_proxied(domain) -> str | None:
 		)
 		raise DNSValidationError from e
 	else:
-		if (server := res.headers.get("server")) not in ("Frappe Cloud", None):  # eg: cloudflare
+		if (server := res.headers.get("server")) not in ("Accurate Systems Cloud", None):  # eg: cloudflare
 			return server
 		return None
 
@@ -340,7 +340,7 @@ def _check_dns_cname_a(name, domain, ignore_proxying=False):
 		if ignore_proxying:  # no point checking the rest if proxied
 			return {"CNAME": {}, "A": {}, "matched": True, "type": "A"}  # assume A
 		frappe.throw(
-			f"""Domain <b>{domain}</b> appears to be proxied (server: <b>{proxy}</b>). Please <a class='underline' href="https://docs.frappe.io/cloud/sites/custom-domains#dns-verification-failed-even-after-adding-dns-record-on-cloudflare">turn off proxying</a>{get_dns_provider_link_substr(domain)} and try again in some time.
+			f"""Domain <b>{domain}</b> appears to be proxied (server: <b>{proxy}</b>). Please <a class='underline' href="https://accuratesystems.com.sa/docs/sites/custom-domains#dns-verification-failed-even-after-adding-dns-record-on-cloudflare">turn off proxying</a>{get_dns_provider_link_substr(domain)} and try again in some time.
 			<br>You may enable it once the domain is verified.""",
 			DomainProxied,
 		)

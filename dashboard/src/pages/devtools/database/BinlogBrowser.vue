@@ -29,7 +29,7 @@
 					<Tooltip text="View documentation">
 						<div class="rounded-md bg-gray-100 p-1.5">
 							<a
-								href="https://docs.frappe.io/cloud/binlog-browser"
+								href="https://accuratesystems.com.sa/docs/binlog-browser"
 								target="_blank"
 							>
 								<lucide-help-circle class="h-4 w-4" />
@@ -309,7 +309,7 @@
 				<p class="text-gray-600" v-else>
 					Follow the
 					<a
-						href="https://docs.frappe.io/cloud/database-server-actions#enable--disable-binlog-indexer"
+						href="https://accuratesystems.com.sa/docs/database-server-actions#enable--disable-binlog-indexer"
 						class="text-blue-600 underline"
 						target="_blank"
 						rel="noopener noreferrer"

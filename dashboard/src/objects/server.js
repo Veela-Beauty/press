@@ -137,7 +137,7 @@ export default {
 					button: {
 						label: 'Read docs',
 						variant: 'outline',
-						link: 'https://docs.frappe.io/cloud/servers/new',
+						link: 'https://accuratesystems.com.sa/docs/servers/new',
 					},
 				};
 			}

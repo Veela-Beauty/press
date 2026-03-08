@@ -76,7 +76,7 @@
    "options": "Marketplace App Version"
   },
   {
-   "default": "frappecloud.com",
+   "default": "accuratesystems.com.sa",
    "description": "Redirects like signup urls will go to this custom domain",
    "fieldname": "custom_domain",
    "fieldtype": "Data",

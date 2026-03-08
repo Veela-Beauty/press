@@ -86,7 +86,7 @@
 						</div>
 					</Tooltip>
 					<Button
-						link="https://docs.frappe.io/cloud/devtools/log-browser"
+						link="https://accuratesystems.com.sa/docs/devtools/log-browser"
 						target="_blank"
 					>
 						<lucide-help-circle class="h-4 w-4" />

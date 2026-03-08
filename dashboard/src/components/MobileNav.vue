@@ -3,10 +3,11 @@
 		<div class="flex h-12 items-center border-b px-5">
 			<span class="font-semibold">
 				<router-link :to="{ name: 'Site List' }">
+					<!-- Rebrand: Accurate Systems logo -->
 					<img
-						:src="`/assets/press/images/frappecloud-logo.png`"
+						src="/assets/press/images/accurate-systems-logo.png"
 						class="h-7 w-7 shrink-0"
-						alt="Frappe Cloud Logo"
+						alt="Accurate Systems Logo"
 					/>
 				</router-link>
 			</span>
@@ -80,6 +81,7 @@ const SwitchTeamDialog2 = defineAsyncComponent(
 const showTeamSwitcher = ref(false);
 
 function docs() {
-	window.open('https://docs.frappe.io/cloud', '_blank');
+	/* Rebrand: Accurate Systems docs URL */
+	window.open('https://accuratesystems.com.sa/docs', '_blank');
 }
 </script>

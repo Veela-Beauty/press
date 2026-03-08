@@ -129,7 +129,7 @@
 					</span>
 					<a
 						class="text-base font-normal text-gray-900 underline hover:text-gray-700"
-						href="https://frappecloud.com/policies"
+						href="https://accuratesystems.com.sa/policies"
 					>
 						Terms & Policies
 					</a>

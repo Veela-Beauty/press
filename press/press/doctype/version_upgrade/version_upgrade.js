@@ -12,7 +12,7 @@ frappe.ui.form.on('Version Upgrade', {
 		}
 		if (frm.doc.status == 'Success') {
 			frm.add_custom_button(__('Show on FC'), () => {
-				window.open(`https://frappecloud.com/dashboard/sites/${frm.doc.site}`);
+				window.open(`https://accuratesystems.com.sa/dashboard/sites/${frm.doc.site}`);
 			});
 		}
 	},

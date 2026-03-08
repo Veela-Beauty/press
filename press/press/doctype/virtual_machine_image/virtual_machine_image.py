@@ -84,7 +84,7 @@ class VirtualMachineImage(Document):
 			volumes = self.get_volumes_from_virtual_machine()
 			response = self.client.create_image(
 				InstanceId=self.instance_id,
-				Name=f"Frappe Cloud {self.name} - {self.virtual_machine}",
+				Name=f"Accurate Systems Cloud {self.name} - {self.virtual_machine}",
 				BlockDeviceMappings=volumes,
 			)
 			self.image_id = response["ImageId"]
@@ -105,7 +105,7 @@ class VirtualMachineImage(Document):
 			image = self.client.create_image(
 				CreateImageDetails(
 					compartment_id=cluster.oci_tenancy,
-					display_name=f"Frappe Cloud {self.name} - {self.virtual_machine}",
+					display_name=f"Accurate Systems Cloud {self.name} - {self.virtual_machine}",
 					**instance_details,
 					**object_storage_details,
 				)
@@ -117,7 +117,7 @@ class VirtualMachineImage(Document):
 
 			response = self.client.servers.create_image(
 				server=Server(id=self.instance_id),
-				description=f"Frappe Cloud VMI {self.name} - {self.virtual_machine} ",
+				description=f"Accurate Systems Cloud VMI {self.name} - {self.virtual_machine} ",
 				labels={
 					"environment": "prod" if not frappe.conf.developer_mode else "local",
 					"instance-id": str(self.instance_id),
@@ -130,7 +130,7 @@ class VirtualMachineImage(Document):
 		elif cluster.cloud_provider == "DigitalOcean":
 			action = self.client.droplet_actions.post(
 				self.instance_id,
-				{"type": "snapshot", "name": f"Frappe Cloud {self.name} - {self.virtual_machine}"},
+				{"type": "snapshot", "name": f"Accurate Systems Cloud {self.name} - {self.virtual_machine}"},
 			)
 			action = action["action"]
 			self.action_id = action["id"]
@@ -141,7 +141,7 @@ class VirtualMachineImage(Document):
 		if self.cloud_provider == "AWS EC2":
 			source = frappe.get_doc("Virtual Machine Image", self.copied_from)
 			response = self.client.copy_image(
-				Name=f"Frappe Cloud {self.name} - {self.virtual_machine}",
+				Name=f"Accurate Systems Cloud {self.name} - {self.virtual_machine}",
 				SourceImageId=source.image_id,
 				SourceRegion=source.region,
 			)

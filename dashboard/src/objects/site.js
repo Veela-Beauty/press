@@ -1059,7 +1059,7 @@ export default {
 										label: 'Contact Support',
 										variant: 'outline',
 										onClick() {
-											window.open('https://frappecloud.com/support', '_blank');
+											window.open('https://accuratesystems.com.sa/support', '_blank');
 										},
 									},
 								};
@@ -1069,7 +1069,7 @@ export default {
 
 						return getUpsellBanner(
 							site,
-							'Your site is currently on a shared bench. Upgrade plan for offsite backups and <a href="https://frappecloud.com/shared-hosting#benches" class="underline" target="_blank">more</a>.',
+							'Your site is currently on a shared bench. Upgrade plan for offsite backups and <a href="https://accuratesystems.com.sa/shared-hosting#benches" class="underline" target="_blank">more</a>.',
 						);
 					},
 				},
@@ -1216,7 +1216,7 @@ export default {
 				childrenRoutes: ['Site Migration'],
 				list: {
 					documentation:
-						'https://docs.frappe.io/cloud/site/site-migrations/introduction-to-site-migration',
+						'https://accuratesystems.com.sa/docs/site/site-migrations/introduction-to-site-migration',
 					doctype: 'Site Action',
 					filters: (site) => {
 						return { site: site.doc?.name };
@@ -1558,7 +1558,7 @@ export default {
 					},
 					banner({ documentResource: site }) {
 						const bannerTitle =
-							'Your site is currently on a shared bench. Upgrade to a private bench to configure auto updates and <a href="https://frappecloud.com/shared-hosting#benches" class="underline" target="_blank">more</a>.';
+							'Your site is currently on a shared bench. Upgrade to a private bench to configure auto updates and <a href="https://accuratesystems.com.sa/shared-hosting#benches" class="underline" target="_blank">more</a>.';
 
 						return getUpsellBanner(site, bannerTitle);
 					},

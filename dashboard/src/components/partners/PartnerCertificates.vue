@@ -123,7 +123,7 @@ export default {
 						width: 0.5,
 					},
 				],
-				documentation: 'https://school.frappe.io',
+				documentation: 'https://accuratesystems.com.sa/school',
 				actions() {
 					return [
 						{

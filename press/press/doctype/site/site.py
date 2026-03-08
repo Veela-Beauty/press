@@ -126,7 +126,7 @@ DOCTYPE_SERVER_TYPE_MAP = {
 ARCHIVE_AFTER_SUSPEND_DAYS = 21
 NOTIFY_BEFORE_ARCHIVAL_DAYS = 2
 CREATION_FAILURE_RETENTION_DAYS = 14
-PRIVATE_BENCH_DOC = "https://docs.frappe.io/cloud/sites/move-site-to-private-bench"
+PRIVATE_BENCH_DOC = "https://accuratesystems.com.sa/docs/sites/move-site-to-private-bench"
 SERVER_SCRIPT_DISABLED_VERSION = (
 	15  # version from which server scripts were disabled on public benches. No longer set in site
 )
@@ -1280,7 +1280,7 @@ class Site(Document, TagHelpers):
 	def check_fatal_site_update(self):
 		if self.fatal_site_update:
 			frappe.throw(
-				"Site has encountered a fatal error during last update. Please open a ticket at support.frappe.io with the error details to resolve the issue.",
+				"Site has encountered a fatal error during last update. Please open a ticket at accuratesystems.com.sa/support with the error details to resolve the issue.",
 			)
 
 	@dashboard_whitelist()
@@ -2073,7 +2073,7 @@ class Site(Document, TagHelpers):
 			"doctype": "Webhook",
 			"webhook_doctype": "User",
 			"enabled": 1,
-			"request_url": "https://frappecloud.com/api/method/press.api.site_login.sync_product_site_user",
+			"request_url": "https://accuratesystems.com.sa/api/method/press.api.site_login.sync_product_site_user",
 			"request_method": "POST",
 			"request_structure": "JSON",
 			"webhook_json": """{ "user_info": { "email": "{{doc.email}}", "enabled": "{{doc.enabled}}" } }""",
@@ -2086,16 +2086,16 @@ class Site(Document, TagHelpers):
 
 		webhook_data = [
 			{
-				"name": "Sync User records with Frappe Cloud on create",
+				"name": "Sync User records with Accurate Systems Cloud on create",
 				"webhook_docevent": "after_insert",
 			},
 			{
-				"name": "Sync User records with Frappe Cloud on update",
+				"name": "Sync User records with Accurate Systems Cloud on update",
 				"webhook_docevent": "on_update",
 				"condition": """doc.has_value_changed("enabled")""",
 			},
 			{
-				"name": "Sync User records with Frappe Cloud on delete",
+				"name": "Sync User records with Accurate Systems Cloud on delete",
 				"webhook_docevent": "on_trash",
 			},
 		]
@@ -2277,7 +2277,7 @@ class Site(Document, TagHelpers):
 			and self.is_this_version_or_above(SERVER_SCRIPT_DISABLED_VERSION)
 		):
 			frappe.throw(
-				f'You <a class="underline" href="https://docs.frappe.io/cloud/enable-server-script">cannot enable server scripts</a> on public benches. Please move to a <a class="underline" href="{PRIVATE_BENCH_DOC}">private bench</a>.'
+				f'You <a class="underline" href="https://accuratesystems.com.sa/docs/enable-server-script">cannot enable server scripts</a> on public benches. Please move to a <a class="underline" href="{PRIVATE_BENCH_DOC}">private bench</a>.'
 			)
 
 	def validate_encryption_key(self, key: str, value: Any):
@@ -2290,14 +2290,14 @@ class Site(Document, TagHelpers):
 		except (ValueError, InvalidToken):
 			frappe.throw(
 				_(
-					"This is not a valid encryption key. Please copy it exactly. Check <a href='https://docs.frappe.io/cloud/sites/migrate-an-existing-site#encryption-key' class='underline' target='_blank'>this document</a> if you have lost the encryption key."
+					"This is not a valid encryption key. Please copy it exactly. Check <a href='https://accuratesystems.com.sa/docs/sites/migrate-an-existing-site#encryption-key' class='underline' target='_blank'>this document</a> if you have lost the encryption key."
 				)
 			)
 
 	def disallow_developer_mode(self, key: str):
 		if key == "developer_mode":
 			frappe.throw(
-				"You shouldn't enable developer mode on Frappe Cloud as your changes won't persist. Consider using a custom app instead. Read more <a href='https://docs.frappe.io/cloud/sites/site-config#why-cant-i-enable-developer-mode' class='underline' target='_blank'>here</a>."
+				"You shouldn't enable developer mode on Accurate Systems Cloud as your changes won't persist. Consider using a custom app instead. Read more <a href='https://accuratesystems.com.sa/docs/sites/site-config#why-cant-i-enable-developer-mode' class='underline' target='_blank'>here</a>."
 			)
 
 	@dashboard_whitelist()
@@ -2359,7 +2359,7 @@ class Site(Document, TagHelpers):
 
 	def delete_multiple_config(self, keys: list[str]):
 		# relies on self._keys_removed_in_last_update in self.validate
-		# used by https://frappecloud.com/app/marketplace-app/email_delivery_service
+		# used by https://accuratesystems.com.sa/app/marketplace-app/email_delivery_service
 		config_list: list[dict] = []
 		for row in self.configuration:
 			config = {}

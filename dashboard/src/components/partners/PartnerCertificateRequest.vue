@@ -115,7 +115,7 @@ async function handleApplyForCertificate() {
 	try {
 		await checkCertification.submit();
 		if (showMessage.value) {
-			batch_link.value = `https://school.frappe.io/lms/billing/certificate/${certificateType.value}`;
+			batch_link.value = `https://accuratesystems.com.sa/school/lms/billing/certificate/${certificateType.value}`;
 			throw new Error(
 				'You are not eligible for a free certification at this time.',
 			);

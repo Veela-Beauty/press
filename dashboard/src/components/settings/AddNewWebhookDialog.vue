@@ -28,7 +28,7 @@
 					<p class="mt-2 text-sm text-gray-700">
 						<strong>Note:</strong> Secret is optional. Check
 						<a
-							href="https://docs.frappe.io/cloud/webhook-introduction"
+							href="https://accuratesystems.com.sa/docs/webhook-introduction"
 							class="underline"
 							target="_blank"
 							>the documentation</a

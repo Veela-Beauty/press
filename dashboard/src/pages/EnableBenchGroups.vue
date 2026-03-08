@@ -22,7 +22,7 @@
 				</ul>
 				<div>
 					<Link
-						href="https://docs.frappe.io/cloud/what-are-benches-and-bench-groups"
+						href="https://accuratesystems.com.sa/docs/what-are-benches-and-bench-groups"
 						target="_blank"
 						class="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-700"
 						>Read more →</Link

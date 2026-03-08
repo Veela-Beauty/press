@@ -49,15 +49,15 @@
 									class="mr-0.5 py-1 align-baseline"
 								/>
 								I agree to Frappe&nbsp;
-								<Link href="https://frappecloud.com/terms" target="_blank">
+								<Link href="https://accuratesystems.com.sa/terms" target="_blank">
 									Terms of Service </Link
 								>,&nbsp;
-								<Link href="https://frappecloud.com/privacy" target="_blank">
+								<Link href="https://accuratesystems.com.sa/privacy" target="_blank">
 									Privacy Policy
 								</Link>
 								&nbsp;&&nbsp;
 								<Link
-									href="https://frappecloud.com/cookie-policy"
+									href="https://accuratesystems.com.sa/cookie-policy"
 									target="_blank"
 								>
 									Cookie Policy

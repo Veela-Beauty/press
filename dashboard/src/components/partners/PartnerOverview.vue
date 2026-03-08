@@ -168,7 +168,7 @@
 					By clicking "I Agree", you confirm that you have read and accepted the
 					terms and conditions of the
 					<a
-						href="https://frappe.io/partners/terms"
+						href="https://accuratesystems.com.sa/partners/terms"
 						target="_blank"
 						class="underline"
 						><strong>Frappe Partnership Agreement</strong></a

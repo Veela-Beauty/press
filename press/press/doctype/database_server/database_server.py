@@ -1921,7 +1921,7 @@ systemctl restart mariadb
 			is_failed = True
 
 		if is_failed:
-			frappe.throw("Failed to purge binlogs. Reach out to support.frappe.io if the issue persists.")
+			frappe.throw("Failed to purge binlogs. Reach out to accuratesystems.com.sa/support if the issue persists.")
 
 	def purge_binlogs_by_configured_size_limit(self):
 		if not self.auto_purge_binlog_based_on_size:
