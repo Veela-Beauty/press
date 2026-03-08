@@ -6,23 +6,24 @@
 		<div class="login-circle-2"></div>
 
 		<div class="relative z-10 w-full max-w-[480px] px-4 py-8 sm:py-16">
+			<!-- Logo area (on gradient) -->
+			<div class="mb-8 text-center">
+				<slot name="logo">
+					<FCLogo class="login-logo mx-auto inline-block h-16 w-16" />
+					<h1 class="mt-3 text-lg font-bold text-white">
+						Accurate Systems
+					</h1>
+					<p class="mt-1 text-sm text-white/70">
+						Cloud Hosting Solutions
+					</p>
+				</slot>
+			</div>
+
+			<!-- Login card -->
 			<div
-				class="login-card rounded-xl bg-white p-8 shadow-lg sm:p-10"
+				class="login-card rounded-2xl bg-white p-8 shadow-lg sm:p-10"
 				@dblclick="redirectForFrappeioAuth"
 			>
-				<!-- Logo area -->
-				<div class="mb-7 text-center">
-					<slot name="logo">
-						<FCLogo class="mx-auto inline-block h-14 w-14" />
-						<h1 class="mt-3 text-lg font-bold text-gray-900">
-							Accurate Systems
-						</h1>
-						<p class="mt-1 text-sm text-gray-500">
-							Cloud Hosting Solutions
-						</p>
-					</slot>
-				</div>
-
 				<!-- Title & Subtitle -->
 				<div class="mb-2" v-if="title">
 					<span
@@ -84,8 +85,11 @@ export default {
 	position: relative;
 	overflow: hidden;
 }
+.login-logo {
+	filter: brightness(0) invert(1);
+}
 .login-card {
-	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
 }
 .login-circle-1 {
 	position: absolute;
