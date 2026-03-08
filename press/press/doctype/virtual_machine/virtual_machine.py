@@ -88,7 +88,7 @@ class VirtualMachine(Document):
 		from press.press.doctype.virtual_machine_volume.virtual_machine_volume import VirtualMachineVolume
 
 		availability_zone: DF.Data
-		cloud_provider: DF.Literal["", "AWS EC2", "OCI", "Hetzner", "DigitalOcean"]
+		cloud_provider: DF.Literal["", "AWS EC2", "OCI", "Hetzner", "DigitalOcean", "Alibaba Cloud"]
 		cluster: DF.Link
 		data_disk_snapshot: DF.Link | None
 		data_disk_snapshot_attached: DF.Check
@@ -414,6 +414,8 @@ class VirtualMachine(Document):
 			return self._provision_hetzner()
 		if self.cloud_provider == "DigitalOcean":
 			return self._provision_digital_ocean()
+		if self.cloud_provider == "Alibaba Cloud":
+			return self._provision_alibaba()
 
 		return None
 
@@ -855,6 +857,10 @@ class VirtualMachine(Document):
 
 			return ubuntu_images[0]["id"]
 
+		if self.cloud_provider == "Alibaba Cloud":
+			from press.press.doctype.virtual_machine.virtual_machine_alibaba import get_latest_ubuntu_image_alibaba
+			return get_latest_ubuntu_image_alibaba(self)
+
 		return None
 
 	@frappe.whitelist()
@@ -867,6 +873,9 @@ class VirtualMachine(Document):
 			self.client().servers.reboot(self.get_hetzner_server_instance(fetch_data=False))
 		elif self.cloud_provider == "DigitalOcean":
 			self.client().droplet_actions.post(self.instance_id, {"type": "reboot"})
+		elif self.cloud_provider == "Alibaba Cloud":
+			from press.press.doctype.virtual_machine.virtual_machine_alibaba import reboot_alibaba
+			reboot_alibaba(self)
 
 		if server := self.get_server():
 			log_server_activity(self.series, server.name, action="Reboot")
@@ -1042,6 +1051,8 @@ class VirtualMachine(Document):
 			return self._sync_hetzner(*args, **kwargs)
 		if self.cloud_provider == "DigitalOcean":
 			return self._sync_digital_ocean(*args, **kwargs)
+		if self.cloud_provider == "Alibaba Cloud":
+			return self._sync_alibaba(*args, **kwargs)
 		return None
 
 	def _update_volume_info_after_sync(self):
@@ -1072,6 +1083,22 @@ class VirtualMachine(Document):
 		if self.volumes:
 			self.disk_size = self.get_data_volume().size
 			self.root_disk_size = self.get_root_volume().size
+
+	def _provision_alibaba(self):
+		from press.press.doctype.virtual_machine.virtual_machine_alibaba import provision_alibaba
+		provision_alibaba(self)
+
+	def _sync_alibaba(self, *args, **kwargs):
+		from press.press.doctype.virtual_machine.virtual_machine_alibaba import sync_alibaba
+		sync_alibaba(self, *args, **kwargs)
+
+	def get_alibaba_status_map(self):
+		from press.press.doctype.virtual_machine.virtual_machine_alibaba import get_alibaba_status_map
+		return get_alibaba_status_map()
+
+	def _resize_alibaba(self, machine_type):
+		from press.press.doctype.virtual_machine.virtual_machine_alibaba import resize_alibaba
+		resize_alibaba(self, machine_type)
 
 	def _sync_digital_ocean(self, *args, **kwargs):
 		server_instance = self.get_digital_ocean_server_instance()
@@ -1572,6 +1599,9 @@ class VirtualMachine(Document):
 			self.client().servers.power_on(self.get_hetzner_server_instance(fetch_data=False))
 		elif self.cloud_provider == "DigitalOcean":
 			self.client().droplet_actions.post(self.instance_id, {"type": "power_on"})
+		elif self.cloud_provider == "Alibaba Cloud":
+			from press.press.doctype.virtual_machine.virtual_machine_alibaba import start_alibaba
+			start_alibaba(self)
 
 		# Digital Ocean `start` takes some time therefore this sync is useless for DO.
 		self.sync()
@@ -1586,6 +1616,9 @@ class VirtualMachine(Document):
 			self.client().servers.shutdown(self.get_hetzner_server_instance(fetch_data=False))
 		elif self.cloud_provider == "DigitalOcean":
 			self.client().droplet_actions.post(self.instance_id, {"type": "power_off"})
+		elif self.cloud_provider == "Alibaba Cloud":
+			from press.press.doctype.virtual_machine.virtual_machine_alibaba import stop_alibaba
+			stop_alibaba(self, force=force)
 		self.sync()
 
 	@frappe.whitelist()
@@ -1626,6 +1659,10 @@ class VirtualMachine(Document):
 				self.delete_volume(volume.volume_id, sync=False)
 
 			self.client().droplets.destroy(self.instance_id)
+
+		elif self.cloud_provider == "Alibaba Cloud":
+			from press.press.doctype.virtual_machine.virtual_machine_alibaba import terminate_alibaba
+			terminate_alibaba(self)
 
 		if server := self.get_server():
 			log_server_activity(self.series, server.name, action="Terminated")
@@ -1756,6 +1793,10 @@ class VirtualMachine(Document):
 		if self.cloud_provider == "DigitalOcean":
 			api_token = cluster.get_password("digital_ocean_api_token")
 			return pydo.Client(token=api_token)
+
+		if self.cloud_provider == "Alibaba Cloud":
+			from press.press.doctype.virtual_machine.virtual_machine_alibaba import get_alibaba_client
+			return get_alibaba_client(self)
 
 		return None
 

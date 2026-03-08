@@ -69,13 +69,16 @@ class Cluster(Document):
 		beta: DF.Check
 		by_default_select_unified_mode: DF.Check
 		cidr_block: DF.Data | None
-		cloud_provider: DF.Literal["AWS EC2", "Generic", "OCI", "Hetzner", "DigitalOcean"]
+		cloud_provider: DF.Literal["AWS EC2", "Generic", "OCI", "Hetzner", "DigitalOcean", "Alibaba Cloud"]
 		default_app_server_plan: DF.Link | None
 		default_app_server_plan_type: DF.Link | None
 		default_db_server_plan: DF.Link | None
 		default_db_server_plan_type: DF.Link | None
 		description: DF.Data | None
 		digital_ocean_api_token: DF.Password | None
+		alibaba_access_key_id: DF.Data | None
+		alibaba_access_key_secret: DF.Password | None
+		alibaba_region_id: DF.Data | None
 		enable_autoscaling: DF.Check
 		enable_periodic_flush_table: DF.Check
 		flush_table_execution_hour: DF.Int
@@ -147,6 +150,8 @@ class Cluster(Document):
 			self.set_oci_availability_zone()
 		elif self.cloud_provider == "Hetzner":
 			self.validate_hetzner_api_token()
+		elif self.cloud_provider == "Alibaba Cloud":
+			self.validate_alibaba_credentials()
 
 	def validate_hetzner_api_token(self):
 		api_token = self.get_password("hetzner_api_token")
@@ -164,6 +169,23 @@ class Cluster(Document):
 				frappe.throw("API token is invalid or does not have the correct permissions.")
 			else:
 				frappe.throw(f"An error occurred while validating the API token: {e}")
+
+
+	def validate_alibaba_credentials(self):
+		from press.press.doctype.cluster.cluster_alibaba import validate_alibaba_credentials
+		validate_alibaba_credentials(self)
+
+	def provision_on_alibaba(self):
+		from press.press.doctype.cluster.cluster_alibaba import provision_on_alibaba
+		provision_on_alibaba(self)
+
+	def get_alibaba_ecs_client(self):
+		from press.press.doctype.cluster.cluster_alibaba import get_alibaba_ecs_client
+		return get_alibaba_ecs_client(self)
+
+	def get_alibaba_vpc_client(self):
+		from press.press.doctype.cluster.cluster_alibaba import get_alibaba_vpc_client
+		return get_alibaba_vpc_client(self)
 
 	def validate_aws_credentials(self):
 		settings: "PressSettings" = frappe.get_single("Press Settings")
@@ -209,6 +231,8 @@ class Cluster(Document):
 			self.provision_on_hetzner()
 		elif self.cloud_provider == "DigitalOcean":
 			self.provision_on_digital_ocean()
+		elif self.cloud_provider == "Alibaba Cloud":
+			self.provision_on_alibaba()
 
 	def provision_on_digital_ocean(self):
 		api_token = self.get_password("digital_ocean_api_token")
