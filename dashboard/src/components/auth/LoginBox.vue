@@ -1,14 +1,25 @@
 <template>
-	<div class="relative h-full">
-		<div class="relative z-10 mx-auto py-8 sm:w-max sm:py-24">
-			<div class="flex flex-col px-4" @dblclick="redirectForFrappeioAuth">
-				<slot name="logo">
-					<div class="flex items-center space-x-2">
-						<FCLogo class="inline-block h-[38px] w-[38px]" />
-					</div>
-				</slot>
-			</div>
-			<div class="mx-auto w-full bg-white px-4 py-6 sm:w-96 sm:rounded-lg">
+	<!-- Rebrand: Accurate Systems branded login page -->
+	<div class="login-page-bg relative flex min-h-full items-center justify-center">
+		<div class="relative z-10 w-full max-w-[420px] px-4 py-8 sm:py-16">
+			<div
+				class="login-card rounded-xl bg-white p-8 shadow-lg sm:p-10"
+				@dblclick="redirectForFrappeioAuth"
+			>
+				<!-- Logo area -->
+				<div class="mb-7 text-center">
+					<slot name="logo">
+						<FCLogo class="mx-auto inline-block h-14 w-14" />
+						<h1 class="mt-3 text-lg font-bold text-gray-900">
+							Accurate Systems
+						</h1>
+						<p class="mt-1 text-sm text-gray-500">
+							Cloud Hosting Solutions
+						</p>
+					</slot>
+				</div>
+
+				<!-- Title & Subtitle -->
 				<div class="mb-2" v-if="title">
 					<span
 						class="text-2xl font-bold leading-5 tracking-tight text-gray-900"
@@ -22,7 +33,14 @@
 				>
 					{{ subtitle }}
 				</p>
+
+				<!-- Form slot -->
 				<slot></slot>
+			</div>
+
+			<!-- Footer -->
+			<div class="mt-6 text-center text-xs text-gray-400">
+				accuratesystems.com.sa
 			</div>
 			<slot name="footer"></slot>
 		</div>
@@ -53,3 +71,15 @@ export default {
 	},
 };
 </script>
+
+<style scoped>
+/* Rebrand: Accurate Systems gradient background */
+.login-page-bg {
+	min-height: 100vh;
+	background: linear-gradient(135deg, #F0F5FA 0%, #E0EDFA 50%, #D4E6F9 100%);
+}
+.login-card {
+	box-shadow: 0 10px 25px rgba(4, 107, 210, 0.12),
+		0 4px 10px rgba(0, 0, 0, 0.06);
+}
+</style>

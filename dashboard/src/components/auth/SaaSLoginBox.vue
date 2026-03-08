@@ -1,23 +1,27 @@
 <template>
-	<div class="relative h-full">
-		<div class="relative z-10 mx-auto pt-8 sm:w-max sm:pt-32">
-			<!-- logo -->
+	<!-- Rebrand: Accurate Systems branded SaaS login -->
+	<div class="login-page-bg relative flex min-h-full items-center justify-center">
+		<div class="relative z-10 w-full max-w-[420px] px-4 py-8 sm:py-16">
 			<div
-				class="flex flex-col items-center"
+				class="login-card rounded-xl bg-white p-8 shadow-lg sm:p-10"
 				@dblclick="redirectForFrappeioAuth"
 			>
-				<img
-					v-if="logo"
-					class="inline-block h-12 w-12 rounded-md"
-					:src="logo"
-				/>
-				<FCLogo v-else class="inline-block h-12 w-12" />
-			</div>
-			<!-- card -->
-			<div
-				class="mx-auto w-full bg-white px-4 py-8 sm:mt-6 sm:w-112 sm:rounded-2xl sm:px-6 sm:py-6 sm:shadow-2xl"
-			>
-				<!-- title -->
+				<!-- Logo area -->
+				<div class="mb-7 flex flex-col items-center">
+					<img
+						v-if="logo"
+						class="inline-block h-14 w-14 rounded-md"
+						:src="logo"
+					/>
+					<FCLogo v-else class="inline-block h-14 w-14" />
+					<h1 class="mt-3 text-lg font-bold text-gray-900">
+						Accurate Systems
+					</h1>
+					<p class="mt-1 text-sm text-gray-500">
+						Cloud Hosting Solutions
+					</p>
+				</div>
+				<!-- Title & Subtitle -->
 				<div class="mb-7.5 text-center">
 					<p class="mb-2 text-2xl font-semibold leading-6 text-gray-900">
 						{{ title }}
@@ -36,6 +40,11 @@
 					</p>
 				</div>
 				<slot></slot>
+			</div>
+
+			<!-- Footer -->
+			<div class="mt-6 text-center text-xs text-gray-400">
+				accuratesystems.com.sa
 			</div>
 		</div>
 	</div>
@@ -69,3 +78,15 @@ export default {
 	},
 };
 </script>
+
+<style scoped>
+/* Rebrand: Accurate Systems gradient background */
+.login-page-bg {
+	min-height: 100vh;
+	background: linear-gradient(135deg, #F0F5FA 0%, #E0EDFA 50%, #D4E6F9 100%);
+}
+.login-card {
+	box-shadow: 0 10px 25px rgba(4, 107, 210, 0.12),
+		0 4px 10px rgba(0, 0, 0, 0.06);
+}
+</style>
