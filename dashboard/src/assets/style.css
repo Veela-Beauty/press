@@ -12,7 +12,7 @@
 	--ink-blue-link: #046BD2;
 }
 
-/* Taller inputs and buttons with rounded borders (dashboard-wide) */
+/* Consistent height and rounded borders for all form elements (dashboard-wide) */
 input[type='text'],
 input[type='email'],
 input[type='password'],
@@ -21,14 +21,15 @@ input[type='search'],
 input[type='url'],
 input[type='tel'],
 textarea,
-select {
-	min-height: 38px;
+select,
+.form-select {
+	min-height: 36px;
 	border-radius: 6px !important;
 }
 button,
 .btn,
 [role='button'] {
-	min-height: 36px;
+	min-height: 34px;
 	border-radius: 6px !important;
 }
 
