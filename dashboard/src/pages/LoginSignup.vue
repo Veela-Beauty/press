@@ -959,9 +959,10 @@ export default {
 	align-items: center;
 	justify-content: center;
 	gap: 8px;
+	height: 44px;
 	padding: 10px 16px;
 	border: 1px solid #D1D5DB;
-	border-radius: 8px;
+	border-radius: 10px;
 	background: white;
 	color: #374151;
 	font-size: 14px;
