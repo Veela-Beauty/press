@@ -12,6 +12,25 @@
 	--ink-blue-link: #046BD2;
 }
 
+/* Taller inputs and buttons with rounded borders (dashboard-wide) */
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='number'],
+input[type='search'],
+input[type='url'],
+input[type='tel'],
+textarea,
+select {
+	min-height: 38px;
+	border-radius: 8px !important;
+}
+button,
+.btn,
+[role='button'] {
+	border-radius: 8px !important;
+}
+
 @layer components {
 	/* Works on Firefox */
 	* {
