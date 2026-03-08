@@ -168,9 +168,20 @@ var reqTotal = 21;
 var navigating = false; // debounce flag
 
 function showRequirementsForm() {
-    document.getElementById("start-req-btn").style.display = "none";
+    // Hide all landing sections so only the wizard shows
+    hideAll();
+    var startBtn = document.getElementById("start-req-btn");
+    if (startBtn) startBtn.style.display = "none";
     document.getElementById("req-wizard").style.display = "block";
-    updateProgress(100);
+    reqStep = 1;
+    // Reset all wizard steps, show only step 1
+    document.querySelectorAll("#req-wizard .section").forEach(function(s) {
+        s.style.display = "none";
+        s.classList.remove("active");
+    });
+    var first = document.querySelector('#req-wizard [data-step="1"]');
+    if (first) { first.style.display = "block"; first.classList.add("active"); }
+    document.getElementById("req-done").style.display = "none";
     updateReqProgress();
 }
 function skipRequirements() {

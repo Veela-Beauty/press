@@ -130,6 +130,9 @@
             <h3>Request Received!</h3>
             <p>Thank you. We'll review your request and send an invite code to <strong id="submitted-email"></strong> shortly.</p>
             <p style="margin-top:12px;">Already have a code? <span class="demo-link" onclick="showInviteForm()" style="display:inline;margin:0;">Enter it here</span></p>
+            <div style="margin-top:20px;">
+                <button class="btn-next" onclick="showRequirementsForm()" style="width:100%;padding:14px;">While You Wait &mdash; Tell Us About Your Needs</button>
+            </div>
         </div>
 
         <!-- ===== RECOVER CREDENTIALS ===== -->
@@ -172,9 +175,10 @@
             <div style="margin-top:12px;">
                 <button class="btn-next" onclick="showRequirementsForm()" id="start-req-btn" style="width:100%;padding:14px;">Tell Us About Your Needs</button>
             </div>
+        </div>
 
-            <!-- ===== REQUIREMENTS WIZARD (21 steps) ===== -->
-            <div id="req-wizard" style="display:none;margin-top:30px;text-align:left;">
+        <!-- ===== REQUIREMENTS WIZARD (21 steps) — standalone section ===== -->
+        <div id="req-wizard" style="display:none;text-align:left;">
 
                 <!-- Step 1: Company Profile -->
                 <div class="section active" data-step="1">
@@ -969,7 +973,6 @@
                     <p style="color:#6b7280;font-size:14px;margin-top:12px;">Our team will review your information and contact you within 2 business days.</p>
                 </div>
             </div>
-        </div>
     </div>
 </div>
 
