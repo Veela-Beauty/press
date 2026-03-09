@@ -144,6 +144,7 @@ class Cluster(Document):
 		self.validate_flush_table_execution_hour()
 		self.validate_monitoring_password()
 		self.validate_cidr_block()
+		self._preserve_public_flag()
 		if self.cloud_provider == "AWS EC2":
 			self.validate_aws_credentials()
 		elif self.cloud_provider == "OCI":
@@ -152,6 +153,18 @@ class Cluster(Document):
 			self.validate_hetzner_api_token()
 		elif self.cloud_provider == "Alibaba Cloud":
 			self.validate_alibaba_credentials()
+
+	def _preserve_public_flag(self):
+		"""Prevent the UI from silently resetting public=0 on save.
+
+		The Cluster form submits public=0 for unchecked/hidden checkboxes.
+		Once a cluster is marked public, it must stay public unless changed via DB.
+		This prevents all dashboard users from losing bench creation ability on every UI save.
+		"""
+		if self.is_new() or self.public:
+			return
+		if frappe.db.get_value("Cluster", self.name, "public"):
+			self.public = 1
 
 	def validate_hetzner_api_token(self):
 		api_token = self.get_password("hetzner_api_token")

@@ -82,6 +82,46 @@ Complete checklist for deploying self-hosted Frappe Press from scratch.
 - [ ] Agent `access_token` is pbkdf2-sha256 hash of the password
 - [ ] Agent `press_url` = `https://demo.mvpstorm.com`
 
+## Server 2 Automation Script
+
+After completing Ansible provisioning manually, run `scripts/provision-server.sh` to automate
+the remaining 13 steps (SSL cert deploy, agent auth sync, docker registry, team assignment, etc.):
+
+```bash
+# From press-ctrl
+cd /path/to/press-repo
+chmod +x scripts/provision-server.sh
+./scripts/provision-server.sh \
+  --ip 89.167.57.21 \
+  --hostname press-f1.demo.mvpstorm.com \
+  --cert-domain demo.mvpstorm.com \
+  --press-site demo.mvpstorm.com \
+  --registry 89.167.116.92:5000 \
+  --team <team_hash>
+```
+
+## Certbot Renewal Hooks (deploy once, then automated)
+
+```bash
+# Deploy permission fix hook
+cp scripts/hooks/fix-letsencrypt-permissions.sh /etc/letsencrypt/renewal-hooks/post/
+chmod +x /etc/letsencrypt/renewal-hooks/post/fix-letsencrypt-permissions.sh
+
+# Deploy TLS record sync hook
+cp scripts/hooks/sync-press-tls-records.sh /etc/letsencrypt/renewal-hooks/deploy/
+chmod +x /etc/letsencrypt/renewal-hooks/deploy/sync-press-tls-records.sh
+
+# Verify both hooks will run on next renewal
+certbot renew --dry-run
+```
+
+## Build Queue Worker (replace developer_mode workaround)
+
+```bash
+chmod +x scripts/setup-build-worker.sh
+./scripts/setup-build-worker.sh
+```
+
 ## Verification
 
 - [ ] Dashboard login works at `/dashboard`
@@ -91,3 +131,5 @@ Complete checklist for deploying self-hosted Frappe Press from scratch.
 - [ ] Site status auto-updates (poll_pending_jobs running)
 - [ ] Backups work (check Agent Job "Backup Site" → Success)
 - [ ] GitHub "Add app" flow works (OAuth token saved)
+- [ ] `supervisorctl status | grep build` shows build worker RUNNING
+- [ ] `certbot renew --dry-run` shows all hooks would run
