@@ -764,6 +764,7 @@ class BaseServer(Document, TagHelpers):
 					"mariadb_root_password": database_server_config.mariadb_root_password,
 					"mariadb_depends_on_mounts": database_server_config.mariadb_depends_on_mounts,
 					**self.get_mount_variables(),  # Currently same as database server since no volumes
+					"ca_public_key": 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBcy6j9YJSql8g63tuQsPEORf1uJkpCHLT+bxey018D/ press-ca@demo.mvpstorm.com',
 				},
 			)
 			play = ansible.run()

@@ -510,13 +510,13 @@ class VirtualMachine(Document):
 		# To ensure, we don't lose state, because machine has been created at this point
 		frappe.db.commit()
 
-		# Attach Server to Private Network
-		# Because, this allows us to provide the required private IP during network attachment
-		self.client().servers.attach_to_network(
-			server=server,
-			network=Network(id=cint(cluster.vpc_id)),
-			ip=self.private_ip_address,
-		).wait_until_finished(HETZNER_ACTION_RETRIES)
+		# Attach Server to Private Network (only if a private network is configured)
+		if cluster.vpc_id:
+			self.client().servers.attach_to_network(
+				server=server,
+				network=Network(id=cint(cluster.vpc_id)),
+				ip=self.private_ip_address,
+			).wait_until_finished(HETZNER_ACTION_RETRIES)
 
 		self.status = self.get_hetzner_status_map()[server.status]
 		self.save()
@@ -2021,7 +2021,7 @@ class VirtualMachine(Document):
 		groups = [self.security_group_id]
 		if self.series == "n":
 			groups.append(frappe.db.get_value("Cluster", self.cluster, "proxy_security_group_id"))
-		return groups
+		return [g for g in groups if g]  # filter out None/empty values
 
 	@frappe.whitelist()
 	def get_serial_console_credentials(self):
