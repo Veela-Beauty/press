@@ -579,7 +579,10 @@ class LetsEncrypt(BaseCA):
 	def _certbot_command(self):
 		if self.wildcard or frappe.conf.developer_mode:
 			credentials_path = getattr(self, "_cf_credentials_path", "/root/.cloudflare/credentials.ini")
-			plugin = f"--dns-cloudflare --dns-cloudflare-credentials {credentials_path}"
+			plugin = (
+				f"--dns-cloudflare --dns-cloudflare-credentials {credentials_path}"
+				" --dns-cloudflare-propagation-seconds 30"
+			)
 		else:
 			plugin = f"--webroot --webroot-path {self.webroot_directory}"
 
