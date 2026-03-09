@@ -192,7 +192,7 @@ fi
 
 # Step 8: Verify SSL cert matches hostname
 log "Step 8/13: Verifying SSL cert..."
-CERT_CN=$(run_on_server "openssl x509 -noout -subject < ${AGENT_TLS}/fullchain.pem 2>/dev/null | grep -o 'CN=[^,]*' | head -1")
+CERT_CN=$(run_on_server "openssl x509 -noout -subject -in ${AGENT_TLS}/fullchain.pem 2>/dev/null | sed -E 's/.*CN\s*=\s*([^,]+).*/\1/'")
 log "  Cert CN: ${CERT_CN}"
 
 # Step 9: Configure Docker insecure registry
