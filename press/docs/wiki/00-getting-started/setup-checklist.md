@@ -111,6 +111,12 @@ chmod +x /etc/letsencrypt/renewal-hooks/post/fix-letsencrypt-permissions.sh
 cp scripts/hooks/sync-press-tls-records.sh /etc/letsencrypt/renewal-hooks/deploy/
 chmod +x /etc/letsencrypt/renewal-hooks/deploy/sync-press-tls-records.sh
 
+# Set DNS propagation wait (required — 10s default is too short for staging ACME)
+for conf in /etc/letsencrypt/renewal/*.conf; do
+  grep -q 'dns_cloudflare_propagation_seconds' "$conf" || \
+    sed -i '/\[renewalparams\]/a dns_cloudflare_propagation_seconds = 30' "$conf"
+done
+
 # Verify both hooks will run on next renewal
 certbot renew --dry-run
 ```
