@@ -62,6 +62,8 @@ Every lesson is classified by fix durability. Legend:
 | 49 | Fix one server → check all servers | KNOWLEDGE | Process rule |
 | 50 | Fix symptoms ≠ fix root cause | KNOWLEDGE | Process rule |
 | 51 | Scheduler stopped = silent failure | PERMANENT | Running — monitor weekly |
+| 52 | Hetzner VPC attach crashes when vpc_id not set | PERMANENT | Patched in `virtual_machine.py` — guard added |
+| 53 | Security group None values crash AWS API | PERMANENT | Patched in `virtual_machine.py` — filter added |
 
 ### Items Needing Action (open risks)
 
@@ -395,3 +397,19 @@ If you can't answer all three, the fix is incomplete. Add it to lessons-learned 
 4. Manual trigger: `bench execute press.press.doctype.agent_job.agent_job.poll_pending_jobs`
 5. Within 10 seconds, any completed agent jobs should update in Press
 **Rule:** After ANY bench migrate, restart, or Press upgrade — always verify `poll_pending_jobs` is running and `last_execution` is updating every 5 seconds.
+
+---
+
+## Cloud Provider Integration Gotchas
+
+### 52. Hetzner VPC attach_to_network crashes when cluster.vpc_id is not set
+**Risk:** VM creation fails entirely — the server is created in Hetzner but never attached to the private network, leaving Press in an inconsistent state (server created, db.commit() done, but status update crashes).
+**What happened:** `_provision_hetzner()` unconditionally called `servers.attach_to_network(network=Network(id=cint(cluster.vpc_id)))`. If `cluster.vpc_id` is None or empty, `cint(None)` = 0, and the hcloud API rejects `Network(id=0)` with an error. Self-hosted clusters often don't have a private VPC configured.
+**Fix:** Added `if cluster.vpc_id:` guard before the `attach_to_network` call in `virtual_machine.py`.
+**Lesson:** Optional cluster fields must always be guarded before passing to cloud APIs. The pattern `if field:` before any API call using that field is mandatory — never assume optional fields are always set.
+
+### 53. Security group None values crash AWS API calls
+**Risk:** Server creation fails for series "n" (proxy) servers when `proxy_security_group_id` is not configured on the cluster.
+**What happened:** `get_security_groups()` appended `frappe.db.get_value(...)` result to the groups list without checking if it was None. If `proxy_security_group_id` is not set, `groups = [security_group_id, None]`. AWS API rejects None as a security group ID.
+**Fix:** Changed return to `return [g for g in groups if g]` to filter out None/empty values.
+**Lesson:** Always filter None out of lists before passing to external APIs. `frappe.db.get_value()` returns None when field is empty — never assume Link fields are always populated just because they exist on the DocType.
