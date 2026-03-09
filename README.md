@@ -1,99 +1,185 @@
 <div align="center" markdown="1">
 
 <img src="https://frappe.io/files/Group%202%20(1).png" alt="Press logo" width="80"/>
-<h1>Press</h1>
+<h1>Accurate Systems Cloud Hosting Solutions</h1>
 
-**Full Service Cloud Hosting For The Frappe Stack - Powers Frappe Cloud**
-
-[![codecov](https://codecov.io/gh/frappe/press/branch/master/graph/badge.svg?token=0puvH0jUx9)](https://codecov.io/gh/frappe/press)
-[![unittests](https://github.com/frappe/press/actions/workflows/main.yaml/badge.svg)](https://github.com/frappe/press/actions/workflows/main.yaml)
+**White-label Self-Hosted Cloud Platform — Fork of [Frappe Press](https://github.com/frappe/press)**
 
 </div>
 
 <div align="center">
-	<img width="889" alt="Managed press" src="https://github.com/user-attachments/assets/2675e828-d5ed-4527-a038-7742a5cfa3db" />
-</div>
-<br />
-<div align="center">
-	<a href="https://frappe.io/press">Website</a>
+	<a href="https://accuratesystems.com.sa">Website</a>
 	-
-	<a href="https://docs.frappe.io/cloud/">Documentation</a>
+	<a href="https://autodeploypanel.mvpstorm.com/dashboard/login">Dashboard</a>
+	-
+	<a href="https://demo.sandbox.mvpstorm.com">Demo</a>
 </div>
 
-## Press
+---
 
-Press is a 100% open-source cloud hosting for the Frappe stack.
+## What Is This Fork?
 
-### Motivation
+This is a **white-label fork** of [Frappe Press](https://github.com/frappe/press) maintained by [Accurate Systems](https://accuratesystems.com.sa). It transforms Frappe Cloud into a self-hosted, fully branded cloud hosting platform under the **Accurate Systems** identity.
 
-We originally hosted our customer sites on an internal cloud platform called "Central," designed to automate creating and hosting sites when customers signed up on our website. Central was primarily built to host ERPNext, our flagship product. However, as our customers' needs evolved, they began requesting the ability to host custom applications, a feature that was not a priority in Central.
+### Fork Branch
 
-Additionally, customers lacked full control over their servers—no SSH access, no ability to manage updates, and limited flexibility in interacting with their environment. This led us to launch Frappe Cloud, to build a self-serve cloud platform that would empower our customers with complete control over their hosting experience.
+- **Branch**: `cloudflare-dns` (based on upstream `develop`)
+- **Upstream**: [frappe/press](https://github.com/frappe/press) `develop` branch
+- **Fork purpose**: White-label rebrand + Cloudflare DNS integration + self-hosted deployment tooling
 
-### Key Features
+## What's Different from Upstream
 
-- **Multitenancy Made Easy**: Press simplifies multi-tenancy by enabling multiple sites on a single platform, each with its app version, allowing independent updates and minimal downtime, even for large sites.
-- **Dashboard**: The dashboard provides a centralized interface to manage apps, servers, sites, billing, backups, and updates, offering real-time insights and streamlined control of complex operations.
+### 1. Full White-Label Rebrand (~95% of changes)
 
-- **Permissions**: Granular access controls let team owners manage roles and resources efficiently, ensuring users have access only to relevant information and actions for their roles.
+All user-facing references to "Frappe Cloud" have been replaced with "Accurate Systems Cloud Hosting Solutions":
 
-- **Simplified Management**: Press streamlines site management with automated backups, real-time monitoring, role-based access, and easy scaling, making it ideal for growing Frappe environments.
+- **Brand strings**: ~80 Python/Vue files rebranded ("Frappe Cloud" → "Accurate Systems Cloud")
+- **URLs**: ~60 files updated (frappecloud.com → accuratesystems.com.sa)
+- **Email templates**: 30+ HTML templates rebranded
+- **Dashboard UI**: Custom logo, brand color (`#046BD2`), dark sidebar (`#1E293B`), login gradient
+- **Login pages**: Branded `LoginBox.vue`, `SaaSLoginBox.vue` with gradient background and white logo
 
-- **Billing**: Automated billing supports daily or monthly subscriptions, flexible payment methods, wallet credits, and ERP integration, simplifying customer invoicing and payments.
+### 2. Cloudflare DNS Integration (New Feature)
 
-- **Marketplace**: The marketplace allows developers to list apps with flexible pricing models, ensures compatibility checks, and provides a streamlined system for sales and payouts.
+Native Cloudflare DNS provider support for automatic domain management:
 
-<details>
-  <summary>Screenshots</summary>
+- **Root Domain**: Cloudflare API token stored per root domain
+- **Cluster**: Cloudflare zone ID configuration
+- **Automatic DNS**: A/AAAA record creation for sites and servers via Cloudflare API
+- **Wildcard SSL**: Let's Encrypt wildcard certificates with Cloudflare DNS-01 challenge
 
-![Dashboard](https://github.com/user-attachments/assets/1904fa3e-39aa-4151-8276-d3cc622ed582)
-![Permissions](https://github.com/user-attachments/assets/60da6b5e-8f48-4483-99cf-67886ccc8bd6)
-![Bench Group Update](https://github.com/user-attachments/assets/2be6b0ee-084d-4949-8d13-218b5a218d3d)
-![Marketplace](https://github.com/user-attachments/assets/2f325737-7929-485d-a670-549f986fd07e)
+### 3. Self-Hosted Deployment Tooling (New Feature)
 
-</details>
+Scripts and utilities for deploying Press on your own infrastructure:
 
-### Under the Hood
+- **`selfhosted_utils.py`**: Helper functions for standalone server provisioning
+- **`do_retry.py`**: Retry logic for deployment operations
+- **Demo landing page**: Static HTML at `demo.sandbox.mvpstorm.com` for trial signups
+- **Standalone mode**: Full support for single-server deployments (controller + app server on separate machines)
 
-- [**Frappe Framework**](https://github.com/frappe/frappe): A full-stack web application framework written in Python and Javascript. The framework provides a robust foundation for building web applications, including a database abstraction layer, user authentication, and a REST API.
+### 4. Schema Extensions
 
-- [**Frappe UI**](https://github.com/frappe/frappe-ui): A Vue-based UI library, to provide a modern user interface. The Frappe UI library provides a variety of components that can be used to build single-page applications on top of the Frappe Framework.
+- **Cluster DocType**: Added `cloudflare_zone_id` field
+- **Root Domain DocType**: Added `cloudflare_api_token` field
 
-- [**Agent**](https://github.com/frappe/agent): A flask app designed to work along with Press. It provides a CLI interface for Press to communicate with the sites and benches.
+## Architecture
 
-- [**Docker**](https://www.docker.com): An open-source platform that enables developers to build, package, and deploy applications in lightweight, portable containers.
-
-- [**Ansible**](https://www.ansible.com): An open-source IT automation tool that simplifies the management, configuration, and deployment of systems and applications.
+```
+┌─────────────────────────────────────┐
+│  Press Controller (Server 1)        │
+│  - Frappe Bench + Press app         │
+│  - Dashboard (Vue SPA)              │
+│  - Docker Registry (local)          │
+│  - Build server (clones + builds)   │
+│  - Cloudflare DNS management        │
+└──────────────┬──────────────────────┘
+               │ Agent API
+┌──────────────▼──────────────────────┐
+│  App Server / Standalone (Server 2) │
+│  - Docker containers (benches)      │
+│  - MariaDB (tenant databases)       │
+│  - Nginx (reverse proxy)            │
+│  - Redis                            │
+│  - Frappe Agent                     │
+└─────────────────────────────────────┘
+```
 
 ## Setup
 
-To self host or to setup Press locally follow the steps in the [Local Development Environment Setup Guide](https://docs.frappe.io/cloud/local-fc-setup).
+### Prerequisites
 
-### Migrate to Frappe Cloud
+- Ubuntu 22.04 LTS
+- 2 Hetzner (or equivalent) servers: 4vCPU, 8GB RAM minimum each
+- Domain with Cloudflare DNS
+- Cloudflare API token with Zone:Edit permissions
 
-If you are planning to migrate your site to Frappe Cloud, please refer to [this YouTube video](https://www.youtube.com/watch?v=Xb9QHnUrIEk)
+### Installation
 
-### Pre-commit
+1. **Install Frappe Bench** on Server 1 (controller):
+   ```bash
+   # Standard frappe-bench installation
+   pip install frappe-bench
+   bench init frappe-bench --frappe-branch version-15
+   cd frappe-bench
+   ```
 
-There's a [pre-commit](https://pre-commit.com/) hook included in the repo. You can set it up by doing
+2. **Install Press** (this fork):
+   ```bash
+   bench get-app https://github.com/accurate-systems/press.git --branch cloudflare-dns
+   bench new-site your-site.domain.com --install-app press
+   ```
 
+3. **Configure Cloudflare**:
+   - Add your Cloudflare API token to the Root Domain record in Press
+   - Set the Zone ID in the Cluster record
+   - Create DNS records: `A` for controller, wildcard `A` for app server
+
+4. **Provision App Server** (Server 2):
+   - Use Press's built-in Ansible provisioning
+   - Or follow manual standalone setup (see wiki)
+
+5. **Build & Deploy**:
+   ```bash
+   bench build --app press
+   bench --site your-site.domain.com migrate
+   sudo supervisorctl restart all
+   ```
+
+### Documentation
+
+Detailed setup guides and architecture docs are available in the [project wiki](docs/wiki/).
+
+## Keeping in Sync with Upstream
+
+This fork is actively maintained and synced with upstream `frappe/press` using a structured process:
+
+- **Sync method**: Per-commit analysis with conflict risk assessment before merging
+- **Sync journal**: All sync operations are recorded in `SYNC_JOURNAL.md` with per-commit decisions
+- **Conflict pattern**: Most conflicts are trivial (branding strings vs upstream logic changes in different code sections)
+- **Sync frequency**: Every 2 weeks recommended
+
+To sync with upstream:
 ```bash
-pip install pre-commit
-pre-commit install
+git remote add frappe https://github.com/frappe/press.git  # if not already added
+git fetch frappe develop
+# Analyze upstream commits before merging (recommended)
+# See SYNC_JOURNAL.md for the structured process
+git rebase frappe/develop
 ```
-## Learn and connect
 
-- [Telegram Public Group](https://t.me/frappecloud)
-- [Discuss Forum](https://discuss.frappe.io/c/frappe-cloud/77)
-- [Documentation](https://docs.frappe.io/cloud)
+## Tech Stack
 
-<br/>
-<br/>
+- [**Frappe Framework**](https://github.com/frappe/frappe) v15 — Full-stack Python/JS web framework
+- [**Frappe UI**](https://github.com/frappe/frappe-ui) — Vue-based dashboard UI
+- [**Docker**](https://www.docker.com) — Container-based bench deployments
+- [**Ansible**](https://www.ansible.com) — Server provisioning automation
+- [**Cloudflare API**](https://developers.cloudflare.com/api/) — DNS record management
+- [**Let's Encrypt**](https://letsencrypt.org/) — SSL certificates (with Cloudflare DNS-01 challenge)
+
+## Key Files (Fork-Specific)
+
+| File | Purpose |
+|------|---------|
+| `press/press/doctype/root_domain/root_domain.json` | Cloudflare API token field |
+| `press/press/doctype/cluster/cluster.json` | Cloudflare zone ID field |
+| `press/utils/selfhosted_utils.py` | Standalone deployment helpers |
+| `press/utils/do_retry.py` | Retry logic for provisioning |
+| `dashboard/src/components/AppSidebar*.vue` | Dark sidebar theme |
+| `dashboard/src/pages/LoginBox.vue` | Branded login page |
+| `dashboard/src/pages/SaaSLoginBox.vue` | Branded SaaS login |
+| `dashboard/src/assets/style.css` | Global brand overrides |
+| `SYNC_JOURNAL.md` | Fork sync history and decisions |
+
+## License
+
+Same as upstream — [GNU Affero General Public License v3.0](LICENSE)
+
+---
+
 <div align="center" style="padding-top: 0.75rem;">
-	<a href="https://frappe.io" target="_blank">
-		<picture>
-			<source media="(prefers-color-scheme: dark)" srcset="https://frappe.io/files/Frappe-white.png">
-			<img src="https://frappe.io/files/Frappe-black.png" alt="Frappe Technologies" height="28"/>
-		</picture>
+	<a href="https://accuratesystems.com.sa" target="_blank">
+		<strong>Accurate Systems</strong>
 	</a>
+	<br/>
+	<sub>Cloud Hosting Solutions</sub>
 </div>
