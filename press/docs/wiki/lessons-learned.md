@@ -66,6 +66,7 @@ Every lesson is classified by fix durability. Legend:
 | 53 | Security group None values crash AWS API | PERMANENT | Patched in `virtual_machine.py` — filter added |
 | 54 | Claude Code bash has no TTY — git credential prompts fail | PERMANENT | Push via press-ctrl SSH relay: bundle → SCP → cherry-pick → push |
 | 55 | Certbot DNS propagation 10s too short — dry-run fails on staging | PERMANENT | Set `dns_cloudflare_propagation_seconds = 30` in all renewal configs |
+| 56 | `_certbot_command()` missing propagation flag — new cert issuance fails via Press UI | PERMANENT | Patched `--dns-cloudflare-propagation-seconds 30` in `tls_certificate.py` |
 
 ### Items Needing Action (open risks)
 
@@ -445,3 +446,15 @@ for conf in /etc/letsencrypt/renewal/*.conf; do
 done
 ```
 **Lesson:** Always set propagation seconds to 30+ in certbot renewal configs for DNS challenges. After adding renewal hooks or changing certbot config, always verify with `certbot renew --dry-run` before assuming hooks will run on actual renewal. The permissions hook (`fix-letsencrypt-permissions.sh`) confirmed running in the log even when cert validation fails — deploy hooks only run on successful renewal.
+
+### 56. `_certbot_command()` missing `--dns-cloudflare-propagation-seconds` — new cert issuance via Press UI silently uses 10s default
+**Risk:** New wildcard certificate issuance triggered from the Press dashboard would fail with ACME DNS validation errors. Renewal config files have `dns_cloudflare_propagation_seconds = 30`, but `certbot certonly` (used for initial issuance) reads propagation seconds from the CLI flag, not the renewal config.
+**What happened:** Lesson 55 fixed the renewal configs for `certbot renew`, but `_certbot_command()` in `tls_certificate.py` only builds `--dns-cloudflare --dns-cloudflare-credentials ...` for the DNS plugin — no `--dns-cloudflare-propagation-seconds` flag. New certs issued via Press would use the certbot default (10s), which was already proven insufficient.
+**Fix:** Added `--dns-cloudflare-propagation-seconds 30` to the DNS plugin string in `_certbot_command()`:
+```python
+plugin = (
+    f"--dns-cloudflare --dns-cloudflare-credentials {credentials_path}"
+    " --dns-cloudflare-propagation-seconds 30"
+)
+```
+**Lesson:** When patching a workaround (renewal configs), always trace the full code path to confirm the fix is complete. `certbot renew` reads the config; `certbot certonly` reads CLI flags. Both paths must be patched. A partial fix that only addresses one invocation path will surprise you at the worst time — during cert issuance for a new site.
