@@ -15,7 +15,6 @@ White-labeled fork of Frappe Press for Accurate Systems Cloud Hosting Solutions.
 ### 06 — Deployment & Ops
 - [Server Provisioning Guide](06-deployment-ops/server-provisioning.md) — bootstrapping new servers on Hetzner without private network
 - [Ops Toolkit (do_retry.py)](06-deployment-ops/ops-toolkit.md) — bench execute scripts for server management
-- [Scaling Guide](06-deployment-ops/scaling-guide.md) — how to grow from 1 server to multi-server clusters, sizing, cost estimation
 
 ## Key Branch Patches
 
