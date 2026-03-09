@@ -16,6 +16,7 @@ Self-hosted Frappe Press deployment on `demo.mvpstorm.com` with Cloudflare DNS.
 - [Cloudflare DNS](01-setup/cloudflare-dns.md) — Patches applied to replace AWS Route53
 
 ### 02 — Operations
+- [Platform Risk Checklist](02-operations/platform-risk-checklist.md) — Pre/post-task risk evaluation for multi-tenant safety
 - [Adding Apps](02-operations/adding-apps.md) — Register apps, create benches, build & deploy
 - [Adding Servers](02-operations/adding-servers.md) — How to add more servers
 - [Backups & Restore](02-operations/backups.md) — Backup configuration and restore flow
@@ -26,7 +27,7 @@ Self-hosted Frappe Press deployment on `demo.mvpstorm.com` with Cloudflare DNS.
 
 ## Patches (cloudflare-dns branch)
 
-7 files patched on `accurate-systems/press` fork, `cloudflare-dns` branch:
+8 files patched on `accurate-systems/press` fork, `cloudflare-dns` branch:
 
 | # | File | Change |
 |---|------|--------|
@@ -37,3 +38,6 @@ Self-hosted Frappe Press deployment on `demo.mvpstorm.com` with Cloudflare DNS.
 | 5 | `press/press/doctype/app_release/app_release.py` | Python 3.14 fallback → bench python |
 | 6 | `press/press/doctype/deploy_candidate/validations.py` | Python version check: raise → warn |
 | 7 | `press/press/doctype/support_access/support_access.py` | Operator precedence bug fix |
+| 8 | `press/press/doctype/cluster/cluster.py` | Preserve `public` flag on save (`_preserve_public_flag`) |
+
+> Run `git diff main..cloudflare-dns --name-only` to see the authoritative list.

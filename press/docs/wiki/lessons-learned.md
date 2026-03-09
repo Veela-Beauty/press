@@ -1,5 +1,82 @@
 # Frappe Press Self-Hosted — Lessons Learned & Gotchas
 
+## Lesson Status Audit
+
+Every lesson is classified by fix durability. Legend:
+- **PERMANENT** — root cause eliminated, won't recur on this installation
+- **PER-SERVER** — fixed for current servers, but must be repeated for every new server added
+- **WORKAROUND** — underlying issue still exists, risk returns under specific conditions
+- **ONGOING RISK** — not fully fixed, needs further action or active monitoring
+- **KNOWLEDGE** — not a bug, reference information only
+
+| # | Title | Status | Action Needed |
+|---|-------|--------|---------------|
+| 1 | Node 18 too old | PER-SERVER | Must use Node 20+ on every new Press install |
+| 2 | setuptools < 81 | WORKAROUND | Depends on razorpay — check on every Press upgrade |
+| 3 | bench CLI for root | PERMANENT | Done, documented |
+| 4 | Supervisor symlink | PERMANENT | Done, documented |
+| 5 | certbot certonly vs --nginx | PERMANENT | Done, documented |
+| 6 | /etc/letsencrypt permissions | PERMANENT | Hook created: `scripts/hooks/fix-letsencrypt-permissions.sh` → deploy to `/etc/letsencrypt/renewal-hooks/post/` on press-ctrl |
+| 7 | setup_standalone() order | PERMANENT | Documented |
+| 8 | SSH CA dummy key | WORKAROUND | Functional — but SSH-via-Press won't work if ever needed |
+| 9 | Server stuck "Broken" | PER-SERVER | Manual override needed every time Ansible partially fails |
+| 10 | SSH keys between servers | PER-SERVER | Must set up for every new server pair |
+| 11 | Team name is a hash | PERMANENT | Documented |
+| 12 | App Source requires versions table | PERMANENT | Documented |
+| 13 | App Releases must exist before deploy | PERMANENT | Documented |
+| 14 | Build server required | PERMANENT | Set, documented |
+| 15 | build_directory + clone_directory | PERMANENT | Set, documented |
+| 16 | "build" queue — developer_mode workaround | PERMANENT | Dedicated worker added: `scripts/setup-build-worker.sh` — run on press-ctrl, then remove developer_mode |
+| 17 | Python 3.14 hardcoded | PERMANENT | Patched in fork (app_release.py) |
+| 18 | Docker insecure registry | PER-SERVER | Must set on every new server |
+| 19 | Agent press_url = frappecloud.com | PER-SERVER | Must update config.json on every new server |
+| 20 | MariaDB not installed by Ansible | PER-SERVER | Must verify + install on every new app server |
+| 21 | Three records for standalone | PERMANENT | Documented |
+| 22 | Site Plan autoname | PERMANENT | Documented |
+| 23 | Secrets in git | PERMANENT | Rule established |
+| 24 | Server.team is NULL | PER-SERVER | Must set team on every Ansible-provisioned server |
+| 25 | Proxy Server separate agent_password | PER-SERVER | Must sync all three records on every new server |
+| 26 | bench migrate after install | PERMANENT | Done — 142+ jobs created |
+| 27 | press_url frappecloud.com | PER-SERVER | Same as #19 — must fix on every new server |
+| 28 | Python version validation | PERMANENT | Patched in fork (validations.py) |
+| 29 | v16+ app compatibility list | KNOWLEDGE | Reference only |
+| 30 | Cluster.public resets on save | PERMANENT | Patched in `cluster.py` — `_preserve_public_flag()` in validate() prevents reset |
+| 31 | Team mismatch on backend-created records | PER-SERVER | Must transfer ownership every time new resources are created via console |
+| 32 | GitHub App full setup | PERMANENT | Done, documented |
+| 33 | GitHub OAuth token not saved | PERMANENT | Fixed (OAuth during install enabled) |
+| 34 | v16 disabled — Python 3.12+ needed | **ONGOING RISK** | **v16 builds impossible until build server upgraded to Python 3.12+** |
+| 35 | develop branch targets v17 | KNOWLEDGE | Reference only — always use version-tagged branches |
+| 36 | OutgoingEmailError | PERMANENT | disable_mail_notifications=1 set |
+| 37 | Docker images tagged with old domain | PERMANENT | Historical, resolved |
+| 38 | Port already allocated on deploy | PERMANENT | Daily cron cleanup: `scripts/hooks/docker-cleanup.sh` → deploy to `/etc/cron.daily/` on each app server |
+| 39 | SSL cert mismatch | WORKAROUND | Fixed for current servers + renewal hooks installed — but stale Press TLS Certificate records still risk |
+| 40 | Cloudflare zone ID mismatch | PERMANENT | Fixed, documented |
+| 41 | Cloudflare token in one place | PERMANENT | Process established |
+| 42 | Account-scoped token verify endpoint | KNOWLEDGE | Reference only |
+| 43 | Programmatic DocTypes need migrate | KNOWLEDGE | Reference only |
+| 44 | frappe.db.table_exists() without tab prefix | KNOWLEDGE | Reference only |
+| 45 | Press Site controller guards | PERMANENT | Fixed in demo provisioning code |
+| 46 | Agent PBKDF2 hash mismatch | PER-SERVER | Fixed on u4 + press-f1 — must follow for every new server |
+| 47 | SSL cert hostname mismatch | PER-SERVER | Fixed on press-f1 + u4 — must verify for every new server |
+| 48 | No certbot renewal hook | PER-SERVER | Hooks installed for press-f1 + u4 — must install for every new server |
+| 49 | Fix one server → check all servers | KNOWLEDGE | Process rule |
+| 50 | Fix symptoms ≠ fix root cause | KNOWLEDGE | Process rule |
+| 51 | Scheduler stopped = silent failure | PERMANENT | Running — monitor weekly |
+
+### Items Needing Action (open risks)
+
+| Priority | # | Issue | Status | Deploy Command |
+|----------|---|-------|--------|----------------|
+| DONE | 6 | letsencrypt permissions | Script ready | `cp scripts/hooks/fix-letsencrypt-permissions.sh /etc/letsencrypt/renewal-hooks/post/ && chmod +x ...` |
+| DONE | 30 | Cluster.public reset | Patched in cluster.py | Deploy fork update: `git pull && bench --site demo.mvpstorm.com migrate` |
+| DONE | 16 | build queue workaround | Script ready | `bash scripts/setup-build-worker.sh` on press-ctrl |
+| DONE | 38 | Docker port allocation | Script ready | `cp scripts/hooks/docker-cleanup.sh /etc/cron.daily/press-docker-cleanup && chmod +x ...` on each app server |
+| OPEN | 34 | v16 disabled | Needs Python 3.12 | Install Python 3.12 on press-f1, re-enable Frappe Version v16 |
+| MONITOR | 2 | setuptools pin | Check on upgrades | After every `bench update`: `env/bin/pip install "setuptools<81"` |
+| AUTOMATED | 18,19,24,25,46,47,48 | PER-SERVER steps | Script ready | `bash scripts/provision-server.sh --ip X --hostname Y --cert-domain Z --team T` |
+
+---
+
 ## Installation Gotchas
 
 ### 1. Node 18 is too old for Press develop branch
@@ -241,3 +318,80 @@
 ### 45. Press Site controller role guards run even with `ignore_permissions=True`
 **Problem:** Guest user calling `site.insert(ignore_permissions=True)` hits `get_current_team()` AuthenticationError.
 **Fix:** Wrap with `frappe.set_user("Administrator")` before insert, restore after.
+
+---
+
+## Multi-Tenant Risk Lessons
+
+These lessons are different. They are not about one bug — they are about the **blast radius** of a bug on a shared platform. Every site on a server shares the same agent, the same SSL cert, and the same scheduler. One misconfiguration takes down all users on that server, not just one.
+
+See [platform-risk-checklist.md](02-operations/platform-risk-checklist.md) for the full verification protocol.
+
+---
+
+### 46. Agent auth mismatch (PBKDF2 hash) — all sites on server go dark
+**Risk:** P1 — ALL sites on the affected server. Jobs queue up and never complete. Users see sites stuck in "Pending" state forever.
+**What happened:** u4 agent was added with a new `agent_password` in Press DB but the agent's `config.json` still had a stale hash. Every job sent to u4 returned HTTP 401.
+**Root cause:** The agent stores a PBKDF2-SHA256 hash of the password. Press stores the plaintext (encrypted in `__Auth` table). If the hash was generated with wrong rounds or wrong plaintext, auth silently fails forever.
+**Fix (steps):**
+1. Get plaintext from Press: `frappe.get_decrypted_password("Server", "server_name", "agent_password")`
+2. Regenerate hash on the agent server: `pbkdf2_sha256.using(rounds=29000).hash(plaintext)`
+3. Update `config.json` → `access_token` with new hash
+4. `supervisorctl restart agent:web`
+5. Verify from inside the server: `curl -u 'server_name:plaintext' http://127.0.0.1:25052/ping` → must return 200
+**Also check:** Database Server and Proxy Server each have a SEPARATE `agent_password` in `__Auth`. All three records must have matching passwords for the same physical agent.
+
+### 47. SSL cert domain mismatch — agent unreachable from Press
+**Risk:** P1 — ALL sites on the affected server. Press makes HTTPS callbacks to the agent. If the cert doesn't match the hostname, TLS verification fails and all agent jobs fail with `SSLCertVerificationError: Hostname mismatch`.
+**What happened:** press-f1 was provisioned with `*.demo.mvpstorm.com` cert. When we added a second server with hostname `press-f1.sandbox.mvpstorm.com`, the cert didn't cover it — different second-level domain.
+**Root cause:** `*.demo.mvpstorm.com` is a wildcard only for that one level. It covers `anything.demo.mvpstorm.com` but NOT `anything.sandbox.mvpstorm.com`. Separate wildcard cert required for each subdomain level.
+**Fix (steps):**
+1. Identify the hostname Press uses for the server (the DocType record name)
+2. Check what cert is currently in `/home/frappe/agent/tls/` with: `openssl x509 -noout -subject < /home/frappe/agent/tls/fullchain.pem`
+3. If mismatch: issue the correct wildcard cert on press-ctrl with certbot
+4. SCP the matching cert to the agent's tls/ directory
+5. `chown frappe:frappe /home/frappe/agent/tls/*.pem && nginx -t && systemctl reload nginx`
+6. Verify: `openssl s_client -connect SERVER_IP:443 -servername HOSTNAME 2>/dev/null | grep "Verify return code"`
+**Rule:** cert domain must match the server's hostname in Press, character for character.
+
+### 48. No certbot renewal hook = cert expires silently, all ops fail
+**Risk:** P1 — cert expiry is silent until the day it expires, then ALL operations on that server stop immediately.
+**What happened:** press-f1 agent TLS cert was manually deployed. No renewal hook existed. When certbot renewed the `*.demo.mvpstorm.com` cert on press-ctrl, the new cert was NOT deployed to press-f1. The old cert on press-f1 would have expired without warning.
+**Fix (steps):**
+1. On press-ctrl, create `/etc/letsencrypt/renewal-hooks/deploy/<hook-name>.sh`
+2. The hook checks `$RENEWED_LINEAGE` to only run for the relevant cert
+3. SCPs the new cert to the target server's `/home/frappe/agent/tls/`
+4. SSHs to the target and reloads nginx
+5. `chmod +x` the hook, then `certbot renew --dry-run` to verify it runs
+**Rule:** Every server that uses a cert issued on press-ctrl must have a deploy hook. Install the hook at the same time you deploy the cert — not later.
+
+### 49. When you fix one server, check ALL servers for the same issue
+**Risk:** Any level — P0 to P3. The same misconfiguration is often copy-pasted across servers.
+**What happened:** We fixed the agent auth hash on u4. Before that, we fixed the same issue on press-f1. Both had the same root cause (stale hash after password rotation). If we had checked press-f1 when we first found it, we would have avoided a second incident on u4.
+**Rule:** When you find a bug on one server, immediately ask: "Does this exist on every other server?" Run the verification steps on ALL servers before closing the task.
+**Platform audit after any agent/cert change:**
+1. Test `/ping` on every server from inside (not from press-ctrl)
+2. Check SSL cert subject on every server
+3. Check disk space on every server
+4. Check recent Agent Job failures for every server
+
+### 50. A fix that skips the root cause creates a future incident
+**Risk:** Varies — you close the ticket but the problem recurs, often at a worse time.
+**What happened:** Early in the setup, agent auth issues were "fixed" by resetting passwords manually without documenting the PBKDF2 hash requirement. The next time a server was added, we hit the exact same issue from scratch.
+**Rule:** Every fix must answer three questions:
+1. What was the actual root cause (not just the symptom)?
+2. What prevents this from happening again on this server?
+3. What prevents this from happening on any future server?
+If you can't answer all three, the fix is incomplete. Add it to lessons-learned AND the setup checklist AND the platform-risk-checklist.
+
+### 51. Scheduler stopped = silent failure across the entire platform
+**Risk:** P0 — affects ALL users. Sites appear "Active" in the dashboard but nothing works: no backups, no status updates, no auto-renew, no monitoring.
+**What happened:** `poll_pending_jobs` wasn't created because `bench migrate` wasn't run after install. All agent jobs completed on the server side but Press never polled for results.
+**Symptoms:** Agent jobs stay "Pending" in Press. Sites stay in "Installing" or "Pending" indefinitely.
+**Fix (steps):**
+1. Check: `bench execute frappe.client.get_list --kwargs '{"doctype": "Scheduled Job Type", "filters": {"name": "agent_job.poll_pending_jobs"}, "fields": ["stopped", "last_execution"]}'`
+2. If missing: `bench --site demo.mvpstorm.com migrate`
+3. If stopped: `frappe.db.set_value("Scheduled Job Type", {"name": ...}, "stopped", 0)`
+4. Manual trigger: `bench execute press.press.doctype.agent_job.agent_job.poll_pending_jobs`
+5. Within 10 seconds, any completed agent jobs should update in Press
+**Rule:** After ANY bench migrate, restart, or Press upgrade — always verify `poll_pending_jobs` is running and `last_execution` is updating every 5 seconds.
