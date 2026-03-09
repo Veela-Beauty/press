@@ -1,10 +1,18 @@
 ---
 - name: Setup ca public key to verify signed certificates
   block:
-    - name: Setup certificate-authority key file
-      get_url:
-        url: "https://frappecloud.com/files/ca.pub"
+    - name: Setup certificate-authority key file from variable
+      copy:
+        content: "{{ ca_public_key }}"
         dest: /etc/ssh/ca.pub
+      when: ca_public_key is defined and ca_public_key != ""
+
+    - name: Download certificate-authority key file (fallback)
+      get_url:
+        url: "{{ ca_public_key_url | default('https://frappecloud.com/files/ca.pub') }}"
+        dest: /etc/ssh/ca.pub
+      when: ca_public_key is not defined or ca_public_key == ""
+      ignore_errors: yes
 
     - name: Set key file permissions to 0644
       file:
@@ -12,6 +20,7 @@
         owner: root
         group: root
         mode: 0644
+      ignore_errors: yes
 
 - name: Setup authorized principals for certificate authority
   block:
