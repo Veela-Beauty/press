@@ -19,7 +19,7 @@ Complete checklist for deploying self-hosted Frappe Press from scratch.
 - [ ] Setup production: `bench setup production frappe`
 - [ ] Fix supervisor symlink if needed
 - [ ] Pin setuptools: `env/bin/pip install "setuptools<81"` (razorpay dependency)
-- [ ] Set `developer_mode = 1` in site_config.json (routes builds to default queue)
+- [ ] Run build worker setup: `bash scripts/setup-build-worker.sh` (replaces developer_mode workaround — see lesson 16)
 
 ## SSL Certificates
 
