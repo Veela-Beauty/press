@@ -67,6 +67,7 @@ Every lesson is classified by fix durability. Legend:
 | 54 | Claude Code bash has no TTY — git credential prompts fail | PERMANENT | Push via press-ctrl SSH relay: bundle → SCP → cherry-pick → push |
 | 55 | Certbot DNS propagation 10s too short — dry-run fails on staging | PERMANENT | Set `dns_cloudflare_propagation_seconds = 30` in all renewal configs |
 | 56 | `_certbot_command()` missing propagation flag — new cert issuance fails via Press UI | PERMANENT | Patched `--dns-cloudflare-propagation-seconds 30` in `tls_certificate.py` |
+| 57 | `provision-server.sh` Step 7 — SSH doesn't forward env vars, agent /ping always 401 | PERMANENT | Fixed: expand credential locally via `printf '%q'` |
 
 ### Items Needing Action (open risks)
 
@@ -458,3 +459,19 @@ plugin = (
 )
 ```
 **Lesson:** When patching a workaround (renewal configs), always trace the full code path to confirm the fix is complete. `certbot renew` reads the config; `certbot certonly` reads CLI flags. Both paths must be patched. A partial fix that only addresses one invocation path will surprise you at the worst time — during cert issuance for a new site.
+
+### 57. `provision-server.sh` Step 7 — SSH doesn't forward local env vars, agent /ping always authenticates with empty password
+**Risk:** The agent auth verification step in `provision-server.sh` always returns 401/000 even after a successful auth sync, masking whether the sync actually worked. Operators see a false "WARNING: check auth manually" message and may incorrectly suspect the sync failed.
+**What happened:** Step 7 wrote:
+```bash
+PING_STATUS=$(AGENT_PWD="${PLAINTEXT}" run_on_server bash -c \
+  "curl ... -u '${HOSTNAME}:\${AGENT_PWD}' ...")
+```
+`AGENT_PWD` set before `run_on_server` is a local-only env var. SSH (`ssh root@IP cmd`) does NOT forward local env vars by default — the remote shell never sees `AGENT_PWD`. The `\${AGENT_PWD}` (escaped `$`) reaches the remote shell literally as `${AGENT_PWD}`, expands to empty, and curl sends `HOSTNAME:` as credentials → 401.
+**Fix:** Expand the credential locally using `printf '%q'` for safe shell escaping:
+```bash
+PING_STATUS=$(run_on_server bash -c \
+  "curl -s -o /dev/null -w '%{http_code}' -u $(printf '%q' "${HOSTNAME}:${PLAINTEXT}") http://127.0.0.1:25052/ping" ...)
+```
+`printf '%q'` produces a single-quoted, shell-escaped string that safely handles passwords containing spaces, quotes, or special chars.
+**Lesson:** SSH does not forward env vars unless `SendEnv`/`AcceptEnv` are both configured. For automation scripts: either expand credentials locally (with escaping), write them to a temp file on the remote, or use `ssh -o SendEnv=VAR` (requires remote sshd `AcceptEnv`). Never rely on `VAR=value ssh host cmd` to make `VAR` available inside the remote command.
