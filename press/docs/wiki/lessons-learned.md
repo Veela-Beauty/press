@@ -68,6 +68,7 @@ Every lesson is classified by fix durability. Legend:
 | 55 | Certbot DNS propagation 10s too short — dry-run fails on staging | PERMANENT | Set `dns_cloudflare_propagation_seconds = 30` in all renewal configs |
 | 56 | `_certbot_command()` missing propagation flag — new cert issuance fails via Press UI | PERMANENT | Patched `--dns-cloudflare-propagation-seconds 30` in `tls_certificate.py` |
 | 57 | `provision-server.sh` Step 7 — SSH doesn't forward env vars, agent /ping always 401 | PERMANENT | Fixed: expand credential locally via `printf '%q'` |
+| 58 | `sync-press-tls-records.sh` `grep 'CN=[^,]*'` fails on OpenSSL 3.0 — CERT_DOMAIN empty, hook silent no-op | PERMANENT | Fixed: `sed -E 's/.*CN\s*=\s*\*\.([a-zA-Z0-9.-]+).*/\1/'` |
 
 ### Items Needing Action (open risks)
 
@@ -475,3 +476,17 @@ PING_STATUS=$(run_on_server bash -c \
 ```
 `printf '%q'` produces a single-quoted, shell-escaped string that safely handles passwords containing spaces, quotes, or special chars.
 **Lesson:** SSH does not forward env vars unless `SendEnv`/`AcceptEnv` are both configured. For automation scripts: either expand credentials locally (with escaping), write them to a temp file on the remote, or use `ssh -o SendEnv=VAR` (requires remote sshd `AcceptEnv`). Never rely on `VAR=value ssh host cmd` to make `VAR` available inside the remote command.
+
+### 58. `sync-press-tls-records.sh` CN parsing broken on OpenSSL 3.0 — `grep 'CN=[^,]*'` never matches, CERT_DOMAIN silently empty
+**Risk:** After certbot renews a wildcard cert, the sync hook is supposed to update Press TLS Certificate records with the new expiry date. On Ubuntu 22.04 (OpenSSL 3.0), the hook does nothing — silently exits without updating any records. Press continues showing stale cert expiry dates and may try to re-renew unnecessarily.
+**What happened:** `openssl x509 -noout -subject` output changed between OpenSSL versions:
+- OpenSSL 1.1.1 (Ubuntu 20.04): `subject= /CN=*.demo.mvpstorm.com`
+- OpenSSL 3.0 (Ubuntu 22.04): `subject=CN = *.demo.mvpstorm.com`
+
+The hook used `grep -o 'CN=[^,]*'` which expects no spaces around `=`. On OpenSSL 3.0, `CN = value` has spaces — the pattern never matches. `CERT_DOMAIN` becomes empty string, hits `[ -z "$CERT_DOMAIN" ] && exit 0`, and exits silently. No error, no updated records.
+**Fix:** Use `sed -E` with `\s*` to tolerate optional spaces, and strip wildcard prefix in the same expression:
+```bash
+CERT_DOMAIN=$(openssl x509 -noout -subject -in "$CERT_FILE" 2>/dev/null \
+  | sed -E 's/.*CN\s*=\s*\*\.([a-zA-Z0-9.-]+).*/\1/')
+```
+**Lesson:** OpenSSL 3.0 changed the default subject output format from `/CN=value` to `CN = value`. Any script parsing `openssl` output with exact string matching for `CN=` will silently fail on Ubuntu 22.04. Use `\s*` around `=` or `-nameopt=oneline` to handle both formats. Always test shell hooks on a matching OS version — never just on the dev machine.

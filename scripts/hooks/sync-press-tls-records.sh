@@ -28,8 +28,9 @@ EXPIRES_ON=$(openssl x509 -noout -enddate -in "$CERT_FILE" 2>/dev/null \
   | sed 's/notAfter=//' \
   | python3 -c "import sys; from datetime import datetime; d = datetime.strptime(sys.stdin.read().strip(), '%b %d %H:%M:%S %Y %Z'); print(d.strftime('%Y-%m-%d'))")
 
+# Extract domain — strip leading CN[space]=[ *.]  OpenSSL 3.0: "CN = *.domain.com", 1.x: "/CN=*.domain.com"
 CERT_DOMAIN=$(openssl x509 -noout -subject -in "$CERT_FILE" 2>/dev/null \
-  | grep -o 'CN=[^,]*' | sed 's/CN=//' | sed 's/\*\.//')
+  | sed -E 's/.*CN\s*=\s*\*\.([a-zA-Z0-9.-]+).*/\1/')
 
 if [ -z "$EXPIRES_ON" ] || [ -z "$CERT_DOMAIN" ]; then
   echo "[$(date)] sync-press-tls-records: Could not parse cert data from ${CERT_FILE}"
