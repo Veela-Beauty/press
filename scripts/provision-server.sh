@@ -178,8 +178,9 @@ sleep 3
 # Step 7: Verify agent /ping (only if we have the plaintext password)
 log "Step 7/13: Verifying agent /ping..."
 if [[ -n "$PLAINTEXT" ]]; then
-  PING_STATUS=$(AGENT_PWD="${PLAINTEXT}" run_on_server bash -c \
-    "curl -s -o /dev/null -w '%{http_code}' -u '${HOSTNAME}:\${AGENT_PWD}' http://127.0.0.1:25052/ping" 2>/dev/null || echo "000")
+  # Expand credential locally (SSH doesn't forward env vars); printf '%q' escapes shell metacharacters
+  PING_STATUS=$(run_on_server bash -c \
+    "curl -s -o /dev/null -w '%{http_code}' -u $(printf '%q' "${HOSTNAME}:${PLAINTEXT}") http://127.0.0.1:25052/ping" 2>/dev/null || echo "000")
   if [[ "$PING_STATUS" == "200" ]]; then
     log "  Agent /ping: 200 OK"
   else
