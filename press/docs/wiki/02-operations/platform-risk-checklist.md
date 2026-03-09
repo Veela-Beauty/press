@@ -231,6 +231,11 @@ Run all steps in "Post-Task Verification" above proactively, even when nothing c
 Certbot autorenewal check:
 ```bash
 # Dry run to verify renewal would succeed AND all hooks are valid
+# NOTE: If dry-run fails with "DNS TXT records not verified", increase propagation time:
+# for conf in /etc/letsencrypt/renewal/*.conf; do
+#   grep -q 'dns_cloudflare_propagation_seconds' "$conf" || \
+#     sed -i '/\[renewalparams\]/a dns_cloudflare_propagation_seconds = 30' "$conf"
+# done
 certbot renew --dry-run
 ```
 

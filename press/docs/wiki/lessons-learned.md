@@ -64,6 +64,8 @@ Every lesson is classified by fix durability. Legend:
 | 51 | Scheduler stopped = silent failure | PERMANENT | Running — monitor weekly |
 | 52 | Hetzner VPC attach crashes when vpc_id not set | PERMANENT | Patched in `virtual_machine.py` — guard added |
 | 53 | Security group None values crash AWS API | PERMANENT | Patched in `virtual_machine.py` — filter added |
+| 54 | Claude Code bash has no TTY — git credential prompts fail | PERMANENT | Push via press-ctrl SSH relay: bundle → SCP → cherry-pick → push |
+| 55 | Certbot DNS propagation 10s too short — dry-run fails on staging | PERMANENT | Set `dns_cloudflare_propagation_seconds = 30` in all renewal configs |
 
 ### Items Needing Action (open risks)
 
@@ -413,3 +415,33 @@ If you can't answer all three, the fix is incomplete. Add it to lessons-learned 
 **What happened:** `get_security_groups()` appended `frappe.db.get_value(...)` result to the groups list without checking if it was None. If `proxy_security_group_id` is not set, `groups = [security_group_id, None]`. AWS API rejects None as a security group ID.
 **Fix:** Changed return to `return [g for g in groups if g]` to filter out None/empty values.
 **Lesson:** Always filter None out of lists before passing to external APIs. `frappe.db.get_value()` returns None when field is empty — never assume Link fields are always populated just because they exist on the DocType.
+
+---
+
+## Development Environment Gotchas
+
+### 54. Claude Code bash has no TTY — Windows Credential Manager prompts fail silently
+**What happened:** When trying to `git push` from Claude Code's bash terminal, the Windows Git Credential Manager (GCM) tries to open a GUI prompt to authenticate, but the bash shell has no TTY (`/dev/tty: No such device or address`). The push silently fails with a `fatal: could not read Username` error even when credentials ARE stored in Windows Credential Manager.
+**Fix:** Push via press-ctrl instead — press-ctrl has an SSH key configured for GitHub:
+```bash
+# From local — create bundle, SCP to press-ctrl, apply and push from there
+git bundle create /tmp/x.bundle BASE_COMMIT..HEAD
+scp -i "E:/.ssh/new_id_ed25519" /tmp/x.bundle root@89.167.116.92:/tmp/x.bundle
+ssh -i "E:/.ssh/new_id_ed25519" root@89.167.116.92 \
+  "cd /home/frappe/frappe-bench/apps/press && \
+   git fetch /tmp/x.bundle 'HEAD:refs/remotes/local/br' && \
+   git cherry-pick refs/remotes/local/br && \
+   git push upstream cloudflare-dns"
+```
+**Lesson:** press-ctrl has `upstream` remote pointing to `git@github.com:accurate-systems/press.git` with SSH key auth. Always use it as the push relay when the local terminal has no TTY. Document this in project CLAUDE.md — don't discover it again each session.
+
+### 55. Certbot DNS propagation 10 seconds too short — dry-run fails on staging ACME server
+**What happened:** `certbot renew --dry-run` failed for all 4 certificates with `The Certificate Authority failed to verify the DNS TXT records`. The default `dns_cloudflare_propagation_seconds = 10` is not enough time for the Let's Encrypt staging server to confirm Cloudflare DNS updates.
+**Fix:** Add `dns_cloudflare_propagation_seconds = 30` to every renewal config:
+```bash
+for conf in /etc/letsencrypt/renewal/*.conf; do
+  grep -q 'dns_cloudflare_propagation_seconds' "$conf" || \
+    sed -i '/\[renewalparams\]/a dns_cloudflare_propagation_seconds = 30' "$conf"
+done
+```
+**Lesson:** Always set propagation seconds to 30+ in certbot renewal configs for DNS challenges. After adding renewal hooks or changing certbot config, always verify with `certbot renew --dry-run` before assuming hooks will run on actual renewal. The permissions hook (`fix-letsencrypt-permissions.sh`) confirmed running in the log even when cert validation fails — deploy hooks only run on successful renewal.
