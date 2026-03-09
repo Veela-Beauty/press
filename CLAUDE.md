@@ -21,9 +21,10 @@ Running at `demo.mvpstorm.com`. Fork of `frappe/press`, branch `cloudflare-dns`.
 | press-f1 | 89.167.57.21 | App server (standalone: Server + DB + Proxy) |
 | u4 | 157.90.244.216 | App server (standalone: sandbox cluster) |
 
-SSH aliases: `ssh press-ctrl`, `ssh press-f1`
-SSH key: `E:/.ssh/new_id_ed25519` (configured for press-ctrl and press-f1)
-u4 accessible via press-ctrl: `ssh root@89.167.116.92 "ssh root@157.90.244.216 'cmd'"` (no direct SSH config)
+SSH aliases: `ssh press-ctrl`, `ssh press-f1`, `ssh u4`
+SSH key: `E:/.ssh/new_id_ed25519` (all three servers)
+u4 uses ProxyCommand through press-ctrl (ProxyJump not supported by Windows OpenSSH client):
+`ProxyCommand ssh -i E:/.ssh/new_id_ed25519 -o StrictHostKeyChecking=no root@89.167.116.92 -W %h:%p`
 
 **Push method:** press-ctrl has SSH key to GitHub (`upstream` remote via `git@github.com:accurate-systems/press.git`).
 To push local commits: bundle → SCP to press-ctrl → apply → push from there.
@@ -104,7 +105,7 @@ three separate DocType records, each with its own `agent_password` in `__Auth` t
 ## Ops Wiki
 
 `press/docs/wiki/` — full self-hosted operations wiki
-- `lessons-learned.md` — 53 lessons with status audit
+- `lessons-learned.md` — 58 lessons with status audit
 - `02-operations/platform-risk-checklist.md` — MANDATORY before/after every change
 
 ## Environment
