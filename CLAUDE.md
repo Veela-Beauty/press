@@ -21,7 +21,12 @@ Running at `demo.mvpstorm.com`. Fork of `frappe/press`, branch `cloudflare-dns`.
 | press-f1 | 89.167.57.21 | App server (standalone: Server + DB + Proxy) |
 | u4 | 157.90.244.216 | App server (standalone: sandbox cluster) |
 
-SSH aliases: `ssh press-ctrl`, `ssh press-f1`, `ssh u4`
+SSH aliases: `ssh press-ctrl`, `ssh press-f1`
+SSH key: `E:/.ssh/new_id_ed25519` (configured for press-ctrl and press-f1)
+u4 accessible via press-ctrl: `ssh root@89.167.116.92 "ssh root@157.90.244.216 'cmd'"` (no direct SSH config)
+
+**Push method:** press-ctrl has SSH key to GitHub (`upstream` remote via `git@github.com:accurate-systems/press.git`).
+To push local commits: bundle → SCP to press-ctrl → apply → push from there.
 
 ## Commands
 
@@ -79,7 +84,7 @@ three separate DocType records, each with its own `agent_password` in `__Auth` t
 
 ## Key Context
 
-- `developer_mode=1` was a workaround for build queue — replaced by dedicated build worker
+- `developer_mode=1` has been REMOVED — replaced by dedicated build worker (setup-build-worker.sh deployed)
 - `disable_mail_notifications=1` in site_config.json (no email account configured)
 - Docker registry at `89.167.116.92:5000` (HTTP) — all app servers need it in `insecure-registries`
 - Certbot renewal hooks in `/etc/letsencrypt/renewal-hooks/` — see `scripts/hooks/`
@@ -99,7 +104,7 @@ three separate DocType records, each with its own `agent_password` in `__Auth` t
 ## Ops Wiki
 
 `press/docs/wiki/` — full self-hosted operations wiki
-- `lessons-learned.md` — 51 lessons with status audit
+- `lessons-learned.md` — 53 lessons with status audit
 - `02-operations/platform-risk-checklist.md` — MANDATORY before/after every change
 
 ## Environment
