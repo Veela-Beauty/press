@@ -7,18 +7,29 @@ White-labeled fork of Frappe Press for Accurate Systems Cloud Hosting Solutions.
 ### 00 — Getting Started
 - [Overview](00-getting-started/overview.md) — What this fork does, brand identity
 - [Architecture](00-getting-started/architecture.md) — System design, servers, deploy flow
+- [Development Setup](00-getting-started/development-setup.md) — Prerequisites, IDE, local build
+
+### 01 — Backend Development
+- [File Reference Matrix](01-backend-development/file-reference-matrix.md) — Complete map of all files: dashboard, patches, backup integration, ops
 
 ### 02 — Frontend Development
 - [Rebrand Guide](02-frontend-development/rebrand-guide.md) — All files changed, design tokens, how to modify
 - [UI Style Guide](02-frontend-development/ui-style-guide.md) — Colors, typography, component patterns
 
 ### 06 — Deployment & Ops
-- [Server Provisioning Guide](06-deployment-ops/server-provisioning.md) — bootstrapping new servers on Hetzner without private network
-- [Ops Toolkit (do_retry.py)](06-deployment-ops/ops-toolkit.md) — bench execute scripts for server management
+- [Deployment Guide](06-deployment-ops/deployment-guide.md) — New bench/server/domain checklists
+- [Server Provisioning](06-deployment-ops/server-provisioning.md) — Bootstrapping Hetzner VMs without private network
+- [Ops Toolkit](06-deployment-ops/ops-toolkit.md) — do_retry.py bench execute scripts
+- [Known Issues & Fixes](06-deployment-ops/known-issues-and-fixes.md) — Troubleshooting guide
+- [Root Cause Patches](06-deployment-ops/root-cause-patches.md) — Patches applied to fix upstream issues
+- [Scaling Guide](06-deployment-ops/scaling-guide.md) — Scaling considerations for self-hosted
+
+### 07 — Implementation Status
+- [Critical Issues](07-implementation-status/critical-issues.md) — Known blockers and workarounds
 
 ## Key Branch Patches
 
-The `cloudflare-dns` branch patches 6 files from upstream Press:
+The `cloudflare-dns` branch patches 7 files from upstream Press:
 
 | File | What changed |
 |---|---|
@@ -37,7 +48,7 @@ The `cloudflare-dns` branch patches 6 files from upstream Press:
 | Primary Blue | `#046BD2` | Buttons, links, active sidebar |
 | Primary Hover | `#045CB4` | Button hover states |
 | Dark Sidebar | `#1E293B` | Sidebar background |
-| Login Gradient | `#046BD2 → #197972` | Login page background |
+| Login Gradient | `#046BD2 -> #197972` | Login page background |
 | Teal Accent | `#197972` | Gradient endpoint |
 
 ## Build & Deploy
@@ -51,7 +62,3 @@ bench build --force --app press
 bench --site demo.mvpstorm.com clear-cache
 sudo supervisorctl restart frappe-bench-web:frappe-bench-frappe-web
 ```
-
-## Ops Scripts
-
-- `press/do_retry.py` — server bootstrap and verification toolkit (not a patch, new file)

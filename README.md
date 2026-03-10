@@ -94,6 +94,14 @@ This is a **production-ready white-label fork** of Frappe Press that transforms 
 - 2-week sync cadence
 - Zero schema collisions
 
+
+### Backup Management Dashboard
+- **4 custom Vue pages** integrated into Press dashboard
+- BackupOverview, ServerBackups, BackupJobs, BackupAlerts
+- Full CRUD for alert rules (create/edit/toggle/delete)
+- Action buttons: Run Backup, Check Health, Cancel, Retry
+- Powered by `daman_backup` Frappe app (BorgBackup + borgmatic)
+
 </td>
 </tr>
 </table>
