@@ -165,7 +165,6 @@ class ReleaseGroup(Document, TagHelpers):
 		query = (
 			query.where(ReleaseGroup.team == frappe.local.team().name)
 			.where(ReleaseGroup.enabled == 1)
-			.where(ReleaseGroup.public == 0)
 			.select(site_count.as_("site_count"), active_benches.as_("active_benches"))
 		)
 
@@ -245,6 +244,11 @@ class ReleaseGroup(Document, TagHelpers):
 		]
 
 	@role_guard.action()
+	def after_insert(self):
+		"""Ensure new release groups are enabled by default."""
+		if not self.enabled:
+			self.db_set("enabled", 1)
+
 	def validate(self):
 		self.validate_title()
 		self.validate_frappe_app()
