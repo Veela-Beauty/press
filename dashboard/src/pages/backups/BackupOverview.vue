@@ -52,7 +52,7 @@
 						class="flex items-center justify-between bg-white rounded p-2">
 						<div>
 							<span class="font-medium">{{ alert.alert_name }}</span>
-							<Badge :label="alert.severity" :theme="severityTheme(alert.severity)" class="ml-2" />
+							<Badge :label="alert.priority" :theme="severityTheme(alert.priority)" class="ml-2" />
 						</div>
 						<div class="text-sm text-gray-500">
 							Triggered {{ formatDate(alert.last_triggered) }} ({{ alert.trigger_count }}x)
@@ -121,11 +121,11 @@
 							<tr v-for="client in overview?.clients" :key="client.name" class="border-b last:border-0">
 								<td class="py-2 pr-4 font-medium">{{ client.client_name || client.name }}</td>
 								<td class="py-2 pr-4">
-									<Badge :label="client.health_status || 'Unknown'" :theme="healthTheme(client.health_status)" />
+									<Badge :label="client.backup_health_status || 'Unknown'" :theme="healthTheme(client.backup_health_status)" />
 								</td>
 								<td class="py-2 pr-4">{{ formatDate(client.last_backup_on) }}</td>
-								<td class="py-2 pr-4">{{ client.storage_used_percent ? client.storage_used_percent + '%' : '-' }}</td>
-								<td class="py-2">{{ client.auto_backup ? 'Yes' : 'No' }}</td>
+								<td class="py-2 pr-4">{{ client.storage_usage_percent ? client.storage_usage_percent + '%' : '-' }}</td>
+								<td class="py-2">{{ client.auto_backup_enabled ? 'Yes' : 'No' }}</td>
 							</tr>
 						</tbody>
 					</table>

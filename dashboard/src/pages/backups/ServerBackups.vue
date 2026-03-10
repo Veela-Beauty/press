@@ -61,7 +61,7 @@ export default {
 			});
 			createResource({
 				url: 'frappe.client.get_count',
-				params: { doctype: 'Backup Client', filters: { backup_health_status: 'Healthy' } },
+				params: { doctype: 'Backup Client', filters: { backup_backup_health_status: 'Healthy' } },
 				auto: true,
 				onSuccess: (count) => {
 					this.stats.healthy = count;
@@ -69,7 +69,7 @@ export default {
 			});
 			createResource({
 				url: 'frappe.client.get_count',
-				params: { doctype: 'Backup Client', filters: { backup_health_status: 'Warning' } },
+				params: { doctype: 'Backup Client', filters: { backup_backup_health_status: 'Warning' } },
 				auto: true,
 				onSuccess: (count) => {
 					this.stats.warning = count;
@@ -77,7 +77,7 @@ export default {
 			});
 			createResource({
 				url: 'frappe.client.get_count',
-				params: { doctype: 'Backup Client', filters: { backup_health_status: 'Critical' } },
+				params: { doctype: 'Backup Client', filters: { backup_backup_health_status: 'Critical' } },
 				auto: true,
 				onSuccess: (count) => {
 					this.stats.critical = count;
@@ -93,11 +93,11 @@ export default {
 				fields: [
 					'name',
 					'client_name',
-					'backup_health_status',
+					'backup_backup_health_status',
 					'last_backup_on',
 					'days_since_last_backup',
 					'storage_usage_percent',
-					'auto_backup_enabled',
+					'auto_backup_enabled_enabled',
 				],
 				columns: [
 					{
@@ -107,7 +107,7 @@ export default {
 					},
 					{
 						label: 'Health',
-						fieldname: 'backup_health_status',
+						fieldname: 'backup_backup_health_status',
 						width: '120px',
 						align: 'center',
 						type: 'Badge',
@@ -137,7 +137,7 @@ export default {
 					},
 					{
 						label: 'Auto',
-						fieldname: 'auto_backup_enabled',
+						fieldname: 'auto_backup_enabled_enabled',
 						width: '80px',
 						type: 'Icon',
 						Icon(value) {
@@ -150,13 +150,13 @@ export default {
 						{
 							type: 'select',
 							label: 'Health',
-							fieldname: 'backup_health_status',
+							fieldname: 'backup_backup_health_status',
 							options: ['', 'Healthy', 'Warning', 'Critical', 'Unknown'],
 						},
 						{
 							type: 'checkbox',
 							label: 'Auto Backup',
-							fieldname: 'auto_backup_enabled',
+							fieldname: 'auto_backup_enabled_enabled',
 						},
 					];
 				},
