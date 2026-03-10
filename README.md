@@ -49,62 +49,64 @@ This is a **production-ready white-label fork** of Frappe Press that transforms 
 
 ---
 
-## Features at a Glance
+## Features
 
-<table>
-<tr>
-<td width="50%">
+### White-Label Rebrand
 
-### 🎨 Full White-Label Rebrand
-- **~80 files** rebranded (Python + Vue)
-- **~60 files** URL-replaced
-- **30+ email templates** customized
-- Custom colors, logo, login gradient
-- Brand color: <code>#046BD2</code>
+Full visual rebrand across the entire Press stack. Every user-facing surface carries your brand.
 
-</td>
-<td width="50%">
+| Area | Scope |
+|------|-------|
+| Dashboard Vue SPA | ~20 components (sidebar, login, nav, logo) |
+| Email Templates | 30+ notification/transactional templates |
+| Python Backend | ~15 files with brand strings/URLs |
+| Static Assets | Logo, favicon, images |
+| CSS | Brand color `#046BD2`, dark sidebar `#1E293B`, login gradient |
 
-### 🌐 Cloudflare DNS Native
-- Automatic A/AAAA record management
-- Cloudflare API token per root domain
-- Zone ID configuration per cluster
-- Wildcard SSL via DNS-01 challenge
-- No AWS dependency
+### Cloudflare DNS
 
-</td>
-</tr>
-<tr>
-<td>
+Replaces AWS Route53 with Cloudflare API. 7 patched files handle DNS record management, TLS certificate provisioning, and wildcard SSL.
 
-### 🖥️ Self-Hosted Deployment
-- Standalone single-server mode
-- Hetzner (or any VPS) provisioning
-- Local Docker registry
-- Automated bench builds
+| Capability | How |
+|-----------|-----|
+| A/AAAA record management | `press/utils/dns.py` -- Cloudflare REST API |
+| Wildcard SSL | `certbot dns-cloudflare` with DNS-01 challenge |
+| Per-domain config | `cloudflare_api_token` + `cloudflare_zone_id` on Root Domain |
+| No AWS dependency | Zero Route53/IAM/STS code paths |
+
+### Self-Hosted Deployment
+
+Run Press on your own infrastructure -- Hetzner, DigitalOcean, bare metal, or any Ubuntu 22.04 VPS.
+
+- Standalone single-server mode (controller + app on one box)
+- Multi-server scaling (add app servers from dashboard)
+- Local Docker registry (no Docker Hub dependency)
+- Automated Ansible provisioning via `do_retry.py` toolkit
 - Demo landing page included
 
-</td>
-<td>
+### Backup Management
 
-### 🔄 Upstream Sync Process
-- Structured per-commit analysis
-- Conflict risk assessment
-- Sync journal tracking
+Server-level backup management integrated directly into the Press dashboard. Powered by the [`daman_backup`](https://github.com/accurate-systems/daman-backup-app-server) Frappe app using BorgBackup + borgmatic.
+
+| Component | Description |
+|-----------|-------------|
+| **BackupOverview** | Unified dashboard: server stats, job queue summary, client health |
+| **ServerBackups** | Server list with Run Backup / Check Health actions |
+| **BackupJobs** | Job queue with Cancel / Retry actions, real-time status |
+| **BackupAlerts** | Full CRUD for alert rules (email/webhook, configurable thresholds) |
+
+**Backend**: 8 whitelisted API methods in `press_api.py`, 10 DocTypes, 40 passing tests.
+**Execution**: borgmatic container on the host, supports Docker Direct and Portainer API modes.
+See the [Backup Integration Guide](docs/wiki/03-backup-integration/overview.md) for full details.
+
+### Upstream Sync
+
+Structured process to stay current with Frappe Press upstream.
+
+- Per-commit analysis with risk assessment before merging
+- Every decision (adopt/skip/adapt) recorded in `SYNC_JOURNAL.md`
+- ~95% of conflicts are branding strings (trivial resolution)
 - 2-week sync cadence
-- Zero schema collisions
-
-
-### Backup Management Dashboard
-- **4 custom Vue pages** integrated into Press dashboard
-- BackupOverview, ServerBackups, BackupJobs, BackupAlerts
-- Full CRUD for alert rules (create/edit/toggle/delete)
-- Action buttons: Run Backup, Check Health, Cancel, Retry
-- Powered by `daman_backup` Frappe app (BorgBackup + borgmatic)
-
-</td>
-</tr>
-</table>
 
 ---
 
@@ -230,8 +232,9 @@ Full project documentation lives in the [Wiki](docs/wiki/README.md):
 |---------|---------|
 | [Overview](docs/wiki/00-getting-started/overview.md) | What this fork does, brand identity |
 | [Architecture](docs/wiki/00-getting-started/architecture.md) | Servers, DNS, deploy flow |
+| [File Reference Matrix](docs/wiki/01-backend-development/file-reference-matrix.md) | Complete map of all ~67 files |
 | [Rebrand Guide](docs/wiki/02-frontend-development/rebrand-guide.md) | All changed files, design tokens |
-| [UI Style Guide](docs/wiki/02-frontend-development/ui-style-guide.md) | Colors, typography, components |
+| [Backup Integration](docs/wiki/03-backup-integration/overview.md) | How daman_backup works, DocTypes, API |
 | [Server Provisioning](docs/wiki/06-deployment-ops/server-provisioning.md) | Bootstrapping new servers |
 | [Ops Toolkit](docs/wiki/06-deployment-ops/ops-toolkit.md) | Management scripts |
 | [Scaling Guide](docs/wiki/06-deployment-ops/scaling-guide.md) | When and how to scale, sizing, costs |

@@ -10,11 +10,14 @@ White-labeled fork of Frappe Press for Accurate Systems Cloud Hosting Solutions.
 - [Development Setup](00-getting-started/development-setup.md) — Prerequisites, IDE, local build
 
 ### 01 — Backend Development
-- [File Reference Matrix](01-backend-development/file-reference-matrix.md) — Complete map of all files: dashboard, patches, backup integration, ops
+- [File Reference Matrix](01-backend-development/file-reference-matrix.md) — Complete map of all ~67 files (dashboard, patches, backup, ops)
 
 ### 02 — Frontend Development
 - [Rebrand Guide](02-frontend-development/rebrand-guide.md) — All files changed, design tokens, how to modify
 - [UI Style Guide](02-frontend-development/ui-style-guide.md) — Colors, typography, component patterns
+
+### 03 — Backup Integration
+- [Backup Integration Guide](03-backup-integration/overview.md) — How daman_backup works: architecture, DocTypes, API, dashboard pages, scheduler, tests
 
 ### 06 — Deployment & Ops
 - [Deployment Guide](06-deployment-ops/deployment-guide.md) — New bench/server/domain checklists
