@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A white-labeled fork of [Frappe Press](https://github.com/frappe/press) rebranded as **Accurate Systems Cloud Hosting Solutions**. The fork lives on the `cloudflare-dns` branch of `accurate-systems/press`.
+An enhanced fork of [Frappe Press](https://github.com/frappe/press) built by **Accurate Systems** for enterprise cloud hosting. The fork lives on the `cloudflare-dns` branch of `accurate-systems/press`.
 
 ## Brand Identity
 
@@ -11,16 +11,15 @@ A white-labeled fork of [Frappe Press](https://github.com/frappe/press) rebrande
 - **Primary Color**: `#046BD2` (Accurate Systems blue)
 - **Logo**: SVG component at `dashboard/src/components/icons/FCLogo.vue`
 
-## What Was Changed
+## What Was Added & Enhanced
 
-The rebrand touched 170+ files across the Press codebase. Key areas:
+Enhancements span 170+ files across the Press codebase:
 
-1. **Dashboard Vue SPA** — Sidebar, login, colors, form elements
-2. **Email Templates** — Dark header with white logo
-3. **Landing Pages** — Marketplace, SaaS pages
-4. **API/Backend** — Brand strings in Python files
-5. **Static Assets** — Logo files, favicons
+1. **New Features** — Cloudflare DNS, backup management dashboard, alert system
+2. **Dashboard Vue SPA** — Dark sidebar, enhanced navigation, 4 new backup pages
+3. **Email Templates** — Custom branded notifications
+4. **Infrastructure** — Self-hosted single-server mode, Hetzner provisioning, ops toolkit
 
 ## Scope
 
-This fork does NOT modify Press's core functionality (site creation, bench management, billing, etc.). All changes are cosmetic/branding only. The fork tracks the upstream `develop` branch and can be rebased when needed.
+This fork builds on Press's core functionality (site creation, bench management, billing) and adds enterprise capabilities on top. The fork tracks the upstream `develop` branch and can be synced when needed.

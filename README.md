@@ -4,9 +4,9 @@
 
 # Accurate Systems Cloud Hosting Solutions
 
-### White-Label Self-Hosted Cloud Platform
+### Enterprise Cloud Hosting Platform
 
-*Fork of [Frappe Press](https://github.com/frappe/press) — fully rebranded, Cloudflare-native, self-hosted ready*
+*Built on [Frappe Press](https://github.com/frappe/press) — enhanced with enterprise capabilities, Cloudflare DNS, and backup management*
 
 [![Branch](https://img.shields.io/badge/branch-cloudflare--dns-046BD2?style=flat-square)](https://github.com/accurate-systems/press/tree/cloudflare-dns)
 [![Upstream](https://img.shields.io/badge/upstream-frappe%2Fpress-gray?style=flat-square)](https://github.com/frappe/press)
@@ -21,47 +21,51 @@
 
 <div align="center">
 <img src="docs/assets/login-page.png" alt="Login Page" width="700"/>
-<br/><sub><b>Branded Login</b> — Custom gradient, logo, Google & GitHub SSO</sub>
+<br/><sub><b>Login</b> — Custom design, Google & GitHub SSO</sub>
 </div>
 
 <br/>
 
 <div align="center">
 <img src="docs/assets/dashboard-sites.png" alt="Dashboard" width="700"/>
-<br/><sub><b>Dashboard</b> — Dark sidebar, branded navigation, full server management</sub>
+<br/><sub><b>Dashboard</b> — Dark sidebar, enhanced navigation, full server management</sub>
 </div>
 
 ---
 
 ## What Is This?
 
-This is a **production-ready white-label fork** of Frappe Press that transforms it into a fully branded, self-hosted cloud hosting platform. Deploy ERPNext and Frappe apps for your clients under **your own brand**.
+An **enterprise-grade cloud hosting platform** built on [Frappe Press](https://github.com/frappe/press) architecture. We took the solid foundation of Press and enhanced it with new capabilities for production self-hosted deployments — Cloudflare DNS integration, server-level backup management, single-server mode, and a branded dashboard experience.
 
-### Why This Fork?
+This is not a reskin. It's a **feature-enhanced fork** that adds what enterprises need to run Press on their own infrastructure.
 
-| Need | Upstream Press | This Fork |
-|------|:---:|:---:|
-| Your own brand & logo | No | **Yes** |
-| Cloudflare DNS (not AWS) | No | **Yes** |
-| Self-hosted on your servers | Partial | **Full** |
-| No vendor lock-in | No | **Yes** |
+### What We Added
+
+| Capability | Upstream Press | This Fork |
+|-----------|:---:|:---:|
+| Cloudflare DNS (auto A/AAAA, wildcard SSL) | No | **Yes** |
+| Server backup management (BorgBackup) | No | **Yes** |
+| Backup monitoring dashboard (4 pages) | No | **Yes** |
+| Alert system (email/webhook, CRUD) | No | **Yes** |
+| Self-hosted on any VPS (Hetzner, DO, bare metal) | Partial | **Full** |
 | Standalone single-server mode | No | **Yes** |
+| Custom branded dashboard | Basic | **Full** |
+| No vendor lock-in (no AWS/FrappeCloud dependency) | No | **Yes** |
 
 ---
 
 ## Features
 
-### White-Label Rebrand
+### Custom Branded Dashboard
 
-Full visual rebrand across the entire Press stack. Every user-facing surface carries your brand.
+Fully customized dashboard with Accurate Systems branding and an enhanced dark-theme UI.
 
 | Area | Scope |
 |------|-------|
-| Dashboard Vue SPA | ~20 components (sidebar, login, nav, logo) |
-| Email Templates | 30+ notification/transactional templates |
-| Python Backend | ~15 files with brand strings/URLs |
-| Static Assets | Logo, favicon, images |
-| CSS | Brand color `#046BD2`, dark sidebar `#1E293B`, login gradient |
+| Dashboard Vue SPA | ~20 components redesigned (dark sidebar, branded nav, login) |
+| Email Templates | 30+ notification templates with custom branding |
+| UI Theme | Brand color `#046BD2`, dark sidebar `#1E293B`, gradient login |
+| Static Assets | Custom logo, favicon, images |
 
 ### Cloudflare DNS
 
@@ -190,7 +194,7 @@ See the [full setup guide](docs/wiki/06-deployment-ops/server-provisioning.md) f
 
 ---
 
-## Fork-Specific Files
+## Enhanced Files (vs Upstream Press)
 
 | File | What Changed |
 |------|-------------|
@@ -200,9 +204,9 @@ See the [full setup guide](docs/wiki/06-deployment-ops/server-provisioning.md) f
 | `press/press/doctype/tls_certificate/tls_certificate.py` | `certbot dns-cloudflare` (replaces dns-route53) |
 | `press/press/doctype/virtual_machine/virtual_machine.py` | Null guards for `vpc_id` / `security_group_id` |
 | `press/press/doctype/server/server.py` | `ca_public_key` in unified server setup |
-| `dashboard/src/assets/style.css` | Global brand overrides |
-| `dashboard/src/components/AppSidebar*.vue` | Dark sidebar theme |
-| `dashboard/src/pages/LoginBox.vue` | Branded login with gradient |
+| `dashboard/src/assets/style.css` | Custom theme and UI enhancements |
+| `dashboard/src/components/AppSidebar*.vue` | Dark sidebar with enhanced navigation |
+| `dashboard/src/pages/LoginBox.vue` | Redesigned login page |
 
 ---
 
@@ -287,6 +291,6 @@ GNU Affero General Public License v3.0 — same as upstream. See [LICENSE](LICEN
 
 **Built by [Accurate Systems](https://accuratesystems.com.sa)**
 
-<sub>Cloud Hosting Solutions — Deploy ERPNext under your own brand</sub>
+<sub>Cloud Hosting Solutions — Enterprise-grade ERPNext hosting on your infrastructure</sub>
 
 </div>

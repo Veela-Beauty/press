@@ -18,7 +18,7 @@ Related: [Architecture](../00-getting-started/architecture.md) | [Rebrand Guide]
 2. [Backend Patches (Cloudflare DNS)](#2-backend-patches-cloudflare-dns)
 3. [Backup Integration (daman_backup)](#3-backup-integration-daman_backup)
 4. [Ops & Deployment](#4-ops--deployment)
-5. [Rebrand Files](#5-rebrand-files)
+5. [Dashboard Customization](#5-dashboard-customization)
 6. [Cross-Layer Relationship Map](#6-cross-layer-relationship-map)
 
 ---
@@ -150,9 +150,9 @@ Related: [Architecture](../00-getting-started/architecture.md) | [Rebrand Guide]
 
 ---
 
-## 5. Rebrand Files
+## 5. Dashboard Customization
 
-~80 files rebranded, ~60 URL-replaced, 30+ email templates customized. Key categories:
+~80 files customized with enhanced UI/branding, ~60 URL updates, 30+ email templates. Key categories:
 
 | Category | Count | Example Files |
 |----------|-------|--------------|

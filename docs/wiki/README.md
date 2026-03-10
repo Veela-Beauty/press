@@ -1,6 +1,6 @@
 # Frappe Press — Accurate Systems Fork Wiki
 
-White-labeled fork of Frappe Press for Accurate Systems Cloud Hosting Solutions.
+Enhanced fork of Frappe Press by Accurate Systems — enterprise capabilities, Cloudflare DNS, backup management.
 
 ## Table of Contents
 
@@ -13,7 +13,7 @@ White-labeled fork of Frappe Press for Accurate Systems Cloud Hosting Solutions.
 - [File Reference Matrix](01-backend-development/file-reference-matrix.md) — Complete map of all ~67 files (dashboard, patches, backup, ops)
 
 ### 02 — Frontend Development
-- [Rebrand Guide](02-frontend-development/rebrand-guide.md) — All files changed, design tokens, how to modify
+- [Dashboard Customization Guide](02-frontend-development/rebrand-guide.md) — All customized files, design tokens, how to modify
 - [UI Style Guide](02-frontend-development/ui-style-guide.md) — Colors, typography, component patterns
 
 ### 03 — Backup Integration
