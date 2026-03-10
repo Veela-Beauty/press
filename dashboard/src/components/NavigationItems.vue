@@ -133,6 +133,12 @@ export default {
 							isActive: routeName === 'Snapshots',
 						},
 						{
+							name: 'Backup Overview',
+							icon: () => h(Archive),
+							route: '/backups/overview',
+							isActive: routeName === 'Backup Overview',
+						},
+						{
 							name: 'Server Backups',
 							icon: () => h(Archive),
 							route: '/backups/servers',
@@ -145,7 +151,7 @@ export default {
 							isActive: routeName === 'Backup Jobs',
 						},
 					].filter((item) => item.condition ?? true),
-					isActive: ['Site Backups', 'Snapshots', 'Server Backups', 'Backup Jobs'].includes(routeName),
+					isActive: ['Site Backups', 'Snapshots', 'Backup Overview', 'Server Backups', 'Backup Jobs'].includes(routeName),
 					disabled: enforce2FA,
 				},
 				{

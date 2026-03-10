@@ -436,6 +436,12 @@ let router = createRouter({
 			props: true,
 		},
 		{
+			path: '/backups/overview',
+			name: 'Backup Overview',
+			component: () => import('./pages/backups/BackupOverview.vue'),
+			props: true,
+		},
+		{
 			path: '/backups/servers',
 			name: 'Server Backups',
 			component: () => import('./pages/backups/ServerBackups.vue'),
