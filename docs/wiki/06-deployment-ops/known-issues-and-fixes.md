@@ -48,3 +48,11 @@ SELECT name, domain, parent FROM `tabProxy Server Domain`;
 **Status:** Workaround in place (syntax check skipped)
 **Limitation:** No actual Python 3.14 runtime → v16 sites cannot run (only build is skipped)
 **Proper fix:** Install Python 3.14 on build server, update `get_python_path()` to find it
+
+## Dashboard shows stale content after rebuild
+**Status:** Fixed — nginx no-cache headers added
+**Cause:** `/dashboard` HTML had no `Cache-Control` header. Browser cached old HTML referencing old JS bundle hashes.
+**Symptoms:** Features appear missing, UI elements don't render, "No plans available" etc.
+**Fix (nginx):** Added `location = /dashboard` block with `Cache-Control: no-cache, no-store, must-revalidate` always.
+**Quick fix for users:** Ctrl+Shift+R (hard refresh)
+**Note:** `bench setup nginx` overwrites custom nginx config. Re-run `python3 scripts/fix_nginx_cache.py` after.
