@@ -205,7 +205,8 @@ Start with a single server and scale horizontally as your client base grows:
 | **Starter** | 1 controller + 1 app server | 5-15 sites | ~EUR30/mo |
 | **Growth** | 1 controller + 2 app servers | 15-30 sites | ~EUR45/mo |
 | **Production** | 1 controller + 2 app + 1 DB | 30-60 sites | ~EUR80/mo |
-| **Enterprise** | 1 controller + 4 app + 2 DB | 60-120+ sites | ~EUR150/mo |
+| **Enterprise** | 1 controller + 4 app + 2 DB | 60-120 sites | ~EUR150/mo |
+| **Scale** | 1 ctrl + LB + 3 proxy + 8 app + 2 DB | 150-200 sites | ~EUR240/mo |
 
 Press supports adding new servers, migrating sites between servers, and multi-cluster deployments across regions — all from the dashboard.
 

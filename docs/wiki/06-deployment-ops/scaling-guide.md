@@ -149,6 +149,324 @@ In standalone mode (current), one machine fills all three roles. To split:
 
 ---
 
+## Load Balancer (When and How)
+
+### When Do You Need a Load Balancer?
+
+| Sites | Traffic | LB Needed? | Why |
+|-------|---------|:----------:|-----|
+| < 30 | Low-medium | **No** | Single proxy server handles it |
+| 30-80 | Medium | **Optional** | Failover protection, zero-downtime deploys |
+| 80-150 | High | **Recommended** | Single proxy becomes bottleneck, SSL termination overhead |
+| 150+ | Any | **Required** | Mandatory for HA, traffic distribution, and health checks |
+
+### Load Balancer Options
+
+| Option | Cost | Complexity | Best For |
+|--------|------|:----------:|----------|
+| **Hetzner Load Balancer** | ~EUR5/mo | Low | Quick setup, auto health checks |
+| **Nginx reverse proxy** (dedicated) | ~EUR5/mo (CX11) | Medium | Full control, custom routing rules |
+| **HAProxy** (dedicated) | ~EUR5/mo (CX11) | Medium-High | Advanced features, TCP+HTTP modes |
+| **Cloudflare Load Balancing** | ~EUR5/mo per pool | Low | Global distribution, DDoS protection built-in |
+
+**Recommended: Hetzner Load Balancer** for simplicity, or **Cloudflare LB** if you already use Cloudflare DNS (which we do).
+
+### Hetzner Load Balancer Setup
+
+```bash
+# 1. Create LB in Hetzner Cloud Console
+#    - Type: LB11 (25 targets, 10k concurrent connections)
+#    - Location: Same as your servers (Falkenstein)
+#    - Algorithm: Round Robin or Least Connections
+
+# 2. Add targets (your proxy/app servers)
+#    - press-f1 (89.167.57.21)
+#    - press-f2 (new server IP)
+#    - etc.
+
+# 3. Configure services
+#    - Frontend: HTTPS (443) -> Backend: HTTPS (443)
+#    - Frontend: HTTP (80) -> Backend: HTTP (80)
+#    - Health check: GET /api/method/ping -> expect 200
+
+# 4. Update DNS
+#    - Change *.sandbox.mvpstorm.com A record from app server IP -> LB public IP
+#    - Change *.demo.mvpstorm.com A record from app server IP -> LB public IP
+```
+
+### Cloudflare Load Balancer Setup
+
+Since we already use Cloudflare DNS, this is the lowest-friction option:
+
+```
+Cloudflare Dashboard -> Traffic -> Load Balancing
+
+1. Create Pool: "europe-pool"
+   - Origin: press-f1 (89.167.57.21)
+   - Origin: press-f2 (new IP)
+   - Health check: HTTPS GET /api/method/ping
+   - Interval: 60s, timeout: 5s
+
+2. Create Load Balancer
+   - Hostname: *.sandbox.mvpstorm.com
+   - Default pool: europe-pool
+   - Fallback pool: (same pool or a failover pool)
+   - Steering: Random (simplest) or Least Outstanding Requests
+
+3. SSL/TLS
+   - Cloudflare handles SSL termination (Full mode)
+   - Origin servers still need valid certs for Cloudflare -> Origin connection
+```
+
+### Press Integration with Load Balancer
+
+Press routes sites to specific servers via the **Proxy Server** DocType. With a load balancer:
+
+1. **Site-to-Server mapping** stays the same (Press tracks which server hosts which site)
+2. **LB routes traffic** to the correct proxy/app server based on health checks
+3. **Nginx on each server** routes to the correct Docker container based on hostname
+
+```
+Client -> LB (*.domain.com) -> Server-N -> Nginx -> Docker container -> Site
+                  |
+          Health checks remove
+          unhealthy servers
+```
+
+**Important:** The LB does NOT replace Press site routing. It distributes traffic across proxy servers. Each proxy still knows which container to forward to.
+
+---
+
+## 200-Site Architecture Blueprint
+
+Running 200 ERPNext sites requires careful planning. Here is the concrete architecture:
+
+### Server Layout
+
+```
+                          +------------------+
+                          |  Load Balancer   |
+                          |  (Hetzner LB11)  |
+                          |  EUR5/mo         |
+                          +--------+---------+
+                                   |
+              +--------------------+--------------------+
+              |                    |                     |
+     +--------+--------+  +-------+--------+  +--------+--------+
+     | Proxy Server #1 |  | Proxy Server #2|  | Proxy Server #3 |
+     | CX11 (EUR5/mo)  |  | CX11 (EUR5/mo) |  | CX11 (EUR5/mo)  |
+     | Nginx only       |  | Nginx only      |  | Nginx only       |
+     +--------+---------+  +-------+---------+  +--------+---------+
+              |                    |                      |
+    +---------+---------+   +-----+-----+    +-----------+-----------+
+    |         |         |   |     |     |    |           |           |
++---+--+ +---+--+ +---+--++--+--++--+--++---+--+  +---+--+   +---+--+
+|App #1| |App #2| |App #3||A #4 ||A #5 ||App #6|  |App #7|   |App #8|
+|CX41  | |CX41  | |CX41  ||CX41 ||CX41 ||CX41  |  |CX41  |   |CX41  |
+|25    | |25    | |25    ||25   ||25   ||25    |  |25    |   |25    |
+|sites | |sites | |sites ||sites||sites||sites |  |sites |   |sites |
++---+--+ +---+--+ +---+--++--+--++--+--++---+--+  +---+--+   +---+--+
+    |        |        |      |      |       |        |            |
+    +--------+----+---+------+------+       +--------+----+-------+
+                  |                                       |
+           +------+------+                         +------+------+
+           | DB Server #1|                         | DB Server #2|
+           | CX41 (16GB) |                         | CX41 (16GB) |
+           | 100 sites   |                         | 100 sites   |
+           +-------------+                         +-------------+
+
+           +-------------+
+           | Controller  |
+           | CX33 (8GB)  |     +--------------+
+           | Press +     |---->| Docker       |
+           | Build Server|     | Registry     |
+           +-------------+     | (on ctrl)    |
+                               +--------------+
+```
+
+### Resource Requirements (200 Sites)
+
+| Role | Count | Spec | Cost/mo | Purpose |
+|------|:-----:|------|--------:|---------|
+| **Controller** | 1 | CX33 (4vCPU, 8GB, 80GB) | EUR15 | Press app, dashboard, builds, registry |
+| **Load Balancer** | 1 | Hetzner LB11 | EUR5 | Traffic distribution, health checks |
+| **Proxy Server** | 2-3 | CX11 (2vCPU, 2GB, 20GB) | EUR10-15 | Nginx SSL termination, routing |
+| **App Server** | 8 | CX41 (8vCPU, 16GB, 160GB) | EUR160 | Docker containers, site workloads |
+| **Database Server** | 2 | CX41 (8vCPU, 16GB, 160GB) | EUR40 | MariaDB for 100 sites each |
+| **Monitoring** | 1 | CX11 (2vCPU, 2GB, 20GB) | EUR5 | Prometheus + Grafana (optional) |
+| **Total** | **15-16** | | **~EUR235-240** | **200 sites** |
+
+**Cost per site: ~EUR1.20/mo** infrastructure cost.
+
+### Alternative: Fewer, Bigger Servers
+
+| Role | Count | Spec | Cost/mo |
+|------|:-----:|------|--------:|
+| Controller | 1 | CX33 | EUR15 |
+| Load Balancer | 1 | LB11 | EUR5 |
+| App+Proxy Server | 5 | CCX33 (8 dedicated vCPU, 32GB) | EUR250 |
+| Database Server | 2 | CCX23 (4 dedicated vCPU, 16GB) | EUR80 |
+| **Total** | **9** | | **~EUR350** |
+
+Dedicated CPU (CCX) costs more but gives predictable performance. Choose this for SLA-bound clients.
+
+---
+
+## Edge Cases at Scale (100+ Sites)
+
+These issues do NOT appear at 10-30 sites but WILL appear at 100+:
+
+### 1. Build Queue Saturation
+
+**Problem:** At 200 sites, app updates trigger 200 Docker image rebuilds. Each build takes 5-20 minutes. The build queue backs up for hours.
+
+**Symptoms:** Deploy Candidate stuck in "Running" for hours. New site creation delayed.
+
+**Fix:**
+- Dedicated build server (separate from controller): CX41 with 16GB RAM
+- Parallel builds: configure `workers.build` count > 1 in `common_site_config.json`
+- Stagger updates: do not update all sites at once -- use Release Groups to batch
+
+```json
+{
+  "workers": {
+    "build": {"timeout": 3600, "workers": 3}
+  }
+}
+```
+
+### 2. Docker Registry Disk Explosion
+
+**Problem:** Each build creates a new Docker image (~500MB-1GB). 200 sites x 10 versions = 1-2 TB.
+
+**Symptoms:** Controller disk full, builds fail, `docker push` errors.
+
+**Fix:**
+- Registry garbage collection: `docker exec registry bin/registry garbage-collect /etc/docker/registry/config.yml`
+- Prune old images: keep only last 3 versions per site
+- External registry: move to Hetzner Object Storage or S3-compatible storage
+
+```bash
+# Weekly cleanup cron on controller
+0 3 * * 0 docker exec registry bin/registry garbage-collect /etc/docker/registry/config.yml --delete-untagged
+```
+
+### 3. MariaDB Connection Pool Exhaustion
+
+**Problem:** Each site opens 4-6 persistent DB connections. 100 sites on one DB server = 400-600 connections. Default MariaDB `max_connections` = 151.
+
+**Symptoms:** `Too many connections` errors, sites returning 500.
+
+**Fix:**
+```ini
+# /etc/mysql/mariadb.conf.d/99-press.cnf
+[mysqld]
+max_connections = 1000
+innodb_buffer_pool_size = 8G
+innodb_log_file_size = 1G
+table_open_cache = 4000
+thread_cache_size = 128
+```
+
+### 4. Backup Window Too Long
+
+**Problem:** Backing up 200 sites sequentially takes 6-10 hours. If a backup fails mid-way, you have inconsistent state.
+
+**Symptoms:** Backup Agent Jobs timing out, partial backups.
+
+**Fix:**
+- Parallel backups: Press already supports concurrent backup jobs
+- Stagger backup times: configure different backup windows per server
+- Use MariaDB `mariabackup` instead of `mysqldump` for large databases (faster, non-blocking)
+- External backup storage: push to S3/Hetzner Object Storage
+
+### 5. Scheduler Overload on Controller
+
+**Problem:** Press scheduler runs jobs every 5 seconds. With 200 sites, `poll_pending_jobs` queries grow. The scheduler itself becomes a bottleneck.
+
+**Symptoms:** `poll_pending_jobs` taking > 5 seconds, job results delayed, site status not updating.
+
+**Fix:**
+- Increase scheduler workers: `bench setup supervisor` with higher worker count
+- Dedicate controller resources: ensure Press controller is NOT also an app server
+- DB indexes: verify indexes on `Agent Job` (status, server, modified)
+- Archive old Agent Jobs: jobs older than 30 days should be archived
+
+### 6. DNS Record Limits
+
+**Problem:** At 200 sites, you have 200+ DNS A records if using per-site DNS. Cloudflare free tier allows 3500 records per zone -- not a hard limit yet, but API calls slow down.
+
+**Symptoms:** Site creation takes longer, DNS propagation delays.
+
+**Fix:**
+- Use wildcard DNS (`*.cluster.domain.com`) -- one record covers all sites in a cluster
+- Press creates CNAME records for custom domains pointing to the wildcard
+- Rate limit DNS API calls: Press already batches Cloudflare API calls
+
+### 7. SSL Certificate Renewal Storms
+
+**Problem:** With 200 sites and per-site certs, certbot tries to renew dozens at once. Let's Encrypt rate limits: 50 certs per domain per week.
+
+**Symptoms:** `certbot renew` fails for some certs, sites get SSL warnings.
+
+**Fix:**
+- **Use wildcard certs** (already our approach): one `*.cluster.domain.com` covers all sites
+- Custom domains: use HTTP-01 challenge (one per domain) instead of DNS-01
+- Stagger custom domain cert renewals across the week
+
+### 8. Agent Job Table Grows Massive
+
+**Problem:** At 200 sites with frequent operations (backups, updates, monitoring), the `Agent Job` table grows to millions of rows. Press queries become slow.
+
+**Symptoms:** Dashboard loading slowly, "Recent Jobs" taking 10+ seconds.
+
+**Fix:**
+```sql
+-- Archive old agent jobs (run monthly via cron)
+DELETE FROM `tabAgent Job`
+WHERE modified < DATE_SUB(NOW(), INTERVAL 90 DAY)
+  AND status IN ('Success', 'Failure');
+```
+
+---
+
+## 200-Site Deployment Checklist
+
+### Phase 1: Foundation (0-50 sites)
+- [ ] Controller + 2 app servers (standalone mode)
+- [ ] Wildcard DNS for each cluster domain
+- [ ] Automated backups configured
+- [ ] Monitoring basic: `supervisorctl status` + disk alerts
+- [ ] Build worker dedicated (not sharing with web workers)
+
+### Phase 2: Growth (50-100 sites)
+- [ ] Add 2 more app servers (total: 4)
+- [ ] Split database to dedicated DB server
+- [ ] Add load balancer (Hetzner LB or Cloudflare LB)
+- [ ] MariaDB tuning: `max_connections`, `innodb_buffer_pool_size`
+- [ ] Docker registry cleanup cron
+- [ ] Agent Job archival cron (monthly)
+
+### Phase 3: Scale (100-200 sites)
+- [ ] Add 4 more app servers (total: 8)
+- [ ] Second dedicated DB server
+- [ ] Dedicated build server (separate from controller)
+- [ ] Parallel build workers (3+)
+- [ ] Prometheus + Grafana monitoring
+- [ ] Backup parallelization
+- [ ] DNS consolidated to wildcards (no per-site records)
+- [ ] Load test with realistic traffic before onboarding clients
+- [ ] Disaster recovery plan: daily full backups to external storage
+
+### Phase 4: Enterprise (200+ sites)
+- [ ] Multiple clusters (geographic distribution)
+- [ ] Read replicas for heavy-read sites
+- [ ] CDN (Cloudflare) for static assets
+- [ ] SLA monitoring and alerting (PagerDuty/Opsgenie)
+- [ ] Automated scaling scripts (add server on threshold breach)
+
+---
+
 ## Stage 4: Multiple Clusters (Regions)
 
 For geographic distribution or client isolation:
