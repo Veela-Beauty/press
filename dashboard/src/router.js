@@ -453,6 +453,12 @@ let router = createRouter({
 			component: () => import('./pages/backups/BackupJobs.vue'),
 			props: true,
 		},
+		{
+			path: '/backups/alerts',
+			name: 'Backup Alerts',
+			component: () => import('./pages/backups/BackupAlerts.vue'),
+			props: true,
+		},
 		...generateRoutes(),
 		// TODO: makeshift redirect fixes for /insights paths
 		{

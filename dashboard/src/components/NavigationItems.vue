@@ -150,8 +150,14 @@ export default {
 							route: '/backups/jobs',
 							isActive: routeName === 'Backup Jobs',
 						},
+						{
+							name: 'Backup Alerts',
+							icon: () => h(Archive),
+							route: '/backups/alerts',
+							isActive: routeName === 'Backup Alerts',
+						},
 					].filter((item) => item.condition ?? true),
-					isActive: ['Site Backups', 'Snapshots', 'Backup Overview', 'Server Backups', 'Backup Jobs'].includes(routeName),
+					isActive: ['Site Backups', 'Snapshots', 'Backup Overview', 'Server Backups', 'Backup Jobs', 'Backup Alerts'].includes(routeName),
 					disabled: enforce2FA,
 				},
 				{
