@@ -37,7 +37,7 @@
 
 An **enterprise-grade cloud hosting platform** built on [Frappe Press](https://github.com/frappe/press) architecture. We took the solid foundation of Press and enhanced it with new capabilities for production self-hosted deployments — Cloudflare DNS integration, server-level backup management, single-server mode, and a branded dashboard experience.
 
-This is not a reskin. It's a **feature-enhanced fork** that adds what enterprises need to run Press on their own infrastructure.
+This is not a reskin. It's a **feature-enhanced fork** that adds what enterprises need to run Press on their own infrastructure. See the [full file reference matrix](docs/wiki/01-backend-development/file-reference-matrix.md) for a complete map of all changes.
 
 ### What We Added
 
