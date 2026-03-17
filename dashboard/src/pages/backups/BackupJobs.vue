@@ -90,6 +90,129 @@
 				<Button @click="stopPolling">Close</Button>
 			</template>
 		</Dialog>
+
+		<!-- Job Detail Dialog -->
+		<Dialog v-model="detailDialogOpen" :options="{ title: selectedJob?.job_id || 'Job Details', size: 'lg' }">
+			<template #body-content>
+				<div v-if="selectedJob" class="space-y-4">
+					<!-- Status & Identity -->
+					<div class="grid grid-cols-2 gap-4">
+						<div>
+							<div class="text-xs text-gray-500">Status</div>
+							<Badge :label="selectedJob.status" />
+						</div>
+						<div>
+							<div class="text-xs text-gray-500">Priority</div>
+							<div class="text-sm font-medium">{{ selectedJob.priority || '-' }}</div>
+						</div>
+						<div>
+							<div class="text-xs text-gray-500">Client</div>
+							<div class="text-sm font-medium">{{ selectedJob.client || '-' }}</div>
+						</div>
+						<div>
+							<div class="text-xs text-gray-500">Mode</div>
+							<div class="text-sm font-medium">{{ selectedJob.mode || '-' }}</div>
+						</div>
+					</div>
+
+					<!-- Progress -->
+					<div v-if="selectedJob.status === 'Running'" class="rounded border p-3">
+						<div class="mb-1 flex justify-between text-sm">
+							<span class="text-gray-500">Progress</span>
+							<span>{{ Math.round(selectedJob.progress_percent || 0) }}%</span>
+						</div>
+						<div class="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+							<div
+								class="h-full rounded-full bg-blue-500 transition-all"
+								:style="{ width: `${selectedJob.progress_percent || 0}%` }"
+							></div>
+						</div>
+						<div v-if="selectedJob.current_phase" class="mt-1 text-xs text-gray-500">
+							Phase: {{ selectedJob.current_phase }}
+						</div>
+					</div>
+
+					<!-- Timing -->
+					<div class="rounded border p-3">
+						<div class="mb-2 text-sm font-medium text-gray-700">Timing</div>
+						<div class="grid grid-cols-2 gap-3 text-sm">
+							<div>
+								<div class="text-xs text-gray-500">Queued At</div>
+								<div>{{ formatDetailDate(selectedJob.queued_at) }}</div>
+							</div>
+							<div>
+								<div class="text-xs text-gray-500">Started At</div>
+								<div>{{ formatDetailDate(selectedJob.started_at) }}</div>
+							</div>
+							<div>
+								<div class="text-xs text-gray-500">Finished At</div>
+								<div>{{ formatDetailDate(selectedJob.finished_at) }}</div>
+							</div>
+							<div>
+								<div class="text-xs text-gray-500">Duration</div>
+								<div>{{ formatDuration(selectedJob.duration_seconds) }}</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Error Message -->
+					<div v-if="selectedJob.error_message" class="rounded border border-red-200 bg-red-50 p-3">
+						<div class="mb-1 text-sm font-medium text-red-700">Error</div>
+						<pre class="whitespace-pre-wrap text-xs text-red-600">{{ selectedJob.error_message }}</pre>
+					</div>
+
+					<!-- Worker Info -->
+					<div v-if="selectedJob.worker_name" class="rounded border p-3">
+						<div class="mb-2 text-sm font-medium text-gray-700">Worker</div>
+						<div class="grid grid-cols-3 gap-3 text-sm">
+							<div>
+								<div class="text-xs text-gray-500">Worker</div>
+								<div>{{ selectedJob.worker_name || '-' }}</div>
+							</div>
+							<div>
+								<div class="text-xs text-gray-500">PID</div>
+								<div>{{ selectedJob.worker_pid || '-' }}</div>
+							</div>
+							<div>
+								<div class="text-xs text-gray-500">Queue</div>
+								<div>{{ selectedJob.queue_name || '-' }}</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Retry Info -->
+					<div v-if="selectedJob.retry_count > 0" class="rounded border p-3">
+						<div class="mb-2 text-sm font-medium text-gray-700">Retry Info</div>
+						<div class="grid grid-cols-3 gap-3 text-sm">
+							<div>
+								<div class="text-xs text-gray-500">Retries</div>
+								<div>{{ selectedJob.retry_count }} / {{ selectedJob.max_retries }}</div>
+							</div>
+							<div>
+								<div class="text-xs text-gray-500">Next Retry</div>
+								<div>{{ formatDetailDate(selectedJob.next_retry_at) }}</div>
+							</div>
+							<div>
+								<div class="text-xs text-gray-500">Exit Code</div>
+								<div>{{ selectedJob.exit_code ?? '-' }}</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</template>
+			<template #actions>
+				<div class="flex gap-2">
+					<Button
+						v-if="selectedJob?.status === 'Running'"
+						variant="subtle"
+						@click="detailDialogOpen = false; showProgress(selectedJob.name)"
+					>
+						Live Progress
+					</Button>
+					<Button @click="detailDialogOpen = false">Close</Button>
+				</div>
+			</template>
+		</Dialog>
 	</div>
 </template>
 
@@ -119,9 +242,23 @@ export default {
 			progressTimer: null,
 			progressQueueName: null,
 			progressGeneration: 0,
+			detailDialogOpen: false,
+			selectedJob: null,
 		};
 	},
 	methods: {
+		formatDetailDate(value) {
+			if (!value) return '-';
+			return date(value, 'llll');
+		},
+		formatDuration(seconds) {
+			if (!seconds) return '-';
+			if (seconds < 60) return `${seconds}s`;
+			if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+			const h = Math.floor(seconds / 3600);
+			const m = Math.floor((seconds % 3600) / 60);
+			return `${h}h ${m}m`;
+		},
 		async showRunDialog() {
 			try {
 				const params = new URLSearchParams({
@@ -241,10 +378,13 @@ export default {
 				doctype: 'Backup Job Queue',
 				orderBy: 'queued_at desc',
 				fields: [
-					'name', 'job_id', 'client', 'mode', 'priority',
-					'status', 'progress_percent', 'queued_at',
-					'started_at', 'finished_at', 'duration_seconds',
-					'error_message',
+					'name', 'job_id', 'job_name', 'client', 'mode', 'priority',
+					'status', 'progress_percent', 'progress_message', 'current_phase',
+					'files_processed', 'queued_at', 'started_at', 'finished_at',
+					'duration_seconds', 'queue_wait_seconds',
+					'worker_name', 'worker_pid', 'queue_name',
+					'retry_count', 'max_retries', 'next_retry_at',
+					'error_message', 'exit_code', 'triggered_by', 'triggered_method',
 				],
 				columns: [
 					{ label: 'Job ID', fieldname: 'job_id', width: 0.6 },
@@ -267,6 +407,10 @@ export default {
 						format: (value) => value ? date(value, 'llll') : '',
 					},
 				],
+				onRowClick: (row) => {
+					this.selectedJob = row;
+					this.detailDialogOpen = true;
+				},
 				filterControls: () => [
 					{
 						type: 'link',

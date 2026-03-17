@@ -43,6 +43,124 @@
 				<Button @click="outputDialogOpen = false">Close</Button>
 			</template>
 		</Dialog>
+
+		<!-- Job Detail Dialog -->
+		<Dialog v-model="detailDialogOpen" :options="{ title: selectedJob?.job_title || 'Job Details', size: 'xl' }">
+			<template #body-content>
+				<div v-if="detailLoading" class="flex items-center justify-center py-8">
+					<div class="text-sm text-gray-500">Loading details...</div>
+				</div>
+				<div v-else-if="jobStats" class="space-y-4">
+					<!-- Job Info -->
+					<div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+						<div>
+							<div class="text-xs text-gray-500">Client</div>
+							<div class="text-sm font-medium">{{ jobStats.job_info?.client || '-' }}</div>
+						</div>
+						<div>
+							<div class="text-xs text-gray-500">Type</div>
+							<div class="text-sm font-medium">{{ jobStats.job_info?.job_type || '-' }}</div>
+						</div>
+						<div>
+							<div class="text-xs text-gray-500">Enabled</div>
+							<div class="text-sm font-medium">{{ jobStats.job_info?.enabled ? 'Yes' : 'No' }}</div>
+						</div>
+						<div>
+							<div class="text-xs text-gray-500">Last Run</div>
+							<Badge v-if="jobStats.last_run?.status" :label="jobStats.last_run.status" />
+							<span v-else class="text-sm">Never</span>
+						</div>
+					</div>
+
+					<!-- Statistics -->
+					<div class="rounded border p-3">
+						<div class="mb-2 text-sm font-medium text-gray-700">Statistics</div>
+						<div class="grid grid-cols-3 gap-3 sm:grid-cols-6 text-sm">
+							<div>
+								<div class="text-xs text-gray-500">Total Runs</div>
+								<div class="font-medium">{{ jobStats.statistics?.total_runs || 0 }}</div>
+							</div>
+							<div>
+								<div class="text-xs text-gray-500">Success</div>
+								<div class="font-medium text-green-600">{{ jobStats.statistics?.total_success || 0 }}</div>
+							</div>
+							<div>
+								<div class="text-xs text-gray-500">Failed</div>
+								<div class="font-medium text-red-600">{{ jobStats.statistics?.total_failed || 0 }}</div>
+							</div>
+							<div>
+								<div class="text-xs text-gray-500">Success Rate</div>
+								<div class="font-medium">{{ jobStats.statistics?.success_rate || 0 }}%</div>
+							</div>
+							<div>
+								<div class="text-xs text-gray-500">Avg Size</div>
+								<div class="font-medium">{{ jobStats.statistics?.avg_backup_size_mb || 0 }} MB</div>
+							</div>
+							<div>
+								<div class="text-xs text-gray-500">Last Size</div>
+								<div class="font-medium">{{ jobStats.statistics?.last_backup_size_mb || 0 }} MB</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Schedule -->
+					<div class="rounded border p-3">
+						<div class="mb-2 text-sm font-medium text-gray-700">Schedule</div>
+						<div class="grid grid-cols-2 gap-3 sm:grid-cols-4 text-sm">
+							<div>
+								<div class="text-xs text-gray-500">Schedule</div>
+								<div>{{ jobStats.schedule?.enabled ? 'Enabled' : 'Disabled' }}</div>
+							</div>
+							<div>
+								<div class="text-xs text-gray-500">Type</div>
+								<div>{{ jobStats.schedule?.type || '-' }}</div>
+							</div>
+							<div>
+								<div class="text-xs text-gray-500">Time / Cron</div>
+								<div>{{ jobStats.schedule?.cron || jobStats.schedule?.time || '-' }}</div>
+							</div>
+							<div>
+								<div class="text-xs text-gray-500">Next Run</div>
+								<div>{{ jobStats.schedule?.next_run ? formatDetailDate(jobStats.schedule.next_run) : '-' }}</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Recent History -->
+					<div v-if="jobHistory?.queue_jobs?.length" class="rounded border p-3">
+						<div class="mb-2 text-sm font-medium text-gray-700">Recent Runs (Last 10)</div>
+						<div class="overflow-x-auto">
+							<table class="w-full text-sm">
+								<thead>
+									<tr class="border-b text-left text-gray-500">
+										<th class="py-1.5 pr-3 text-xs">Job ID</th>
+										<th class="py-1.5 pr-3 text-xs">Status</th>
+										<th class="py-1.5 pr-3 text-xs">Started</th>
+										<th class="py-1.5 pr-3 text-xs">Duration</th>
+										<th class="py-1.5 text-xs">Error</th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr v-for="qj in jobHistory.queue_jobs" :key="qj.name" class="border-b last:border-0">
+										<td class="py-1.5 pr-3 font-mono text-xs">{{ qj.job_id }}</td>
+										<td class="py-1.5 pr-3"><Badge :label="qj.status" size="sm" /></td>
+										<td class="py-1.5 pr-3 text-xs">{{ formatDetailDate(qj.started_at) }}</td>
+										<td class="py-1.5 pr-3 text-xs">{{ formatDuration(qj.duration_seconds) }}</td>
+										<td class="py-1.5 text-xs text-red-500 truncate max-w-[200px]">{{ qj.error_message || '-' }}</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+				<div v-else class="py-8 text-center text-sm text-gray-400">
+					No details available
+				</div>
+			</template>
+			<template #actions>
+				<Button @click="detailDialogOpen = false">Close</Button>
+			</template>
+		</Dialog>
 	</div>
 </template>
 
@@ -57,6 +175,8 @@ import {
 	setupJob,
 	listJobArchives,
 	getRepoInfo,
+	getJobStatistics,
+	getJobHistory,
 } from '../../utils/backupApi';
 
 export default {
@@ -68,12 +188,48 @@ export default {
 			outputDialogOpen: false,
 			outputTitle: '',
 			outputContent: '',
+			detailDialogOpen: false,
+			selectedJob: null,
+			jobStats: null,
+			jobHistory: null,
+			detailLoading: false,
 		};
 	},
 	mounted() {
 		this.fetchStats();
 	},
 	methods: {
+		formatDetailDate(value) {
+			if (!value) return '-';
+			return date(value, 'llll');
+		},
+		formatDuration(seconds) {
+			if (!seconds) return '-';
+			if (seconds < 60) return `${seconds}s`;
+			if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+			const h = Math.floor(seconds / 3600);
+			const m = Math.floor((seconds % 3600) / 60);
+			return `${h}h ${m}m`;
+		},
+		async openJobDetail(row) {
+			this.selectedJob = row;
+			this.jobStats = null;
+			this.jobHistory = null;
+			this.detailLoading = true;
+			this.detailDialogOpen = true;
+			try {
+				const [stats, history] = await Promise.all([
+					getJobStatistics(row.name),
+					getJobHistory(row.name, 10),
+				]);
+				this.jobStats = stats;
+				this.jobHistory = history;
+			} catch (e) {
+				this.$toast({ title: `Failed to load details: ${e.message}`, variant: 'error' });
+			} finally {
+				this.detailLoading = false;
+			}
+		},
 		async fetchStats() {
 			try {
 				const params = new URLSearchParams({
@@ -216,6 +372,9 @@ export default {
 						format: (value) => value ? date(value, 'lll') : 'Never',
 					},
 				],
+				onRowClick: (row) => {
+					this.openJobDetail(row);
+				},
 				filterControls: () => [
 					{
 						type: 'link',
