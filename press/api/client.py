@@ -97,6 +97,12 @@ ALLOWED_DOCTYPES = [
 	"Auto Scale Record",
 	"Server Firewall",
 	"New Bench Queue",
+	"Backup Job Queue",
+	"Backup Client",
+	"Backup Alert Rule",
+	"Backup Job",
+	"Backup Run Log",
+	"Backup Server",
 ]
 
 whitelisted_methods = set()

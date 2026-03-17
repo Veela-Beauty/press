@@ -5,6 +5,11 @@
 				<Breadcrumbs
 					:items="[{ label: 'Backup Overview', route: '/backups/overview' }]"
 				/>
+				<template #actions>
+					<Button variant="solid" @click="showRunDialog">
+						Run Backup
+					</Button>
+				</template>
 			</Header>
 		</div>
 
@@ -38,7 +43,7 @@
 				<h3 class="text-lg font-semibold mb-3">Job Queue</h3>
 				<div class="flex gap-4 flex-wrap">
 					<Badge v-for="(count, status) in overview?.job_stats" :key="status"
-						:label="status + ': ' + count"
+						:label="`${status}: ${count}`"
 						:theme="jobStatusTheme(status)"
 					/>
 				</div>
@@ -124,7 +129,7 @@
 									<Badge :label="client.backup_health_status || 'Unknown'" :theme="healthTheme(client.backup_health_status)" />
 								</td>
 								<td class="py-2 pr-4">{{ formatDate(client.last_backup_on) }}</td>
-								<td class="py-2 pr-4">{{ client.storage_usage_percent ? client.storage_usage_percent + '%' : '-' }}</td>
+								<td class="py-2 pr-4">{{ client.storage_usage_percent ? `${client.storage_usage_percent}%` : '-' }}</td>
 								<td class="py-2">{{ client.auto_backup_enabled ? 'Yes' : 'No' }}</td>
 							</tr>
 						</tbody>
@@ -132,15 +137,62 @@
 				</div>
 			</div>
 		</div>
+
+		<!-- Run Backup Dialog -->
+		<Dialog v-model="runDialogOpen" :options="{ title: 'Run Backup', size: 'sm' }">
+			<template #body-content>
+				<div class="space-y-4">
+					<FormControl
+						label="Backup Job"
+						type="autocomplete"
+						v-model="runForm.job_name"
+						:options="jobOptions"
+						placeholder="Select a backup job..."
+					/>
+					<FormControl
+						label="Mode"
+						type="select"
+						v-model="runForm.mode"
+						:options="[
+							{ label: 'Run (full backup)', value: 'run' },
+							{ label: 'Dry Run (simulate)', value: 'dry-run' },
+							{ label: 'Check (verify repo)', value: 'check' },
+							{ label: 'Smart Cycle', value: 'smart-cycle' },
+						]"
+					/>
+					<FormControl
+						label="Priority"
+						type="select"
+						v-model="runForm.priority"
+						:options="[
+							{ label: 'Normal', value: 'Normal' },
+							{ label: 'Critical', value: 'Critical' },
+							{ label: 'High', value: 'High' },
+							{ label: 'Low', value: 'Low' },
+						]"
+					/>
+				</div>
+			</template>
+			<template #actions>
+				<Button variant="solid" @click="executeRun" :loading="runLoading">
+					Run Now
+				</Button>
+			</template>
+		</Dialog>
 	</div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { Badge } from 'frappe-ui';
+import { Badge, Button, Dialog, FormControl } from 'frappe-ui';
 import { date as formatDateUtil } from '../../utils/format';
+import { runBackupJob } from '../../utils/backupApi';
 
 const overview = ref(null);
+const runDialogOpen = ref(false);
+const runForm = ref({ job_name: '', mode: 'run', priority: 'Normal' });
+const runLoading = ref(false);
+const jobOptions = ref([]);
 
 function formatDate(value) {
 	if (!value) return '-';
@@ -181,14 +233,55 @@ function severityTheme(severity) {
 async function fetchOverview() {
 	try {
 		const res = await fetch('/api/method/daman_backup.daman_backup.press_api.get_backup_overview', {
-			headers: {
-				'X-Frappe-CSRF-Token': window.csrf_token,
-			},
+			headers: { 'X-Frappe-CSRF-Token': window.csrf_token },
 		});
 		const data = await res.json();
 		overview.value = data.message;
 	} catch (e) {
 		console.error('Failed to fetch backup overview:', e);
+	}
+}
+
+async function showRunDialog() {
+	try {
+		const params = new URLSearchParams({
+			doctype: 'Backup Job',
+			filters: JSON.stringify({ enabled: 1 }),
+			fields: JSON.stringify(['name', 'job_title', 'client']),
+			limit_page_length: 100,
+		});
+		const res = await fetch(
+			`/api/method/frappe.client.get_list?${params}`,
+			{ headers: { 'X-Frappe-CSRF-Token': window.csrf_token } }
+		);
+		const data = await res.json();
+		jobOptions.value = (data.message || []).map((j) => ({
+			label: `${j.job_title} (${j.client})`,
+			value: j.name,
+		}));
+	} catch (e) {
+		jobOptions.value = [];
+	}
+	runForm.value = { job_name: '', mode: 'run', priority: 'Normal' };
+	runDialogOpen.value = true;
+}
+
+async function executeRun() {
+	const jobName = typeof runForm.value.job_name === 'object'
+		? runForm.value.job_name.value
+		: runForm.value.job_name;
+	if (!jobName) return;
+	runLoading.value = true;
+	try {
+		const result = await runBackupJob(jobName, runForm.value.mode, runForm.value.priority);
+		if (result.success !== false) {
+			runDialogOpen.value = false;
+			fetchOverview();
+		}
+	} catch (e) {
+		// HTTP/parse errors already thrown by backupApi
+	} finally {
+		runLoading.value = false;
 	}
 }
 
