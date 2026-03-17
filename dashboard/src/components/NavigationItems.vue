@@ -24,6 +24,11 @@ import Code from '~icons/lucide/code';
 import Archive from '~icons/lucide/archive';
 import Camera from '~icons/lucide/camera';
 import FileSearch from '~icons/lucide/file-search';
+import HardDrive from '~icons/lucide/hard-drive';
+import Bell from '~icons/lucide/bell';
+import ListOrdered from '~icons/lucide/list-ordered';
+import LayoutDashboard from '~icons/lucide/layout-dashboard';
+import PlayCircle from '~icons/lucide/play-circle';
 import { unreadNotificationsCount } from '../data/notifications';
 
 export default {
@@ -132,33 +137,49 @@ export default {
 							route: '/backups/snapshots',
 							isActive: routeName === 'Snapshots',
 						},
+					].filter((item) => item.condition ?? true),
+					isActive: ['Site Backups', 'Snapshots'].includes(routeName),
+					disabled: enforce2FA,
+				},
+				{
+					name: 'Daman Backup',
+					icon: () => h(HardDrive),
+					route: '/backups/overview',
+					condition: onboardingComplete && !isSaasUser,
+					disabled: enforce2FA,
+					children: [
 						{
-							name: 'Backup Overview',
-							icon: () => h(Archive),
+							name: 'Overview',
+							icon: () => h(LayoutDashboard),
 							route: '/backups/overview',
-							isActive: routeName === 'Backup Overview',
-						},
-						{
-							name: 'Server Backups',
-							icon: () => h(Archive),
-							route: '/backups/servers',
-							isActive: routeName === 'Server Backups',
+							isActive: routeName === 'Daman Overview',
 						},
 						{
 							name: 'Backup Jobs',
-							icon: () => h(Archive),
-							route: '/backups/jobs',
-							isActive: routeName === 'Backup Jobs',
+							icon: () => h(PlayCircle),
+							route: '/backups/servers',
+							isActive: routeName === 'Daman Backup Jobs',
 						},
 						{
-							name: 'Backup Alerts',
-							icon: () => h(Archive),
-							route: '/backups/alerts',
-							isActive: routeName === 'Backup Alerts',
+							name: 'Job Queue',
+							icon: () => h(ListOrdered),
+							route: '/backups/jobs',
+							isActive: routeName === 'Daman Job Queue',
 						},
-					].filter((item) => item.condition ?? true),
-					isActive: ['Site Backups', 'Snapshots', 'Backup Overview', 'Server Backups', 'Backup Jobs', 'Backup Alerts'].includes(routeName),
-					disabled: enforce2FA,
+						{
+							name: 'Backup Servers',
+							icon: () => h(HardDrive),
+							route: '/backups/backup-servers',
+							isActive: routeName === 'Daman Backup Servers',
+						},
+						{
+							name: 'Alerts',
+							icon: () => h(Bell),
+							route: '/backups/alerts',
+							isActive: routeName === 'Daman Backup Alerts',
+						},
+					],
+					isActive: ['Daman Overview', 'Daman Backup Jobs', 'Daman Job Queue', 'Daman Backup Servers', 'Daman Backup Alerts'].includes(routeName),
 				},
 				{
 					name: 'Dev Tools',
