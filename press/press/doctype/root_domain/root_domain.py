@@ -37,6 +37,8 @@ class RootDomain(Document):
 	# end: auto-generated types
 
 	def after_insert(self):
+		# Auto-link this domain to all active proxy servers so site creation works
+		self.add_to_proxies()
 		if self.dns_provider != "Generic" and not frappe.db.exists(
 			"TLS Certificate", {"wildcard": True, "domain": self.name}
 		):

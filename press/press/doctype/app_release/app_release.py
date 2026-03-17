@@ -632,6 +632,20 @@ def check_python_syntax(dirpath: str) -> str:
 	- -q: quiet, only print errors (stdout)
 	- -o: optimize level, 0 is no optimization
 	"""
+	# Skip syntax check if app requires a newer Python than what is installed
+	import sys as _sys
+	_pyproject_path = os.path.join(dirpath, "pyproject.toml")
+	if os.path.isfile(_pyproject_path):
+		with open(_pyproject_path, "rb") as _f, contextlib.suppress(Exception):
+			_pydata = tomli.load(_f)
+			_req = _pydata.get("project", {}).get("requires-python", "")
+			if _req:
+				_spec = sv.SimpleSpec(_req)
+				_cur = sv.Version(
+					f"{_sys.version_info.major}.{_sys.version_info.minor}.{_sys.version_info.micro}"
+				)
+				if not _spec.match(_cur):
+					return ""  # Skip: installed Python too old to compile this app
 	_python = get_python_path(dirpath)
 	command = f"{_python} -m compileall -q -o 0 {dirpath}"
 	proc = subprocess.run(

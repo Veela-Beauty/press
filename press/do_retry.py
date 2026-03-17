@@ -181,3 +181,38 @@ def ping_server_agent_authed(server_name):
     except Exception as e:
         print("ping failed:", str(e))
         return str(e)
+
+
+def trigger_build(dc_name):
+    """
+    Trigger a build for a Deploy Candidate.
+    Creates the DeployCandidateBuild with run_build=True so after_insert calls pre_build().
+    """
+    dc = frappe.get_doc("Deploy Candidate", dc_name)
+    build = dc.create_build(run_build=True, no_cache=False, deploy_after_build=True)
+    build.insert()
+    frappe.db.commit()
+    print("Build started:", build.name, "status:", build.status)
+    return build.name
+
+
+def run_prebuild(build_name):
+    """Manually trigger pre_build on a Deploy Candidate Build stuck in Preparing."""
+    from press.press.doctype.deploy_candidate_build.deploy_candidate_build import Status
+    build = frappe.get_doc("Deploy Candidate Build", build_name)
+    build.status = "Draft"
+    build.save()
+    frappe.db.commit()
+    build.pre_build()
+    frappe.db.commit()
+    print("pre_build triggered for", build_name, "status:", build.status)
+    return build.status
+
+
+def deploy_dc(dc_name):
+    """Deploy a built Deploy Candidate to all servers in its Release Group."""
+    dc = frappe.get_doc("Deploy Candidate", dc_name)
+    deploy = dc.deploy()
+    frappe.db.commit()
+    print("Deploy created:", deploy.name if deploy else "none")
+    return deploy.name if deploy else "no deploy"

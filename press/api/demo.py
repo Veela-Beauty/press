@@ -336,15 +336,59 @@ def approve_request(request_name: str):
     return {"message": f"Approved! Invite code {code} sent to {req.email}"}
 
 
-@frappe.whitelist(allow_guest=True)
-def submit_requirements(site: str, answers: list | str):
-    """Save requirements form answers as child table rows on Demo Site Request.
+@frappe.whitelist()
+def reject_request(request_name: str, reason: str = ""):
+    """Admin rejects a demo request and sends notification email."""
+    req = frappe.get_doc("Demo Site Request", request_name)
 
-    Input: {"site": "acme.demo.mvpstorm.com", "answers": [{"section": "...", "question": "...", "answer": "..."}]}
+    if req.request_status == "Rejected":
+        frappe.throw("This request has already been rejected")
+
+    req.request_status = "Rejected"
+    req.save(ignore_permissions=True)
+
+    reason = (reason or "").strip()
+    if not reason:
+        reason = "Thank you for your interest. Unfortunately, we are unable to process your demo request at this time."
+
+    company = frappe.utils.escape_html(req.company or "")
+    reason_html = frappe.utils.escape_html(reason)
+
+    try:
+        frappe.sendmail(
+            recipients=[req.email],
+            subject=f"Demo Request Update \u2014 {req.company}",
+            message=f"""<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
+<div style="background:linear-gradient(135deg,#046bd2 0%,#197972 100%);padding:32px;border-radius:12px 12px 0 0;">
+<h1 style="color:white;margin:0 0 8px 0;font-size:22px;">Demo Request Update</h1>
+<p style="color:rgba(255,255,255,0.9);margin:0;font-size:14px;">{company}</p>
+</div>
+<div style="background:white;padding:32px;border:1px solid #e5e7eb;border-top:none;">
+<p style="font-size:15px;line-height:1.7;">Thank you for your interest in AccuBuild ERP.</p>
+<p style="font-size:15px;line-height:1.7;">{reason_html}</p>
+<p style="font-size:15px;line-height:1.7;margin-top:20px;">If you have any questions or would like to discuss further, please don't hesitate to reach out to us.</p>
+</div>
+<div style="background:#f9fafb;padding:20px 32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;text-align:center;">
+<p style="margin:0;font-size:13px;color:#9ca3af;">Accurate Systems \u2022 ERP Implementation Services</p>
+</div>
+</div>""",
+            now=True,
+        )
+    except Exception:
+        frappe.log_error("Demo rejection email failed")
+
+    frappe.db.commit()
+    return {"message": f"Rejected. Notification sent to {req.email}"}
+
+
+@frappe.whitelist(allow_guest=True)
+def submit_requirements(site: str = "", email: str = "", answers: list | str = ""):
+    """Save requirements form answers and send thank-you email with full analysis.
+
+    Accepts either site or email to identify the Demo Site Request.
     """
     site = (site or "").strip()
-    if not site:
-        frappe.throw("Site is required")
+    email = (email or "").strip().lower()
 
     if isinstance(answers, str):
         import json
@@ -353,9 +397,20 @@ def submit_requirements(site: str, answers: list | str):
     if not answers or not isinstance(answers, list):
         frappe.throw("Answers list is required")
 
-    req_name = frappe.db.get_value("Demo Site Request", {"site": site}, "name")
+    # Find request by site or email
+    req_name = None
+    if site:
+        req_name = frappe.db.get_value("Demo Site Request", {"site": site}, "name")
+    if not req_name and email:
+        req_name = frappe.db.get_value(
+            "Demo Site Request",
+            {"email": email},
+            "name",
+            order_by="creation desc",
+        )
+
     if not req_name:
-        frappe.throw("No demo site request found for this site")
+        frappe.throw("No demo request found. Please submit a demo request first.")
 
     req = frappe.get_doc("Demo Site Request", req_name)
 
@@ -378,7 +433,88 @@ def submit_requirements(site: str, answers: list | str):
     req.save(ignore_permissions=True)
     frappe.db.commit()
 
+    # Send thank-you email with requirements summary
+    _send_requirements_email(req, answers)
+
     return {"message": "Requirements saved successfully", "count": len(req.requirements)}
+
+
+
+def _send_requirements_email(req, answers):
+    """Send a professional thank-you email with the full requirements analysis."""
+    if not req.email:
+        return
+
+    sections = {}
+    for item in answers:
+        section = (item.get("section") or "General").strip()
+        question = (item.get("question") or "").strip()
+        answer = (item.get("answer") or "").strip()
+        if not question or not answer:
+            continue
+        if section not in sections:
+            sections[section] = []
+        sections[section].append({"question": question, "answer": answer})
+
+    if not sections:
+        return
+
+    req_html = ""
+    for section, items in sections.items():
+        req_html += (
+            '<tr><td colspan="2" style="padding:14px 16px;background:#f0f9ff;'
+            'border:1px solid #e5e7eb;font-weight:700;font-size:15px;color:#046bd2;">'
+            + frappe.utils.escape_html(section) + "</td></tr>\n"
+        )
+        for item in items:
+            req_html += (
+                '<tr><td style="padding:10px 16px;border:1px solid #e5e7eb;'
+                'font-weight:600;color:#374151;width:35%;vertical-align:top;">'
+                + frappe.utils.escape_html(item["question"])
+                + '</td><td style="padding:10px 16px;border:1px solid #e5e7eb;color:#4b5563;">'
+                + frappe.utils.escape_html(item["answer"])
+                + "</td></tr>\n"
+            )
+
+    company = frappe.utils.escape_html(req.company or "Your Company")
+    dash = "\u2014"
+    bull = "\u2022"
+
+    body = f"""<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:700px;margin:0 auto;color:#1f2937;">
+<div style="background:linear-gradient(135deg,#046bd2 0%,#197972 100%);padding:32px;border-radius:12px 12px 0 0;">
+<h1 style="color:white;margin:0 0 8px 0;font-size:24px;">Thank You, {company}!</h1>
+<p style="color:rgba(255,255,255,0.9);margin:0;font-size:15px;">Your ERP requirements have been received and recorded.</p>
+</div>
+<div style="background:white;padding:32px;border:1px solid #e5e7eb;border-top:none;">
+<p style="font-size:15px;line-height:1.7;margin-bottom:24px;">We appreciate you taking the time to share your business requirements. Our team will review your responses and prepare a tailored implementation plan for your organization.</p>
+<h2 style="color:#046bd2;font-size:18px;margin:0 0 16px 0;padding-bottom:8px;border-bottom:2px solid #e5e7eb;">Your Requirements Summary</h2>
+<table style="border-collapse:collapse;width:100%;margin-bottom:24px;font-size:14px;">
+{req_html}</table>
+<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:20px;margin:24px 0;">
+<h3 style="color:#166534;margin:0 0 12px 0;font-size:16px;">What Happens Next?</h3>
+<ol style="margin:0;padding-left:20px;color:#166534;line-height:1.8;">
+<li><strong>Review</strong> {dash} Our team analyzes your requirements (1-2 business days)</li>
+<li><strong>Proposal</strong> {dash} We prepare a tailored implementation plan and timeline</li>
+<li><strong>Consultation</strong> {dash} A specialist will contact you to discuss the plan</li>
+<li><strong>Kickoff</strong> {dash} Once approved, we begin your ERP implementation</li>
+</ol>
+</div>
+<p style="font-size:14px;color:#6b7280;line-height:1.6;">If you have any questions in the meantime, feel free to reply to this email or contact our team directly.</p>
+</div>
+<div style="background:#f9fafb;padding:20px 32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;text-align:center;">
+<p style="margin:0;font-size:13px;color:#9ca3af;">Accurate Systems {bull} ERP Implementation Services<br>This is an automated summary of your submitted requirements.</p>
+</div>
+</div>"""
+
+    try:
+        frappe.sendmail(
+            recipients=[req.email],
+            subject=f"ERP Requirements Analysis {dash} {req.company}",
+            message=body,
+            now=True,
+        )
+    except Exception:
+        frappe.log_error("Requirements thank-you email failed")
 
 
 def _validate_invite_code(code: str, email: str):

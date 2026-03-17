@@ -677,10 +677,11 @@ def get(name, timezone, start, end):
 	plan = frappe.get_cached_doc("Site", name).plan
 	plan_limit = get_plan_config(plan).get("rate_limit", {}).get("limit") if plan else 0
 
+	data = request_data if isinstance(request_data, list) else []
 	return {
-		"usage_counter": [{"value": r.max, "date": r.date} for r in request_data],
-		"request_count": [{"value": r.count, "date": r.date} for r in request_data],
-		"request_cpu_time": [{"value": r.duration, "date": r.date} for r in request_data],
+		"usage_counter": [{"value": r.max, "date": r.date} for r in data],
+		"request_count": [{"value": r.count, "date": r.date} for r in data],
+		"request_cpu_time": [{"value": r.duration, "date": r.date} for r in data],
 		"uptime": uptime_data,
 		"plan_limit": plan_limit,
 	}
@@ -856,8 +857,9 @@ def daily_usage(name, timezone):
 
 	plan = frappe.get_cached_doc("Site", name).plan
 
+	data = request_data if isinstance(request_data, list) else []
 	return {
-		"data": [{"value": r.max, "date": r.date} for r in request_data],
+		"data": [{"value": r.max, "date": r.date} for r in data],
 		"plan_limit": get_plan_config(plan)["rate_limit"]["limit"] if plan else 0,
 	}
 

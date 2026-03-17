@@ -48,3 +48,33 @@ All patches are on the `cloudflare-dns` branch of `accurate-systems/press`.
 **Function:** `get_python_path()`
 **Problem:** Hardcoded `/usr/bin/python3.14` fallback — doesn't exist on Python 3.11 server.
 **Fix:** Falls back to `_get_python_path()` (bench's own python3).
+
+
+## Patch 9: Agent docker_login skips null credentials
+**File:** `agent/server.py` (on press-f1 AND u4)
+**Function:** `docker_login()`
+**Problem:** Press Settings had null `docker_registry_username`/`docker_registry_password`. Agent passed these as `None` → ran `docker login -u None -p None` → failed → bench creation blocked.
+**Fix:** Added early return if username or password is falsy:
+```python
+def docker_login(self, registry):
+    if not registry.get("username") or not registry.get("password"):
+        return
+    # ... original code
+```
+**Trigger:** Any bench creation when Press Settings has no docker registry credentials.
+**Persistence:** Post-merge hook on press-f1 (`/home/frappe/agent/repo/.git/hooks/post-merge`) auto-reapplies after `git pull`.
+
+## Patch 10: Proxy nginx template missing `hostnames;` directive
+**File:** `agent/templates/proxy/nginx.conf.jinja2` (on press-f1)
+**Block:** `map $host $actual_host`
+**Problem:** Without `hostnames;`, nginx treats wildcard patterns (`*.sandbox.mvpstorm.com`) as literal strings. `$actual_host` is always empty → `$upstream_server_hash` defaults to `http://site_not_found` → all cross-server sites get 307 redirect to dashboard signup page.
+**Fix:** Added `hostnames;` after `map $host $actual_host {`:
+```jinja2
+map $host $actual_host {
+	hostnames;
+{% for host in hosts.values() -%}
+	...
+```
+**Fix script:** `/tmp/fix_all.py` on press-f1 (idempotent — fixes both template and live proxy.conf, reloads nginx).
+**Persistence:** Post-merge hook at `/home/frappe/agent/repo/.git/hooks/post-merge` runs `fix_all.py` after every `git pull`.
+**Impact:** All cross-server sites (sites on u4 proxied through press-f1) were broken. Local sites (on press-f1 itself) worked because bench nginx.conf has exact server_name matches.

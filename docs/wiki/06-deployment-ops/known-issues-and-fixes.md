@@ -7,8 +7,8 @@
 **Cause:** Agent password in `config.json` on u4 doesn't match Press DB
 **Fix:** See Lesson 59 — regenerate PBKDF2 hash on u4, update config.json, restart agent
 
-### press-f1 SSL cert hostname mismatch for agent
-**Status:** Ongoing — Backup jobs fail with SSL hostname mismatch
+### press-f1 SSL cert hostname mismatch for agent (RESOLVED)
+**Status:** RESOLVED — Self-signed cert added to certifi CA bundle on press-ctrl
 **Cause:** Agent cert on press-f1 not valid for `press-f1.sandbox.mvpstorm.com`
 **Fix:** Re-issue cert or update agent Nginx config to use correct cert path
 
@@ -56,3 +56,23 @@ SELECT name, domain, parent FROM `tabProxy Server Domain`;
 **Fix (nginx):** Added `location = /dashboard` block with `Cache-Control: no-cache, no-store, must-revalidate` always.
 **Quick fix for users:** Ctrl+Shift+R (hard refresh)
 **Note:** `bench setup nginx` overwrites custom nginx config. Re-run `python3 scripts/fix_nginx_cache.py` after.
+
+
+## Cross-server site routing (proxy hostnames;)
+**Status:** Fixed — template patched + post-merge hook installed
+**Cause:** Agent Jinja template for proxy.conf `map $host $actual_host` block missing `hostnames;` directive. Nginx treats wildcards as literals without it.
+**Symptoms:** Sites on u4 (157.90.244.216) return 307 redirect to `demo.mvpstorm.com/dashboard/#/sites/new`. Login as Administrator shows Internal Server Error. `X-Proxy-Upstream: http://site_not_found` in response headers.
+**Architecture:**
+- DNS `*.sandbox.mvpstorm.com` → press-f1 (89.167.57.21, proxy server)
+- press-f1 proxy.conf maps hostnames to upstream servers (press-f1 local or u4)
+- Sites on press-f1 work regardless (bench nginx.conf has exact `server_name`)
+- Only cross-server sites (u4) are affected
+**Fix:** `hostnames;` in template + live proxy.conf. Post-merge hook auto-reapplies.
+**Debug:** `curl -sI https://SITE | grep X-Proxy-Upstream` — if it says `site_not_found`, check `hostnames;` in proxy.conf.
+
+## Agent patches survive git pull
+**Status:** Automated via post-merge hook
+**Location:** `/home/frappe/agent/repo/.git/hooks/post-merge` on press-f1
+**What it fixes:** `hostnames;` directive (template + live proxy.conf)
+**Log:** `/var/log/agent-post-merge.log`
+**Note:** Docker login patch (server.py) is NOT in the hook — must be reapplied manually if agent is updated.
