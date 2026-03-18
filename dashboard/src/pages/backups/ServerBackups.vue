@@ -3,7 +3,7 @@
 		<div class="sticky top-0 z-10 shrink-0">
 			<Header>
 				<Breadcrumbs
-					:items="[{ label: 'Server Backups', route: '/backups/servers' }]"
+					:items="[{ label: 'Daman Backup Jobs', route: '/backups/servers' }]"
 				/>
 			</Header>
 		</div>
@@ -44,100 +44,284 @@
 			</template>
 		</Dialog>
 
-		<!-- Job Detail Dialog -->
-		<Dialog v-model="detailDialogOpen" :options="{ title: selectedJob?.job_title || 'Job Details', size: 'xl' }">
+		<!-- Job Detail Dialog (enriched 6-section layout) -->
+		<Dialog
+			v-model="detailDialogOpen"
+			:options="{ title: selectedJob?.job_title || 'Job Details', size: '4xl' }"
+		>
 			<template #body-content>
-				<div v-if="detailLoading" class="flex items-center justify-center py-8">
-					<div class="text-sm text-gray-500">Loading details...</div>
+				<div v-if="detailLoading" class="flex items-center justify-center py-12">
+					<div class="text-sm text-gray-500">{{ 'Loading details...' }}</div>
 				</div>
-				<div v-else-if="jobStats" class="space-y-4">
-					<!-- Job Info -->
-					<div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-						<div>
-							<div class="text-xs text-gray-500">Client</div>
-							<div class="text-sm font-medium">{{ jobStats.job_info?.client || '-' }}</div>
-						</div>
-						<div>
-							<div class="text-xs text-gray-500">Type</div>
-							<div class="text-sm font-medium">{{ jobStats.job_info?.job_type || '-' }}</div>
-						</div>
-						<div>
-							<div class="text-xs text-gray-500">Enabled</div>
-							<div class="text-sm font-medium">{{ jobStats.job_info?.enabled ? 'Yes' : 'No' }}</div>
-						</div>
-						<div>
-							<div class="text-xs text-gray-500">Last Run</div>
-							<Badge v-if="jobStats.last_run?.status" :label="jobStats.last_run.status" />
-							<span v-else class="text-sm">Never</span>
-						</div>
-					</div>
+				<div v-else-if="selectedJob" class="max-h-[75vh] overflow-y-auto pr-1">
 
-					<!-- Statistics -->
-					<div class="rounded border p-3">
-						<div class="mb-2 text-sm font-medium text-gray-700">Statistics</div>
-						<div class="grid grid-cols-3 gap-3 sm:grid-cols-6 text-sm">
-							<div>
-								<div class="text-xs text-gray-500">Total Runs</div>
-								<div class="font-medium">{{ jobStats.statistics?.total_runs || 0 }}</div>
+					<!-- Section 1: Identity -->
+					<div class="mb-5">
+						<div class="mb-3 border-b pb-2 text-sm font-semibold text-gray-800">
+							{{ 'Identity' }}
+						</div>
+						<div class="grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Job Title' }}</span>
+								<span class="text-sm font-medium">{{ selectedJob.job_title || '\u2014' }}</span>
 							</div>
-							<div>
-								<div class="text-xs text-gray-500">Success</div>
-								<div class="font-medium text-green-600">{{ jobStats.statistics?.total_success || 0 }}</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Job Type' }}</span>
+								<Badge
+									:label="selectedJob.job_type || '\u2014'"
+									variant="subtle"
+									theme="blue"
+								/>
 							</div>
-							<div>
-								<div class="text-xs text-gray-500">Failed</div>
-								<div class="font-medium text-red-600">{{ jobStats.statistics?.total_failed || 0 }}</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Client' }}</span>
+								<span class="text-sm font-medium">{{ selectedJob.client || '\u2014' }}</span>
 							</div>
-							<div>
-								<div class="text-xs text-gray-500">Success Rate</div>
-								<div class="font-medium">{{ jobStats.statistics?.success_rate || 0 }}%</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Priority' }}</span>
+								<Badge
+									:label="selectedJob.priority || '\u2014'"
+									variant="subtle"
+									:theme="priorityTheme(selectedJob.priority)"
+								/>
 							</div>
-							<div>
-								<div class="text-xs text-gray-500">Avg Size</div>
-								<div class="font-medium">{{ jobStats.statistics?.avg_backup_size_mb || 0 }} MB</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Enabled' }}</span>
+								<Badge
+									:label="selectedJob.enabled ? 'Enabled' : 'Disabled'"
+									variant="subtle"
+									:theme="selectedJob.enabled ? 'green' : 'red'"
+								/>
 							</div>
-							<div>
-								<div class="text-xs text-gray-500">Last Size</div>
-								<div class="font-medium">{{ jobStats.statistics?.last_backup_size_mb || 0 }} MB</div>
+							<div v-if="selectedJob.description" class="flex items-start justify-between py-1.5 sm:col-span-2">
+								<span class="text-sm text-gray-600 shrink-0">{{ 'Description' }}</span>
+								<span class="text-sm font-medium text-right ml-4 max-w-[65%]">{{ selectedJob.description }}</span>
 							</div>
 						</div>
 					</div>
 
-					<!-- Schedule -->
-					<div class="rounded border p-3">
-						<div class="mb-2 text-sm font-medium text-gray-700">Schedule</div>
-						<div class="grid grid-cols-2 gap-3 sm:grid-cols-4 text-sm">
-							<div>
-								<div class="text-xs text-gray-500">Schedule</div>
-								<div>{{ jobStats.schedule?.enabled ? 'Enabled' : 'Disabled' }}</div>
+					<!-- Section 2: Source -->
+					<div class="mb-5">
+						<div class="mb-3 border-b pb-2 text-sm font-semibold text-gray-800">
+							{{ 'Source' }}
+						</div>
+						<div class="grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Source Server' }}</span>
+								<span class="text-sm font-medium">{{ selectedJob.source_server || '\u2014' }}</span>
 							</div>
-							<div>
-								<div class="text-xs text-gray-500">Type</div>
-								<div>{{ jobStats.schedule?.type || '-' }}</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Source Type' }}</span>
+								<span class="text-sm font-medium">{{ selectedJob.source_type || '\u2014' }}</span>
 							</div>
-							<div>
-								<div class="text-xs text-gray-500">Time / Cron</div>
-								<div>{{ jobStats.schedule?.cron || jobStats.schedule?.time || '-' }}</div>
+							<div v-if="selectedJob.frappe_cloud_site_name" class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Frappe Cloud Site' }}</span>
+								<span class="text-sm font-medium font-mono text-xs">{{ selectedJob.frappe_cloud_site_name }}</span>
 							</div>
-							<div>
-								<div class="text-xs text-gray-500">Next Run</div>
-								<div>{{ jobStats.schedule?.next_run ? formatDetailDate(jobStats.schedule.next_run) : '-' }}</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'SSH User' }}</span>
+								<span class="text-sm font-medium font-mono">{{ selectedJob.ssh_user || '\u2014' }}</span>
+							</div>
+							<div v-if="selectedJob.exclude_patterns" class="flex items-start justify-between py-1.5 sm:col-span-2">
+								<span class="text-sm text-gray-600 shrink-0">{{ 'Exclude Patterns' }}</span>
+								<span class="text-sm font-medium font-mono text-right ml-4 max-w-[65%] break-all">{{ selectedJob.exclude_patterns }}</span>
 							</div>
 						</div>
 					</div>
 
-					<!-- Recent History -->
-					<div v-if="jobHistory?.queue_jobs?.length" class="rounded border p-3">
-						<div class="mb-2 text-sm font-medium text-gray-700">Recent Runs (Last 10)</div>
+					<!-- Section 3: Destination -->
+					<div class="mb-5">
+						<div class="mb-3 border-b pb-2 text-sm font-semibold text-gray-800">
+							{{ 'Destination' }}
+						</div>
+						<div class="grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Destination Server' }}</span>
+								<span class="text-sm font-medium">{{ selectedJob.destination_server || '\u2014' }}</span>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Destination Path' }}</span>
+								<span class="text-sm font-medium font-mono text-xs break-all">{{ selectedJob.destination_path || '\u2014' }}</span>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Encryption' }}</span>
+								<span class="flex items-center gap-1.5 text-sm font-medium">
+									<span
+										class="inline-flex h-4 w-4 items-center justify-center rounded-full text-xs text-white"
+										:class="selectedJob.encryption_enabled ? 'bg-green-500' : 'bg-gray-300'"
+									>{{ selectedJob.encryption_enabled ? '\u2713' : '\u2717' }}</span>
+									{{ selectedJob.encryption_enabled ? 'Enabled' : 'Disabled' }}
+								</span>
+							</div>
+							<div v-if="selectedJob.encryption_enabled" class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Passphrase Mode' }}</span>
+								<span class="text-sm font-medium">{{ selectedJob.passphrase_mode || '\u2014' }}</span>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Repo Initialized' }}</span>
+								<span class="flex items-center gap-1.5 text-sm font-medium">
+									<span
+										class="inline-flex h-4 w-4 items-center justify-center rounded-full text-xs text-white"
+										:class="selectedJob.repo_initialized ? 'bg-green-500' : 'bg-gray-300'"
+									>{{ selectedJob.repo_initialized ? '\u2713' : '\u2717' }}</span>
+									{{ selectedJob.repo_initialized ? 'Yes' : 'No' }}
+								</span>
+							</div>
+						</div>
+					</div>
+
+					<!-- Section 4: Settings -->
+					<div class="mb-5">
+						<div class="mb-3 border-b pb-2 text-sm font-semibold text-gray-800">
+							{{ 'Settings' }}
+						</div>
+						<div class="grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Compression Level' }}</span>
+								<span class="text-sm font-medium">{{ selectedJob.compression_level || '\u2014' }}</span>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Retention Days' }}</span>
+								<span class="text-sm font-medium">{{ selectedJob.retention_days ?? '\u2014' }}</span>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'One File System' }}</span>
+								<span class="flex items-center gap-1.5 text-sm font-medium">
+									<span
+										class="inline-flex h-4 w-4 items-center justify-center rounded-full text-xs text-white"
+										:class="selectedJob.one_file_system ? 'bg-green-500' : 'bg-gray-300'"
+									>{{ selectedJob.one_file_system ? '\u2713' : '\u2717' }}</span>
+									{{ selectedJob.one_file_system ? 'Yes' : 'No' }}
+								</span>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Exclude Caches' }}</span>
+								<span class="flex items-center gap-1.5 text-sm font-medium">
+									<span
+										class="inline-flex h-4 w-4 items-center justify-center rounded-full text-xs text-white"
+										:class="selectedJob.exclude_caches ? 'bg-green-500' : 'bg-gray-300'"
+									>{{ selectedJob.exclude_caches ? '\u2713' : '\u2717' }}</span>
+									{{ selectedJob.exclude_caches ? 'Yes' : 'No' }}
+								</span>
+							</div>
+						</div>
+					</div>
+
+					<!-- Section 5: Schedule -->
+					<div class="mb-5">
+						<div class="mb-3 border-b pb-2 text-sm font-semibold text-gray-800">
+							{{ 'Schedule' }}
+						</div>
+						<div class="grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Schedule Enabled' }}</span>
+								<Badge
+									:label="selectedJob.schedule_enabled ? 'Active' : 'Inactive'"
+									variant="subtle"
+									:theme="selectedJob.schedule_enabled ? 'green' : 'gray'"
+								/>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Schedule Type' }}</span>
+								<span class="text-sm font-medium">{{ selectedJob.schedule_type || '\u2014' }}</span>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Schedule Time / Cron' }}</span>
+								<span class="text-sm font-medium font-mono">{{ selectedJob.schedule_cron || selectedJob.schedule_time || '\u2014' }}</span>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Next Scheduled Run' }}</span>
+								<span class="text-sm font-medium">{{ formatDetailDate(selectedJob.next_scheduled_run) }}</span>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Schedule Paused' }}</span>
+								<Badge
+									v-if="selectedJob.schedule_paused"
+									:label="'Paused'"
+									variant="subtle"
+									theme="orange"
+								/>
+								<span v-else class="text-sm font-medium text-gray-400">\u2014</span>
+							</div>
+						</div>
+					</div>
+
+					<!-- Section 6: Statistics -->
+					<div class="mb-5">
+						<div class="mb-3 border-b pb-2 text-sm font-semibold text-gray-800">
+							{{ 'Statistics' }}
+						</div>
+
+						<!-- KPI cards row -->
+						<div class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+							<div class="rounded-lg border bg-gray-50 px-3 py-2.5 text-center">
+								<div class="text-xs text-gray-500">{{ 'Total Runs' }}</div>
+								<div class="mt-0.5 text-lg font-semibold">{{ selectedJob.total_runs || 0 }}</div>
+							</div>
+							<div class="rounded-lg border bg-gray-50 px-3 py-2.5 text-center">
+								<div class="text-xs text-gray-500">{{ 'Success' }}</div>
+								<div class="mt-0.5 text-lg font-semibold text-green-600">{{ selectedJob.total_success || 0 }}</div>
+							</div>
+							<div class="rounded-lg border bg-gray-50 px-3 py-2.5 text-center">
+								<div class="text-xs text-gray-500">{{ 'Failed' }}</div>
+								<div class="mt-0.5 text-lg font-semibold text-red-600">{{ selectedJob.total_failed || 0 }}</div>
+							</div>
+							<div class="rounded-lg border bg-gray-50 px-3 py-2.5 text-center">
+								<div class="text-xs text-gray-500">{{ 'Success Rate' }}</div>
+								<div
+									class="mt-0.5 text-lg font-semibold"
+									:class="successRateColorClass(selectedJob.success_rate)"
+								>
+									{{ selectedJob.success_rate != null ? `${Math.round(selectedJob.success_rate)}%` : '\u2014' }}
+								</div>
+							</div>
+						</div>
+
+						<!-- Last run detail rows -->
+						<div class="grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Last Run On' }}</span>
+								<span class="text-sm font-medium">{{ formatDetailDate(selectedJob.last_run_on) }}</span>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Last Run Status' }}</span>
+								<Badge
+									v-if="selectedJob.last_run_status"
+									:label="selectedJob.last_run_status"
+									variant="subtle"
+									:theme="lastRunStatusTheme(selectedJob.last_run_status)"
+								/>
+								<span v-else class="text-sm font-medium text-gray-400">{{ 'Never' }}</span>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Last Run Duration' }}</span>
+								<span class="text-sm font-medium">{{ formatDuration(selectedJob.last_run_duration) }}</span>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Last Backup Size' }}</span>
+								<span class="text-sm font-medium">{{ selectedJob.last_backup_size_mb ? `${selectedJob.last_backup_size_mb} MB` : '\u2014' }}</span>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Avg Backup Size' }}</span>
+								<span class="text-sm font-medium">{{ selectedJob.avg_backup_size_mb ? `${selectedJob.avg_backup_size_mb} MB` : '\u2014' }}</span>
+							</div>
+						</div>
+					</div>
+
+					<!-- Recent History (from API) -->
+					<div v-if="jobHistory?.queue_jobs?.length" class="mb-2">
+						<div class="mb-3 border-b pb-2 text-sm font-semibold text-gray-800">
+							{{ 'Recent Runs (Last 10)' }}
+						</div>
 						<div class="overflow-x-auto">
 							<table class="w-full text-sm">
 								<thead>
 									<tr class="border-b text-left text-gray-500">
-										<th class="py-1.5 pr-3 text-xs">Job ID</th>
-										<th class="py-1.5 pr-3 text-xs">Status</th>
-										<th class="py-1.5 pr-3 text-xs">Started</th>
-										<th class="py-1.5 pr-3 text-xs">Duration</th>
-										<th class="py-1.5 text-xs">Error</th>
+										<th class="py-1.5 pr-3 text-xs">{{ 'Job ID' }}</th>
+										<th class="py-1.5 pr-3 text-xs">{{ 'Status' }}</th>
+										<th class="py-1.5 pr-3 text-xs">{{ 'Started' }}</th>
+										<th class="py-1.5 pr-3 text-xs">{{ 'Duration' }}</th>
+										<th class="py-1.5 text-xs">{{ 'Error' }}</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -146,19 +330,20 @@
 										<td class="py-1.5 pr-3"><Badge :label="qj.status" size="sm" /></td>
 										<td class="py-1.5 pr-3 text-xs">{{ formatDetailDate(qj.started_at) }}</td>
 										<td class="py-1.5 pr-3 text-xs">{{ formatDuration(qj.duration_seconds) }}</td>
-										<td class="py-1.5 text-xs text-red-500 truncate max-w-[200px]">{{ qj.error_message || '-' }}</td>
+										<td class="py-1.5 text-xs text-red-500 truncate max-w-[200px]">{{ qj.error_message || '\u2014' }}</td>
 									</tr>
 								</tbody>
 							</table>
 						</div>
 					</div>
+
 				</div>
 				<div v-else class="py-8 text-center text-sm text-gray-400">
-					No details available
+					{{ 'No details available' }}
 				</div>
 			</template>
 			<template #actions>
-				<Button @click="detailDialogOpen = false">Close</Button>
+				<Button @click="detailDialogOpen = false">{{ 'Close' }}</Button>
 			</template>
 		</Dialog>
 	</div>
@@ -175,7 +360,6 @@ import {
 	setupJob,
 	listJobArchives,
 	getRepoInfo,
-	getJobStatistics,
 	getJobHistory,
 } from '../../utils/backupApi';
 
@@ -190,7 +374,6 @@ export default {
 			outputContent: '',
 			detailDialogOpen: false,
 			selectedJob: null,
-			jobStats: null,
 			jobHistory: null,
 			detailLoading: false,
 		};
@@ -200,32 +383,50 @@ export default {
 	},
 	methods: {
 		formatDetailDate(value) {
-			if (!value) return '-';
+			if (!value) return '\u2014';
 			return date(value, 'llll');
 		},
 		formatDuration(seconds) {
-			if (!seconds) return '-';
+			if (!seconds) return '\u2014';
 			if (seconds < 60) return `${seconds}s`;
 			if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 			const h = Math.floor(seconds / 3600);
 			const m = Math.floor((seconds % 3600) / 60);
 			return `${h}h ${m}m`;
 		},
+		priorityTheme(priority) {
+			const map = {
+				Critical: 'red',
+				High: 'orange',
+				Medium: 'blue',
+				Low: 'gray',
+			};
+			return map[priority] || 'gray';
+		},
+		successRateColorClass(rate) {
+			if (rate == null) return 'text-gray-400';
+			if (rate > 90) return 'text-green-600';
+			if (rate > 70) return 'text-yellow-600';
+			return 'text-red-600';
+		},
+		lastRunStatusTheme(status) {
+			const map = {
+				Success: 'green',
+				Failed: 'red',
+				Running: 'blue',
+				Queued: 'gray',
+			};
+			return map[status] || 'gray';
+		},
 		async openJobDetail(row) {
 			this.selectedJob = row;
-			this.jobStats = null;
 			this.jobHistory = null;
 			this.detailLoading = true;
 			this.detailDialogOpen = true;
 			try {
-				const [stats, history] = await Promise.all([
-					getJobStatistics(row.name),
-					getJobHistory(row.name, 10),
-				]);
-				this.jobStats = stats;
-				this.jobHistory = history;
+				this.jobHistory = await getJobHistory(row.name, 10);
 			} catch (e) {
-				this.$toast({ title: `Failed to load details: ${e.message}`, variant: 'error' });
+				// history not critical
 			} finally {
 				this.detailLoading = false;
 			}
@@ -335,10 +536,16 @@ export default {
 				doctype: 'Backup Job',
 				orderBy: 'modified desc',
 				fields: [
-					'name', 'job_title', 'client', 'enabled', 'job_type',
-					'priority', 'source_type', 'last_run_on', 'last_run_status',
+					'name', 'job_title', 'client', 'enabled', 'job_type', 'priority', 'description',
+					'source_server', 'source_type', 'frappe_cloud_site_name', 'ssh_user', 'exclude_patterns',
+					'destination_server', 'destination_path', 'encryption_enabled',
+					'passphrase_mode', 'repo_initialized',
+					'compression_level', 'retention_days', 'one_file_system', 'exclude_caches',
+					'schedule_enabled', 'schedule_type', 'schedule_time', 'schedule_cron',
+					'next_scheduled_run', 'schedule_paused',
+					'last_run_on', 'last_run_status', 'last_run_duration',
 					'total_runs', 'total_success', 'total_failed', 'success_rate',
-					'schedule_enabled',
+					'last_backup_size_mb', 'avg_backup_size_mb',
 				],
 				columns: [
 					{ label: 'Job Title', fieldname: 'job_title', width: 1 },
@@ -394,43 +601,40 @@ export default {
 						fieldname: 'enabled',
 					},
 				],
-				rowActions: ({ row }) => {
-					const actions = [
-						{
-							label: 'Run Now',
-							onClick: () => this.doRun(row.name, 'run'),
-						},
-						{
-							label: 'Dry Run',
-							onClick: () => this.doRun(row.name, 'dry-run'),
-						},
-						{
-							label: 'Check Repo',
-							onClick: () => this.doRun(row.name, 'check'),
-						},
-						{
-							label: row.enabled ? 'Disable' : 'Enable',
-							onClick: () => this.doToggleEnabled(row.name, row.enabled),
-						},
-						{
-							label: row.schedule_enabled ? 'Pause Schedule' : 'Resume Schedule',
-							onClick: () => this.doToggleSchedule(row.name),
-						},
-						{
-							label: 'Setup / Init',
-							onClick: () => this.doSetup(row.name),
-						},
-						{
-							label: 'List Archives',
-							onClick: () => this.doListArchives(row.name),
-						},
-						{
-							label: 'Repo Info',
-							onClick: () => this.doRepoInfo(row.name),
-						},
-					];
-					return actions;
-				},
+				rowActions: ({ row }) => [
+					{
+						label: 'Run Now',
+						onClick: () => this.doRun(row.name, 'run'),
+					},
+					{
+						label: 'Dry Run',
+						onClick: () => this.doRun(row.name, 'dry-run'),
+					},
+					{
+						label: 'Check Repo',
+						onClick: () => this.doRun(row.name, 'check'),
+					},
+					{
+						label: row.enabled ? 'Disable' : 'Enable',
+						onClick: () => this.doToggleEnabled(row.name, row.enabled),
+					},
+					{
+						label: row.schedule_enabled ? 'Pause Schedule' : 'Resume Schedule',
+						onClick: () => this.doToggleSchedule(row.name),
+					},
+					{
+						label: 'Setup / Init',
+						onClick: () => this.doSetup(row.name),
+					},
+					{
+						label: 'List Archives',
+						onClick: () => this.doListArchives(row.name),
+					},
+					{
+						label: 'Repo Info',
+						onClick: () => this.doRepoInfo(row.name),
+					},
+				],
 			};
 		},
 	},

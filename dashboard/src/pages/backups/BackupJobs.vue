@@ -3,7 +3,7 @@
 		<div class="sticky top-0 z-10 shrink-0">
 			<Header>
 				<Breadcrumbs
-					:items="[{ label: 'Backup Jobs', route: '/backups/jobs' }]"
+					:items="[{ label: 'Daman Job Queue', route: '/backups/jobs' }]"
 				/>
 				<template #actions>
 					<Button variant="solid" @click="showRunDialog">
@@ -91,113 +91,181 @@
 			</template>
 		</Dialog>
 
-		<!-- Job Detail Dialog -->
-		<Dialog v-model="detailDialogOpen" :options="{ title: selectedJob?.job_id || 'Job Details', size: 'lg' }">
+		<!-- Job Detail Dialog (Enriched) -->
+		<Dialog v-model="detailDialogOpen" :options="{ title: selectedJob?.job_id || 'Job Details', size: 'xl' }">
 			<template #body-content>
-				<div v-if="selectedJob" class="space-y-4">
-					<!-- Status & Identity -->
-					<div class="grid grid-cols-2 gap-4">
-						<div>
-							<div class="text-xs text-gray-500">Status</div>
-							<Badge :label="selectedJob.status" />
-						</div>
-						<div>
-							<div class="text-xs text-gray-500">Priority</div>
-							<div class="text-sm font-medium">{{ selectedJob.priority || '-' }}</div>
-						</div>
-						<div>
-							<div class="text-xs text-gray-500">Client</div>
-							<div class="text-sm font-medium">{{ selectedJob.client || '-' }}</div>
-						</div>
-						<div>
-							<div class="text-xs text-gray-500">Mode</div>
-							<div class="text-sm font-medium">{{ selectedJob.mode || '-' }}</div>
-						</div>
-					</div>
+				<div v-if="selectedJob" class="max-h-[70vh] overflow-y-auto pr-1">
 
-					<!-- Progress -->
-					<div v-if="selectedJob.status === 'Running'" class="rounded border p-3">
-						<div class="mb-1 flex justify-between text-sm">
-							<span class="text-gray-500">Progress</span>
-							<span>{{ Math.round(selectedJob.progress_percent || 0) }}%</span>
-						</div>
-						<div class="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-							<div
-								class="h-full rounded-full bg-blue-500 transition-all"
-								:style="{ width: `${selectedJob.progress_percent || 0}%` }"
-							></div>
-						</div>
-						<div v-if="selectedJob.current_phase" class="mt-1 text-xs text-gray-500">
-							Phase: {{ selectedJob.current_phase }}
-						</div>
-					</div>
-
-					<!-- Timing -->
-					<div class="rounded border p-3">
-						<div class="mb-2 text-sm font-medium text-gray-700">Timing</div>
-						<div class="grid grid-cols-2 gap-3 text-sm">
-							<div>
-								<div class="text-xs text-gray-500">Queued At</div>
-								<div>{{ formatDetailDate(selectedJob.queued_at) }}</div>
+					<!-- Section 1: Identity -->
+					<div class="mb-4 rounded-md border border-gray-200 p-4">
+						<h4 class="mb-3 text-sm font-semibold text-gray-800">{{ 'Identity' }}</h4>
+						<div class="divide-y divide-gray-100">
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Job ID' }}</span>
+								<span class="text-sm font-medium font-mono">{{ selectedJob.job_id || '\u2014' }}</span>
 							</div>
-							<div>
-								<div class="text-xs text-gray-500">Started At</div>
-								<div>{{ formatDetailDate(selectedJob.started_at) }}</div>
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Backup Job' }}</span>
+								<span class="text-sm font-medium">{{ selectedJob.job_name || '\u2014' }}</span>
 							</div>
-							<div>
-								<div class="text-xs text-gray-500">Finished At</div>
-								<div>{{ formatDetailDate(selectedJob.finished_at) }}</div>
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Client' }}</span>
+								<span class="text-sm font-medium">{{ selectedJob.client || '\u2014' }}</span>
 							</div>
-							<div>
-								<div class="text-xs text-gray-500">Duration</div>
-								<div>{{ formatDuration(selectedJob.duration_seconds) }}</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Mode' }}</span>
+								<Badge v-if="selectedJob.mode" :label="selectedJob.mode" variant="subtle" theme="blue" />
+								<span v-else class="text-sm font-medium">&mdash;</span>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Priority' }}</span>
+								<Badge v-if="selectedJob.priority" :label="selectedJob.priority" variant="subtle" :theme="priorityTheme(selectedJob.priority)" />
+								<span v-else class="text-sm font-medium">&mdash;</span>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Status' }}</span>
+								<Badge v-if="selectedJob.status" :label="selectedJob.status" :theme="statusTheme(selectedJob.status)" />
+								<span v-else class="text-sm font-medium">&mdash;</span>
 							</div>
 						</div>
 					</div>
 
-					<!-- Error Message -->
-					<div v-if="selectedJob.error_message" class="rounded border border-red-200 bg-red-50 p-3">
-						<div class="mb-1 text-sm font-medium text-red-700">Error</div>
-						<pre class="whitespace-pre-wrap text-xs text-red-600">{{ selectedJob.error_message }}</pre>
+					<!-- Section 2: Progress -->
+					<div class="mb-4 rounded-md border border-gray-200 p-4">
+						<h4 class="mb-3 text-sm font-semibold text-gray-800">{{ 'Progress' }}</h4>
+						<div class="divide-y divide-gray-100">
+							<div class="py-1.5">
+								<div class="mb-1 flex justify-between text-sm">
+									<span class="text-gray-600">{{ 'Progress' }}</span>
+									<span class="font-medium">{{ Math.round(selectedJob.progress_percent || 0) }}%</span>
+								</div>
+								<div class="h-2.5 w-full overflow-hidden rounded-full bg-gray-200">
+									<div
+										class="h-full rounded-full transition-all duration-300"
+										:class="progressBarColor(selectedJob.status, selectedJob.progress_percent)"
+										:style="{ width: `${selectedJob.progress_percent || 0}%` }"
+									></div>
+								</div>
+							</div>
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Progress Message' }}</span>
+								<span class="text-sm font-medium text-right max-w-[60%]">{{ selectedJob.progress_message || '\u2014' }}</span>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Current Phase' }}</span>
+								<Badge v-if="selectedJob.current_phase" :label="selectedJob.current_phase" variant="subtle" theme="orange" />
+								<span v-else class="text-sm font-medium">&mdash;</span>
+							</div>
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Files Processed' }}</span>
+								<span class="text-sm font-medium">{{ selectedJob.files_processed ? selectedJob.files_processed.toLocaleString() : '\u2014' }}</span>
+							</div>
+						</div>
 					</div>
 
-					<!-- Worker Info -->
-					<div v-if="selectedJob.worker_name" class="rounded border p-3">
-						<div class="mb-2 text-sm font-medium text-gray-700">Worker</div>
-						<div class="grid grid-cols-3 gap-3 text-sm">
-							<div>
-								<div class="text-xs text-gray-500">Worker</div>
-								<div>{{ selectedJob.worker_name || '-' }}</div>
+					<!-- Section 3: Timing -->
+					<div class="mb-4 rounded-md border border-gray-200 p-4">
+						<h4 class="mb-3 text-sm font-semibold text-gray-800">{{ 'Timing' }}</h4>
+						<div class="divide-y divide-gray-100">
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Queued At' }}</span>
+								<span class="text-sm font-medium">{{ formatDetailDate(selectedJob.queued_at) }}</span>
 							</div>
-							<div>
-								<div class="text-xs text-gray-500">PID</div>
-								<div>{{ selectedJob.worker_pid || '-' }}</div>
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Started At' }}</span>
+								<span class="text-sm font-medium">{{ formatDetailDate(selectedJob.started_at) }}</span>
 							</div>
-							<div>
-								<div class="text-xs text-gray-500">Queue</div>
-								<div>{{ selectedJob.queue_name || '-' }}</div>
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Finished At' }}</span>
+								<span class="text-sm font-medium">{{ formatDetailDate(selectedJob.finished_at) }}</span>
+							</div>
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Duration' }}</span>
+								<span class="text-sm font-medium">{{ formatDuration(selectedJob.duration_seconds) }}</span>
+							</div>
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Queue Wait' }}</span>
+								<span class="text-sm font-medium">{{ formatDuration(selectedJob.queue_wait_seconds) }}</span>
 							</div>
 						</div>
 					</div>
 
-					<!-- Retry Info -->
-					<div v-if="selectedJob.retry_count > 0" class="rounded border p-3">
-						<div class="mb-2 text-sm font-medium text-gray-700">Retry Info</div>
-						<div class="grid grid-cols-3 gap-3 text-sm">
-							<div>
-								<div class="text-xs text-gray-500">Retries</div>
-								<div>{{ selectedJob.retry_count }} / {{ selectedJob.max_retries }}</div>
+					<!-- Section 4: Worker -->
+					<div class="mb-4 rounded-md border border-gray-200 p-4">
+						<h4 class="mb-3 text-sm font-semibold text-gray-800">{{ 'Worker' }}</h4>
+						<div class="divide-y divide-gray-100">
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Worker Name' }}</span>
+								<span class="text-sm font-medium">{{ selectedJob.worker_name || '\u2014' }}</span>
 							</div>
-							<div>
-								<div class="text-xs text-gray-500">Next Retry</div>
-								<div>{{ formatDetailDate(selectedJob.next_retry_at) }}</div>
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Worker PID' }}</span>
+								<span class="text-sm font-medium font-mono">{{ selectedJob.worker_pid || '\u2014' }}</span>
 							</div>
-							<div>
-								<div class="text-xs text-gray-500">Exit Code</div>
-								<div>{{ selectedJob.exit_code ?? '-' }}</div>
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Queue Name' }}</span>
+								<span class="text-sm font-medium">{{ selectedJob.queue_name || '\u2014' }}</span>
+							</div>
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'RQ Job ID' }}</span>
+								<span class="text-sm font-medium font-mono truncate max-w-[60%]" :title="selectedJob.rq_job_id">{{ selectedJob.rq_job_id || '\u2014' }}</span>
 							</div>
 						</div>
 					</div>
+
+					<!-- Section 5: Retry -->
+					<div class="mb-4 rounded-md border border-gray-200 p-4">
+						<h4 class="mb-3 text-sm font-semibold text-gray-800">{{ 'Retry' }}</h4>
+						<div class="divide-y divide-gray-100">
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Retry Count' }}</span>
+								<span class="text-sm font-medium">{{ (selectedJob.retry_count || 0) }} / {{ (selectedJob.max_retries || 0) }}</span>
+							</div>
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Next Retry At' }}</span>
+								<span class="text-sm font-medium">{{ formatDetailDate(selectedJob.next_retry_at) }}</span>
+							</div>
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Triggered By' }}</span>
+								<span class="text-sm font-medium">{{ selectedJob.triggered_by || '\u2014' }}</span>
+							</div>
+							<div class="flex items-center justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Triggered Method' }}</span>
+								<Badge v-if="selectedJob.triggered_method" :label="selectedJob.triggered_method" variant="subtle" theme="gray" />
+								<span v-else class="text-sm font-medium">&mdash;</span>
+							</div>
+						</div>
+					</div>
+
+					<!-- Section 6: Result -->
+					<div class="rounded-md border border-gray-200 p-4">
+						<h4 class="mb-3 text-sm font-semibold text-gray-800">{{ 'Result' }}</h4>
+						<div class="divide-y divide-gray-100">
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Exit Code' }}</span>
+								<span class="text-sm font-medium font-mono" :class="exitCodeClass(selectedJob.exit_code)">{{ selectedJob.exit_code ?? '\u2014' }}</span>
+							</div>
+							<div class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Run Log' }}</span>
+								<a
+									v-if="selectedJob.run_log"
+									:href="`/app/backup-run-log/${selectedJob.run_log}`"
+									target="_blank"
+									class="text-sm font-medium text-blue-600 hover:underline"
+								>{{ selectedJob.run_log }}</a>
+								<span v-else class="text-sm font-medium">&mdash;</span>
+							</div>
+							<div v-if="selectedJob.error_message" class="py-1.5">
+								<div class="mb-1 text-sm text-gray-600">{{ 'Error Message' }}</div>
+								<pre class="error-message-block">{{ selectedJob.error_message }}</pre>
+							</div>
+							<div v-else class="flex justify-between py-1.5">
+								<span class="text-sm text-gray-600">{{ 'Error Message' }}</span>
+								<span class="text-sm font-medium">&mdash;</span>
+							</div>
+						</div>
+					</div>
+
 				</div>
 			</template>
 			<template #actions>
@@ -207,9 +275,9 @@
 						variant="subtle"
 						@click="detailDialogOpen = false; showProgress(selectedJob.name)"
 					>
-						Live Progress
+						{{ 'Live Progress' }}
 					</Button>
-					<Button @click="detailDialogOpen = false">Close</Button>
+					<Button @click="detailDialogOpen = false">{{ 'Close' }}</Button>
 				</div>
 			</template>
 		</Dialog>
@@ -225,7 +293,6 @@ import {
 	cancelJob,
 	retryJob,
 	forceCompleteJob,
-	getJobProgress,
 } from '../../utils/backupApi';
 
 export default {
@@ -239,25 +306,56 @@ export default {
 			jobOptions: [],
 			progressDialogOpen: false,
 			progressData: {},
-			progressTimer: null,
 			progressQueueName: null,
-			progressGeneration: 0,
 			detailDialogOpen: false,
 			selectedJob: null,
 		};
 	},
 	methods: {
 		formatDetailDate(value) {
-			if (!value) return '-';
+			if (!value) return '\u2014';
 			return date(value, 'llll');
 		},
 		formatDuration(seconds) {
-			if (!seconds) return '-';
-			if (seconds < 60) return `${seconds}s`;
-			if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
-			const h = Math.floor(seconds / 3600);
-			const m = Math.floor((seconds % 3600) / 60);
-			return `${h}h ${m}m`;
+			if (seconds == null || seconds === '' || seconds === 0) return '\u2014';
+			const s = Math.round(seconds);
+			if (s < 60) return `${s}s`;
+			const h = Math.floor(s / 3600);
+			const m = Math.floor((s % 3600) / 60);
+			const rem = s % 60;
+			if (h > 0) return `${h}h ${m}m ${rem}s`;
+			return `${m}m ${rem}s`;
+		},
+		statusTheme(status) {
+			const map = {
+				Success: 'green',
+				Running: 'blue',
+				Queued: 'gray',
+				Failed: 'red',
+				Cancelled: 'orange',
+			};
+			return map[status] || 'gray';
+		},
+		priorityTheme(priority) {
+			const map = {
+				Critical: 'red',
+				High: 'orange',
+				Normal: 'blue',
+				Low: 'gray',
+			};
+			return map[priority] || 'gray';
+		},
+		progressBarColor(status, percent) {
+			if (status === 'Failed') return 'bg-red-500';
+			if (status === 'Cancelled') return 'bg-orange-400';
+			if (status === 'Success') return 'bg-green-500';
+			if (percent >= 80) return 'bg-green-500';
+			if (percent >= 40) return 'bg-blue-500';
+			return 'bg-blue-400';
+		},
+		exitCodeClass(code) {
+			if (code == null) return '';
+			return code === 0 ? 'text-green-600' : 'text-red-600';
 		},
 		async showRunDialog() {
 			try {
@@ -343,34 +441,32 @@ export default {
 			}
 		},
 		showProgress(name) {
-			this.stopPolling();
 			this.progressQueueName = name;
 			this.progressData = {};
-			this.progressGeneration++;
 			this.progressDialogOpen = true;
-			this.pollProgress(this.progressGeneration);
 		},
-		async pollProgress(gen) {
-			if (!this.progressQueueName || gen !== this.progressGeneration) return;
-			try {
-				this.progressData = await getJobProgress(this.progressQueueName);
-			} catch (e) {
-				this.progressData = { status: 'Error', progress_percent: 0, progress_message: e.message };
-				return;
-			}
-			if (this.progressDialogOpen && gen === this.progressGeneration && this.progressData.status === 'Running') {
-				this.progressTimer = setTimeout(() => this.pollProgress(gen), 3000);
-			}
-		},
+		
 		stopPolling() {
-			if (this.progressTimer) clearTimeout(this.progressTimer);
-			this.progressTimer = null;
-			this.progressGeneration++;
 			this.progressDialogOpen = false;
 		},
 	},
+	mounted() {
+		this.$socket.on('backup_job_progress', (data) => {
+			if (this.progressQueueName === data.job_name && this.progressDialogOpen) {
+				this.progressData = { ...this.progressData, ...data };
+			}
+		});
+		this.$socket.on('backup_job_completed', () => {
+			this.reloadList();
+		});
+		this.$socket.on('backup_job_failed', () => {
+			this.reloadList();
+		});
+	},
 	beforeUnmount() {
-		if (this.progressTimer) clearTimeout(this.progressTimer);
+		this.$socket.off('backup_job_progress');
+		this.$socket.off('backup_job_completed');
+		this.$socket.off('backup_job_failed');
 	},
 	computed: {
 		listOptions() {
@@ -382,9 +478,10 @@ export default {
 					'status', 'progress_percent', 'progress_message', 'current_phase',
 					'files_processed', 'queued_at', 'started_at', 'finished_at',
 					'duration_seconds', 'queue_wait_seconds',
-					'worker_name', 'worker_pid', 'queue_name',
+					'worker_name', 'worker_pid', 'queue_name', 'rq_job_id',
 					'retry_count', 'max_retries', 'next_retry_at',
-					'error_message', 'exit_code', 'triggered_by', 'triggered_method',
+					'error_message', 'exit_code', 'run_log',
+					'triggered_by', 'triggered_method',
 				],
 				columns: [
 					{ label: 'Job ID', fieldname: 'job_id', width: 0.6 },
@@ -468,3 +565,20 @@ export default {
 	},
 };
 </script>
+
+<style scoped>
+.error-message-block {
+	max-height: 200px;
+	overflow-y: auto;
+	white-space: pre-wrap;
+	word-break: break-word;
+	font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+	font-size: 0.75rem;
+	line-height: 1.5;
+	padding: 0.75rem;
+	border-radius: 0.375rem;
+	background-color: #fef2f2;
+	border: 1px solid #fecaca;
+	color: #dc2626;
+}
+</style>

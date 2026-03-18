@@ -29,10 +29,14 @@ import Bell from '~icons/lucide/bell';
 import ListOrdered from '~icons/lucide/list-ordered';
 import LayoutDashboard from '~icons/lucide/layout-dashboard';
 import PlayCircle from '~icons/lucide/play-circle';
+import Users from '~icons/lucide/users';
 import { unreadNotificationsCount } from '../data/notifications';
 
 export default {
 	name: 'NavigationItems',
+	data() {
+		return { backupRunning: false };
+	},
 	computed: {
 		navigation() {
 			if (!this.$team?.doc) return [];
@@ -142,7 +146,7 @@ export default {
 					disabled: enforce2FA,
 				},
 				{
-					name: 'Daman Backup',
+					name: this.backupRunning ? 'Daman Backup …' : 'Daman Backup',
 					icon: () => h(HardDrive),
 					route: '/backups/overview',
 					condition: onboardingComplete && !isSaasUser,
@@ -173,13 +177,25 @@ export default {
 							isActive: routeName === 'Daman Backup Servers',
 						},
 						{
+							name: 'Clients',
+							icon: () => h(Users),
+							route: '/backups/clients',
+							isActive: routeName === 'Daman Clients' || routeName === 'Daman Client Detail',
+						},
+						{
+							name: 'Run Log',
+							icon: () => h(Logs),
+							route: '/backups/run-log',
+							isActive: routeName === 'Daman Run Log',
+						},
+						{
 							name: 'Alerts',
 							icon: () => h(Bell),
 							route: '/backups/alerts',
 							isActive: routeName === 'Daman Backup Alerts',
 						},
 					],
-					isActive: ['Daman Overview', 'Daman Backup Jobs', 'Daman Job Queue', 'Daman Backup Servers', 'Daman Backup Alerts'].includes(routeName),
+					isActive: ['Daman Overview', 'Daman Backup Jobs', 'Daman Job Queue', 'Daman Backup Servers', 'Daman Clients', 'Daman Client Detail', 'Daman Run Log', 'Daman Backup Alerts'].includes(routeName),
 				},
 				{
 					name: 'Dev Tools',
@@ -280,9 +296,15 @@ export default {
 				unreadNotificationsCount.setData((data) => data + 1);
 			}
 		});
+		this.$socket.on('backup_job_started', () => { this.backupRunning = true; });
+		this.$socket.on('backup_job_completed', () => { this.backupRunning = false; });
+		this.$socket.on('backup_job_failed', () => { this.backupRunning = false; });
 	},
 	unmounted() {
 		this.$socket.off('press_notification');
+		this.$socket.off('backup_job_started');
+		this.$socket.off('backup_job_completed');
+		this.$socket.off('backup_job_failed');
 	},
 };
 </script>

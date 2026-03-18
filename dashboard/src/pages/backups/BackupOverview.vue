@@ -3,7 +3,7 @@
 		<div class="sticky top-0 z-10 shrink-0">
 			<Header>
 				<Breadcrumbs
-					:items="[{ label: 'Backup Overview', route: '/backups/overview' }]"
+					:items="[{ label: 'Daman Overview', route: '/backups/overview' }]"
 				/>
 				<template #actions>
 					<Button variant="solid" @click="showRunDialog">
@@ -183,7 +183,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted, getCurrentInstance } from 'vue';
 import { Badge, Button, Dialog, FormControl } from 'frappe-ui';
 import { date as formatDateUtil } from '../../utils/format';
 import { runBackupJob } from '../../utils/backupApi';
@@ -287,5 +287,19 @@ async function executeRun() {
 
 onMounted(() => {
 	fetchOverview();
+
+	const socket = getCurrentInstance()?.proxy?.$socket;
+	if (socket) {
+		socket.on('backup_job_completed', () => fetchOverview());
+		socket.on('backup_job_failed', () => fetchOverview());
+	}
+});
+
+onUnmounted(() => {
+	const socket = getCurrentInstance()?.proxy?.$socket;
+	if (socket) {
+		socket.off('backup_job_completed');
+		socket.off('backup_job_failed');
+	}
 });
 </script>

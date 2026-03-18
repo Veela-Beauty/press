@@ -100,9 +100,12 @@ ALLOWED_DOCTYPES = [
 	"Backup Job Queue",
 	"Backup Client",
 	"Backup Alert Rule",
+	"Backup Alert",
 	"Backup Job",
 	"Backup Run Log",
 	"Backup Server",
+	"Backup Settings",
+	"Server Provider",
 ]
 
 whitelisted_methods = set()

@@ -460,6 +460,24 @@ let router = createRouter({
 			props: true,
 		},
 		{
+			path: '/backups/clients',
+			name: 'Daman Clients',
+			component: () => import('./pages/backups/BackupClients.vue'),
+			props: true,
+		},
+		{
+			path: '/backups/clients/:clientName',
+			name: 'Daman Client Detail',
+			component: () => import('./pages/backups/BackupClientDetail.vue'),
+			props: true,
+		},
+		{
+			path: '/backups/run-log',
+			name: 'Daman Run Log',
+			component: () => import('./pages/backups/BackupRunLog.vue'),
+			props: true,
+		},
+		{
 			path: '/backups/alerts',
 			name: 'Daman Backup Alerts',
 			component: () => import('./pages/backups/BackupAlerts.vue'),

@@ -174,17 +174,27 @@ Unified dashboard with three sections:
 
 Action buttons: Run All Backups, Cancel (queued/running), Retry (failed)
 
-### ServerBackups.vue (~167 lines)
+### ServerBackups.vue (~250 lines)
 
-ObjectList of all backup servers. Row actions:
-- **Run Backup**: triggers backup for all clients on that server
-- **Check Health**: runs health check (repo integrity, storage)
+ObjectList of all backup servers. Click row to open enriched detail dialog with 6 sections:
+- **Identity**: name, type, status badge
+- **Source**: server details, path
+- **Destination**: target storage info
+- **Settings**: retention, compression, encryption
+- **Schedule**: frequency, next run
+- **Statistics**: success rate (color-coded), last run status, total backups
 
-### BackupJobs.vue (~127 lines)
+### BackupJobs.vue (~250 lines)
 
-ObjectList of job queue entries. Row actions based on status:
-- Queued/Running: **Cancel**
-- Failed/Cancelled: **Retry**
+ObjectList of job queue entries with websocket realtime updates (no polling). Click row for enriched detail dialog with 6 sections:
+- **Identity**: job name, client, status badge
+- **Progress**: animated progress bar with percentage
+- **Timing**: started, completed, duration
+- **Worker**: worker ID, retry count
+- **Retry**: retry config, max attempts
+- **Result**: scrollable error output (if failed)
+
+Row actions based on status: Queued/Running -> Cancel, Failed/Cancelled -> Retry
 
 ### BackupAlerts.vue (~292 lines)
 
@@ -193,15 +203,44 @@ Full CRUD page with Dialog for create/edit:
 - Row actions: Edit, Enable/Disable toggle, Delete
 - Uses frappe-ui `Dialog`, `FormControl`, `Button`
 
-### Navigation
+### BackupClients.vue
 
-Added to `NavigationItems.vue` under "Backups" group:
-- Backup Overview (`/backups/overview`)
-- Server Backups (`/backups/server-backups`)
-- Backup Jobs (`/backups/jobs`)
-- Backup Alerts (`/backups/alerts`)
+Client list page with summary cards:
+- **Summary cards**: Total / Healthy / Warning / Critical client counts
+- **ObjectList**: All backup clients with health status, last backup time
+- **Row click**: Navigates to client detail page
+- Calls `press_api.get_clients_list()`
 
-Routes defined in `router.js`.
+### BackupClientDetail.vue
+
+Rich client portal with 5 tabs:
+- **Overview**: Client config, health indicators, last backup summary
+- **Jobs**: Recent backup jobs for this client
+- **History**: Full job history with filters
+- **Servers**: Linked backup servers
+- **Alerts**: Active alerts for this client
+- Calls `press_api.get_client_portal(clientName)`
+
+### BackupRunLog.vue
+
+Two-tab execution history page:
+- **History tab**: Filterable ObjectList of all run log entries
+- **Analytics tab**: 30-day trend charts (success/fail), summary statistics
+- Calls `press_api.get_run_log_list(filters)` and `press_api.get_run_log_analytics()`
+
+### Navigation (Sidebar)
+
+Daman Backup is a **top-level collapsible section** in the sidebar (not nested under Backups). Uses `AppSidebarItemGroup` with chevron expand/collapse:
+
+- Overview (`/backups/overview`)
+- Backup Jobs (`/backups/servers`)
+- Job Queue (`/backups/jobs`)
+- Backup Servers (`/backups/backup-servers`)
+- Clients (`/backups/clients`)
+- Run Log (`/backups/run-log`)
+- Alerts (`/backups/alerts`)
+
+Routes defined in `router.js`. Navigation in `NavigationItems.vue`.
 
 ---
 
@@ -241,6 +280,36 @@ bench run-tests --app daman_backup
 
 ---
 
+## Websocket Realtime Events
+
+The dashboard uses websocket events (via `frappe.publish_realtime`) instead of polling for live updates:
+
+| Event | Emitted When | Consumed By |
+|-------|-------------|-------------|
+| `backup_job_started` | Job status changes to Running | BackupJobs.vue, BackupOverview.vue |
+| `backup_job_completed` | Job finishes successfully | BackupJobs.vue, BackupOverview.vue |
+| `backup_job_failed` | Job fails | BackupJobs.vue, BackupOverview.vue |
+| `backup_job_progress` | Progress update during job | BackupJobs.vue (detail dialog) |
+
+Frontend subscribes via `this.$socket.on('event_name', handler)` in `mounted()` and cleans up in `unmounted()`.
+
+---
+
+## Storage Handler Architecture
+
+Borgmatic is the sole execution engine. Storage handlers provide pre/post operations for different storage backends:
+
+| Handler | Backend | Status |
+|---------|---------|--------|
+| `BaseStorageHandler` | Abstract base class | 6 abstract methods |
+| `SSHHandler` | Remote SSH servers | Implemented |
+| `OSSHandler` | Alibaba Cloud OSS | Implemented |
+| `GitHubHandler` | GitHub releases | Implemented |
+
+Abstract methods: `prepare()`, `verify()`, `sync_to()`, `sync_from()`, `cleanup()`, `get_storage_info()`
+
+---
+
 ## Key Decisions
 
 1. **Separate `press_api.py`** instead of adding to `backup_api.py` (already >1000 lines)
@@ -255,5 +324,6 @@ bench run-tests --app daman_backup
 
 - `backup_api.py` is 1149 lines -- needs splitting into queue, stats, and legacy modules
 - Vue pages use `fetch()` -- should migrate to `createResource` for loading states
-- BackupOverview needs auto-refresh for live monitoring
 - No end-to-end test with actual BorgBackup execution
+- Chunked upload has no resume-on-reconnect (must restart if connection drops mid-upload)
+- Upload temp chunks not auto-cleaned if user abandons upload (needs scheduled cleanup)

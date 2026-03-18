@@ -15,6 +15,7 @@ Enhanced fork of Frappe Press by Accurate Systems — enterprise capabilities, C
 ### 02 — Frontend Development
 - [Dashboard Customization Guide](02-frontend-development/rebrand-guide.md) — All customized files, design tokens, how to modify
 - [UI Style Guide](02-frontend-development/ui-style-guide.md) — Colors, typography, component patterns
+- [Site Restore & Upload System](02-frontend-development/site-restore-upload.md) — Direct/chunked upload, S3 fallback, progress tracking
 
 ### 03 — Backup Integration
 - [Backup Integration Guide](03-backup-integration/overview.md) — How daman_backup works: architecture, DocTypes, API, dashboard pages, scheduler, tests

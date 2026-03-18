@@ -2258,6 +2258,232 @@ def uploaded_backup_info(file=None, path=None, type=None, size=None, url=None):
 	return doc.name
 
 
+
+
+@frappe.whitelist()
+def is_s3_configured():
+	"""Check if S3 credentials are configured for backup uploads."""
+	try:
+		from frappe.utils.password import get_decrypted_password
+		access_key = frappe.db.get_single_value("Press Settings", "remote_access_key_id")
+		secret_key = get_decrypted_password("Press Settings", "Press Settings", "remote_secret_access_key")
+		bucket = frappe.db.get_single_value("Press Settings", "remote_uploads_bucket")
+		return bool(access_key and secret_key and bucket)
+	except (frappe.exceptions.ValidationError, Exception):
+		return False
+
+
+@frappe.whitelist()
+def upload_backup_file():
+	"""Direct file upload endpoint for backup restore (no S3 required).
+	Accepts multipart file upload, stores on server, creates Remote File record.
+	"""
+	import os
+	import re
+	from frappe.utils import get_files_path
+
+	if not frappe.has_permission("Site", "write"):
+		frappe.throw("Not permitted", frappe.PermissionError)
+
+	filedata = frappe.request.files.get("file")
+	if not filedata:
+		frappe.throw("No file uploaded")
+
+	file_name = filedata.filename
+	# Server-side size limit (5 GiB) — matches client-side check
+	max_size = 5 * 1024 * 1024 * 1024
+	content_length = frappe.request.content_length or 0
+	if content_length > max_size:
+		frappe.throw(f"File too large ({content_length} bytes). Maximum is 5 GiB.")
+	file_type = frappe.form_dict.get("type", filedata.content_type or "application/octet-stream")
+
+	# Generate unique path
+	import uuid
+	file_hash = uuid.uuid4().hex[:10]
+	upload_dir = os.path.join(get_files_path(is_private=True), "backup_uploads")
+	os.makedirs(upload_dir, exist_ok=True)
+
+	safe_name = re.sub(r"[^a-zA-Z0-9._-]", "_", file_name)
+	file_path = os.path.join(upload_dir, f"{file_hash}-{safe_name}")
+
+	# Stream to disk (handles large files without loading into memory)
+	with open(file_path, "wb") as f:
+		while True:
+			chunk = filedata.stream.read(8192 * 1024)  # 8MB chunks
+			if not chunk:
+				break
+			f.write(chunk)
+
+	file_size = os.path.getsize(file_path)
+
+	# Create Remote File record (same as uploaded_backup_info)
+	from frappe.desk.doctype.tag.tag import add_tag
+
+	doc = frappe.get_doc({
+		"doctype": "Remote File",
+		"file_name": file_name,
+		"file_type": file_type,
+		"file_size": file_size,
+		"file_path": file_path,
+		"url": f"/private/files/backup_uploads/{file_hash}-{safe_name}",
+	}).insert()
+	add_tag("Site Upload", doc.doctype, doc.name)
+
+	return doc.name
+
+
+
+
+@frappe.whitelist()
+def init_chunked_upload(file_name, file_size, file_type=None):
+	"""Initialize a chunked upload session. Returns an upload_id for subsequent chunks."""
+	import os
+	import re
+	import uuid
+	from frappe.utils import get_files_path
+
+	if not frappe.has_permission("Site", "write"):
+		frappe.throw("Not permitted", frappe.PermissionError)
+
+	file_size = int(file_size)
+	max_size = 100 * 1024 * 1024 * 1024  # 100 GiB hard limit
+	if file_size > max_size:
+		frappe.throw(f"File too large. Maximum is 100 GiB.")
+
+	upload_id = uuid.uuid4().hex
+	upload_dir = os.path.join(get_files_path(is_private=True), "backup_uploads", upload_id)
+	os.makedirs(upload_dir, exist_ok=True)
+
+	safe_name = re.sub(r"[^a-zA-Z0-9._-]", "_", file_name)
+
+	# Store session metadata
+	meta = {
+		"file_name": file_name,
+		"safe_name": safe_name,
+		"file_size": file_size,
+		"file_type": file_type or "application/octet-stream",
+		"chunks_received": 0,
+		"bytes_received": 0,
+	}
+	import json
+	with open(os.path.join(upload_dir, "meta.json"), "w") as f:
+		json.dump(meta, f)
+
+	return {"upload_id": upload_id, "chunk_size": 50 * 1024 * 1024}  # 50MB chunks
+
+
+@frappe.whitelist()
+def upload_chunk():
+	"""Upload a single chunk. Expects: upload_id, chunk_index, file (multipart)."""
+	import os
+	import json
+	from frappe.utils import get_files_path
+
+	if not frappe.has_permission("Site", "write"):
+		frappe.throw("Not permitted", frappe.PermissionError)
+
+	upload_id = frappe.form_dict.get("upload_id")
+	chunk_index = int(frappe.form_dict.get("chunk_index", 0))
+
+	if not upload_id or not upload_id.isalnum():
+		frappe.throw("Invalid upload_id")
+
+	upload_dir = os.path.join(get_files_path(is_private=True), "backup_uploads", upload_id)
+	meta_path = os.path.join(upload_dir, "meta.json")
+	if not os.path.exists(meta_path):
+		frappe.throw("Upload session not found or expired")
+
+	filedata = frappe.request.files.get("file")
+	if not filedata:
+		frappe.throw("No chunk data")
+
+	# Write chunk to disk
+	chunk_path = os.path.join(upload_dir, f"chunk_{chunk_index:06d}")
+	with open(chunk_path, "wb") as f:
+		while True:
+			data = filedata.stream.read(8192 * 1024)
+			if not data:
+				break
+			f.write(data)
+
+	chunk_size = os.path.getsize(chunk_path)
+
+	# Update metadata
+	with open(meta_path, "r") as f:
+		meta = json.load(f)
+	meta["chunks_received"] += 1
+	meta["bytes_received"] += chunk_size
+	with open(meta_path, "w") as f:
+		json.dump(meta, f)
+
+	return {
+		"chunk_index": chunk_index,
+		"bytes_received": meta["bytes_received"],
+		"total_size": meta["file_size"],
+	}
+
+
+@frappe.whitelist()
+def finalize_chunked_upload(upload_id):
+	"""Reassemble chunks into final file, create Remote File record."""
+	import os
+	import json
+	import glob
+	from frappe.utils import get_files_path
+	from frappe.desk.doctype.tag.tag import add_tag
+
+	if not frappe.has_permission("Site", "write"):
+		frappe.throw("Not permitted", frappe.PermissionError)
+
+	if not upload_id or not upload_id.isalnum():
+		frappe.throw("Invalid upload_id")
+
+	upload_dir = os.path.join(get_files_path(is_private=True), "backup_uploads", upload_id)
+	meta_path = os.path.join(upload_dir, "meta.json")
+	if not os.path.exists(meta_path):
+		frappe.throw("Upload session not found")
+
+	with open(meta_path, "r") as f:
+		meta = json.load(f)
+
+	# Reassemble chunks in order
+	chunks = sorted(glob.glob(os.path.join(upload_dir, "chunk_*")))
+	if not chunks:
+		frappe.throw("No chunks found")
+
+	final_dir = os.path.join(get_files_path(is_private=True), "backup_uploads")
+	final_name = f"{upload_id[:10]}-{meta['safe_name']}"
+	final_path = os.path.join(final_dir, final_name)
+
+	with open(final_path, "wb") as outfile:
+		for chunk_path in chunks:
+			with open(chunk_path, "rb") as infile:
+				while True:
+					data = infile.read(8192 * 1024)
+					if not data:
+						break
+					outfile.write(data)
+
+	file_size = os.path.getsize(final_path)
+
+	# Clean up chunks directory
+	import shutil
+	shutil.rmtree(upload_dir, ignore_errors=True)
+
+	# Create Remote File record
+	doc = frappe.get_doc({
+		"doctype": "Remote File",
+		"file_name": meta["file_name"],
+		"file_type": meta["file_type"],
+		"file_size": file_size,
+		"file_path": final_path,
+		"url": f"/private/files/backup_uploads/{final_name}",
+	}).insert()
+	add_tag("Site Upload", doc.doctype, doc.name)
+
+	return doc.name
+
+
 @frappe.whitelist()
 def get_backup_links(url, email, password):
 	try:
@@ -3024,3 +3250,30 @@ def get_compatible_public_apps_and_sources(app_names, next_version):
 		compatible_sources[r.app] = r.source
 
 	return compatible_apps, compatible_sources
+
+
+@frappe.whitelist()
+def get_last_failed_job(site_name):
+	"""Return the last failed Agent Job for a site with error output."""
+	if frappe.session.user != "Administrator":
+		from press.utils import get_current_team
+		team = get_current_team(get_doc=True)
+		site_team = frappe.db.get_value("Site", site_name, "team")
+		if site_team != team.name:
+			frappe.throw("Not permitted", frappe.PermissionError)
+
+	job = frappe.db.get_value(
+		"Agent Job",
+		{"site": site_name, "status": "Failure"},
+		["name", "job_type", "creation", "output"],
+		order_by="creation desc",
+		as_dict=True,
+	)
+	if not job:
+		return None
+
+	# Truncate output to last 500 chars for display
+	if job.output and len(job.output) > 500:
+		job.output = "..." + job.output[-500:]
+
+	return job

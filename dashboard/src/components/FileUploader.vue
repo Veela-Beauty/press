@@ -26,7 +26,28 @@
 <script>
 import FileUploader from '@/controllers/fileUploader';
 import S3FileUploader from '@/controllers/s3FileUploader';
+import DirectFileUploader from '@/controllers/directFileUploader';
 import { trypromise } from '@/utils';
+
+// Cache S3 availability check globally (shared across all FileUploader instances)
+let _s3CheckResult = null;
+let _s3CheckPromise = null;
+
+async function checkS3Available() {
+	if (_s3CheckResult !== null) return _s3CheckResult;
+	if (_s3CheckPromise) return _s3CheckPromise;
+	_s3CheckPromise = fetch('/api/method/press.api.site.is_s3_configured')
+		.then((res) => res.json())
+		.then((data) => {
+			_s3CheckResult = !!data.message;
+			return _s3CheckResult;
+		})
+		.catch(() => {
+			_s3CheckResult = false;
+			return false;
+		});
+	return _s3CheckPromise;
+}
 
 export default {
 	name: 'FileUploader',
@@ -49,6 +70,7 @@ export default {
 			total: 0,
 			file: null,
 			finishedUploading: false,
+			s3Available: null,
 		};
 	},
 	computed: {
@@ -97,7 +119,13 @@ export default {
 			this.uploaded = 0;
 			this.total = 0;
 
-			this.uploader = this.s3 ? new S3FileUploader() : new FileUploader();
+			// Auto-detect: if s3 prop is true, check if S3 is actually configured
+			if (this.s3 && this.s3Available === null) {
+				this.s3Available = await checkS3Available();
+			}
+			this.uploader = this.s3
+				? (this.s3Available ? new S3FileUploader() : new DirectFileUploader())
+				: new FileUploader();
 			this.uploader.on('start', () => {
 				this.uploading = true;
 			});
