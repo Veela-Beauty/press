@@ -4,25 +4,20 @@
 const BASE_JOB = 'daman_backup.daman_backup.doctype.backup_job.backup_job';
 const BASE_QUEUE = 'daman_backup.daman_backup.doctype.backup_job_queue.backup_job_queue';
 
-async function call(method, args) {
-	var res = await fetch('/api/method/' + method, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			'X-Frappe-CSRF-Token': window.csrf_token || '',
-		},
-		body: JSON.stringify(args),
+import { createResource } from 'frappe-ui';
+
+function call(method, args) {
+	return new Promise((resolve, reject) => {
+		const resource = createResource({
+			url: method,
+			onSuccess: (result) => resolve(result),
+			onError: (err) => {
+				const msg = err?.messages?.[0] || err?.message || 'Unknown error';
+				reject(new Error(msg));
+			},
+		});
+		resource.submit(args || {});
 	});
-	if (!res.ok) {
-		throw new Error('HTTP ' + res.status);
-	}
-	var data = await res.json();
-	if (data.exc) {
-		var msg = 'Unknown error';
-		try { msg = JSON.parse(data.exc)[0]; } catch (e) { /* ignore */ }
-		throw new Error(msg);
-	}
-	return data.message || data;
 }
 
 // --- Backup Job actions ---

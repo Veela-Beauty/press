@@ -207,7 +207,7 @@
 
 <script>
 import ObjectList from '../../components/ObjectList.vue';
-import { Button, Dialog, Badge } from 'frappe-ui';
+import { Button, Dialog, Badge, createResource } from 'frappe-ui';
 import { date } from '../../utils/format';
 
 export default {
@@ -390,18 +390,20 @@ export default {
 			if (key === 'compression') return trends.avg_compression && trends.avg_compression.length > 0;
 			return false;
 		},
-		async fetchAnalytics() {
-			try {
-				const res = await fetch(
-					'/api/method/daman_backup.daman_backup.press_api.get_run_log_analytics',
-					{ headers: { 'X-Frappe-CSRF-Token': window.csrf_token } }
-				);
-				const data = await res.json();
-				this.analytics = data.message || {};
-				this.$nextTick(() => this.renderCharts());
-			} catch {
-				this.analytics = {};
+		fetchAnalytics() {
+			if (!this._analyticsResource) {
+				this._analyticsResource = createResource({
+					url: 'daman_backup.daman_backup.press_api.get_run_log_analytics',
+					onSuccess: (result) => {
+						this.analytics = result || {};
+						this.$nextTick(() => this.renderCharts());
+					},
+					onError: () => {
+						this.analytics = {};
+					},
+				});
 			}
+			this._analyticsResource.submit({});
 		},
 		renderCharts() {
 			// Destroy old chart instances

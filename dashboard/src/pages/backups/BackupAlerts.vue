@@ -82,7 +82,7 @@
 
 <script>
 import ObjectList from '../../components/ObjectList.vue';
-import { Button, Dialog, FormControl } from 'frappe-ui';
+import { Button, Dialog, FormControl, createResource } from 'frappe-ui';
 import { date } from '../../utils/format';
 
 const emptyForm = () => ({
@@ -117,83 +117,73 @@ export default {
 			this.form = emptyForm();
 			this.dialogOpen = true;
 		},
-		async showEditDialog(alertName) {
-			try {
-				const res = await fetch(
-					`/api/method/daman_backup.daman_backup.press_api.get_alert_detail?alert_name=${encodeURIComponent(alertName)}`,
-					{ headers: { 'X-Frappe-CSRF-Token': window.csrf_token } },
-				);
-				const data = await res.json();
-				if (data?.message) {
-					this.editingAlert = alertName;
-					this.form = { ...emptyForm(), ...data.message };
-					this.dialogOpen = true;
-				}
-			} catch {
-				this.$toast({ title: 'Failed to load alert', variant: 'error' });
-			}
+		showEditDialog(alertName) {
+			const resource = createResource({
+				url: 'daman_backup.daman_backup.press_api.get_alert_detail',
+				onSuccess: (result) => {
+					if (result) {
+						this.editingAlert = alertName;
+						this.form = { ...emptyForm(), ...result };
+						this.dialogOpen = true;
+					}
+				},
+				onError: () => {
+					this.$toast({ title: 'Failed to load alert', variant: 'error' });
+				},
+			});
+			resource.submit({ alert_name: alertName });
 		},
-		async saveAlert() {
+		saveAlert() {
 			this.saving = true;
-			try {
-				const method = this.editingAlert
-					? 'daman_backup.daman_backup.press_api.update_alert'
-					: 'daman_backup.daman_backup.press_api.create_alert';
-				const args = { ...this.form };
-				if (this.editingAlert) args.alert_name_id = this.editingAlert;
+			const method = this.editingAlert
+				? 'daman_backup.daman_backup.press_api.update_alert'
+				: 'daman_backup.daman_backup.press_api.create_alert';
+			const args = { ...this.form };
+			if (this.editingAlert) args.alert_name_id = this.editingAlert;
 
-				const res = await fetch(`/api/method/${method}`, {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						'X-Frappe-CSRF-Token': window.csrf_token,
-					},
-					body: JSON.stringify(args),
-				});
-				const data = await res.json();
-				if (data?.message) {
-					this.$toast({ title: this.editingAlert ? 'Alert updated' : 'Alert created', variant: 'success' });
-					this.dialogOpen = false;
+			const resource = createResource({
+				url: method,
+				onSuccess: (result) => {
+					if (result) {
+						this.$toast({ title: this.editingAlert ? 'Alert updated' : 'Alert created', variant: 'success' });
+						this.dialogOpen = false;
+						this.$refs.alertList?.$list?.reload();
+					}
+					this.saving = false;
+				},
+				onError: () => {
+					this.$toast({ title: 'Failed to save alert', variant: 'error' });
+					this.saving = false;
+				},
+			});
+			resource.submit(args);
+		},
+		toggleAlert(alertName, enabled) {
+			const resource = createResource({
+				url: 'daman_backup.daman_backup.press_api.toggle_alert',
+				onSuccess: () => {
+					this.$toast({ title: enabled ? 'Alert disabled' : 'Alert enabled', variant: 'success' });
 					this.$refs.alertList?.$list?.reload();
-				}
-			} catch {
-				this.$toast({ title: 'Failed to save alert', variant: 'error' });
-			} finally {
-				this.saving = false;
-			}
+				},
+				onError: () => {
+					this.$toast({ title: 'Failed to toggle alert', variant: 'error' });
+				},
+			});
+			resource.submit({ alert_name: alertName, enabled: enabled ? 0 : 1 });
 		},
-		async toggleAlert(alertName, enabled) {
-			try {
-				await fetch('/api/method/daman_backup.daman_backup.press_api.toggle_alert', {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						'X-Frappe-CSRF-Token': window.csrf_token,
-					},
-					body: JSON.stringify({ alert_name: alertName, enabled: enabled ? 0 : 1 }),
-				});
-				this.$toast({ title: enabled ? 'Alert disabled' : 'Alert enabled', variant: 'success' });
-				this.$refs.alertList?.$list?.reload();
-			} catch {
-				this.$toast({ title: 'Failed to toggle alert', variant: 'error' });
-			}
-		},
-		async deleteAlert(alertName) {
+		deleteAlert(alertName) {
 			if (!confirm('Delete alert "{0}"?')) return;
-			try {
-				await fetch('/api/method/daman_backup.daman_backup.press_api.delete_alert', {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						'X-Frappe-CSRF-Token': window.csrf_token,
-					},
-					body: JSON.stringify({ alert_name: alertName }),
-				});
-				this.$toast({ title: 'Alert deleted', variant: 'success' });
-				this.$refs.alertList?.$list?.reload();
-			} catch {
-				this.$toast({ title: 'Failed to delete alert', variant: 'error' });
-			}
+			const resource = createResource({
+				url: 'daman_backup.daman_backup.press_api.delete_alert',
+				onSuccess: () => {
+					this.$toast({ title: 'Alert deleted', variant: 'success' });
+					this.$refs.alertList?.$list?.reload();
+				},
+				onError: () => {
+					this.$toast({ title: 'Failed to delete alert', variant: 'error' });
+				},
+			});
+			resource.submit({ alert_name: alertName });
 		},
 	},
 	computed: {

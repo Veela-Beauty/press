@@ -159,7 +159,7 @@
 
 <script>
 import ObjectList from '../../components/ObjectList.vue';
-import { Button, Dialog, Badge } from 'frappe-ui';
+import { Button, Dialog, Badge, createResource } from 'frappe-ui';
 import { date } from '../../utils/format';
 
 export default {
@@ -180,28 +180,26 @@ export default {
 			if (!value) return '-';
 			return date(value, 'llll');
 		},
-		async fetchStats() {
-			try {
-				const params = new URLSearchParams({
-					doctype: 'Backup Server',
-					fields: JSON.stringify(['name', 'enabled', 'connection_status']),
-					limit_page_length: 0,
+		fetchStats() {
+			if (!this._statsResource) {
+				this._statsResource = createResource({
+					url: 'frappe.client.get_list',
+					onSuccess: (result) => {
+						const servers = result || [];
+						this.stats = {
+							total: servers.length,
+							enabled: servers.filter((s) => s.enabled).length,
+							connected: servers.filter((s) => s.connection_status === 'Connected').length,
+							disconnected: servers.filter((s) => s.connection_status === 'Disconnected').length,
+						};
+					},
 				});
-				const res = await fetch(
-					`/api/method/frappe.client.get_list?${params}`,
-					{ headers: { 'X-Frappe-CSRF-Token': window.csrf_token } }
-				);
-				const data = await res.json();
-				const servers = data.message || [];
-				this.stats = {
-					total: servers.length,
-					enabled: servers.filter((s) => s.enabled).length,
-					connected: servers.filter((s) => s.connection_status === 'Connected').length,
-					disconnected: servers.filter((s) => s.connection_status === 'Disconnected').length,
-				};
-			} catch (e) {
-				// ignore
 			}
+			this._statsResource.submit({
+				doctype: 'Backup Server',
+				fields: ['name', 'enabled', 'connection_status'],
+				limit_page_length: 0,
+			});
 		},
 	},
 	computed: {

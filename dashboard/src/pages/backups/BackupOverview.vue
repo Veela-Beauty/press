@@ -183,16 +183,32 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, getCurrentInstance } from 'vue';
-import { Badge, Button, Dialog, FormControl } from 'frappe-ui';
+import { ref, computed, onMounted, onUnmounted, getCurrentInstance } from 'vue';
+import { Badge, Button, Dialog, FormControl, createResource } from 'frappe-ui';
 import { date as formatDateUtil } from '../../utils/format';
 import { runBackupJob } from '../../utils/backupApi';
 
-const overview = ref(null);
 const runDialogOpen = ref(false);
 const runForm = ref({ job_name: '', mode: 'run', priority: 'Normal' });
 const runLoading = ref(false);
-const jobOptions = ref([]);
+
+// --- Resources ---
+const overviewResource = createResource({
+	url: 'daman_backup.daman_backup.press_api.get_backup_overview',
+	auto: true,
+});
+const overview = computed(() => overviewResource.data);
+
+const jobListResource = createResource({
+	url: 'frappe.client.get_list',
+});
+const jobOptions = computed(() => {
+	const list = jobListResource.data || [];
+	return list.map((j) => ({
+		label: `${j.job_title} (${j.client})`,
+		value: j.name,
+	}));
+});
 
 function formatDate(value) {
 	if (!value) return '-';
@@ -230,38 +246,13 @@ function severityTheme(severity) {
 	return themes[severity] || 'gray';
 }
 
-async function fetchOverview() {
-	try {
-		const res = await fetch('/api/method/daman_backup.daman_backup.press_api.get_backup_overview', {
-			headers: { 'X-Frappe-CSRF-Token': window.csrf_token },
-		});
-		const data = await res.json();
-		overview.value = data.message;
-	} catch (e) {
-		console.error('Failed to fetch backup overview:', e);
-	}
-}
-
-async function showRunDialog() {
-	try {
-		const params = new URLSearchParams({
-			doctype: 'Backup Job',
-			filters: JSON.stringify({ enabled: 1 }),
-			fields: JSON.stringify(['name', 'job_title', 'client']),
-			limit_page_length: 100,
-		});
-		const res = await fetch(
-			`/api/method/frappe.client.get_list?${params}`,
-			{ headers: { 'X-Frappe-CSRF-Token': window.csrf_token } }
-		);
-		const data = await res.json();
-		jobOptions.value = (data.message || []).map((j) => ({
-			label: `${j.job_title} (${j.client})`,
-			value: j.name,
-		}));
-	} catch (e) {
-		jobOptions.value = [];
-	}
+function showRunDialog() {
+	jobListResource.submit({
+		doctype: 'Backup Job',
+		filters: { enabled: 1 },
+		fields: ['name', 'job_title', 'client'],
+		limit_page_length: 100,
+	});
 	runForm.value = { job_name: '', mode: 'run', priority: 'Normal' };
 	runDialogOpen.value = true;
 }
@@ -276,7 +267,7 @@ async function executeRun() {
 		const result = await runBackupJob(jobName, runForm.value.mode, runForm.value.priority);
 		if (result.success !== false) {
 			runDialogOpen.value = false;
-			fetchOverview();
+			overviewResource.reload();
 		}
 	} catch (e) {
 		// HTTP/parse errors already thrown by backupApi
@@ -286,12 +277,10 @@ async function executeRun() {
 }
 
 onMounted(() => {
-	fetchOverview();
-
 	const socket = getCurrentInstance()?.proxy?.$socket;
 	if (socket) {
-		socket.on('backup_job_completed', () => fetchOverview());
-		socket.on('backup_job_failed', () => fetchOverview());
+		socket.on('backup_job_completed', () => overviewResource.reload());
+		socket.on('backup_job_failed', () => overviewResource.reload());
 	}
 });
 

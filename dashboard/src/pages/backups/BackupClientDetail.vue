@@ -462,29 +462,10 @@
 </template>
 
 <script>
-import { Button, Dialog, Badge } from 'frappe-ui';
+import { Button, Dialog, Badge, createResource } from 'frappe-ui';
 import { date } from '../../utils/format';
 
 const BASE_API = 'daman_backup.daman_backup.press_api';
-
-async function call(method, args = {}) {
-	const res = await fetch(`/api/method/${method}`, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			'X-Frappe-CSRF-Token': window.csrf_token || '',
-		},
-		body: JSON.stringify(args),
-	});
-	if (!res.ok) throw new Error(`HTTP ${res.status}`);
-	const data = await res.json();
-	if (data.exc) {
-		let msg = 'Unknown error';
-		try { msg = JSON.parse(data.exc)[0]; } catch (e) { /* ignore */ }
-		throw new Error(msg);
-	}
-	return data.message || data;
-}
 
 export default {
 	name: 'BackupClientDetail',
@@ -545,22 +526,27 @@ export default {
 			return `${used.toFixed(1)} / ${allowed.toFixed(1)} GB`;
 		},
 	},
+	created() {
+		this._portalResource = createResource({
+			url: `${BASE_API}.get_client_portal`,
+			onSuccess: (result) => {
+				this.portal = result;
+				this.loading = false;
+			},
+			onError: (e) => {
+				this.error = `Failed to load client details: ${e.messages?.[0] || e.message || e}`;
+				this.loading = false;
+			},
+		});
+	},
 	mounted() {
 		this.fetchPortal();
 	},
 	methods: {
-		async fetchPortal() {
+		fetchPortal() {
 			this.loading = true;
 			this.error = null;
-			try {
-				this.portal = await call(`${BASE_API}.get_client_portal`, {
-					client_name: this.clientName,
-				});
-			} catch (e) {
-				this.error = `${'Failed to load client details'}: ${e.message}`;
-			} finally {
-				this.loading = false;
-			}
+			this._portalResource.submit({ client_name: this.clientName });
 		},
 		formatDate(value) {
 			if (!value) return '-';

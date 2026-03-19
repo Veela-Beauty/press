@@ -286,7 +286,7 @@
 
 <script>
 import ObjectList from '../../components/ObjectList.vue';
-import { Button, Dialog, FormControl, Badge } from 'frappe-ui';
+import { Button, Dialog, FormControl, Badge, createResource } from 'frappe-ui';
 import { date } from '../../utils/format';
 import {
 	runBackupJob,
@@ -357,26 +357,27 @@ export default {
 			if (code == null) return '';
 			return code === 0 ? 'text-green-600' : 'text-red-600';
 		},
-		async showRunDialog() {
-			try {
-				const params = new URLSearchParams({
-					doctype: 'Backup Job',
-					filters: JSON.stringify({ enabled: 1 }),
-					fields: JSON.stringify(['name', 'job_title', 'client']),
-					limit_page_length: 100,
+		showRunDialog() {
+			if (!this._jobListResource) {
+				this._jobListResource = createResource({
+					url: 'frappe.client.get_list',
+					onSuccess: (result) => {
+						this.jobOptions = (result || []).map((j) => ({
+							label: `${j.job_title} (${j.client})`,
+							value: j.name,
+						}));
+					},
+					onError: () => {
+						this.jobOptions = [];
+					},
 				});
-				const res = await fetch(
-					`/api/method/frappe.client.get_list?${params}`,
-					{ headers: { 'X-Frappe-CSRF-Token': window.csrf_token } }
-				);
-				const data = await res.json();
-				this.jobOptions = (data.message || []).map((j) => ({
-					label: `${j.job_title} (${j.client})`,
-					value: j.name,
-				}));
-			} catch (e) {
-				this.jobOptions = [];
 			}
+			this._jobListResource.submit({
+				doctype: 'Backup Job',
+				filters: { enabled: 1 },
+				fields: ['name', 'job_title', 'client'],
+				limit_page_length: 100,
+			});
 			this.runForm = { job_name: '', mode: 'run', priority: 'Normal' };
 			this.runDialogOpen = true;
 		},

@@ -351,7 +351,7 @@
 
 <script>
 import ObjectList from '../../components/ObjectList.vue';
-import { Button, Dialog, Badge } from 'frappe-ui';
+import { Button, Dialog, Badge, createResource } from 'frappe-ui';
 import { date } from '../../utils/format';
 import {
 	runBackupJob,
@@ -431,28 +431,26 @@ export default {
 				this.detailLoading = false;
 			}
 		},
-		async fetchStats() {
-			try {
-				const params = new URLSearchParams({
-					doctype: 'Backup Job',
-					fields: JSON.stringify(['name', 'enabled', 'schedule_enabled', 'last_run_status']),
-					limit_page_length: 0,
+		fetchStats() {
+			if (!this._statsResource) {
+				this._statsResource = createResource({
+					url: 'frappe.client.get_list',
+					onSuccess: (result) => {
+						const jobs = result || [];
+						this.stats = {
+							total: jobs.length,
+							enabled: jobs.filter((j) => j.enabled).length,
+							scheduled: jobs.filter((j) => j.schedule_enabled).length,
+							failed: jobs.filter((j) => j.last_run_status === 'Failed').length,
+						};
+					},
 				});
-				const res = await fetch(
-					`/api/method/frappe.client.get_list?${params}`,
-					{ headers: { 'X-Frappe-CSRF-Token': window.csrf_token } }
-				);
-				const data = await res.json();
-				const jobs = data.message || [];
-				this.stats = {
-					total: jobs.length,
-					enabled: jobs.filter((j) => j.enabled).length,
-					scheduled: jobs.filter((j) => j.schedule_enabled).length,
-					failed: jobs.filter((j) => j.last_run_status === 'Failed').length,
-				};
-			} catch (e) {
-				// ignore
 			}
+			this._statsResource.submit({
+				doctype: 'Backup Job',
+				fields: ['name', 'enabled', 'schedule_enabled', 'last_run_status'],
+				limit_page_length: 0,
+			});
 		},
 		reloadList() {
 			this.$refs.jobList?.$list?.reload();

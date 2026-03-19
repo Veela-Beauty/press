@@ -38,29 +38,10 @@
 
 <script>
 import ObjectList from '../../components/ObjectList.vue';
-import { Badge } from 'frappe-ui';
+import { Badge, createResource } from 'frappe-ui';
 import { date } from '../../utils/format';
 
 const BASE_API = 'daman_backup.daman_backup.press_api';
-
-async function call(method, args = {}) {
-	const res = await fetch(`/api/method/${method}`, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			'X-Frappe-CSRF-Token': window.csrf_token || '',
-		},
-		body: JSON.stringify(args),
-	});
-	if (!res.ok) throw new Error(`HTTP ${res.status}`);
-	const data = await res.json();
-	if (data.exc) {
-		let msg = 'Unknown error';
-		try { msg = JSON.parse(data.exc)[0]; } catch (e) { /* ignore */ }
-		throw new Error(msg);
-	}
-	return data.message || data;
-}
 
 export default {
 	name: 'BackupClients',
@@ -74,10 +55,10 @@ export default {
 	mounted() {
 		this.fetchClients();
 	},
-	methods: {
-		async fetchClients() {
-			try {
-				const result = await call(`${BASE_API}.get_clients_list`);
+	created() {
+		this._clientsResource = createResource({
+			url: `${BASE_API}.get_clients_list`,
+			onSuccess: (result) => {
 				const list = Array.isArray(result) ? result : (result?.clients || []);
 				this.clients = list;
 				this.stats = {
@@ -86,33 +67,34 @@ export default {
 					warning: list.filter((c) => c.health === 'Warning').length,
 					critical: list.filter((c) => c.health === 'Critical').length,
 				};
-			} catch (e) {
-				// Fallback: fetch from doctype directly
+			},
+			onError: () => {
 				this.fetchStatsFallback();
-			}
-		},
-		async fetchStatsFallback() {
-			try {
-				const params = new URLSearchParams({
-					doctype: 'Backup Client',
-					fields: JSON.stringify(['name', 'client_name', 'status', 'health_status']),
-					limit_page_length: 0,
-				});
-				const res = await fetch(
-					`/api/method/frappe.client.get_list?${params}`,
-					{ headers: { 'X-Frappe-CSRF-Token': window.csrf_token } }
-				);
-				const data = await res.json();
-				const list = data.message || [];
+			},
+		});
+		this._statsFallbackResource = createResource({
+			url: 'frappe.client.get_list',
+			onSuccess: (result) => {
+				const list = result || [];
 				this.stats = {
 					total: list.length,
 					healthy: list.filter((c) => c.health_status === 'Healthy').length,
 					warning: list.filter((c) => c.health_status === 'Warning').length,
 					critical: list.filter((c) => c.health_status === 'Critical').length,
 				};
-			} catch (e) {
-				// ignore
-			}
+			},
+		});
+	},
+	methods: {
+		fetchClients() {
+			this._clientsResource.submit({});
+		},
+		fetchStatsFallback() {
+			this._statsFallbackResource.submit({
+				doctype: 'Backup Client',
+				fields: ['name', 'client_name', 'status', 'health_status'],
+				limit_page_length: 0,
+			});
 		},
 		formatStorageBar(row) {
 			if (!row.storage_used_gb && !row.storage_allowed_gb) return null;
