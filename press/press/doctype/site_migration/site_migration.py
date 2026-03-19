@@ -677,11 +677,107 @@ class SiteMigration(Document):
 		site.bench = self.destination_bench
 		return agent.archive_site(site, force=True)
 
+
+	def ensure_backup_files_accessible(self, backup):
+		"""
+		Ensure backup files are accessible via Remote File records.
+
+		Without S3 configured, backup_source_site() calls site.backup(offsite=True)
+		which silently does nothing — leaving backup.remote_database_file = None.
+		This causes restore_site_on_destination_server() to crash with:
+		  DoesNotExistError: Remote File None not found
+
+		This method detects that case and:
+		1. SSH-copies backup files from source server to this press-ctrl's public files dir
+		2. Creates Remote File records with HTTPS URLs (accessible from destination server)
+		3. Updates the SiteBackup doc with the Remote File links
+
+		The remote files are tagged "Migration Backup" so they can be cleaned up later.
+		"""
+		import os
+		import subprocess
+
+		backup.reload()
+		if backup.remote_database_file:
+			# Remote files already exist (S3 configured or previously set up) — nothing to do
+			return
+
+		if not backup.database_file:
+			frappe.throw(f"Backup {backup.name} has no database_file — cannot proceed with migration")
+
+		frappe.logger().info(f"SiteMigration {self.name}: No remote files for backup {backup.name}, copying from source server")
+
+		# Resolve source server hostname/IP
+		source_server = self.source_server
+		press_site = frappe.local.site
+		bench_path = frappe.utils.get_bench_path()
+		public_files_dir = os.path.join(bench_path, "sites", press_site, "public", "files", "migration_backups")
+		os.makedirs(public_files_dir, exist_ok=True)
+
+		# Build list of (remote_path_on_source, field_name) for each backup file
+		files_to_copy = []
+		if backup.database_file:
+			files_to_copy.append((backup.database_file, "remote_database_file"))
+		if backup.public_file:
+			files_to_copy.append((backup.public_file, "remote_public_file"))
+		if backup.private_file:
+			files_to_copy.append((backup.private_file, "remote_private_file"))
+
+		# Copy files from source server via SCP
+		press_base_url = frappe.utils.get_url()
+		remote_file_map = {}
+
+		for remote_path, field_name in files_to_copy:
+			filename = os.path.basename(remote_path)
+			local_dest = os.path.join(public_files_dir, filename)
+
+			if not os.path.exists(local_dest):
+				frappe.logger().info(f"SiteMigration {self.name}: scp {source_server}:{remote_path} -> {local_dest}")
+				result = subprocess.run(
+					["scp", "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
+					 f"root@{source_server}:{remote_path}", local_dest],
+					capture_output=True, text=True, timeout=600
+				)
+				if result.returncode != 0:
+					frappe.throw(
+						f"Failed to copy backup file {filename} from {source_server}: {result.stderr}"
+					)
+
+			# Build HTTPS URL accessible from destination server
+			file_url = f"{press_base_url}/files/migration_backups/{filename}"
+
+			# Create Remote File record
+			if frappe.db.exists("Remote File", {"url": file_url}):
+				remote_file = frappe.get_doc("Remote File", {"url": file_url})
+			else:
+				remote_file = frappe.get_doc({
+					"doctype": "Remote File",
+					"site": self.site,
+					"url": file_url,
+					"file_name": filename,
+					"file_path": local_dest,
+					"file_size": os.path.getsize(local_dest) if os.path.exists(local_dest) else 0,
+				})
+				remote_file.insert(ignore_permissions=True)
+				frappe.add_tags("Migration Backup", "Remote File", remote_file.name)
+
+			remote_file_map[field_name] = remote_file.name
+			frappe.logger().info(f"SiteMigration {self.name}: Created Remote File {remote_file.name} -> {file_url}")
+
+		# Update SiteBackup with remote file links
+		for field_name, remote_file_name in remote_file_map.items():
+			frappe.db.set_value("Site Backup", backup.name, field_name, remote_file_name)
+		backup.reload()
+
+		frappe.db.commit()
+		frappe.logger().info(f"SiteMigration {self.name}: Backup files accessible via Remote File records")
+
 	def restore_site_on_destination_server(self):
 		"""Restore site on destination"""
 		agent = Agent(self.destination_server)
 		site: Site = frappe.get_doc("Site", self.site)
 		backup: SiteBackup = frappe.get_doc("Site Backup", self.backup)
+		self.ensure_backup_files_accessible(backup)
 		site.remote_database_file = backup.remote_database_file
 		site.remote_public_file = backup.remote_public_file
 		site.remote_private_file = backup.remote_private_file

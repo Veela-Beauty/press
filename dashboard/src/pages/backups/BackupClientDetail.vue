@@ -274,7 +274,7 @@
 								<td class="py-2 pr-3 text-xs">{{ formatDate(log.started_at || log.creation) }}</td>
 								<td class="py-2 pr-3">{{ formatDuration(log.duration_seconds) }}</td>
 								<td class="py-2 pr-3">{{ log.files_count ?? '-' }}</td>
-								<td class="py-2 pr-3">{{ log.size_mb != null ? log.size_mb : '-' }}</td>
+								<td class="py-2 pr-3">{{ log.data_size_mb != null ? log.data_size_mb : '-' }}</td>
 								<td class="py-2">{{ log.compression_ratio != null ? `${log.compression_ratio}x` : '-' }}</td>
 							</tr>
 						</tbody>
@@ -315,7 +315,7 @@
 								</div>
 								<div>
 									<div class="text-xs text-gray-500">{{ 'Size' }}</div>
-									<div>{{ selectedLog.size_mb != null ? `${selectedLog.size_mb} MB` : '-' }}</div>
+									<div>{{ selectedLog.data_size_mb != null ? `${selectedLog.data_size_mb} MB` : '-' }}</div>
 								</div>
 								<div>
 									<div class="text-xs text-gray-500">{{ 'Compression Ratio' }}</div>

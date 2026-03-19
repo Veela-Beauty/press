@@ -239,6 +239,7 @@ export default {
 		listOptions() {
 			return {
 				url: 'daman_backup.daman_backup.press_api.get_run_log_list',
+				doctype: 'Backup Run Log',
 				orderBy: 'started_at desc',
 				columns: [
 					{ label: 'Name', fieldname: 'name', width: 0.6 },
