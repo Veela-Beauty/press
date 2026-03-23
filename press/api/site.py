@@ -2325,7 +2325,7 @@ def upload_backup_file():
 		"file_type": file_type,
 		"file_size": file_size,
 		"file_path": file_path,
-		"url": f"/private/files/backup_uploads/{file_hash}-{safe_name}",
+		"url": f"{frappe.utils.get_url()}/private/files/backup_uploads/{file_hash}-{safe_name}",
 	}).insert()
 	add_tag("Site Upload", doc.doctype, doc.name)
 
@@ -2477,7 +2477,7 @@ def finalize_chunked_upload(upload_id):
 		"file_type": meta["file_type"],
 		"file_size": file_size,
 		"file_path": final_path,
-		"url": f"/private/files/backup_uploads/{final_name}",
+		"url": f"{frappe.utils.get_url()}/private/files/backup_uploads/{final_name}",
 	}).insert()
 	add_tag("Site Upload", doc.doctype, doc.name)
 

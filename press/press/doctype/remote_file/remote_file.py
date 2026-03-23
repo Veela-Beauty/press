@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import pprint
 
+import os
 import frappe
 import requests
 from boto3 import client, resource
@@ -201,8 +202,22 @@ class RemoteFile(Document):
 		self.db_set("status", "Available")
 
 		if self.url:
-			success = str(requests.head(self.url).status_code).startswith("2")
+			url = self.url
+			# Handle relative URLs from local file uploads (no S3)
+			if url.startswith("/"):
+				url = frappe.utils.get_url() + url
+			try:
+				success = str(requests.head(url).status_code).startswith("2")
+			except requests.exceptions.RequestException:
+				# If URL check fails, try checking the file on disk
+				if self.file_path and os.path.exists(self.file_path):
+					return True
+				self.db_set("status", "Unavailable")
+				return False
 			if success:
+				return True
+			# Fall back to file path check for local uploads
+			if self.file_path and os.path.exists(self.file_path):
 				return True
 			self.db_set("status", "Unavailable")
 			return False
@@ -231,7 +246,13 @@ class RemoteFile(Document):
 		if self.site:
 			log_site_activity(site=self.site, action="Access Offsite Backups")
 			frappe.db.commit()
-		return self.url or self.s3_client.generate_presigned_url(
+		url = self.url
+		if url:
+			# Ensure relative URLs get the full scheme + host
+			if url.startswith("/"):
+				url = frappe.utils.get_url() + url
+			return url
+		return self.s3_client.generate_presigned_url(
 			"get_object",
 			Params={"Bucket": self.bucket, "Key": self.file_path},
 			ExpiresIn=frappe.db.get_single_value("Press Settings", "remote_link_expiry") or 3600,
@@ -239,7 +260,10 @@ class RemoteFile(Document):
 
 	def get_content(self):
 		if self.url:
-			return json.loads(requests.get(self.url).content)
+			url = self.url
+			if url.startswith("/"):
+				url = frappe.utils.get_url() + url
+			return json.loads(requests.get(url).content)
 
 		obj = self.s3_client.get_object(Bucket=self.bucket, Key=self.file_path)
 		return json.loads(obj["Body"].read().decode("utf-8"))
@@ -254,7 +278,10 @@ class RemoteFile(Document):
 		if int(self.file_size or 0):
 			return int(self.file_size or 0)
 
-		response = requests.head(self.url)
+		url = self.url
+		if url and url.startswith("/"):
+			url = frappe.utils.get_url() + url
+		response = requests.head(url)
 		self.file_size = int(response.headers.get("content-length", 0))
 		self.save()
 		return int(self.file_size)
