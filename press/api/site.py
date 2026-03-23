@@ -2260,8 +2260,16 @@ def uploaded_backup_info(file=None, path=None, type=None, size=None, url=None):
 
 @frappe.whitelist()
 def is_s3_configured():
-	"""Check if S3 credentials are configured for backup uploads."""
+	"""Check if browser-direct S3 upload is available.
+	Returns False for custom endpoints (e.g. MinIO on internal network)
+	since the browser cannot reach them directly. The server-side upload
+	path will handle copying to MinIO automatically.
+	"""
 	try:
+		# Custom endpoint = internal MinIO, browser can't reach it
+		endpoint_url = frappe.db.get_single_value("Press Settings", "remote_uploads_endpoint_url")
+		if endpoint_url:
+			return False
 		from frappe.utils.password import get_decrypted_password
 		access_key = frappe.db.get_single_value("Press Settings", "remote_access_key_id")
 		secret_key = get_decrypted_password("Press Settings", "Press Settings", "remote_secret_access_key")
