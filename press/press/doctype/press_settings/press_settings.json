@@ -644,6 +644,12 @@
    "label": "Remote Secret Access Key"
   },
   {
+   "fieldname": "remote_uploads_endpoint_url",
+   "fieldtype": "Data",
+   "label": "Remote Uploads Endpoint URL",
+   "description": "Custom S3 endpoint (e.g. http://localhost:9002 for MinIO). Leave blank for AWS S3."
+  },
+  {
    "collapsible": 1,
    "fieldname": "product_documentation_section",
    "fieldtype": "Section Break",

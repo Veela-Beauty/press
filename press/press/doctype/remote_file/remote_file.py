@@ -185,13 +185,22 @@ class RemoteFile(Document):
 		else:
 			return None
 
-		return client(
-			"s3",
-			aws_access_key_id=access_key_id,
-			aws_secret_access_key=secret_access_key,
-			region_name=frappe.db.get_value("Backup Bucket", self.bucket, "region")
-			or frappe.db.get_single_value("Press Settings", "backup_region"),
-		)
+		# Support custom S3 endpoint (e.g. MinIO) for uploads bucket
+		endpoint_url = None
+		if self.bucket == frappe.db.get_single_value("Press Settings", "remote_uploads_bucket"):
+			endpoint_url = frappe.db.get_single_value("Press Settings", "remote_uploads_endpoint_url")
+		if not endpoint_url:
+			endpoint_url = frappe.db.get_value("Backup Bucket", self.bucket, "endpoint_url")
+
+		kwargs = {
+			"aws_access_key_id": access_key_id,
+			"aws_secret_access_key": secret_access_key,
+			"region_name": frappe.db.get_value("Backup Bucket", self.bucket, "region")
+			or frappe.db.get_single_value("Press Settings", "backup_region") or "us-east-1",
+		}
+		if endpoint_url:
+			kwargs["endpoint_url"] = endpoint_url
+		return client("s3", **kwargs)
 
 	@property
 	def download_link(self):

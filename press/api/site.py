@@ -2171,20 +2171,28 @@ def get_trial_plan():
 
 
 @frappe.whitelist()
+
+def _get_uploads_s3_client():
+	"""Get S3 client for uploads bucket, supporting custom endpoints (e.g. MinIO)."""
+	endpoint_url = frappe.db.get_single_value("Press Settings", "remote_uploads_endpoint_url")
+	kwargs = {
+		"aws_access_key_id": frappe.db.get_single_value("Press Settings", "remote_access_key_id"),
+		"aws_secret_access_key": get_decrypted_password(
+			"Press Settings", "Press Settings", "remote_secret_access_key"
+		),
+		"region_name": frappe.db.get_single_value("Press Settings", "backup_region") or "us-east-1",
+	}
+	if endpoint_url:
+		kwargs["endpoint_url"] = endpoint_url
+	return client("s3", **kwargs)
+
 def get_upload_link(file, parts=1):
 	bucket_name = frappe.db.get_single_value("Press Settings", "remote_uploads_bucket")
 	expiration = frappe.db.get_single_value("Press Settings", "remote_link_expiry") or 3600
 	object_name = get_remote_key(file)
 	parts = int(parts)
 
-	s3_client = client(
-		"s3",
-		aws_access_key_id=frappe.db.get_single_value("Press Settings", "remote_access_key_id"),
-		aws_secret_access_key=get_decrypted_password(
-			"Press Settings", "Press Settings", "remote_secret_access_key"
-		),
-		region_name="ap-south-1",
-	)
+	s3_client = _get_uploads_s3_client()
 	try:
 		# The response contains the presigned URL and required fields
 		if parts > 1:
@@ -2216,17 +2224,7 @@ def get_upload_link(file, parts=1):
 @frappe.whitelist()
 def multipart_exit(file, id, action, parts=None):
 	bucket_name = frappe.db.get_single_value("Press Settings", "remote_uploads_bucket")
-	s3_client = client(
-		"s3",
-		aws_access_key_id=frappe.db.get_single_value("Press Settings", "remote_access_key_id"),
-		aws_secret_access_key=get_decrypted_password(
-			"Press Settings",
-			"Press Settings",
-			"remote_secret_access_key",
-			raise_exception=False,
-		),
-		region_name="ap-south-1",
-	)
+	s3_client = _get_uploads_s3_client()
 	if action == "abort":
 		response = s3_client.abort_multipart_upload(Bucket=bucket_name, Key=file, UploadId=id)
 	elif action == "complete":
@@ -2316,17 +2314,37 @@ def upload_backup_file():
 
 	file_size = os.path.getsize(file_path)
 
-	# Create Remote File record (same as uploaded_backup_info)
+	# Create Remote File record
 	from frappe.desk.doctype.tag.tag import add_tag
 
-	doc = frappe.get_doc({
-		"doctype": "Remote File",
-		"file_name": file_name,
-		"file_type": file_type,
-		"file_size": file_size,
-		"file_path": file_path,
-		"url": f"{frappe.utils.get_url()}/files/backup_uploads/{file_hash}-{safe_name}",
-	}).insert()
+	bucket = frappe.db.get_single_value("Press Settings", "remote_uploads_bucket")
+	endpoint_url = frappe.db.get_single_value("Press Settings", "remote_uploads_endpoint_url")
+
+	if bucket and endpoint_url:
+		# Upload to MinIO/S3 and use presigned URLs
+		object_key = get_remote_key(f"{file_hash}-{safe_name}")
+		s3 = _get_uploads_s3_client()
+		s3.upload_file(file_path, bucket, object_key)
+		# Clean up local file after successful S3 upload
+		os.remove(file_path)
+		doc = frappe.get_doc({
+			"doctype": "Remote File",
+			"file_name": file_name,
+			"file_type": file_type,
+			"file_size": file_size,
+			"file_path": object_key,
+			"bucket": bucket,
+		}).insert()
+	else:
+		# Fallback: local storage with public URL
+		doc = frappe.get_doc({
+			"doctype": "Remote File",
+			"file_name": file_name,
+			"file_type": file_type,
+			"file_size": file_size,
+			"file_path": file_path,
+			"url": f"{frappe.utils.get_url()}/files/backup_uploads/{file_hash}-{safe_name}",
+		}).insert()
 	add_tag("Site Upload", doc.doctype, doc.name)
 
 	return doc.name
@@ -2471,14 +2489,31 @@ def finalize_chunked_upload(upload_id):
 	shutil.rmtree(upload_dir, ignore_errors=True)
 
 	# Create Remote File record
-	doc = frappe.get_doc({
-		"doctype": "Remote File",
-		"file_name": meta["file_name"],
-		"file_type": meta["file_type"],
-		"file_size": file_size,
-		"file_path": final_path,
-		"url": f"{frappe.utils.get_url()}/files/backup_uploads/{final_name}",
-	}).insert()
+	bucket = frappe.db.get_single_value("Press Settings", "remote_uploads_bucket")
+	endpoint_url = frappe.db.get_single_value("Press Settings", "remote_uploads_endpoint_url")
+
+	if bucket and endpoint_url:
+		object_key = get_remote_key(final_name)
+		s3 = _get_uploads_s3_client()
+		s3.upload_file(final_path, bucket, object_key)
+		os.remove(final_path)
+		doc = frappe.get_doc({
+			"doctype": "Remote File",
+			"file_name": meta["file_name"],
+			"file_type": meta["file_type"],
+			"file_size": file_size,
+			"file_path": object_key,
+			"bucket": bucket,
+		}).insert()
+	else:
+		doc = frappe.get_doc({
+			"doctype": "Remote File",
+			"file_name": meta["file_name"],
+			"file_type": meta["file_type"],
+			"file_size": file_size,
+			"file_path": final_path,
+			"url": f"{frappe.utils.get_url()}/files/backup_uploads/{final_name}",
+		}).insert()
 	add_tag("Site Upload", doc.doctype, doc.name)
 
 	return doc.name
