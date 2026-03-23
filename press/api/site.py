@@ -2300,7 +2300,7 @@ def upload_backup_file():
 	# Generate unique path
 	import uuid
 	file_hash = uuid.uuid4().hex[:10]
-	upload_dir = os.path.join(get_files_path(is_private=True), "backup_uploads")
+	upload_dir = os.path.join(get_files_path(is_private=False), "backup_uploads")
 	os.makedirs(upload_dir, exist_ok=True)
 
 	safe_name = re.sub(r"[^a-zA-Z0-9._-]", "_", file_name)
@@ -2325,7 +2325,7 @@ def upload_backup_file():
 		"file_type": file_type,
 		"file_size": file_size,
 		"file_path": file_path,
-		"url": f"{frappe.utils.get_url()}/private/files/backup_uploads/{file_hash}-{safe_name}",
+		"url": f"{frappe.utils.get_url()}/files/backup_uploads/{file_hash}-{safe_name}",
 	}).insert()
 	add_tag("Site Upload", doc.doctype, doc.name)
 
@@ -2351,7 +2351,7 @@ def init_chunked_upload(file_name, file_size, file_type=None):
 		frappe.throw(f"File too large. Maximum is 100 GiB.")
 
 	upload_id = uuid.uuid4().hex
-	upload_dir = os.path.join(get_files_path(is_private=True), "backup_uploads", upload_id)
+	upload_dir = os.path.join(get_files_path(is_private=False), "backup_uploads", upload_id)
 	os.makedirs(upload_dir, exist_ok=True)
 
 	safe_name = re.sub(r"[^a-zA-Z0-9._-]", "_", file_name)
@@ -2388,7 +2388,7 @@ def upload_chunk():
 	if not upload_id or not upload_id.isalnum():
 		frappe.throw("Invalid upload_id")
 
-	upload_dir = os.path.join(get_files_path(is_private=True), "backup_uploads", upload_id)
+	upload_dir = os.path.join(get_files_path(is_private=False), "backup_uploads", upload_id)
 	meta_path = os.path.join(upload_dir, "meta.json")
 	if not os.path.exists(meta_path):
 		frappe.throw("Upload session not found or expired")
@@ -2438,7 +2438,7 @@ def finalize_chunked_upload(upload_id):
 	if not upload_id or not upload_id.isalnum():
 		frappe.throw("Invalid upload_id")
 
-	upload_dir = os.path.join(get_files_path(is_private=True), "backup_uploads", upload_id)
+	upload_dir = os.path.join(get_files_path(is_private=False), "backup_uploads", upload_id)
 	meta_path = os.path.join(upload_dir, "meta.json")
 	if not os.path.exists(meta_path):
 		frappe.throw("Upload session not found")
@@ -2451,7 +2451,7 @@ def finalize_chunked_upload(upload_id):
 	if not chunks:
 		frappe.throw("No chunks found")
 
-	final_dir = os.path.join(get_files_path(is_private=True), "backup_uploads")
+	final_dir = os.path.join(get_files_path(is_private=False), "backup_uploads")
 	final_name = f"{upload_id[:10]}-{meta['safe_name']}"
 	final_path = os.path.join(final_dir, final_name)
 
@@ -2477,7 +2477,7 @@ def finalize_chunked_upload(upload_id):
 		"file_type": meta["file_type"],
 		"file_size": file_size,
 		"file_path": final_path,
-		"url": f"{frappe.utils.get_url()}/private/files/backup_uploads/{final_name}",
+		"url": f"{frappe.utils.get_url()}/files/backup_uploads/{final_name}",
 	}).insert()
 	add_tag("Site Upload", doc.doctype, doc.name)
 
