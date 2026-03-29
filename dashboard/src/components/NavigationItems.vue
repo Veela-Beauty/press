@@ -149,7 +149,7 @@ export default {
 					name: this.backupRunning ? 'Daman Backup …' : 'Daman Backup',
 					icon: () => h(HardDrive),
 					route: '/backups/overview',
-					condition: onboardingComplete && !isSaasUser,
+					condition: onboardingComplete && !isSaasUser && this.$session.isSystemUser,
 					disabled: enforce2FA,
 					children: [
 						{
