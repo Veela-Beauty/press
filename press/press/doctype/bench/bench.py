@@ -1483,6 +1483,29 @@ def try_archive(bench: str):
 		return False
 
 
+def archive_broken_benches():
+	"""Archive broken benches that have no active sites. Runs hourly."""
+	broken_benches = frappe.db.sql(
+		"""
+		SELECT b.name, b.server
+		FROM `tabBench` b
+		WHERE b.status = 'Broken'
+		AND NOT EXISTS (
+			SELECT 1 FROM `tabSite` s
+			WHERE s.bench = b.name AND s.status NOT IN ('Archived', 'Suspended')
+		)
+		""",
+		as_dict=True,
+	)
+	for bench in broken_benches:
+		try:
+			frappe.get_doc("Bench", bench.name).archive()
+			frappe.db.commit()
+		except Exception:
+			log_error("Broken Bench Cleanup Error", bench=bench.name)
+			frappe.db.rollback()
+
+
 def archive_obsolete_benches(group: str | None = None, server: str | None = None):
 	query_substr = ""
 	if group and server:
