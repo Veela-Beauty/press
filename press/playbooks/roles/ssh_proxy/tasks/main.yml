@@ -21,7 +21,21 @@
   become_user: frappe
   command: "docker run --rm --net none -v /home/frappe/ssh/etc:/etcmount {{ docker_image }} cp -RL /etc/. /etcmount"
 
+- name: Set SSH Proxy to listen on port 2222
+  become: yes
+  lineinfile:
+    path: /home/frappe/ssh/etc/ssh/sshd_config
+    regexp: '^Port '
+    line: 'Port 2222'
+
+- name: Fix /etc ownership for sshd
+  become: yes
+  file:
+    path: /home/frappe/ssh/etc
+    owner: root
+    group: root
+
 - name: Start SSH Proxy
   become: yes
   become_user: frappe
-  command: "docker run -d --name ssh --restart always -p 2222:22 -v /home/frappe/ssh/etc:/etc -v /home/frappe/ssh/home:/home --hostname ssh {{ docker_image }}"
+  command: "docker run -d --name ssh --restart always --network host -v /home/frappe/ssh/etc:/etc -v /home/frappe/ssh/home:/home --hostname ssh {{ docker_image }}"
