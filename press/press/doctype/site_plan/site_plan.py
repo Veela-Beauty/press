@@ -81,6 +81,9 @@ class SitePlan(Plan):
 		return frappe.get_all("Site Plan", filters={"offsite_backups": False}, pluck="name")
 
 	def validate(self):
+		# Auto-enable dedicated_server_plan for self-hosted Press
+		if self.private_benches and not self.dedicated_server_plan:
+			self.dedicated_server_plan = 1
 		self.validate_active_subscriptions()
 
 	def validate_active_subscriptions(self):
