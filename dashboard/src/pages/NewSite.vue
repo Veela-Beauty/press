@@ -442,6 +442,12 @@ export default {
 				this.cluster = null;
 				this.provider = null;
 			}
+			// Auto-select cluster when there's only one (bench flow)
+			if (this.bench && this.selectedVersion?.group?.clusters?.length === 1) {
+				this.$nextTick(() => {
+					this.cluster = this.selectedVersion.group.clusters[0].name;
+				});
+			}
 			this.agreedToRegionConsent = false;
 			// Reset localisation selection when version changes
 			this.selectedLocalisationCountry = null;
@@ -514,6 +520,11 @@ export default {
 					this.closestCluster = this.options.closest_cluster;
 					if (this.bench && this.options.versions.length > 0) {
 						this.version = this.options.versions[0].name;
+						// Auto-select cluster when there's only one (bench flow)
+						const group = this.options.versions[0].group;
+						if (group && group.clusters && group.clusters.length === 1) {
+							this.cluster = group.clusters[0].name;
+						}
 					}
 					this.applyDedicatedServerDefaults();
 				},
