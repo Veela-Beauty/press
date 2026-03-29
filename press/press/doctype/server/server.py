@@ -773,7 +773,9 @@ class BaseServer(Document, TagHelpers):
 
 			if play.status == "Success":
 				self.status = "Active"
+				self.is_server_setup = True
 				database_server.status = "Active"
+				database_server.is_server_setup = True
 			else:
 				self.status = "Broken"
 				database_server.status = "Broken"
@@ -784,6 +786,14 @@ class BaseServer(Document, TagHelpers):
 
 		self.save()
 		database_server.save()
+
+		# Post-provision fixes for self-hosted Press (private IP, DNS, Docker, agent)
+		if self.status == "Active":
+			try:
+				from press.post_provision import post_provision_server
+				post_provision_server(self.name)
+			except Exception:
+				log_error("Post-provision Exception", server=self.as_dict())
 
 	@frappe.whitelist()
 	def setup_server(self):
@@ -2110,6 +2120,8 @@ node_filesystem_avail_bytes{{instance="{self.name}", mountpoint="{mountpoint}"}}
 		)
 
 	def prune_docker_system(self):
+		if self.is_build_server():
+			return
 		frappe.enqueue_doc(
 			self.doctype,
 			self.name,
@@ -2855,6 +2867,14 @@ class Server(BaseServer):
 			log_error("Server Setup Exception", server=self.as_dict())
 		self.save()
 
+		# Post-provision fixes for self-hosted Press (private IP, DNS, Docker, agent)
+		if self.status == "Active":
+			try:
+				from press.post_provision import post_provision_server
+				post_provision_server(self.name)
+			except Exception:
+				log_error("Post-provision Exception", server=self.as_dict())
+
 	def get_proxy_ip(self):
 		# In case of standalone setup, proxy is not required.
 		if self.is_standalone:
@@ -3593,3 +3613,12 @@ def is_dedicated_server(server_name):
 		frappe.throw("Invalid argument")
 	is_public = frappe.db.get_value("Server", server_name, "public")
 	return not is_public
+
+
+def prune_docker_system():
+	servers = frappe.get_all("Server", fields=["name"], filters={"status": "Active"})
+	for server in servers:
+		try:
+			frappe.get_doc("Server", server.name).prune_docker_system()
+		except Exception:
+			log_error("Docker System Prune Error", server=server)
