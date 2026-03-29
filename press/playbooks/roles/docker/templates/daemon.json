@@ -6,5 +6,8 @@
     "metrics-addr": "127.0.0.1:9323",
     "no-new-privileges": true,
     "userland-proxy": false,
-    "max-concurrent-downloads": 5
+    "max-concurrent-downloads": 5,
+    "insecure-registries": [
+        "89.167.116.92:5000"
+    ]
 }

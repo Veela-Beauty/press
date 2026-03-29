@@ -143,6 +143,13 @@ class ProxyServer(BaseServer):
 			log_error("Proxy Server Setup Exception", server=self.as_dict())
 		self.save()
 
+		# Auto-setup SSH proxy after server setup succeeds
+		if self.status == "Active" and self.ssh_certificate_authority and not self.is_ssh_proxy_setup:
+			try:
+				self._setup_ssh_proxy()
+			except Exception:
+				log_error("SSH Proxy Auto-Setup Exception", server=self.as_dict())
+
 	def _install_exporters(self):
 		monitoring_password = frappe.get_doc("Cluster", self.cluster).get_password("monitoring_password")
 		try:
