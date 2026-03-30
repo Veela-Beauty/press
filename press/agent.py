@@ -647,7 +647,7 @@ class Agent:
 
 	def new_server(self, server):
 		_server = frappe.get_doc("Server", server)
-		ip = _server.ip if _server.is_self_hosted else _server.private_ip
+		ip = _server.ip if (_server.is_self_hosted or not _server.private_ip) else _server.private_ip
 		data = {"name": ip}
 		return self.create_agent_job("Add Upstream to Proxy", "proxy/upstreams", data, upstream=server)
 
@@ -673,7 +673,7 @@ class Agent:
 
 	def new_upstream_file(self, server, site=None, code_server=None):
 		_server = frappe.get_doc("Server", server)
-		ip = _server.ip if _server.is_self_hosted else _server.private_ip
+		ip = _server.ip if (_server.is_self_hosted or not _server.private_ip) else _server.private_ip
 		data = {"name": site if site else code_server}
 		doctype = "Site" if site else "Code Server"
 		return self.create_agent_job(

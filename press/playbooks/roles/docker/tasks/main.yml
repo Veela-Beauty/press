@@ -85,3 +85,31 @@
   supervisorctl:
     name: "agent:"
     state: started
+
+- name: Setup Docker Bench HTTP Proxy for NGINX
+  copy:
+    content: |
+      # Proxy HTTP requests from Press proxy to Docker bench containers
+      # This allows the proxy server to reach bench containers via public_ip:80
+      server {
+          listen 80;
+          server_name *.sandbox.mvpstorm.com *.demo.mvpstorm.com;
+
+          location / {
+              proxy_pass http://127.0.0.1:{{ docker_bench_web_port | default('18004') }};
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto https;
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection "upgrade";
+          }
+      }
+    dest: /etc/nginx/conf.d/docker-bench.conf
+  notify: Reload NGINX
+
+- name: Reload NGINX
+  systemd:
+    name: nginx
+    state: reloaded
