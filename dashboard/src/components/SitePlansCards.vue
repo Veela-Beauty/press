@@ -181,7 +181,7 @@ export default {
 			}
 			if (this.isDedicatedServerSite) {
 				plans = plans.filter((plan) => plan.dedicated_server_plan);
-			} else {
+			} else if (!this.isPrivateBenchSite) {
 				plans = plans.filter((plan) => !plan.dedicated_server_plan);
 			}
 			if (this.selectedCluster) {
