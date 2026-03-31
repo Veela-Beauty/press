@@ -226,6 +226,19 @@ def get_dev_panel_data(bench_name):
 
 
 @frappe.whitelist()
+def get_bench_app_names(bench_name):
+	"""Return the list of app names installed on a bench (for the Push dialog dropdown)."""
+	frappe.only_for("System Manager")
+	rows = frappe.get_all(
+		"Bench App",
+		filters={"parent": bench_name},
+		fields=["app"],
+		order_by="idx asc",
+	)
+	return [r.app for r in rows]
+
+
+@frappe.whitelist()
 def push_app_to_github(bench_name, app, message):
 	"""
 	Run git add -A && git commit -m <message> && git push inside the bench

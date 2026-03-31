@@ -83,41 +83,36 @@
 		</div>
 
 		<!-- Push to GitHub -->
-		<div class="rounded-lg border border-gray-200 p-4">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium">Push to GitHub</p>
-					<p class="mt-0.5 text-xs text-gray-500">
-						Commit and push uncommitted changes in a bench app to GitHub
-					</p>
-				</div>
+		<div class="rounded-lg border border-gray-200">
+			<div class="flex items-center justify-between px-4 py-3">
+				<p class="text-sm font-medium text-gray-700">Push to GitHub</p>
 				<Button size="sm" variant="outline" @click="showPushDialog = !showPushDialog">
 					{{ showPushDialog ? 'Cancel' : 'Push to GitHub' }}
 				</Button>
 			</div>
 
 			<!-- Inline push form -->
-			<div v-if="showPushDialog" class="mt-4 space-y-3 rounded-lg bg-gray-50 p-4">
-				<div>
-					<label class="mb-1 block text-xs font-medium text-gray-700">App</label>
-					<select
-						v-model="pushApp"
-						class="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
-					>
-						<option value="">— Select app —</option>
-						<option v-for="app in benchApps" :key="app" :value="app">{{ app }}</option>
-					</select>
-				</div>
-				<div>
-					<label class="mb-1 block text-xs font-medium text-gray-700">Commit message</label>
-					<input
-						v-model="pushMessage"
-						type="text"
-						class="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
-						placeholder="WIP"
-					/>
-				</div>
-				<div class="flex gap-2">
+			<div v-if="showPushDialog" class="border-t border-gray-100 bg-gray-50 px-4 py-3">
+				<div class="flex items-end gap-2">
+					<div class="min-w-0 flex-1">
+						<label class="mb-1 block text-xs font-medium text-gray-600">App</label>
+						<select
+							v-model="pushApp"
+							class="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+						>
+							<option value="">Select app…</option>
+							<option v-for="app in benchApps" :key="app" :value="app">{{ app }}</option>
+						</select>
+					</div>
+					<div class="min-w-0 flex-1">
+						<label class="mb-1 block text-xs font-medium text-gray-600">Commit message</label>
+						<input
+							v-model="pushMessage"
+							type="text"
+							class="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+							placeholder="WIP"
+						/>
+					</div>
 					<Button
 						size="sm"
 						variant="solid"
@@ -130,7 +125,7 @@
 				</div>
 				<pre
 					v-if="pushOutput"
-					class="mt-2 whitespace-pre-wrap rounded bg-gray-100 p-2 text-xs text-gray-700"
+					class="mt-2 whitespace-pre-wrap rounded bg-gray-100 p-2 text-xs leading-relaxed text-gray-700"
 				>{{ pushOutput }}</pre>
 			</div>
 		</div>
@@ -176,7 +171,7 @@
 </template>
 
 <script>
-import { call, createResource, getCachedDocumentResource } from 'frappe-ui';
+import { call, getCachedDocumentResource } from 'frappe-ui';
 import { toast } from 'vue-sonner';
 
 export default {
@@ -199,7 +194,7 @@ export default {
 			pushMessage: 'WIP',
 			pushLoading: false,
 			pushOutput: '',
-			benchAppsResource: null,
+			benchApps: [],
 		};
 	},
 	computed: {
@@ -213,16 +208,18 @@ export default {
 			if (!this.migrationData || !this.migrationData.last_run) return 'Never';
 			return 'Last: ' + this.relativeTime(this.migrationData.last_run);
 		},
-		benchApps() {
-			const res = this.benchAppsResource?.data;
-			if (!res) return [];
-			return res.map(r => r.app);
+	},
+	watch: {
+		'$site.doc.bench': {
+			immediate: true,
+			handler(benchName) {
+				if (benchName) this.loadBenchApps(benchName);
+			},
 		},
 	},
 	mounted() {
 		this.loadStatus();
 		this.loadErrors();
-		this.loadBenchApps();
 	},
 	methods: {
 		async loadStatus() {
@@ -251,19 +248,16 @@ export default {
 				this.errorsLoading = false;
 			}
 		},
-		loadBenchApps() {
-			const benchName = this.$site?.doc?.bench;
-			if (!benchName) return;
-			this.benchAppsResource = createResource({
-				url: 'frappe.client.get_list',
-				params: {
-					doctype: 'Bench App',
-					filters: [['parent', '=', benchName]],
-					fields: ['app'],
-					limit: 50,
-				},
-				auto: true,
-			});
+		async loadBenchApps(benchName) {
+			try {
+				const result = await call(
+					'press.press.doctype.bench.bench_dev_overview.get_bench_app_names',
+					{ bench_name: benchName },
+				);
+				this.benchApps = Array.isArray(result) ? result : [];
+			} catch (e) {
+				this.benchApps = [];
+			}
 		},
 		async toggleDevMode() {
 			const enabling = !this.devModeOn;
