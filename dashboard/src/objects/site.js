@@ -1741,23 +1741,6 @@ export default {
 					},
 				},
 				{
-					label: site.doc?.is_development_site ? 'Disable Dev Mode' : 'Enable Dev Mode',
-					slots: { prefix: icon('code') },
-					variant: site.doc?.is_development_site ? 'outline' : 'solid',
-					loading: site.setDevelopmentMode.loading,
-					condition: () => $team.doc?.is_desk_user && ['Active', 'Broken'].includes(site.doc.status),
-					onClick() {
-						const enabling = !site.doc.is_development_site;
-						site.setDevelopmentMode
-							.submit({ enable: enabling ? 1 : 0 })
-							.then(() => {
-								toast.success(enabling ? 'Developer mode enabled' : 'Developer mode disabled');
-								site.reload();
-							})
-							.catch((e) => toast.error(e.messages?.join(', ') || 'Failed'));
-					},
-				},
-				{
 					label: 'Impersonate Site Owner',
 					title: 'Impersonate Site Owner', // for label to pop-up on hover
 					slots: {
@@ -1818,6 +1801,21 @@ export default {
 					label: 'Options',
 					context,
 					options: [
+						{
+							label: site.doc?.is_development_site ? 'Disable Dev Mode' : 'Enable Dev Mode',
+							icon: 'code',
+							condition: () => $team.doc?.is_desk_user && ['Active', 'Broken'].includes(site.doc.status),
+							onClick() {
+								const enabling = !site.doc.is_development_site;
+								site.setDevelopmentMode
+									.submit({ enable: enabling ? 1 : 0 })
+									.then(() => {
+										toast.success(enabling ? 'Developer mode enabled' : 'Developer mode disabled');
+										site.reload();
+									})
+									.catch((e) => toast.error(e.messages?.join(', ') || 'Failed'));
+							},
+						},
 						{
 							label: 'View in Desk',
 							icon: 'external-link',

@@ -48,19 +48,6 @@ function getDetail() {
 			const team = getTeam();
 			return [
 				{
-					label: res.doc?.is_development_bench ? 'Unset Dev Bench' : 'Mark Dev Bench',
-					slots: { prefix: icon('code') },
-					variant: 'outline',
-					loading: res.setDevelopmentBench.loading,
-					condition: () => team.doc?.is_desk_user ?? false,
-					onClick() {
-						const enabling = !res.doc?.is_development_bench;
-						res.setDevelopmentBench
-							.submit({ enable: enabling ? 1 : 0 })
-							.then(() => res.reload());
-					},
-				},
-				{
 					label: 'Restart Bench',
 					slots: { prefix: icon('refresh-cw') },
 					variant: 'outline',
@@ -74,6 +61,17 @@ function getDetail() {
 					label: 'Options',
 					condition: () => team.doc?.is_desk_user ?? false,
 					options: [
+						{
+							label: res.doc?.is_development_bench ? 'Unset Dev Bench' : 'Mark Dev Bench',
+							icon: icon('code'),
+							condition: () => team.doc?.is_desk_user,
+							onClick() {
+								const enabling = !res.doc?.is_development_bench;
+								res.setDevelopmentBench
+									.submit({ enable: enabling ? 1 : 0 })
+									.then(() => res.reload());
+							}
+						},
 						{
 							label: 'View in Desk',
 							icon: icon('external-link'),
