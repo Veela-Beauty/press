@@ -2658,7 +2658,7 @@ class Site(Document, TagHelpers):
 		else:
 			self.delete_config("developer_mode")
 		action = "Dev mode enabled" if self.is_development_site else "Dev mode disabled"
-		log_site_activity(self.name, action)
+		frappe.logger().info(f"{self.name}: {action} by {frappe.session.user}")
 
 	@dashboard_whitelist()
 	def get_scheduler_status(self):
