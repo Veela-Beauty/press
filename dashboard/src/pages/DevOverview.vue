@@ -41,7 +41,6 @@
 					<div class="s-value">{{ lastBuildAge }}</div>
 					<div class="s-sub">{{ lastBuildSub }}</div>
 				</div>
-				</template>
 			</div>
 
 			<!-- Filter Bar -->
