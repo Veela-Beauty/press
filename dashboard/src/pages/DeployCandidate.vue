@@ -39,10 +39,10 @@
 				<div class="ml-auto flex items-center space-x-2">
 					<Button
 						@click="stopBuild"
-						v-if="deploy && deploy.status === 'Running'"
+						v-if="deploy && ['Running', 'Pending', 'Preparing', 'Scheduled'].includes(deploy.status)"
 						theme="red"
 					>
-						Stop Build
+						{{ deploy.status === 'Running' ? 'Stop Build' : 'Cancel Build' }}
 					</Button>
 					<Button
 						@click="$resources.deploy.reload()"
@@ -279,35 +279,40 @@ export default {
 		},
 		stopBuild() {
 			const deploy = this.deploy;
+			const isRunning = deploy.status === 'Running';
 
 			confirmDialog({
-				title: 'Fail Running Build',
-				message: `
-				Are you sure you want to fail this running build?<br><br>
-				<div class="text-bg-base bg-gray-100 p-2 rounded-md">
-				This will <strong>stop the current build immediately</strong>.  
-				All progress made so far will be <strong>discarded</strong>, and the next triggered build will start from scratch.
-				<br><br>
-				Use this option if a build is stuck, taking unusually long, or is expected to fail.
-				</div>
-				`,
+				title: isRunning ? 'Stop Running Build' : 'Cancel Pending Build',
+				message: isRunning
+					? `Are you sure you want to stop this running build?<br><br>
+					<div class="text-bg-base bg-gray-100 p-2 rounded-md">
+					This will <strong>stop the current build immediately</strong>.
+					All progress made so far will be <strong>discarded</strong>, and the next triggered build will start from scratch.
+					<br><br>
+					Use this option if a build is stuck, taking unusually long, or is expected to fail.
+					</div>`
+					: `Are you sure you want to cancel this ${deploy.status.toLowerCase()} build?<br><br>
+					<div class="text-bg-base bg-gray-100 p-2 rounded-md">
+					This will <strong>mark the build as failed</strong> and allow you to trigger a new deploy.
+					</div>`,
 				primaryAction: {
-					label: 'Stop Build',
+					label: isRunning ? 'Stop Build' : 'Cancel Build',
 					variant: 'solid',
 					theme: 'red',
 					onClick({ hide }) {
 						createResource({
-							url: 'press.api.bench.fail_build',
+							url: 'press.press.doctype.deploy_candidate_build.deploy_candidate_build.stop_and_fail',
 							params: { dn: deploy.name },
 						})
 							.fetch()
 							.then(() => {
 								hide();
+								toast.success('Build cancelled');
 							})
 							.catch(() => {
 								hide();
 								toast.error(
-									'Unable to stop build please wait for the status to be updated',
+									'Unable to cancel build — please wait for the status to update',
 								);
 							});
 					},
