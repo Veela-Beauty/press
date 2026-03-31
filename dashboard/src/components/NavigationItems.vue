@@ -198,6 +198,14 @@ export default {
 					isActive: ['Daman Overview', 'Daman Backup Jobs', 'Daman Job Queue', 'Daman Backup Servers', 'Daman Clients', 'Daman Client Detail', 'Daman Run Log', 'Daman Backup Alerts'].includes(routeName),
 				},
 				{
+					name: 'Dev Overview',
+					icon: () => h(Activity),
+					route: '/dev-overview',
+					isActive: routeName === 'Dev Overview',
+					condition: onboardingComplete && !isSaasUser,
+					disabled: enforce2FA,
+				},
+				{
 					name: 'Dev Tools',
 					icon: () => h(Code),
 					route: '/devtools',

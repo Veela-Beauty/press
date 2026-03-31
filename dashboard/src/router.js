@@ -483,6 +483,12 @@ let router = createRouter({
 			component: () => import('./pages/backups/BackupAlerts.vue'),
 			props: true,
 		},
+		{
+			path: '/dev-overview',
+			name: 'Dev Overview',
+			component: () => import('./pages/DevOverview.vue'),
+			props: true,
+		},
 		...generateRoutes(),
 		// TODO: makeshift redirect fixes for /insights paths
 		{
