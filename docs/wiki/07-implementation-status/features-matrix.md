@@ -37,6 +37,8 @@ All customizations and enhancements to the upstream `frappe/press` on the `cloud
 | Plans visibility fix | Done | `plans.py` | Show all plans for private bench sites |
 | Stale dashboard cache fix | Done | nginx config | `no-cache` headers on `/dashboard` HTML |
 | Cluster public flag guard | Done | `cluster.py` | Prevents `public` flag reset on save |
+| Dev Overview (Watch Tower) | Done | `DevOverview.vue`, `bench_dev_overview.py` | Real-time bench health dashboard: summary cards, per-bench status, deploy gap counter, expandable 5-tab panel (gap, commits, sites, builds, errors), group-header rows, icon action buttons |
+| Mark Dev Bench / Dev Mode | Done | `bench.ts`, `site.js`, `bench.py`, `site.py` | is_development_bench flag on bench; is_development_site + developer_mode config on site; both moved to Options dropdown |
 
 ## Monitoring & Health
 
@@ -104,6 +106,9 @@ All customizations and enhancements to the upstream `frappe/press` on the `cloud
 | 13 | `press/press/doctype/deploy_candidate/validations.py` | Warn instead of raise |
 | 14 | `press/press/doctype/support_access/support_access.py` | Operator precedence fix |
 | 15 | `press/press/doctype/cluster/cluster.py` | Preserve public flag |
+| 16 | `press/press/doctype/site/site.py` | `set_development_mode`: replace invalid `log_site_activity("Dev mode enabled")` with `frappe.logger()` |
+| 17 | `press/press/doctype/bench/bench.py` | Add `is_development_bench` field + `set_development_bench()` + `restart_bench()` whitelisted methods |
+| 18 | `press/press/doctype/bench/bench_dev_overview.py` | NEW file: standalone dev overview API (avoids editing 5000-line bench.py) |
 
 ## GitHub Update Flow
 

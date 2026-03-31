@@ -101,11 +101,28 @@ three separate DocType records, each with its own `agent_password` in `__Auth` t
 6. `press/press/doctype/deploy_candidate/validations.py` — warn instead of raise
 7. `press/press/doctype/support_access/support_access.py` — operator precedence fix
 8. `press/press/doctype/cluster/cluster.py` — preserve Cluster.public flag on save
+9. `press/press/doctype/site/site.py` — `set_development_mode`: fix invalid Site Activity action
+10. `press/press/doctype/bench/bench.py` — `is_development_bench` field + `set_development_bench()` + `restart_bench()`
+
+## Custom Files Added
+
+- `press/press/doctype/bench/bench_dev_overview.py` — Dev Overview API (standalone, avoids editing 5000-line bench.py)
+  - `get_dev_overview_benches()` — all benches with commit/build/site/gap data (batch SQL, no N+1)
+  - `get_dev_panel_data(bench_name)` — per-bench expanded panel data (sites, commits, build history, errors)
+- `dashboard/src/pages/DevOverview.vue` — Watch Tower dashboard at `/dashboard/dev-overview`
+
+## Dev Overview Patterns (key decisions)
+
+- **Standalone API module**: Add new whitelisted methods alongside `bench.py` in a sibling file, not inside it. Use `@frappe.whitelist()` directly. No changes to the 5000-line controller.
+- **`bool("0")` trap**: Site config values come back as strings. Always check `value in (True, 1, "1", "true")` — never `bool(value)`.
+- **Site Activity action enum**: The `action` field in Site Activity has a fixed option list. Custom strings (e.g., "Dev mode enabled") raise validation errors. Use `frappe.logger()` for non-standard audit events.
+- **Vue 3 `<template v-for>` + group headers**: Put `:key` on the `<template>` tag. Use `(item, idx)` to access previous item for group-header comparison: `idx === 0 || list[idx-1].group !== item.group`.
+- **Always syntax-check Python before deploying**: `python3 -c "import ast; ast.parse(open('file.py').read())"` — an IndentationError silently kills every API call to that module.
 
 ## Ops Wiki
 
 `press/docs/wiki/` — full self-hosted operations wiki
-- `lessons-learned.md` — 58 lessons with status audit
+- `lessons-learned.md` — 63 lessons with status audit
 - `02-operations/platform-risk-checklist.md` — MANDATORY before/after every change
 
 ## Environment

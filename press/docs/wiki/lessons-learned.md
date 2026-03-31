@@ -69,6 +69,11 @@ Every lesson is classified by fix durability. Legend:
 | 56 | `_certbot_command()` missing propagation flag — new cert issuance fails via Press UI | PERMANENT | Patched `--dns-cloudflare-propagation-seconds 30` in `tls_certificate.py` |
 | 57 | `provision-server.sh` Step 7 — SSH doesn't forward env vars, agent /ping always 401 | PERMANENT | Fixed: expand credential locally via `printf '%q'` |
 | 58 | `sync-press-tls-records.sh` `grep 'CN=[^,]*'` fails on OpenSSL 3.0 — CERT_DOMAIN empty, hook silent no-op | PERMANENT | Fixed: `sed -E 's/.*CN\s*=\s*\*\.([a-zA-Z0-9.-]+).*/\1/'` |
+| 59 | Python `IndentationError` in a module crashes ALL API calls — no partial import | PERMANENT | Documented — always syntax-check `.py` files before deploying: `python3 -c "import ast; ast.parse(open('file.py').read())"` |
+| 60 | `bool("0") == True` — Python string zero is truthy | PERMANENT | Fixed in `bench_dev_overview.py`: use explicit `value in (True, 1, "1", "true")` for site config boolean checks |
+| 61 | `Site Activity` action field is a fixed enum — custom action strings raise validation error | PERMANENT | Fixed `site.py set_development_mode`: replaced `log_site_activity("Dev mode enabled")` with `frappe.logger()` |
+| 62 | Vue 3 `<template v-for>` — `:key` must be on `<template>`, not the child `<div>` | PERMANENT | Documented — when wrapping rows in `<template v-for="(item, idx)">`, put `:key` on the template tag |
+| 63 | Standalone API file pattern for large doctypes — keep the fat file intact | PERMANENT | `bench_dev_overview.py` sits alongside `bench.py` without touching it. Hooks via `@frappe.whitelist()` directly. Avoids breaking a 5000-line controller. |
 
 ### Items Needing Action (open risks)
 
@@ -490,3 +495,75 @@ CERT_DOMAIN=$(openssl x509 -noout -subject -in "$CERT_FILE" 2>/dev/null \
   | sed -E 's/.*CN\s*=\s*\*\.([a-zA-Z0-9.-]+).*/\1/')
 ```
 **Lesson:** OpenSSL 3.0 changed the default subject output format from `/CN=value` to `CN = value`. Any script parsing `openssl` output with exact string matching for `CN=` will silently fail on Ubuntu 22.04. Use `\s*` around `=` or `-nameopt=oneline` to handle both formats. Always test shell hooks on a matching OS version — never just on the dev machine.
+
+---
+
+### 59. Python `IndentationError` crashes entire module — all API calls fail silently
+
+**What happened:** `bench_dev_overview.py` had the `scheduler_map` assignment at 2-tab indent instead of 3-tab (inside the `for` body). Python raises `IndentationError` at compile time, so the entire module fails to import. Every call to `get_dev_overview_benches()` returned no data — UI showed "no bench found" with no error visible.
+
+**Fix:** Fixed indentation. Added syntax check step before deploy.
+
+**Lesson:** Always syntax-check any Python file before deploying:
+```bash
+python3 -c "import ast; ast.parse(open('file.py').read())" && echo OK
+```
+An IndentationError is not a runtime error — it kills the whole module at import time. The API returns empty/null with no stack trace visible to the caller.
+
+---
+
+### 60. `bool("0") == True` — Python string zero is truthy
+
+**What happened:** Site config stores `pause_scheduler` as string `"0"` or `"1"`. Code used `bool(cfg.value)` to detect if scheduler was paused. `bool("0")` is `True` because it's a non-empty string — so the scheduler was incorrectly reported as always paused.
+
+**Fix:** Use explicit membership test: `cfg.value in (True, 1, "1", "true")`
+
+**Lesson:** Never use `bool()` to check truthy/falsy on values that might be string `"0"`. Site config values come back as strings. Always do explicit comparison.
+
+---
+
+### 61. `Site Activity` action field is a fixed enum — custom strings raise validation errors
+
+**What happened:** `set_development_mode` in `site.py` called `log_site_activity(self.name, "Dev mode enabled")`. The Site Activity doctype's `action` field has a strict option list (26 valid values). "Dev mode enabled" is not in the list — raises `frappe.exceptions.InvalidValueError` visible to the user.
+
+**Fix:** Replaced `log_site_activity(...)` with `frappe.logger().info(...)` for non-standard audit events.
+
+**Lesson:** Before calling `log_site_activity()` with a custom action string, check the allowed options in `site_activity.json`. For anything outside the standard lifecycle actions, use `frappe.logger()` instead.
+
+---
+
+### 62. Vue 3 `<template v-for>` — `:key` goes on the template, not the child element
+
+**What happened:** Wrapping bench rows in `<template v-for="(bench, idx) in list">` to add group header dividers. The child `<div class="bench-row">` retained `:key` — Vue warned and group state was lost on re-render.
+
+**Fix:** Move `:key="bench.name"` to the `<template>` tag, not the `<div>`.
+
+**Lesson:** When using `<template v-for>` to render multiple sibling elements per iteration, the `:key` must live on the `<template>`, not any child. Pattern for group headers:
+```html
+<template v-for="(item, idx) in list" :key="item.name">
+  <div v-if="idx === 0 || list[idx-1].group !== item.group" class="group-header">
+    {{ item.group_title }}
+  </div>
+  <div class="row">...</div>
+</template>
+```
+
+---
+
+### 63. Standalone API file pattern — add features alongside large controllers without touching them
+
+**What happened:** Needed to add new whitelisted API methods for the Dev Overview. The obvious place was `bench.py` — but it's 5000+ lines. Editing it risks merge conflicts, hook order issues, and review overhead.
+
+**Fix:** Created `bench_dev_overview.py` as a sibling file in the same doctype folder. Decorated with `@frappe.whitelist()` directly. Called from the frontend via the full dotted path:
+```python
+# bench_dev_overview.py
+@frappe.whitelist()
+def get_dev_overview_benches():
+    ...
+```
+```javascript
+// DevOverview.vue
+const DEV_OVERVIEW_URL = 'press.press.doctype.bench.bench_dev_overview.get_dev_overview_benches';
+```
+
+**Lesson:** You don't need to put every whitelisted method inside the DocType controller. Sibling files in the same folder work perfectly — the dotted path just needs to resolve to the function. This keeps large controllers clean and makes feature code easier to test in isolation.
