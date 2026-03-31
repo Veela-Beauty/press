@@ -65,6 +65,7 @@ export default {
 		getBackupDownloadLink: 'get_backup_download_link',
 		fetchDatabaseTableSchemas: 'fetch_database_table_schemas',
 		fetchSitesDataForExport: 'fetch_sites_data_for_export',
+		setDevelopmentMode: 'set_development_mode',
 	},
 	list: {
 		route: '/sites',

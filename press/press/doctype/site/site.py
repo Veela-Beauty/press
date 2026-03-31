@@ -181,6 +181,7 @@ class Site(Document, TagHelpers):
 		hybrid_saas_pool: DF.Link | None
 		is_erpnext_setup: DF.Check
 		is_monitoring_disabled: DF.Check
+		is_development_site: DF.Check
 		is_standby: DF.Check
 		last_site_usage_warning_mail_sent_on: DF.Datetime | None
 		logical_backup_times: DF.Table[SiteBackupTime]
@@ -2295,9 +2296,9 @@ class Site(Document, TagHelpers):
 			)
 
 	def disallow_developer_mode(self, key: str):
-		if key == "developer_mode":
+		if key == 'developer_mode' and not self.is_development_site:
 			frappe.throw(
-				"You shouldn't enable developer mode on Accurate Systems Cloud as your changes won't persist. Consider using a custom app instead. Read more <a href='https://accuratesystems.com.sa/docs/sites/site-config#why-cant-i-enable-developer-mode' class='underline' target='_blank'>here</a>."
+				'This is a production site. Mark it as a <b>Development Site</b> in the site record first to enable developer_mode.'
 			)
 
 	@dashboard_whitelist()
@@ -2644,6 +2645,15 @@ class Site(Document, TagHelpers):
 			self.reset_disk_usage_exceeded_status()
 		else:
 			self.unsuspend("Plan Upgraded")
+
+	@dashboard_whitelist()
+	def set_development_mode(self, enable):
+		"""Mark site as development or production."""
+		frappe.only_for('System Manager')
+		self.is_development_site = 1 if enable else 0
+		self.save(ignore_permissions=True)
+		action = 'Marked as Development Site' if self.is_development_site else 'Marked as Production Site'
+		log_site_activity(self.name, action)
 
 	@dashboard_whitelist()
 	@site_action(["Active", "Broken"])
@@ -3471,6 +3481,14 @@ class Site(Document, TagHelpers):
 				"button_label": "Drop",
 				"doc_method": "archive",
 				"group": "Dangerous Actions",
+			},
+			{
+				"action": "Enable Development Mode" if not self.is_development_site else "Disable Development Mode",
+				"description": "Allow developer_mode on this site" if not self.is_development_site else "Site is in development mode",
+				"button_label": "Enable" if not self.is_development_site else "Disable",
+				"doc_method": "set_development_mode",
+				"doc_method_args": {"enable": not self.is_development_site},
+				"group": "Developer Options",
 			},
 		]
 
