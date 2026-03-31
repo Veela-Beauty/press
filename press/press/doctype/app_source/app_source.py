@@ -22,6 +22,20 @@ if TYPE_CHECKING:
 	from press.press.doctype.app_release.app_release import AppRelease
 
 
+
+def is_public_github_repo(owner, repo):
+    """Check if a GitHub repository is public (no auth needed)."""
+    try:
+        import requests as req
+        response = req.head(
+            f"https://api.github.com/repos/{owner}/{repo}",
+            timeout=5,
+        )
+        return response.status_code == 200
+    except Exception:
+        return False
+
+
 class AppSource(Document):
 	# begin: auto-generated types
 	# This code is auto-generated. Do not modify anything in this block.
@@ -143,6 +157,12 @@ class AppSource(Document):
 		self.repository_url = self.repository_url.removesuffix(".git")
 
 		_, self.repository_owner, self.repository = self.repository_url.rsplit("/", 2)
+
+		# Auto-detect public repos — they don't need GitHub installation tokens
+		if not self.github_installation_id and not self.public:
+			if is_public_github_repo(self.repository_owner, self.repository):
+				self.public = 1
+
 		self.validate_dependent_apps()
 		# self.create_release()
 
@@ -273,7 +293,13 @@ class AppSource(Document):
 			)
 
 	def get_auth_headers(self) -> dict:
-		return get_auth_headers(self.github_installation_id)
+		headers = get_auth_headers(self.github_installation_id)
+		if not headers and self.public:
+			# For public repos without installation, use global PAT or App JWT
+			token = frappe.get_value("Press Settings", None, "github_access_token")
+			if token:
+				return {"Authorization": f"token {token}"}
+		return headers
 
 	def get_access_token(self) -> str | None:
 		if self.github_installation_id:

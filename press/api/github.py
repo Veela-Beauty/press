@@ -100,10 +100,70 @@ def options():
 	token = frappe.db.get_value("Team", team, "github_access_token")
 	public_link = frappe.db.get_single_value("Press Settings", "github_app_public_link")
 
+	if token:
+		return {
+			"authorized": True,
+			"installation_url": f"{public_link}/installations/new",
+			"installations": installations(token),
+		}
+
+	# No team token — but check if team has valid App Sources with installation IDs
+	# This avoids re-auth when the OAuth token was cleared but installations are still valid
+	existing_installations = frappe.db.sql("""
+		SELECT DISTINCT github_installation_id
+		FROM `tabApp Source`
+		WHERE team = %s
+		AND github_installation_id IS NOT NULL
+		AND github_installation_id != ''
+	""", team, as_dict=True)
+
+	if existing_installations:
+		# Reconstruct installation list from App Sources
+		installs = []
+		for row in existing_installations:
+			inst_id = row.github_installation_id
+			try:
+				inst_token = get_access_token(inst_id)
+				if not inst_token:
+					continue
+				headers = {"Authorization": f"token {inst_token}", "Accept": "application/vnd.github.machine-man-preview+json"}
+				import requests as req
+				resp = req.get(f"https://api.github.com/installation/repositories", params={"per_page": 100}, headers=headers, timeout=10)
+				if resp.ok:
+					repos_data = resp.json().get("repositories", [])
+					# Get installation account info from first repo
+					if repos_data:
+						owner = repos_data[0].get("owner", {})
+						installs.append({
+							"id": int(inst_id),
+							"login": owner.get("login", "Unknown"),
+							"url": owner.get("html_url", ""),
+							"image": owner.get("avatar_url", ""),
+							"repos": [
+								{
+									"id": r["id"],
+									"name": r["name"],
+									"private": r["private"],
+									"url": r["html_url"],
+									"default_branch": r["default_branch"],
+								}
+								for r in repos_data
+							],
+						})
+			except Exception:
+				continue
+
+		if installs:
+			return {
+				"authorized": True,
+				"installation_url": f"{public_link}/installations/new",
+				"installations": installs,
+			}
+
 	return {
-		"authorized": bool(token),
+		"authorized": False,
 		"installation_url": f"{public_link}/installations/new",
-		"installations": installations(token) if token else [],
+		"installations": [],
 	}
 
 
