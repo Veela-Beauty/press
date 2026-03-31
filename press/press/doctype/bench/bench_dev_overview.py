@@ -163,7 +163,7 @@ def get_dev_panel_data(bench_name):
 			fields=["parent", "value"],
 		):
 			# bool("0") == True, so use explicit truthy check
-		scheduler_map[cfg.parent] = cfg.value in (True, 1, "1", "true", True)
+			scheduler_map[cfg.parent] = cfg.value in (True, 1, "1", "true", True)
 
 	for s in sites:
 		s["migrated"] = bool(activities.get(s.name))
