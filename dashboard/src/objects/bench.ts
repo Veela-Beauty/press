@@ -48,6 +48,29 @@ function getDetail() {
 			const team = getTeam();
 			return [
 				{
+					label: res.doc?.is_development_bench ? 'Unset Dev Bench' : 'Mark Dev Bench',
+					slots: { prefix: icon('code') },
+					variant: 'outline',
+					loading: res.setDevelopmentBench.loading,
+					condition: () => team.doc?.is_desk_user ?? false,
+					onClick() {
+						const enabling = !res.doc?.is_development_bench;
+						res.setDevelopmentBench
+							.submit({ enable: enabling ? 1 : 0 })
+							.then(() => res.reload());
+					},
+				},
+				{
+					label: 'Restart Bench',
+					slots: { prefix: icon('refresh-cw') },
+					variant: 'outline',
+					loading: res.restartBench.loading,
+					condition: () => (team.doc?.is_desk_user ?? false) && res.doc?.status === 'Active',
+					onClick() {
+						res.restartBench.submit().then(() => res.reload());
+					},
+				},
+				{
 					label: 'Options',
 					condition: () => team.doc?.is_desk_user ?? false,
 					options: [
@@ -114,7 +137,8 @@ function getList() {
 			'group.title as group_title',
 			'cluster.name as cluster_name',
 			'cluster.image as cluster_image',
-			'cluster.title as cluster_title'
+			'cluster.title as cluster_title',
+			'is_development_bench'
 		],
 		orderBy: 'creation desc',
 		searchField: 'name',
