@@ -1216,19 +1216,19 @@ class Bench(Document):
 
 	@dashboard_whitelist()
 	def set_development_bench(self, enable):
-		Mark bench as development or production. System Manager only.
-		frappe.only_for(System Manager)
+		"""Mark bench as development or production. System Manager only."""
+		frappe.only_for("System Manager")
 		self.is_development_bench = 1 if enable else 0
 		self.save(ignore_permissions=True)
-		action = Marked as Development Bench if self.is_development_bench else Marked as Production Bench
-		frappe.logger().info(f{self.name}: {action} by {frappe.session.user})
+		action = "Marked as Development Bench" if self.is_development_bench else "Marked as Production Bench"
+		frappe.logger().info(f"{self.name}: {action} by {frappe.session.user}")
 
 	@dashboard_whitelist()
 	def restart_bench(self):
-		Restart bench supervisor processes. System Manager only.
-		frappe.only_for(System Manager)
+		"""Restart bench supervisor processes. System Manager only."""
+		frappe.only_for("System Manager")
 		self.restart()
-		frappe.logger().info(f{self.name}: restarted by {frappe.session.user})
+		frappe.logger().info(f"{self.name}: restarted by {frappe.session.user}")
 
 
 class StagingSite(Site):
