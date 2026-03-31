@@ -579,17 +579,39 @@ export default {
 	margin-bottom: 20px;
 }
 .summary-card {
-	background: var(--surface-white, #fff);
+	background: #fff;
 	border: 1px solid var(--gray-200, #e1e4e8);
 	border-radius: 8px;
 	padding: 16px 20px;
+	border-top: 3px solid var(--gray-200, #e1e4e8);
+}
+.summary-card.warn {
+	background: #fff8e6;
+	border-color: #ffe380;
+	border-top-color: #ff8b00;
+}
+.summary-card.danger {
+	background: #ffebe6;
+	border-color: #ffd2cc;
+	border-top-color: #de350b;
+}
+.summary-card.ok {
+	background: #e3fcef;
+	border-color: #abf5d1;
+	border-top-color: #00875a;
 }
 .s-label { font-size: 11px; color: var(--ink-gray-4, #97a0af); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+.summary-card.warn .s-label { color: #b36200; }
+.summary-card.danger .s-label { color: #ae2a19; }
+.summary-card.ok .s-label { color: #006644; }
 .s-value { font-size: 28px; font-weight: 700; color: var(--ink-gray-9, #172b4d); line-height: 1; }
 .s-sub { font-size: 11px; color: var(--ink-gray-4, #97a0af); margin-top: 4px; }
-.summary-card.warn .s-value { color: var(--yellow-600, #ff8b00); }
-.summary-card.danger .s-value { color: var(--red-600, #de350b); }
-.summary-card.ok .s-value { color: var(--green-600, #00875a); }
+.summary-card.warn .s-value { color: #ff8b00; }
+.summary-card.danger .s-value { color: #de350b; }
+.summary-card.ok .s-value { color: #00875a; }
+.summary-card.warn .s-sub { color: #b36200; }
+.summary-card.danger .s-sub { color: #ae2a19; }
+.summary-card.ok .s-sub { color: #006644; }
 
 /* ── Live badge ──────────────────────────────────────────────────── */
 .live-badge {
