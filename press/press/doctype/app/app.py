@@ -126,6 +126,30 @@ def poll_new_releases():
 			frappe.db.rollback()
 
 
+
+def retry_failed_releases():
+    """Retry polling App Sources that previously failed (every 30 min).
+    Resets last_github_poll_failed so they rejoin the normal poll cycle."""
+    failed_sources = frappe.get_all(
+        "App Source",
+        {"enabled": True, "last_github_poll_failed": True},
+        order_by="last_synced asc",
+        limit=50,
+    )
+    for source in failed_sources:
+        if has_job_timeout_exceeded():
+            return
+        try:
+            source = frappe.get_doc("App Source", source.name)
+            source.create_release(force=True)
+            frappe.db.commit()
+        except rq.timeouts.JobTimeoutException:
+            frappe.db.rollback()
+            return
+        except Exception:
+            frappe.db.rollback()
+
+
 def is_bounded(spec: sv.NpmSpec) -> bool:
 	"""Ensure less than and greater than bounds are there, or exact version is given"""
 	standardized = str(spec)
