@@ -2648,11 +2648,16 @@ class Site(Document, TagHelpers):
 
 	@dashboard_whitelist()
 	def set_development_mode(self, enable):
-		"""Mark site as development or production."""
-		frappe.only_for('System Manager')
+		"""Mark site as dev or production and toggle developer_mode in site config."""
+		frappe.only_for("System Manager")
 		self.is_development_site = 1 if enable else 0
 		self.save(ignore_permissions=True)
-		action = 'Marked as Development Site' if self.is_development_site else 'Marked as Production Site'
+		if enable:
+			self._update_configuration({"developer_mode": 1})
+			self.update_site_config()
+		else:
+			self.delete_config("developer_mode")
+		action = "Dev mode enabled" if self.is_development_site else "Dev mode disabled"
 		log_site_activity(self.name, action)
 
 	@dashboard_whitelist()
