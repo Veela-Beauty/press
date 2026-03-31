@@ -36,6 +36,23 @@
 					{{ deploy.deploy_candidate }}
 				</h2>
 				<Badge class="ml-2" :label="deploy.status" />
+				<div v-if="isBuilding" class="ml-4 flex flex-1 items-center gap-3">
+					<div class="flex-1">
+						<div class="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+							<div
+								class="h-full rounded-full transition-all duration-1000 ease-linear"
+								:class="progressColor"
+								:style="{ width: progressPercent + '%' }"
+							></div>
+						</div>
+					</div>
+					<span class="whitespace-nowrap text-sm text-gray-600">
+						{{ elapsedFormatted }} / ~{{ estimateFormatted }}
+					</span>
+				</div>
+				<div v-else-if="deploy.status === 'Success' && deploy.build_duration" class="ml-4 text-sm text-gray-500">
+					Completed in {{ $format.duration(deploy.build_duration) }}
+				</div>
 				<div class="ml-auto flex items-center space-x-2">
 					<Button
 						@click="stopBuild"
@@ -142,6 +159,13 @@ export default {
 				transform: this.transformDeploy,
 			};
 		},
+		estimate() {
+			return {
+				url: 'press.press.doctype.deploy_candidate_build.deploy_candidate_build.get_build_estimate',
+				params: { group: this.$resources.deploy?.doc?.group },
+				auto: false,
+			};
+		},
 		warnings() {
 			return {
 				type: 'list',
@@ -184,8 +208,31 @@ export default {
 			};
 		},
 	},
+	data() {
+		return {
+			elapsedSeconds: 0,
+			elapsedTimer: null,
+		};
+	},
+	watch: {
+		'deploy.group'(group) {
+			if (group && this.isBuilding) {
+				this.$resources.estimate.submit({ group });
+			}
+		},
+		'deploy.status'(status) {
+			if (['Running', 'Pending', 'Preparing', 'Scheduled'].includes(status)) {
+				this.startTimer();
+			} else {
+				this.stopTimer();
+			}
+		},
+	},
 	mounted() {
 		this.$socket.emit('doc_subscribe', 'Deploy Candidate Build', this.id);
+		if (this.isBuilding) {
+			this.startTimer();
+		}
 		this.$socket.on(`bench_deploy:${this.id}:steps`, (data) => {
 			if (data.name === this.id && this.$resources.deploy.doc) {
 				this.$resources.deploy.doc.build_steps = this.transformDeploy({
@@ -207,10 +254,32 @@ export default {
 	beforeUnmount() {
 		this.$socket.emit('doc_unsubscribe', 'Deploy Candidate Build', this.id);
 		this.$socket.off(`bench_deploy:${this.id}:steps`);
+		this.stopTimer();
 	},
 	computed: {
 		deploy() {
 			return this.$resources.deploy.doc;
+		},
+		isBuilding() {
+			return this.deploy && ['Running', 'Pending', 'Preparing', 'Scheduled'].includes(this.deploy.status);
+		},
+		estimatedSeconds() {
+			return this.$resources.estimate?.data?.estimated_seconds || 120;
+		},
+		progressPercent() {
+			if (!this.isBuilding) return 100;
+			const pct = Math.min((this.elapsedSeconds / this.estimatedSeconds) * 100, 98);
+			return Math.round(pct);
+		},
+		progressColor() {
+			if (this.progressPercent > 90) return 'bg-yellow-500';
+			return 'bg-blue-500';
+		},
+		elapsedFormatted() {
+			return this.formatDuration(this.elapsedSeconds);
+		},
+		estimateFormatted() {
+			return this.formatDuration(this.estimatedSeconds);
 		},
 		object() {
 			return getObject(this.objectType);
@@ -255,6 +324,32 @@ export default {
 		},
 	},
 	methods: {
+		formatDuration(secs) {
+			const m = Math.floor(secs / 60);
+			const s = secs % 60;
+			return m > 0 ? `${m}m ${s}s` : `${s}s`;
+		},
+		startTimer() {
+			if (this.elapsedTimer) return;
+			// Calculate elapsed from build_start
+			if (this.deploy?.build_start) {
+				const start = new Date(this.deploy.build_start).getTime();
+				this.elapsedSeconds = Math.max(0, Math.floor((Date.now() - start) / 1000));
+			}
+			this.elapsedTimer = setInterval(() => {
+				this.elapsedSeconds++;
+			}, 1000);
+			// Fetch estimate
+			if (this.deploy?.group) {
+				this.$resources.estimate.submit({ group: this.deploy.group });
+			}
+		},
+		stopTimer() {
+			if (this.elapsedTimer) {
+				clearInterval(this.elapsedTimer);
+				this.elapsedTimer = null;
+			}
+		},
 		transformDeploy(deploy) {
 			for (let step of deploy.build_steps) {
 				if (step.status === 'Running') {
