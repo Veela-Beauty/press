@@ -66,23 +66,32 @@ def get_dev_overview_benches():
 		):
 			releases_map[rel.hash] = rel
 
-	# ── undeployed gap: count releases newer than each bench's deployed hash ──
-	# For each bench app, count App Releases with a later timestamp than the
-	# currently deployed hash. Sum across all apps = undeployed commit count.
-	undeployed_by_bench: dict = {}
+	# ── undeployed gap: one batch SQL instead of N COUNT queries (2A perf fix) ──
+	# Build (app, deployed_timestamp) pairs, then one query with GROUP BY.
+	app_ts_pairs = []
+	app_to_benches: dict[str, list[str]] = {}
 	for app_entry in bench_apps:
 		deployed_rel = releases_map.get(app_entry.hash) if app_entry.hash else None
 		ts = deployed_rel.timestamp if deployed_rel else None
 		if not ts:
 			continue
-		count = frappe.db.count(
-			"App Release",
-			{"app": app_entry.app, "timestamp": [">", ts]},
+		app_ts_pairs.append((app_entry.app, ts))
+		app_to_benches.setdefault(app_entry.app, []).append(app_entry.parent)
+
+	undeployed_by_bench: dict = {}
+	if app_ts_pairs:
+		or_clauses = " OR ".join(["(app = %s AND timestamp > %s)"] * len(app_ts_pairs))
+		params = [v for pair in app_ts_pairs for v in pair]
+		rows = frappe.db.sql(
+			f"SELECT app, COUNT(*) as cnt FROM `tabApp Release` WHERE {or_clauses} GROUP BY app",
+			params,
+			as_dict=True,
 		)
-		if count:
-			undeployed_by_bench[app_entry.parent] = (
-				undeployed_by_bench.get(app_entry.parent, 0) + count
-			)
+		for row in rows:
+			for bench_name in app_to_benches.get(row.app, []):
+				undeployed_by_bench[bench_name] = (
+					undeployed_by_bench.get(bench_name, 0) + row.cnt
+				)
 
 	# ── assemble ─────────────────────────────────────────────────────────────
 	result = []
@@ -160,26 +169,28 @@ def get_dev_panel_data(bench_name):
 		s["migrated"] = bool(activities.get(s.name))
 		s["scheduler_enabled"] = not scheduler_map.get(s.name, False)
 
-	# ── recent commits from bench apps ────────────────────────────────────────
+	# ── recent commits from bench apps — batched (1A perf fix) ───────────────
+	app_hashes = {ae.hash: ae for ae in bench_doc.apps if ae.hash}
+	panel_releases_map = {}
+	if app_hashes:
+		for rel in frappe.get_all(
+			"App Release",
+			filters={"hash": ["in", list(app_hashes.keys())]},
+			fields=["hash", "message", "author", "timestamp"],
+		):
+			panel_releases_map[rel.hash] = rel
+
 	recent_commits = []
 	for app_entry in bench_doc.apps:
-		if not app_entry.hash:
-			continue
-		rels = frappe.get_all(
-			"App Release",
-			filters={"hash": app_entry.hash},
-			fields=["hash", "message", "author", "timestamp"],
-			limit=1,
-		)
-		if rels and rels[0].message:
-			r = rels[0]
+		rel = panel_releases_map.get(app_entry.hash)
+		if rel and rel.message:
 			recent_commits.append(
 				{
 					"app": app_entry.app,
 					"hash": (app_entry.hash or "")[:7],
-					"message": (r.message or "").split("\n")[0][:80],
-					"author": r.author or "",
-					"timestamp": str(r.timestamp) if r.timestamp else "",
+					"message": (rel.message or "").split("\n")[0][:80],
+					"author": rel.author or "",
+					"timestamp": str(rel.timestamp) if rel.timestamp else "",
 				}
 			)
 

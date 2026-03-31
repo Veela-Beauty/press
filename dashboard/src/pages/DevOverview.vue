@@ -429,10 +429,9 @@ export default {
 		},
 
 		_setBs(benchName, patch) {
-			this.benchState = {
-				...this.benchState,
-				[benchName]: { ...(this.benchState[benchName] || {}), ...patch },
-			};
+			// Vue 3 proxy tracks direct property mutations — no full-object spread needed
+			if (!this.benchState[benchName]) this.benchState[benchName] = {};
+			Object.assign(this.benchState[benchName], patch);
 		},
 
 		toggleExpand(benchName) {
