@@ -41,7 +41,7 @@
 	</div>
 </template>
 
-<script>
+<script lang="jsx">
 import { Breadcrumbs, Button, Tooltip, createResource } from 'frappe-ui';
 import { defineAsyncComponent, h } from 'vue';
 import { toast } from 'vue-sonner';
