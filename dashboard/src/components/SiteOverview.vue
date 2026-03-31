@@ -19,6 +19,34 @@
 		</AlertBanner>
 
 		<AlertBanner
+			v-if="$site?.doc?.status === 'Broken' && lastFailedJob"
+			class="col-span-1 lg:col-span-2"
+			type="error"
+			:title="'Site is Broken: ' + (lastFailedJob.job_type || 'Unknown job') + ' failed'"
+		>
+			<div class="mt-2 w-full">
+				<pre class="mt-2 overflow-y-auto rounded bg-gray-900 p-3 text-xs text-green-400" style="white-space: pre-wrap; word-break: break-all; max-height: 160px">{{ lastFailedJob.output || 'No output available' }}</pre>
+				<div class="mt-2 flex items-center gap-2">
+					<router-link
+						:to="{ name: 'Site Job', params: { id: lastFailedJob.name } }"
+						class="text-sm font-medium text-blue-600 hover:text-blue-800"
+					>
+						View full job details
+					</router-link>
+					<span class="text-xs text-gray-400">{{ lastFailedJob.creation }}</span>
+				</div>
+			</div>
+		</AlertBanner>
+
+		<AlertBanner
+			v-else-if="$site?.doc?.status === 'Broken'"
+			class="col-span-1 lg:col-span-2"
+			type="error"
+			title="Site is Broken. Check the Jobs tab for details."
+		>
+		</AlertBanner>
+
+		<AlertBanner
 			v-if="$site?.doc?.status === 'Suspended' && $site?.doc?.suspension_reason"
 			class="col-span-1 lg:col-span-2"
 			type="error"
@@ -376,9 +404,13 @@ export default {
 	data() {
 		return {
 			isSetupWizardComplete: true,
+			lastFailedJob: null,
 		};
 	},
 	mounted() {
+		if (this.$site?.doc?.status === 'Broken') {
+			this.fetchLastFailedJob();
+		}
 		if (this.$site?.doc?.status === 'Active') {
 			this.$site.isSetupWizardComplete.submit().then((res) => {
 				this.isSetupWizardComplete = res;
