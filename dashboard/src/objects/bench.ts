@@ -29,7 +29,10 @@ import { getPatchesTab } from './common/patches';
 
 export default {
 	doctype: 'Bench',
-	whitelistedMethods: {},
+	whitelistedMethods: {
+		setDevelopmentBench: "set_development_bench",
+		restartBench: "restart_bench",
+	},
 	detail: getDetail(),
 	list: getList(),
 	routes: getRoutes()

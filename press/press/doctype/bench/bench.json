@@ -371,6 +371,13 @@
    "read_only": 1
   },
   {
+   "default": "0",
+   "fieldname": "is_development_bench",
+   "fieldtype": "Check",
+   "label": "Is Development Bench",
+   "description": "Development benches allow sites to enable developer_mode. Do not use for production client benches."
+  },
+  {
    "fieldname": "build",
    "fieldtype": "Link",
    "label": "Build",
