@@ -86,7 +86,7 @@
 							>
 								Restart
 							</Button>
-							<!-- VS Code -->
+							<!-- VS Code (dev benches only) -->
 							<a
 								v-if="bench.is_development_bench"
 								:href="`vscode://vscode-remote/ssh-remote+press-ctrl/home/frappe/benches/${bench.name}/apps`"
@@ -183,7 +183,7 @@
 </template>
 
 <script>
-import { createResource, getCachedDocumentResource } from 'frappe-ui';
+import { createResource } from 'frappe-ui';
 import Badge from '@/components/global/Badge.vue';
 import Header from '@/components/Header.vue';
 import { Breadcrumbs, Button } from 'frappe-ui';
@@ -195,7 +195,6 @@ export default {
 
 	data() {
 		return {
-			// reactive per-bench/site state stored here
 			benchState: {},
 		};
 	},
@@ -218,8 +217,7 @@ export default {
 
 	computed: {
 		enrichedBenches() {
-			const benches = this.$resources.benches.data || [];
-			return benches.map((b) => ({
+			return (this.$resources.benches.data || []).map((b) => ({
 				...b,
 				sites: this.benchState[b.name]?.sites || [],
 				_togglingDev: this.benchState[b.name]?._togglingDev || false,
@@ -233,18 +231,14 @@ export default {
 			return (this.$resources.benches.data || []).filter((b) => b.is_development_bench).length;
 		},
 		activeSites() {
-			let count = 0;
-			for (const b of Object.values(this.benchState)) {
-				count += (b.sites || []).filter((s) => s.status === 'Active').length;
-			}
-			return count;
+			return Object.values(this.benchState)
+				.flatMap((b) => b.sites || [])
+				.filter((s) => s.status === 'Active').length;
 		},
 		sitesWithErrors() {
-			let count = 0;
-			for (const b of Object.values(this.benchState)) {
-				count += (b.sites || []).filter((s) => s._recentErrors?.count > 0).length;
-			}
-			return count;
+			return Object.values(this.benchState)
+				.flatMap((b) => b.sites || [])
+				.filter((s) => s._recentErrors?.count > 0).length;
 		},
 	},
 
@@ -281,43 +275,30 @@ export default {
 			});
 		},
 
+		runDocMethod(dt, dn, method, args = {}) {
+			const res = createResource({ url: 'press.api.client.run_doc_method' });
+			return res.submit({ dt, dn, method, ...args });
+		},
+
 		loadSiteHealth(benchName, siteName) {
-			// Scheduler status
-			createResource({
-				url: 'press.api.client.run_doc_method',
-				params: { dt: 'Site', dn: siteName, method: 'get_scheduler_status' },
-				auto: true,
-				onSuccess: (r) => this.setSiteState(benchName, siteName, { _schedulerStatus: r }),
-				onError: () => this.setSiteState(benchName, siteName, { _schedulerStatus: { enabled: true } }),
-			});
-			// Migration status
-			createResource({
-				url: 'press.api.client.run_doc_method',
-				params: { dt: 'Site', dn: siteName, method: 'get_migration_status' },
-				auto: true,
-				onSuccess: (r) => this.setSiteState(benchName, siteName, { _migrationStatus: r }),
-				onError: () => this.setSiteState(benchName, siteName, { _migrationStatus: null }),
-			});
-			// Recent errors
-			createResource({
-				url: 'press.api.client.run_doc_method',
-				params: { dt: 'Site', dn: siteName, method: 'get_recent_errors' },
-				auto: true,
-				onSuccess: (r) => this.setSiteState(benchName, siteName, { _recentErrors: r }),
-				onError: () => this.setSiteState(benchName, siteName, { _recentErrors: { count: 0, errors: [] } }),
-			});
+			this.runDocMethod('Site', siteName, 'get_scheduler_status')
+				.then((r) => this.setSiteState(benchName, siteName, { _schedulerStatus: r }))
+				.catch(() => this.setSiteState(benchName, siteName, { _schedulerStatus: { enabled: true } }));
+
+			this.runDocMethod('Site', siteName, 'get_migration_status')
+				.then((r) => this.setSiteState(benchName, siteName, { _migrationStatus: r }))
+				.catch(() => this.setSiteState(benchName, siteName, { _migrationStatus: null }));
+
+			this.runDocMethod('Site', siteName, 'get_recent_errors')
+				.then((r) => this.setSiteState(benchName, siteName, { _recentErrors: r }))
+				.catch(() => this.setSiteState(benchName, siteName, { _recentErrors: { count: 0, errors: [] } }));
 		},
 
 		toggleDevBench(bench) {
 			this.setBenchState(bench.name, { _togglingDev: true });
-			const benchDoc = getCachedDocumentResource('Bench', bench.name);
-			if (!benchDoc) {
-				toast.error('Could not load bench resource');
-				this.setBenchState(bench.name, { _togglingDev: false });
-				return;
-			}
-			benchDoc.setDevelopmentBench
-				.submit({ enable: bench.is_development_bench ? 0 : 1 })
+			this.runDocMethod('Bench', bench.name, 'set_development_bench', {
+				enable: bench.is_development_bench ? 0 : 1,
+			})
 				.then(() => {
 					toast.success(bench.is_development_bench ? 'Bench set to production' : 'Bench marked as dev');
 					this.$resources.benches.reload();
@@ -328,14 +309,7 @@ export default {
 
 		restartBench(bench) {
 			this.setBenchState(bench.name, { _restarting: true });
-			const benchDoc = getCachedDocumentResource('Bench', bench.name);
-			if (!benchDoc) {
-				toast.error('Could not load bench resource');
-				this.setBenchState(bench.name, { _restarting: false });
-				return;
-			}
-			benchDoc.restartBench
-				.submit()
+			this.runDocMethod('Bench', bench.name, 'restart_bench')
 				.then(() => toast.success(`Bench ${bench.name} restarted`))
 				.catch((e) => toast.error(e.messages?.join(', ') || 'Failed to restart'))
 				.finally(() => this.setBenchState(bench.name, { _restarting: false }));
@@ -346,15 +320,21 @@ export default {
 			return map[status] || 'gray';
 		},
 		siteStatusTheme(status) {
-			const map = { Active: 'green', Inactive: 'gray', Broken: 'red', Pending: 'yellow', Suspended: 'orange', Updating: 'blue' };
+			const map = {
+				Active: 'green',
+				Inactive: 'gray',
+				Broken: 'red',
+				Pending: 'yellow',
+				Suspended: 'orange',
+				Updating: 'blue',
+			};
 			return map[status] || 'gray';
 		},
 		formatDate(dateStr) {
 			if (!dateStr) return '';
 			try {
 				const d = new Date(dateStr);
-				const now = new Date();
-				const diff = Math.floor((now - d) / 1000);
+				const diff = Math.floor((Date.now() - d) / 1000);
 				if (diff < 60) return 'just now';
 				if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
 				if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;

@@ -2700,7 +2700,7 @@ class Site(Document, TagHelpers):
 				filters={"site": self.name, "status": "Failure"},
 				fields=["name", "job_type", "creation", "status"],
 				order_by="creation desc",
-				limit=int(limit),
+				limit=min(int(limit), 20),
 			)
 			return {"errors": [dict(j) for j in jobs], "count": len(jobs)}
 		except Exception:

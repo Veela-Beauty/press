@@ -688,3 +688,93 @@ class TestSite(FrappeTestCase):
 		suspend_sites_exceeding_disk_usage_for_last_14_days()
 		site.reload()
 		self.assertEqual(site.status, "Suspended")
+
+
+class TestSiteHealthMethods(FrappeTestCase):
+	"""Tests for dashboard health endpoint methods added in dev-overview feature."""
+
+	def test_get_scheduler_status_returns_enabled_when_not_paused(self):
+		"""Scheduler status is enabled when pause_scheduler config key is absent or falsy."""
+		site = create_test_site("testscheduler")
+		with patch.object(site, "get_config_value_for_key", return_value=None):
+			result = site.get_scheduler_status()
+		self.assertEqual(result, {"enabled": True})
+
+	def test_get_scheduler_status_returns_disabled_when_paused(self):
+		"""Scheduler status is disabled when pause_scheduler config key is truthy."""
+		site = create_test_site("testscheduleroff")
+		with patch.object(site, "get_config_value_for_key", return_value=1):
+			result = site.get_scheduler_status()
+		self.assertEqual(result, {"enabled": False})
+
+	def test_get_scheduler_status_falls_back_to_enabled_on_exception(self):
+		"""Scheduler status defaults to enabled if config read raises an exception."""
+		site = create_test_site("testschedulererr")
+		with patch.object(site, "get_config_value_for_key", side_effect=Exception("oops")):
+			result = site.get_scheduler_status()
+		self.assertEqual(result, {"enabled": True})
+
+	def test_get_migration_status_returns_last_migrate_action(self):
+		"""Migration status returns the most recent Migrate activity for the site."""
+		site = create_test_site("testmigrate")
+		mock_activities = [
+			{"action": "Migrate", "creation": "2026-01-15 10:00:00", "owner": "admin@example.com"}
+		]
+		with patch("frappe.get_all", return_value=mock_activities):
+			result = site.get_migration_status()
+		self.assertEqual(result["last_action"], "Migrate")
+		self.assertIn("2026-01-15", result["last_run"])
+		self.assertEqual(result["by"], "admin@example.com")
+
+	def test_get_migration_status_returns_none_when_no_activity(self):
+		"""Migration status returns null fields when no Migrate/Update activity exists."""
+		site = create_test_site("testnomigrate")
+		with patch("frappe.get_all", return_value=[]):
+			result = site.get_migration_status()
+		self.assertIsNone(result["last_action"])
+		self.assertIsNone(result["last_run"])
+		self.assertIsNone(result["by"])
+
+	def test_get_migration_status_falls_back_on_exception(self):
+		"""Migration status returns null fields on database exception."""
+		site = create_test_site("testmigrateerr")
+		with patch("frappe.get_all", side_effect=Exception("db error")):
+			result = site.get_migration_status()
+		self.assertIsNone(result["last_action"])
+
+	def test_get_recent_errors_returns_failed_jobs(self):
+		"""Recent errors returns list of failed agent jobs for the site."""
+		site = create_test_site("testerrors")
+		mock_jobs = [
+			{"name": "AJ-001", "job_type": "New Site", "creation": "2026-01-15 11:00:00", "status": "Failure"},
+			{"name": "AJ-002", "job_type": "Migrate", "creation": "2026-01-14 09:00:00", "status": "Failure"},
+		]
+		with patch("frappe.get_all", return_value=mock_jobs):
+			result = site.get_recent_errors()
+		self.assertEqual(result["count"], 2)
+		self.assertEqual(len(result["errors"]), 2)
+		self.assertEqual(result["errors"][0]["name"], "AJ-001")
+
+	def test_get_recent_errors_returns_empty_when_no_errors(self):
+		"""Recent errors returns empty list when no failed jobs exist."""
+		site = create_test_site("testnoerrors")
+		with patch("frappe.get_all", return_value=[]):
+			result = site.get_recent_errors()
+		self.assertEqual(result["count"], 0)
+		self.assertEqual(result["errors"], [])
+
+	def test_get_recent_errors_caps_limit_at_20(self):
+		"""Recent errors request with large limit is capped at 20."""
+		site = create_test_site("testlimit")
+		with patch("frappe.get_all", return_value=[]) as mock_get_all:
+			site.get_recent_errors(limit=999)
+		call_kwargs = mock_get_all.call_args
+		self.assertLessEqual(call_kwargs.kwargs.get("limit", 0), 20)
+
+	def test_get_recent_errors_falls_back_on_exception(self):
+		"""Recent errors returns empty list on database exception."""
+		site = create_test_site("testerrfallback")
+		with patch("frappe.get_all", side_effect=Exception("db error")):
+			result = site.get_recent_errors()
+		self.assertEqual(result["count"], 0)
+		self.assertEqual(result["errors"], [])
