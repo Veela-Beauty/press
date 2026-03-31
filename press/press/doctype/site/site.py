@@ -2661,6 +2661,52 @@ class Site(Document, TagHelpers):
 		log_site_activity(self.name, action)
 
 	@dashboard_whitelist()
+	def get_scheduler_status(self):
+		"""Return scheduler enabled/disabled state for this site."""
+		try:
+			paused = self.get_config_value_for_key("pause_scheduler")
+			return {"enabled": not bool(paused)}
+		except Exception:
+			return {"enabled": True}
+
+	@dashboard_whitelist()
+	def get_migration_status(self):
+		"""Return last migration/update action for this site from Site Activity."""
+		try:
+			activities = frappe.get_all(
+				"Site Activity",
+				filters={"site": self.name, "action": ["in", ["Migrate", "Update"]]},
+				fields=["action", "creation", "owner"],
+				order_by="creation desc",
+				limit=1,
+			)
+			if activities:
+				act = activities[0]
+				return {
+					"last_action": act.get("action"),
+					"last_run": str(act.get("creation")),
+					"by": act.get("owner"),
+				}
+			return {"last_action": None, "last_run": None, "by": None}
+		except Exception:
+			return {"last_action": None, "last_run": None, "by": None}
+
+	@dashboard_whitelist()
+	def get_recent_errors(self, limit=5):
+		"""Return recent failed agent jobs for this site."""
+		try:
+			jobs = frappe.get_all(
+				"Agent Job",
+				filters={"site": self.name, "status": "Failure"},
+				fields=["name", "job_type", "creation", "status"],
+				order_by="creation desc",
+				limit=int(limit),
+			)
+			return {"errors": [dict(j) for j in jobs], "count": len(jobs)}
+		except Exception:
+			return {"errors": [], "count": 0}
+
+	@dashboard_whitelist()
 	@site_action(["Active", "Broken"])
 	def deactivate(self):
 		plan = frappe.db.get_value("Site Plan", self.plan, ["is_frappe_plan", "is_trial_plan"], as_dict=True)

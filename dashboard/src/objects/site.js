@@ -66,6 +66,9 @@ export default {
 		fetchDatabaseTableSchemas: 'fetch_database_table_schemas',
 		fetchSitesDataForExport: 'fetch_sites_data_for_export',
 		setDevelopmentMode: 'set_development_mode',
+		getSchedulerStatus: 'get_scheduler_status',
+		getMigrationStatus: 'get_migration_status',
+		getRecentErrors: 'get_recent_errors',
 	},
 	list: {
 		route: '/sites',
