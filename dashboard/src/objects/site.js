@@ -86,6 +86,7 @@ export default {
 			'trial_end_date',
 			'creation',
 			'is_monitoring_disabled',
+			'is_development_site',
 		],
 		orderBy: 'creation desc',
 		searchField: 'host_name',
@@ -1737,6 +1738,23 @@ export default {
 						renderDialog(
 							h(SiteEnableMonitoringDialog, { site: site.doc?.name }),
 						);
+					},
+				},
+				{
+					label: site.doc?.is_development_site ? 'Disable Dev Mode' : 'Enable Dev Mode',
+					slots: { prefix: icon('code') },
+					variant: site.doc?.is_development_site ? 'outline' : 'solid',
+					loading: site.setDevelopmentMode.loading,
+					condition: () => $team.doc?.is_desk_user && ['Active', 'Broken'].includes(site.doc.status),
+					onClick() {
+						const enabling = !site.doc.is_development_site;
+						site.setDevelopmentMode
+							.submit({ enable: enabling ? 1 : 0 })
+							.then(() => {
+								toast.success(enabling ? 'Developer mode enabled' : 'Developer mode disabled');
+								site.reload();
+							})
+							.catch((e) => toast.error(e.messages?.join(', ') || 'Failed'));
 					},
 				},
 				{
