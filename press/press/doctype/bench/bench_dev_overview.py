@@ -223,3 +223,18 @@ def get_dev_panel_data(bench_name):
 			"errors": [dict(e) for e in error_list],
 		},
 	}
+
+
+@frappe.whitelist()
+def push_app_to_github(bench_name, app, message):
+	"""
+	Run git add -A && git commit -m <message> && git push inside the bench
+	container for the given app. Uses bench.docker_execute() — requires the
+	bench to be Active and the container to have SSH keys for GitHub.
+	"""
+	frappe.only_for("System Manager")
+	bench = frappe.get_doc("Bench", bench_name)
+	# Escape single quotes to prevent shell injection
+	safe_message = message.replace("'", "'\\''")
+	cmd = f"git add -A && git commit -m '{safe_message}' && git push"
+	return bench.docker_execute(cmd, subdir=f"apps/{app}")

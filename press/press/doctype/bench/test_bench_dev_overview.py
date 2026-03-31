@@ -417,5 +417,105 @@ class TestSchedulerBoolFix(unittest.TestCase):
                              f"value={value!r}")
 
 
+class TestPushAppToGithub(unittest.TestCase):
+    """Tests for push_app_to_github() in bench_dev_overview.py"""
+
+    def setUp(self):
+        self.mf = MagicMock()
+        _bdo.frappe = self.mf
+        self.mf.session.user = "admin@example.com"
+
+    def tearDown(self):
+        _bdo.frappe = _frappe_stub
+
+    def _make_bench(self):
+        bench = MagicMock()
+        bench.name = "bench-0001"
+        bench.status = "Active"
+        bench.docker_execute.return_value = {
+            "status": "Success",
+            "output": "Everything up-to-date",
+            "returncode": 0,
+        }
+        return bench
+
+    def test_requires_system_manager(self):
+        """push_app_to_github must call frappe.only_for('System Manager')."""
+        self.mf.get_doc.return_value = self._make_bench()
+        _bdo.push_app_to_github("bench-0001", "frappe", "WIP")
+        self.mf.only_for.assert_called_once_with("System Manager")
+
+    def test_fetches_bench_by_name(self):
+        """frappe.get_doc must be called with ('Bench', bench_name)."""
+        self.mf.get_doc.return_value = self._make_bench()
+        _bdo.push_app_to_github("bench-0001", "frappe", "WIP")
+        self.mf.get_doc.assert_called_with("Bench", "bench-0001")
+
+    def test_calls_docker_execute(self):
+        """docker_execute must be called exactly once."""
+        bench = self._make_bench()
+        self.mf.get_doc.return_value = bench
+        _bdo.push_app_to_github("bench-0001", "frappe", "WIP")
+        bench.docker_execute.assert_called_once()
+
+    def test_git_add_in_command(self):
+        """git add -A must be in the command string."""
+        bench = self._make_bench()
+        self.mf.get_doc.return_value = bench
+        _bdo.push_app_to_github("bench-0001", "frappe", "WIP")
+        cmd = bench.docker_execute.call_args[0][0]
+        self.assertIn("git add -A", cmd)
+
+    def test_git_commit_in_command(self):
+        """git commit must be in the command string."""
+        bench = self._make_bench()
+        self.mf.get_doc.return_value = bench
+        _bdo.push_app_to_github("bench-0001", "frappe", "WIP")
+        cmd = bench.docker_execute.call_args[0][0]
+        self.assertIn("git commit", cmd)
+
+    def test_git_push_in_command(self):
+        """git push must be in the command string."""
+        bench = self._make_bench()
+        self.mf.get_doc.return_value = bench
+        _bdo.push_app_to_github("bench-0001", "frappe", "WIP")
+        cmd = bench.docker_execute.call_args[0][0]
+        self.assertIn("git push", cmd)
+
+    def test_message_in_commit_command(self):
+        """Custom commit message must appear in the git commit command."""
+        bench = self._make_bench()
+        self.mf.get_doc.return_value = bench
+        _bdo.push_app_to_github("bench-0001", "frappe", "my feature")
+        cmd = bench.docker_execute.call_args[0][0]
+        self.assertIn("my feature", cmd)
+
+    def test_subdir_is_apps_slash_app(self):
+        """subdir kwarg must be 'apps/<app>' for correct git context."""
+        bench = self._make_bench()
+        self.mf.get_doc.return_value = bench
+        _bdo.push_app_to_github("bench-0001", "erpnext", "fix")
+        kwargs = bench.docker_execute.call_args[1]
+        self.assertEqual(kwargs.get("subdir"), "apps/erpnext")
+
+    def test_returns_execute_result(self):
+        """Must return the dict returned by docker_execute."""
+        bench = self._make_bench()
+        self.mf.get_doc.return_value = bench
+        result = _bdo.push_app_to_github("bench-0001", "frappe", "WIP")
+        self.assertEqual(result["status"], "Success")
+        self.assertEqual(result["returncode"], 0)
+
+    def test_single_quote_in_message_escaped(self):
+        """Single quotes in message must be shell-escaped to prevent injection."""
+        bench = self._make_bench()
+        self.mf.get_doc.return_value = bench
+        _bdo.push_app_to_github("bench-0001", "frappe", "it's done")
+        cmd = bench.docker_execute.call_args[0][0]
+        # The raw single quote must not appear unescaped inside the command
+        # (it's done → it'\''s done or similar escaping)
+        self.assertNotIn("'it's done'", cmd)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
