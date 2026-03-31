@@ -66,6 +66,24 @@ def get_dev_overview_benches():
 		):
 			releases_map[rel.hash] = rel
 
+	# ── undeployed gap: count releases newer than each bench's deployed hash ──
+	# For each bench app, count App Releases with a later timestamp than the
+	# currently deployed hash. Sum across all apps = undeployed commit count.
+	undeployed_by_bench: dict = {}
+	for app_entry in bench_apps:
+		deployed_rel = releases_map.get(app_entry.hash) if app_entry.hash else None
+		ts = deployed_rel.timestamp if deployed_rel else None
+		if not ts:
+			continue
+		count = frappe.db.count(
+			"App Release",
+			{"app": app_entry.app, "timestamp": [">", ts]},
+		)
+		if count:
+			undeployed_by_bench[app_entry.parent] = (
+				undeployed_by_bench.get(app_entry.parent, 0) + count
+			)
+
 	# ── assemble ─────────────────────────────────────────────────────────────
 	result = []
 	for bench in benches:
@@ -76,6 +94,7 @@ def get_dev_overview_benches():
 		b["pending_update_count"] = sum(
 			1 for s in bench_sites if s.status == "Pending"
 		)
+		b["undeployed_count"] = undeployed_by_bench.get(bench.name, 0)
 
 		# last commit: first app with a known release message
 		b["last_commit"] = None
@@ -134,7 +153,8 @@ def get_dev_panel_data(bench_name):
 			filters={"parent": ["in", site_names], "key": "pause_scheduler"},
 			fields=["parent", "value"],
 		):
-			scheduler_map[cfg.parent] = bool(cfg.value)
+			# bool("0") == True, so use explicit truthy check
+		scheduler_map[cfg.parent] = cfg.value in (True, 1, "1", "true", True)
 
 	for s in sites:
 		s["migrated"] = bool(activities.get(s.name))

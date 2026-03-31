@@ -82,7 +82,7 @@
 					class="bench-row"
 					:class="{
 						'dev-bench': bench.is_development_bench,
-						'has-errors': panelData[bench.name]?.errors?.count > 0,
+						'has-errors': bs(bench.name).data?.errors?.count > 0,
 						open: expanded === bench.name,
 					}"
 				>
@@ -187,21 +187,21 @@
 								v-for="tab in panelTabs(bench)"
 								:key="tab.key"
 								class="ptab"
-								:class="{ active: activeTab[bench.name] === tab.key }"
+								:class="{ active: bs(bench.name).tab === tab.key }"
 								@click="setTab(bench.name, tab.key)"
 							>
 								{{ tab.label }}
 								<span v-if="tab.count > 0" class="err-badge">{{ tab.count }}</span>
 							</div>
 						</div>
-						<div v-if="panelLoading[bench.name]" class="panel-loading">Loading…</div>
-						<template v-else-if="panelData[bench.name]">
+						<div v-if="bs(bench.name).loading" class="panel-loading">Loading…</div>
+						<template v-else-if="bs(bench.name).data">
 							<!-- Tab: Undeployed Gap -->
-							<div v-if="activeTab[bench.name] === 'gap'" class="panel-section">
+							<div v-if="bs(bench.name).tab === 'gap'" class="panel-section">
 								<template v-if="bench.undeployed_count > 0">
 									<div class="gap-box">
 										<div class="gap-box-title">⚠ {{ bench.undeployed_count }} commit{{ bench.undeployed_count !== 1 ? 's' : '' }} pushed but not yet built</div>
-										<div v-for="c in panelData[bench.name].recent_commits" :key="c.hash" class="gap-item">
+										<div v-for="c in bs(bench.name).data.recent_commits" :key="c.hash" class="gap-item">
 											<span class="ghash">{{ c.hash }}</span>
 											<span>{{ c.message }}</span>
 											<span class="gtime">{{ c.author }} · {{ formatDate(c.timestamp) }}</span>
@@ -215,9 +215,9 @@
 							</div>
 
 							<!-- Tab: Recent Commits -->
-							<div v-if="activeTab[bench.name] === 'commits'" class="panel-section">
+							<div v-if="bs(bench.name).tab === 'commits'" class="panel-section">
 								<div class="commit-list">
-									<div v-for="c in panelData[bench.name].recent_commits" :key="c.hash" class="commit-row">
+									<div v-for="c in bs(bench.name).data.recent_commits" :key="c.hash" class="commit-row">
 										<div class="cr-msg">
 											<span class="app-chip">{{ c.app }}</span>
 											<span>{{ c.message }}</span>
@@ -229,15 +229,15 @@
 										<div class="cr-time">{{ formatDate(c.timestamp) }}</div>
 										<span class="cr-hash">{{ c.hash }}</span>
 									</div>
-									<div v-if="!panelData[bench.name].recent_commits?.length" class="text-gray-400 text-sm p-4">No commits found.</div>
+									<div v-if="!bs(bench.name).data.recent_commits?.length" class="text-gray-400 text-sm p-4">No commits found.</div>
 								</div>
 							</div>
 
 							<!-- Tab: Sites Status -->
-							<div v-if="activeTab[bench.name] === 'sites'" class="panel-section">
+							<div v-if="bs(bench.name).tab === 'sites'" class="panel-section">
 								<div class="site-list">
 									<div
-										v-for="site in panelData[bench.name].sites"
+										v-for="site in bs(bench.name).data.sites"
 										:key="site.name"
 										class="site-item"
 										:class="{
@@ -274,14 +274,14 @@
 											<span class="dev-label">Dev</span>
 										</label>
 									</div>
-									<div v-if="!panelData[bench.name].sites?.length" class="text-gray-400 text-sm p-4">No sites in this bench.</div>
+									<div v-if="!bs(bench.name).data.sites?.length" class="text-gray-400 text-sm p-4">No sites in this bench.</div>
 								</div>
 							</div>
 
 							<!-- Tab: Build History -->
-							<div v-if="activeTab[bench.name] === 'builds'" class="panel-section">
+							<div v-if="bs(bench.name).tab === 'builds'" class="panel-section">
 								<div class="build-list">
-									<div v-for="b in panelData[bench.name].build_history" :key="b.name" class="build-item">
+									<div v-for="b in bs(bench.name).data.build_history" :key="b.name" class="build-item">
 										<a class="bid" :href="`/dashboard/deploys/${b.name}`" @click.stop>{{ b.name }}</a>
 										<span class="bdesc">{{ b.status }}</span>
 										<span :class="buildBadgeClass(b.status)">
@@ -289,23 +289,23 @@
 										</span>
 										<span class="bdur">{{ formatDate(b.creation) }}</span>
 									</div>
-									<div v-if="!panelData[bench.name].build_history?.length" class="text-gray-400 text-sm p-4">No build history.</div>
+									<div v-if="!bs(bench.name).data.build_history?.length" class="text-gray-400 text-sm p-4">No build history.</div>
 								</div>
 							</div>
 
 							<!-- Tab: Errors -->
-							<div v-if="activeTab[bench.name] === 'errors'" class="panel-section">
+							<div v-if="bs(bench.name).tab === 'errors'" class="panel-section">
 								<div class="error-list">
-									<div v-for="err in panelData[bench.name].errors?.errors" :key="err.name" class="error-item">
+									<div v-for="err in bs(bench.name).data.errors?.errors" :key="err.name" class="error-item">
 										<div class="error-site">
 											<span>{{ err.site }}</span>
 											<span>{{ formatDate(err.creation) }}</span>
 										</div>
 										<div class="error-msg">{{ err.job_type }}</div>
 									</div>
-									<div v-if="!panelData[bench.name].errors?.count" class="no-errors">No errors in the last 24h</div>
+									<div v-if="!bs(bench.name).data.errors?.count" class="no-errors">No errors in the last 24h</div>
 								</div>
-								<div v-if="panelData[bench.name].errors?.count > 0" style="text-align:right;margin-top:8px">
+								<div v-if="bs(bench.name).data.errors?.count > 0" style="text-align:right;margin-top:8px">
 									<a :href="`/dashboard/benches/${bench.name}`" style="font-size:12px;color:var(--blue-500)">View all errors →</a>
 								</div>
 							</div>
@@ -318,7 +318,6 @@
 </template>
 
 <script>
-import { createResource } from 'frappe-ui';
 import { toast } from 'vue-sonner';
 import Breadcrumbs from '@/components/global/Breadcrumbs.vue';
 import Header from '@/components/Header.vue';
@@ -337,9 +336,8 @@ export default {
 			searchQuery: '',
 			filterMode: 'all',
 			expanded: null,
-			activeTab: {},
-			panelData: {},
-			panelLoading: {},
+			// Consolidated per-bench panel state (2A: single reactive object)
+			benchState: {},  // { [benchName]: { loading, data, tab } }
 			filterOptions: [
 				{ key: 'all', label: 'All' },
 				{ key: 'updates', label: 'Has Updates' },
@@ -351,11 +349,15 @@ export default {
 
 	resources: {
 		overviewRes() {
-			return {
-				url: DEV_OVERVIEW_URL,
-				auto: true,
-				onSuccess: () => {},
-			};
+			return { url: DEV_OVERVIEW_URL, auto: true };
+		},
+		// 3A: shared action resource — one instance, no per-call leaks
+		action() {
+			return { url: RUN_DOC_METHOD };
+		},
+		// 3A: shared panel resource — reused per expand
+		panelRes() {
+			return { url: PANEL_URL };
 		},
 	},
 
@@ -421,24 +423,34 @@ export default {
 			this.overviewRes.reload();
 		},
 
+		// 2A: helper to read consolidated bench state
+		bs(benchName) {
+			return this.benchState[benchName] || {};
+		},
+
+		_setBs(benchName, patch) {
+			this.benchState = {
+				...this.benchState,
+				[benchName]: { ...(this.benchState[benchName] || {}), ...patch },
+			};
+		},
+
 		toggleExpand(benchName) {
 			if (this.expanded === benchName) {
 				this.expanded = null;
 			} else {
 				this.expanded = benchName;
-				if (!this.activeTab[benchName]) {
-					this.$set(this.activeTab, benchName, 'gap');
-				}
+				if (!this.bs(benchName).tab) this._setBs(benchName, { tab: 'gap' });
 				this.loadPanel(benchName);
 			}
 		},
 
 		setTab(benchName, tabKey) {
-			this.$set(this.activeTab, benchName, tabKey);
+			this._setBs(benchName, { tab: tabKey });
 		},
 
 		panelTabs(bench) {
-			const errCount = this.panelData[bench.name]?.errors?.count || 0;
+			const errCount = this.bs(bench.name).data?.errors?.count || 0;
 			return [
 				{ key: 'gap', label: bench.undeployed_count > 0 ? '⚠ Undeployed Gap' : 'Undeployed Gap', count: 0 },
 				{ key: 'commits', label: 'Recent Commits', count: 0 },
@@ -449,24 +461,22 @@ export default {
 		},
 
 		loadPanel(benchName) {
-			if (this.panelData[benchName]) return;
-			this.$set(this.panelLoading, benchName, true);
-			const res = createResource({ url: PANEL_URL });
-			res.submit({ bench_name: benchName })
-				.then((data) => {
-					this.$set(this.panelData, benchName, data);
-				})
-				.catch(() => {
-					this.$set(this.panelData, benchName, { sites: [], recent_commits: [], build_history: [], errors: { count: 0, errors: [] } });
-				})
-				.finally(() => {
-					this.$set(this.panelLoading, benchName, false);
-				});
+			// Concurrency invariant: `expanded` is a single string, so only one
+			// bench panel can be open at a time — concurrent loadPanel calls cannot race.
+			if (this.bs(benchName).data) return;
+			this._setBs(benchName, { loading: true });
+			// 3A: reuse shared panelRes resource
+			this.$resources.panelRes.submit({ bench_name: benchName })
+				.then((data) => this._setBs(benchName, { data, loading: false }))
+				.catch(() => this._setBs(benchName, {
+					data: { sites: [], recent_commits: [], build_history: [], errors: { count: 0, errors: [] } },
+					loading: false,
+				}));
 		},
 
+		// 3A: shared action resource — no new resource created per call
 		runDocMethod(dt, dn, method, args = {}) {
-			const res = createResource({ url: RUN_DOC_METHOD });
-			return res.submit({ dt, dn, method, ...args });
+			return this.$resources.action.submit({ dt, dn, method, ...args });
 		},
 
 		toggleDevBench(bench, event) {
