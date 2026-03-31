@@ -41,6 +41,7 @@
 					<div class="s-value">{{ lastBuildAge }}</div>
 					<div class="s-sub">{{ lastBuildSub }}</div>
 				</div>
+				</template>
 			</div>
 
 			<!-- Filter Bar -->
@@ -76,9 +77,9 @@
 					<div></div>
 				</div>
 
+				<template v-for="(bench, idx) in filteredBenches" :key="bench.name">
+					<div v-if="idx === 0 || filteredBenches[idx-1].group !== bench.group" class="group-header-row">{{ bench.group_title || bench.group }}</div>
 				<div
-					v-for="bench in filteredBenches"
-					:key="bench.name"
 					class="bench-row"
 					:class="{
 						'dev-bench': bench.is_development_bench,
@@ -91,11 +92,11 @@
 						<!-- Bench Name + Sub -->
 						<div class="bench-name">
 							<div style="display:flex;align-items:center;gap:8px">
-								<strong>{{ bench.group_title || bench.name }}</strong>
+								<strong>{{ bench.name }}</strong>
 								<span v-if="bench.is_development_bench" class="bench-dev-tag">DEV</span>
 							</div>
 							<div style="display:flex;align-items:center;gap:8px;margin-top:3px">
-								<small>{{ bench.name }} · {{ bench.server_title || bench.server }}</small>
+								<small>{{ bench.server_title || bench.server }}</small>
 								<label class="dev-toggle" @click.stop>
 									<input
 										type="checkbox"
@@ -312,6 +313,7 @@
 						</template>
 					</div>
 				</div>
+				</template>
 			</div>
 		</div>
 	</div>
@@ -672,6 +674,7 @@ export default {
 }
 .bench-row { border-bottom: 1px solid var(--surface-gray-1, #f4f5f7); }
 .bench-row:last-child { border-bottom: none; }
+.group-header-row { padding: 6px 16px 4px; font-size: 11px; font-weight: 600; color: var(--ink-gray-4, #97a0af); text-transform: uppercase; letter-spacing: 0.4px; background: var(--surface-gray-1, #f4f5f7); border-bottom: 1px solid var(--surface-gray-2, #e8eaed); }
 .bench-row-main {
 	display: grid;
 	grid-template-columns: 2fr 2.5fr 1.4fr 1.2fr 1.3fr 140px;
@@ -689,7 +692,7 @@ export default {
 .bench-name small { font-size: 11px; color: var(--ink-gray-4, #97a0af); }
 
 /* ── Commit Info Cell ────────────────────────────────────────────── */
-.commit-info {}
+.commit-info { text-align: left; }
 .commit-msg { font-size: 13px; color: var(--blue-500, #046bd2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; display: block; }
 .commit-meta { font-size: 11px; color: var(--ink-gray-4, #97a0af); display: flex; align-items: center; gap: 6px; margin-top: 2px; }
 .hash-chip { font-family: monospace; background: var(--surface-gray-1, #f4f5f7); padding: 1px 5px; border-radius: 3px; color: var(--ink-gray-6, #5e6c84); }
