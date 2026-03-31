@@ -1675,3 +1675,34 @@ def is_image_in_registry(image: str, group: str, settings: dict[str, str]) -> bo
 
 	image_tags = response.json().get("tags")
 	return image in image_tags
+
+
+@frappe.whitelist()
+def get_build_estimate(group: str) -> dict:
+    """Return estimated build duration based on last 5 successful builds for this bench."""
+    builds = frappe.db.sql("""
+        SELECT TIMESTAMPDIFF(SECOND, build_start, build_end) as duration
+        FROM `tabDeploy Candidate Build`
+        WHERE `group` = %s
+        AND status = 'Success'
+        AND build_start IS NOT NULL
+        AND build_end IS NOT NULL
+        AND TIMESTAMPDIFF(SECOND, build_start, build_end) > 0
+        ORDER BY creation DESC
+        LIMIT 5
+    """, group)
+
+    if not builds:
+        return {"estimated_seconds": 120, "confidence": "low", "sample_size": 0}
+
+    durations = [b[0] for b in builds]
+    avg = sum(durations) / len(durations)
+    # Add 15% buffer for safety
+    estimated = int(avg * 1.15)
+
+    return {
+        "estimated_seconds": estimated,
+        "confidence": "high" if len(durations) >= 3 else "medium",
+        "sample_size": len(durations),
+    }
+
