@@ -29,21 +29,19 @@ Enhanced fork of Frappe Press by Accurate Systems — enterprise capabilities, C
 - [Scaling Guide](06-deployment-ops/scaling-guide.md) — Scaling considerations for self-hosted
 
 ### 07 — Implementation Status
+- [Features Matrix](07-implementation-status/features-matrix.md) — Complete list of all fork features, patches, and enhancements
 - [Critical Issues](07-implementation-status/critical-issues.md) — Known blockers and workarounds
 
 ## Key Branch Patches
 
-The `cloudflare-dns` branch patches 7 files from upstream Press:
+The `cloudflare-dns` branch patches **15 files** from upstream Press. See [Features Matrix](07-implementation-status/features-matrix.md) for the complete list.
 
-| File | What changed |
-|---|---|
-| `press/utils/dns.py` | Cloudflare REST API instead of AWS Route53 |
-| `press/press/doctype/root_domain/root_domain.py` | Cloudflare headers and API calls |
-| `press/press/doctype/root_domain/root_domain.json` | Added `cloudflare_api_token`, `cloudflare_zone_id` fields |
-| `press/press/doctype/tls_certificate/tls_certificate.py` | `certbot dns-cloudflare` instead of `dns-route53` |
-| `press/press/doctype/virtual_machine/virtual_machine.py` | Null guards for `vpc_id` and `security_group_id` |
-| `press/press/doctype/server/server.py` | Pass `ca_public_key` in `_setup_unified_server()` |
-| `press/playbooks/roles/user_ssh_certificate/tasks/main.yml` | Accept `ca_public_key` var instead of downloading from frappecloud.com |
+**Recent additions (2026-03-31):**
+- GitHub webhook integration — instant push notifications (no more 5-min poll wait)
+- Public repo auto-detect — `public=1` set automatically for `frappe/*` repos
+- GitHub re-auth elimination — reuses existing installations when OAuth token expires
+- Failed source retry — every 30 min, retries `last_github_poll_failed=True` sources
+- Demo data engine — app-safe dependency handling, construction trading seed set
 
 ## Quick Reference
 

@@ -70,6 +70,21 @@ SELECT name, domain, parent FROM `tabProxy Server Domain`;
 **Fix:** `hostnames;` in template + live proxy.conf. Post-merge hook auto-reapplies.
 **Debug:** `curl -sI https://SITE | grep X-Proxy-Upstream` — if it says `site_not_found`, check `hostnames;` in proxy.conf.
 
+## NEVER run `supervisorctl restart all`
+**Status:** Permanent rule
+**Impact:** Kills SSH — server becomes unreachable remotely
+**Cause:** `supervisorctl restart all` restarts every supervised process. If SSH or networking services are managed by supervisor, they go down and can't be recovered without Hetzner Console.
+**Rule:** Always restart specific process groups:
+```bash
+# GOOD
+supervisorctl restart frappe-bench-workers:
+supervisorctl restart frappe-bench-web:
+
+# BAD — kills SSH
+supervisorctl restart all
+```
+**Recovery:** Reboot from Hetzner Cloud Console.
+
 ## Agent patches survive git pull
 **Status:** Automated via post-merge hook
 **Location:** `/home/frappe/agent/repo/.git/hooks/post-merge` on press-f1
