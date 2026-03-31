@@ -11,6 +11,7 @@ import AddDomainDialog from '../components/AddDomainDialog.vue';
 import GenericDialog from '../components/GenericDialog.vue';
 import ObjectList from '../components/ObjectList.vue';
 import SiteActions from '../components/SiteActions.vue';
+import SiteDevTab from '../components/SiteDevTab.vue';
 import { getTeam, switchToTeam } from '../data/team';
 import router from '../router';
 import { getRunningJobs } from '../utils/agentJob';
@@ -1578,6 +1579,20 @@ export default {
 					return site.doc?.status !== 'Archived';
 				},
 				component: SiteActions,
+				props: (site) => {
+					return { site: site.doc?.name };
+				},
+			},
+
+			{
+				label: 'Dev',
+				icon: icon('code'),
+				route: 'dev',
+				type: 'Component',
+				condition: (site) => {
+					return site.doc?.status !== 'Archived';
+				},
+				component: SiteDevTab,
 				props: (site) => {
 					return { site: site.doc?.name };
 				},
