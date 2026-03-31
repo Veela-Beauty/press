@@ -354,6 +354,13 @@
    "label": "Is Standby"
   },
   {
+   "default": "0",
+   "fieldname": "is_development_site",
+   "fieldtype": "Check",
+   "label": "Is Development Site",
+   "description": "Development sites allow enabling developer_mode. Do not use for production."
+  },
+  {
    "fieldname": "account_request",
    "fieldtype": "Link",
    "label": "Account Request",
