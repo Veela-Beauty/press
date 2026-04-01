@@ -307,6 +307,50 @@ def get_bench_dev_info(bench_name):
 
 
 @frappe.whitelist()
+def get_code_server_status(bench_name):
+	"""Return code-server status and URL for a bench (if one exists)."""
+	frappe.only_for("System Manager")
+	bench = frappe.get_doc("Bench", bench_name)
+	cs = frappe.db.get_value(
+		"Code Server",
+		{"bench": bench_name, "status": ["!=", "Archived"]},
+		["name", "status", "password"],
+		as_dict=True,
+	)
+	return {
+		"enabled": bool(bench.is_code_server_enabled),
+		"exists": bool(cs),
+		"name": cs.name if cs else None,
+		"status": cs.status if cs else None,
+		"url": f"https://{cs.name}" if cs and cs.status == "Running" else None,
+		"password": cs.password if cs and cs.status == "Running" else None,
+	}
+
+
+@frappe.whitelist()
+def setup_code_server(bench_name, subdomain):
+	"""Create and setup a Code Server for a bench."""
+	frappe.only_for("System Manager")
+	bench = frappe.get_doc("Bench", bench_name)
+	if not bench.is_code_server_enabled:
+		return {"error": "Code Server not enabled on this bench"}
+	existing = frappe.db.exists("Code Server", {"bench": bench_name, "status": ["!=", "Archived"]})
+	if existing:
+		return {"error": f"Code Server already exists: {existing}"}
+	domain = frappe.db.get_value("Press Settings", None, "domain") or "sandbox.mvpstorm.com"
+	cs = frappe.get_doc({
+		"doctype": "Code Server",
+		"bench": bench_name,
+		"subdomain": subdomain,
+		"domain": domain,
+		"server": bench.server,
+	})
+	cs.insert(ignore_permissions=True)
+	frappe.db.commit()
+	return {"name": cs.name, "status": "Pending"}
+
+
+@frappe.whitelist()
 def restart_bench_for_site(bench_name):
 	"""Restart bench supervisor processes via the Bench doc method."""
 	frappe.only_for("System Manager")
