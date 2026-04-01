@@ -158,5 +158,33 @@ class TestPushAppToGithub(unittest.TestCase):
         self.assertNotIn("'it's done'", cmd)
 
 
+class TestRestartBenchForSite(unittest.TestCase):
+    """Tests for restart_bench_for_site() in bench_dev_overview.py"""
+
+    def setUp(self):
+        self.mf = MagicMock()
+        _bdo.frappe = self.mf
+
+    def tearDown(self):
+        _bdo.frappe = _frappe_stub
+
+    def test_requires_system_manager(self):
+        self.mf.get_doc.return_value = MagicMock()
+        _bdo.restart_bench_for_site("bench-001")
+        self.mf.only_for.assert_called_once_with("System Manager")
+
+    def test_fetches_bench_by_name(self):
+        bench = MagicMock()
+        self.mf.get_doc.return_value = bench
+        _bdo.restart_bench_for_site("bench-001")
+        self.mf.get_doc.assert_called_with("Bench", "bench-001")
+
+    def test_calls_restart_bench(self):
+        bench = MagicMock()
+        self.mf.get_doc.return_value = bench
+        _bdo.restart_bench_for_site("bench-001")
+        bench.restart_bench.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
