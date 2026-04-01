@@ -388,14 +388,13 @@ def get_recent_logs(bench_name, log_type=None, limit=50):
 	"""Read recent log lines from bench container (frappe.log, scheduler.log, web.error.log, bench.log)."""
 	frappe.only_for("System Manager")
 	bench = frappe.get_doc("Bench", bench_name)
-	# Tail each file separately (avoids ==> header <== from multi-file tail),
-	# grep for timestamped lines only, sort reverse, take top N
+	# cat all log files, grep timestamped lines, sort reverse, take top N.
+	# Avoids shell for-loops which break in docker_execute escaping.
 	safe_limit = str(int(limit))
 	files = " ".join(_LOG_FILES)
 	cmd = (
-		f"for f in {files}; do "
-		f"[ -f $f ] && tail -n 50 $f; "
-		f"done 2>/dev/null | grep -E '^[0-9]{{4}}-' | sort -r | head -n {safe_limit}"
+		f"cat {files} 2>/dev/null"
+		f" | grep -E '^[0-9]{{4}}-' | sort -r | head -n {safe_limit}"
 	)
 	try:
 		raw = bench.docker_execute(cmd)
