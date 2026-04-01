@@ -281,6 +281,14 @@ def get_app_git_status(bench_name):
 
 
 @frappe.whitelist()
+def restart_bench_for_site(bench_name):
+	"""Restart bench supervisor processes via the Bench doc method."""
+	frappe.only_for("System Manager")
+	bench = frappe.get_doc("Bench", bench_name)
+	bench.restart_bench()
+
+
+@frappe.whitelist()
 def push_app_to_github(bench_name, app, message):
 	"""
 	Run git add -A && git commit -m <message> && git push inside the bench
