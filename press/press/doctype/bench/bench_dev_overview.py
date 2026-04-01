@@ -239,6 +239,48 @@ def get_bench_app_names(bench_name):
 
 
 @frappe.whitelist()
+def get_app_git_status(bench_name):
+	"""
+	Return per-app git status for a bench: branch, commits ahead of remote,
+	dirty file count, and last commit message.
+	Calls docker_execute per app without writing to the bench shell log
+	(safe for frequent polling from the UI).
+	"""
+	frappe.only_for("System Manager")
+	bench = frappe.get_doc("Bench", bench_name)
+	results = []
+	for ae in bench.apps:
+		if not ae.app:
+			continue
+		cmd = (
+			"branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?');"
+			"ahead=$(git rev-list --count '@{u}..HEAD' 2>/dev/null || echo 0);"
+			"dirty=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ');"
+			"msg=$(git log -1 --format='%s' 2>/dev/null | cut -c1-60);"
+			'echo "$branch:$ahead:$dirty:$msg"'
+		)
+		try:
+			raw = bench.docker_execute(
+				cmd,
+				subdir=f"apps/{ae.app}",
+				save_output=False,
+				create_log=False,
+			)
+			output = (raw.get("output") or "").strip()
+			parts = output.split(":", 3)
+			results.append({
+				"app": ae.app,
+				"branch": parts[0] if len(parts) > 0 else "?",
+				"ahead": int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0,
+				"dirty": int(parts[2]) if len(parts) > 2 and parts[2].strip().isdigit() else 0,
+				"last_msg": parts[3].strip() if len(parts) > 3 else "",
+			})
+		except Exception:
+			results.append({"app": ae.app, "branch": "?", "ahead": 0, "dirty": 0, "last_msg": ""})
+	return results
+
+
+@frappe.whitelist()
 def push_app_to_github(bench_name, app, message):
 	"""
 	Run git add -A && git commit -m <message> && git push inside the bench
