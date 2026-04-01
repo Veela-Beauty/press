@@ -47,21 +47,34 @@
 
 		<!-- 2. Quick Actions -->
 		<div class="flex flex-wrap gap-3">
-			<a href="https://code.sandbox.mvpstorm.com" target="_blank"
-				class="flex min-w-[180px] flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-blue-400 hover:text-blue-600">
+			<!-- Web VS Code -->
+			<a :href="webVscodeUrl" target="_blank"
+				class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-blue-400 hover:text-blue-600">
 				<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
 					<path d="M16.5 3L21 7.5 9 19.5 3 15l13.5-12z"/><path d="M12 7.5L16.5 12"/><path d="M3 15l4.5-4.5"/>
 				</svg>
 				<span>
-					<span class="block text-sm font-semibold">Open VS Code</span>
-					<span class="block text-xs text-gray-400">code.sandbox.mvpstorm.com</span>
+					<span class="block text-sm font-semibold">Web VS Code</span>
+					<span class="block text-xs text-gray-400">Browser editor → bench apps</span>
 				</span>
 				<svg class="ml-auto h-3.5 w-3.5 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
 					<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
 				</svg>
 			</a>
+			<!-- Local VS Code (SSH Remote) -->
+			<a v-if="devInfo" :href="localVscodeUrl"
+				class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-purple-400 hover:text-purple-600">
+				<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+					<rect x="2" y="3" width="20" height="18" rx="2"/><path d="M8 10l3 3-3 3"/><line x1="14" y1="16" x2="18" y2="16"/>
+				</svg>
+				<span>
+					<span class="block text-sm font-semibold">Local VS Code</span>
+					<span class="block text-xs text-gray-400">SSH Remote → {{ devInfo.server_ip }}:{{ devInfo.ssh_port }}</span>
+				</span>
+			</a>
+			<!-- Restart Bench -->
 			<button @click="restartBench"
-				class="flex min-w-[180px] flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-orange-400 hover:text-orange-600"
+				class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-orange-400 hover:text-orange-600"
 				:class="{ 'cursor-not-allowed opacity-60': restartLoading }">
 				<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
 					<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
@@ -300,6 +313,8 @@ export default {
 			logFilter: 'all', logEntries: [],
 			// Process List
 			processList: [], killingProcess: null,
+			// Dev info (VS Code links)
+			devInfo: null,
 		};
 	},
 	computed: {
@@ -318,6 +333,15 @@ export default {
 				{ label: 'Binlog Browser', desc: 'DB change timeline', icon: '⏱', iconColor: 'text-orange-500', href: '/dashboard/binlog-browser' },
 			];
 		},
+		webVscodeUrl() {
+			const path = this.devInfo?.bench_path || '/home/frappe/frappe-bench';
+			return `https://code.sandbox.mvpstorm.com/?folder=${path}/apps`;
+		},
+		localVscodeUrl() {
+			if (!this.devInfo) return '#';
+			const { server_ip, ssh_port, bench_path } = this.devInfo;
+			return `vscode://vscode-remote/ssh-remote+frappe@${server_ip}:${ssh_port}${bench_path}/apps`;
+		},
 		consolePlaceholder() {
 			return this.consoleTab === 'SQL' ? 'SELECT name FROM tabUser LIMIT 5' : 'import frappe\nprint(frappe.get_all("User", limit=5))';
 		},
@@ -328,7 +352,7 @@ export default {
 		},
 	},
 	watch: {
-		'$site.doc.bench': { immediate: true, handler(b) { if (b) { this.loadGitStatus(); this.loadLogs(); this.loadProcessList(); } } },
+		'$site.doc.bench': { immediate: true, handler(b) { if (b) { this.loadGitStatus(); this.loadLogs(); this.loadProcessList(); this.loadDevInfo(); } } },
 	},
 	mounted() { this.loadStatus(); this.loadErrors(); },
 	methods: {
@@ -360,6 +384,11 @@ export default {
 			this.logsLoading = true;
 			try { this.logEntries = await call(`${API}.get_recent_logs`, { bench_name: b }) || []; }
 			catch (e) { this.logEntries = []; } finally { this.logsLoading = false; }
+		},
+		async loadDevInfo() {
+			const b = this.$site?.doc?.bench; if (!b) return;
+			try { this.devInfo = await call(`${API}.get_bench_dev_info`, { bench_name: b }); }
+			catch (e) { this.devInfo = null; }
 		},
 		async loadProcessList() {
 			this.processLoading = true;

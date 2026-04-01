@@ -292,6 +292,21 @@ def get_app_git_status(bench_name):
 
 
 @frappe.whitelist()
+def get_bench_dev_info(bench_name):
+	"""Return server IP and SSH port for a bench (used by VS Code links)."""
+	frappe.only_for("System Manager")
+	bench = frappe.get_doc("Bench", bench_name)
+	server_ip = frappe.db.get_value("Server", bench.server, "ip") or ""
+	ssh_port = 22000 + (bench.port_offset or 0)
+	return {
+		"server_ip": server_ip,
+		"ssh_port": ssh_port,
+		"bench_name": bench.name,
+		"bench_path": "/home/frappe/frappe-bench",
+	}
+
+
+@frappe.whitelist()
 def restart_bench_for_site(bench_name):
 	"""Restart bench supervisor processes via the Bench doc method."""
 	frappe.only_for("System Manager")
