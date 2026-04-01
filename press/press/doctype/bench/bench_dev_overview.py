@@ -1,7 +1,9 @@
 """
-Dev Overview API — data for the Watch Tower-style DevOverview dashboard page.
+Dev Tools API — dev overview, git status, console, logs, process management.
 Kept in a separate file because bench.py is already >700 lines.
 """
+import re
+
 import frappe
 from frappe import _
 
@@ -303,23 +305,35 @@ def push_app_to_github(bench_name, app, message):
 	return bench.docker_execute(cmd, subdir=f"apps/{app}")
 
 
+# ── Shared helpers ───────────────────────────────────────────────────────────
+
+def _get_site_bench(site_name):
+	"""Load Site + its parent Bench doc. Used by console/processlist APIs."""
+	site = frappe.get_doc("Site", site_name)
+	bench = frappe.get_doc("Bench", site.bench)
+	return site, bench
+
+
 # ── Console APIs ─────────────────────────────────────────────────────────────
 
 _WRITE_KEYWORDS = {"INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE", "REPLACE"}
 
+_SQL_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
+
 
 @frappe.whitelist()
 def run_sql_on_site(site_name, query, commit=False):
-	"""Run a SQL query on a site via bench mariadb inside the container."""
+	"""Run a SQL query on a site via bench mariadb (base64 pipe, injection-safe)."""
+	import base64
 	frappe.only_for("System Manager")
-	# Block write queries unless commit flag is set
-	first_word = (query.strip().split()[0] or "").upper()
+	# Strip SQL comments before checking first keyword
+	stripped = _SQL_COMMENT_RE.sub("", query).strip()
+	first_word = (stripped.split()[0] if stripped else "").upper()
 	if first_word in _WRITE_KEYWORDS and not commit:
 		return {"error": f"Write query ({first_word}) blocked — pass commit=True to allow."}
-	site = frappe.get_doc("Site", site_name)
-	bench = frappe.get_doc("Bench", site.bench)
-	safe_query = query.replace("'", "'\\''")
-	cmd = f"bench --site {site.name} mariadb -e '{safe_query}'"
+	site, bench = _get_site_bench(site_name)
+	b64 = base64.b64encode(query.encode()).decode()
+	cmd = f"echo '{b64}' | base64 -d | bench --site {site.name} mariadb"
 	try:
 		raw = bench.docker_execute(cmd)
 		return {"output": raw.get("output", ""), "returncode": raw.get("returncode", 0)}
@@ -329,12 +343,13 @@ def run_sql_on_site(site_name, query, commit=False):
 
 @frappe.whitelist()
 def run_python_on_site(site_name, code):
-	"""Run Python code on a site via bench execute inside the container."""
+	"""Run Python code on a site via bench console (base64 pipe, injection-safe)."""
+	import base64
 	frappe.only_for("System Manager")
-	site = frappe.get_doc("Site", site_name)
-	bench = frappe.get_doc("Bench", site.bench)
-	safe_code = code.replace("'", "'\\''")
-	cmd = f"bench --site {site.name} execute 'frappe.utils.safe_exec.safe_exec' --args \"('{safe_code}',)\""
+	site, bench = _get_site_bench(site_name)
+	b64 = base64.b64encode(code.encode()).decode()
+	# b64 is [A-Za-z0-9+/=] — completely shell-safe in single quotes
+	cmd = f"echo '{b64}' | base64 -d | bench --site {site.name} console"
 	try:
 		raw = bench.docker_execute(cmd)
 		return {"output": raw.get("output", ""), "returncode": raw.get("returncode", 0)}
@@ -343,8 +358,6 @@ def run_python_on_site(site_name, code):
 
 
 # ── Recent Logs API ──────────────────────────────────────────────────────────
-
-import re
 
 _LOG_PATTERN = re.compile(
 	r"^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}),?\d*\s+"
@@ -395,14 +408,15 @@ def get_recent_logs(bench_name, log_type=None, limit=50):
 def get_db_processlist(site_name):
 	"""Return active MariaDB processes for a site via SHOW PROCESSLIST."""
 	frappe.only_for("System Manager")
-	site = frappe.get_doc("Site", site_name)
-	bench = frappe.get_doc("Bench", site.bench)
+	site, bench = _get_site_bench(site_name)
+	# Sanitize site name for SQL LIKE — allow only alphanumeric, dash, dot, underscore
+	safe_db_name = re.sub(r"[^a-zA-Z0-9._-]", "", site.name).replace("-", "_")
 	cmd = (
 		f"bench --site {site.name} mariadb -e "
 		"\"SELECT ID, USER, TIME, COMMAND AS state, "
 		"SUBSTRING(INFO, 1, 200) AS query "
 		"FROM INFORMATION_SCHEMA.PROCESSLIST "
-		f"WHERE DB LIKE '%{site.name.replace('-', '_')}%' "
+		f"WHERE DB LIKE '%{safe_db_name}%' "
 		"ORDER BY TIME DESC\" --batch"
 	)
 	try:
@@ -440,8 +454,7 @@ def kill_db_process(site_name, process_id):
 	"""Kill a MariaDB process by ID for a site."""
 	frappe.only_for("System Manager")
 	process_id = int(process_id)  # Raises ValueError/TypeError for non-int
-	site = frappe.get_doc("Site", site_name)
-	bench = frappe.get_doc("Bench", site.bench)
+	site, bench = _get_site_bench(site_name)
 	cmd = f"bench --site {site.name} mariadb -e 'KILL {process_id}'"
 	try:
 		return bench.docker_execute(cmd)
