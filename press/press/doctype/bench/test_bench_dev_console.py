@@ -80,6 +80,15 @@ class TestRunSqlOnSite(unittest.TestCase):
         self.assertIn("error", result)
 
     @patch(PATCH)
+    def test_rejects_write_hidden_in_comment(self, mf):
+        """/* comment */ DELETE should still be caught after stripping comments."""
+        site = _site_doc("test-site")
+        bench = _bench_doc("bench-001")
+        mf.get_doc.side_effect = lambda dt, name: site if dt == "Site" else bench
+        result = _bdo.run_sql_on_site("test-site", "/* hi */ DELETE FROM tabUser", commit=False)
+        self.assertIn("error", result)
+
+    @patch(PATCH)
     def test_allows_write_query_with_commit_flag(self, mf):
         site = _site_doc("test-site")
         bench = _bench_doc("bench-001")

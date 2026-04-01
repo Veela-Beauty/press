@@ -46,6 +46,7 @@ def _docker_result(output, returncode=0):
 
 
 class TestGetAppGitStatus(unittest.TestCase):
+    """Tests for the batched get_app_git_status() — single docker_execute call."""
 
     @patch(PATCH)
     def test_requires_system_manager(self, mf):
@@ -57,7 +58,9 @@ class TestGetAppGitStatus(unittest.TestCase):
     def test_returns_list_of_apps(self, mf):
         bench = _bench_doc("bench-001", [_app_entry("frappe"), _app_entry("erpnext")])
         mf.get_doc.return_value = bench
-        bench.docker_execute.return_value = _docker_result("version-15:0:0:fix: cleanup")
+        bench.docker_execute.return_value = _docker_result(
+            "frappe:version-15:0:0:fix: cleanup\nerpnext:version-15:1:0:feat: new"
+        )
         result = _bdo.get_app_git_status("bench-001")
         self.assertEqual(len(result), 2)
 
@@ -65,7 +68,7 @@ class TestGetAppGitStatus(unittest.TestCase):
     def test_result_has_required_keys(self, mf):
         bench = _bench_doc("bench-001", [_app_entry("frappe")])
         mf.get_doc.return_value = bench
-        bench.docker_execute.return_value = _docker_result("version-15:3:2:feat: new")
+        bench.docker_execute.return_value = _docker_result("frappe:version-15:3:2:feat: new")
         result = _bdo.get_app_git_status("bench-001")
         for key in ("app", "branch", "ahead", "dirty", "last_msg"):
             self.assertIn(key, result[0])
@@ -74,7 +77,7 @@ class TestGetAppGitStatus(unittest.TestCase):
     def test_parses_ahead_and_dirty_counts(self, mf):
         bench = _bench_doc("bench-001", [_app_entry("erpnext")])
         mf.get_doc.return_value = bench
-        bench.docker_execute.return_value = _docker_result("version-15:4:7:fix: tax")
+        bench.docker_execute.return_value = _docker_result("erpnext:version-15:4:7:fix: tax")
         result = _bdo.get_app_git_status("bench-001")
         self.assertEqual(result[0]["ahead"], 4)
         self.assertEqual(result[0]["dirty"], 7)
@@ -84,25 +87,27 @@ class TestGetAppGitStatus(unittest.TestCase):
     def test_last_msg_captured(self, mf):
         bench = _bench_doc("bench-001", [_app_entry("press")])
         mf.get_doc.return_value = bench
-        bench.docker_execute.return_value = _docker_result("main:0:0:feat: add git status")
+        bench.docker_execute.return_value = _docker_result("press:main:0:0:feat: add git status")
         result = _bdo.get_app_git_status("bench-001")
         self.assertEqual(result[0]["last_msg"], "feat: add git status")
 
     @patch(PATCH)
-    def test_docker_execute_called_with_subdir(self, mf):
-        bench = _bench_doc("bench-001", [_app_entry("press")])
+    def test_single_docker_execute_call(self, mf):
+        """Batched: should be exactly 1 docker_execute call regardless of app count."""
+        bench = _bench_doc("bench-001", [_app_entry("frappe"), _app_entry("erpnext"), _app_entry("press")])
         mf.get_doc.return_value = bench
-        bench.docker_execute.return_value = _docker_result("main:0:0:")
+        bench.docker_execute.return_value = _docker_result(
+            "frappe:v15:0:0:\nerpnext:v15:0:0:\npress:main:0:0:"
+        )
         _bdo.get_app_git_status("bench-001")
-        call_kwargs = bench.docker_execute.call_args[1]
-        self.assertEqual(call_kwargs.get("subdir"), "apps/press")
+        self.assertEqual(bench.docker_execute.call_count, 1)
 
     @patch(PATCH)
     def test_docker_execute_no_log(self, mf):
         """git status polls must not flood the bench shell log."""
         bench = _bench_doc("bench-001", [_app_entry("frappe")])
         mf.get_doc.return_value = bench
-        bench.docker_execute.return_value = _docker_result("v15:0:0:")
+        bench.docker_execute.return_value = _docker_result("frappe:v15:0:0:")
         _bdo.get_app_git_status("bench-001")
         call_kwargs = bench.docker_execute.call_args[1]
         self.assertFalse(call_kwargs.get("create_log", True))

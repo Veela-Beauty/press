@@ -245,40 +245,49 @@ def get_app_git_status(bench_name):
 	"""
 	Return per-app git status for a bench: branch, commits ahead of remote,
 	dirty file count, and last commit message.
-	Calls docker_execute per app without writing to the bench shell log
-	(safe for frequent polling from the UI).
+	Single docker_execute call (batched) — polls all apps in one shell script.
 	"""
 	frappe.only_for("System Manager")
 	bench = frappe.get_doc("Bench", bench_name)
-	results = []
-	for ae in bench.apps:
-		if not ae.app:
-			continue
-		cmd = (
-			"branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?');"
-			"ahead=$(git rev-list --count '@{u}..HEAD' 2>/dev/null || echo 0);"
-			"dirty=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ');"
-			"msg=$(git log -1 --format='%s' 2>/dev/null | cut -c1-60);"
-			'echo "$branch:$ahead:$dirty:$msg"'
+	app_names = [ae.app for ae in bench.apps if ae.app]
+	if not app_names:
+		return []
+	# Build a single shell script that iterates all apps and outputs one line per app
+	# Format per line: APP_NAME:branch:ahead:dirty:last_msg
+	lines = ["set -e"]
+	for app in app_names:
+		lines.append(
+			f"cd apps/{app} 2>/dev/null && "
+			f"branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?') && "
+			f"ahead=$(git rev-list --count '@{{u}}..HEAD' 2>/dev/null || echo 0) && "
+			f"dirty=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ') && "
+			f"msg=$(git log -1 --format='%s' 2>/dev/null | cut -c1-60) && "
+			f'echo "{app}:$branch:$ahead:$dirty:$msg" && cd ../.. '
+			f'|| echo "{app}:?:0:0:" && cd ../.. 2>/dev/null'
 		)
-		try:
-			raw = bench.docker_execute(
-				cmd,
-				subdir=f"apps/{ae.app}",
-				save_output=False,
-				create_log=False,
-			)
-			output = (raw.get("output") or "").strip()
-			parts = output.split(":", 3)
-			results.append({
-				"app": ae.app,
-				"branch": parts[0] if len(parts) > 0 else "?",
-				"ahead": int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0,
-				"dirty": int(parts[2]) if len(parts) > 2 and parts[2].strip().isdigit() else 0,
-				"last_msg": parts[3].strip() if len(parts) > 3 else "",
-			})
-		except Exception:
-			results.append({"app": ae.app, "branch": "?", "ahead": 0, "dirty": 0, "last_msg": ""})
+	cmd = " ; ".join(lines)
+	try:
+		raw = bench.docker_execute(cmd, save_output=False, create_log=False)
+		output = (raw.get("output") or "").strip()
+	except Exception:
+		return [{"app": a, "branch": "?", "ahead": 0, "dirty": 0, "last_msg": ""} for a in app_names]
+	results = []
+	for line in output.split("\n"):
+		line = line.strip()
+		if not line:
+			continue
+		# Format: app:branch:ahead:dirty:msg
+		parts = line.split(":", 4)
+		if len(parts) < 1:
+			continue
+		app = parts[0]
+		results.append({
+			"app": app,
+			"branch": parts[1] if len(parts) > 1 else "?",
+			"ahead": int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0,
+			"dirty": int(parts[3]) if len(parts) > 3 and parts[3].strip().isdigit() else 0,
+			"last_msg": parts[4].strip() if len(parts) > 4 else "",
+		})
 	return results
 
 
