@@ -170,7 +170,7 @@
 					</Button>
 				</div>
 			</div>
-			<textarea v-model="consoleInput" :placeholder="consoleTab === 'SQL' ? 'SELECT name FROM tabUser LIMIT 5' : 'import frappe\nprint(frappe.get_all(\"User\", limit=5))'"
+			<textarea v-model="consoleInput" :placeholder="consolePlaceholder"
 				class="w-full resize-y border-b border-gray-100 bg-gray-50 px-4 py-3 font-mono text-xs leading-relaxed text-gray-900 outline-none" rows="3"></textarea>
 			<div v-if="consoleOutput !== null" class="border-t border-gray-200 bg-gray-50">
 				<div class="flex items-center justify-between border-b border-gray-100 px-4 py-1.5">
@@ -315,6 +315,9 @@ export default {
 				{ label: 'Log Browser', desc: 'All server logs', icon: '📄', iconColor: 'text-green-500', href: '/dashboard/log-browser' },
 				{ label: 'Binlog Browser', desc: 'DB change timeline', icon: '⏱', iconColor: 'text-orange-500', href: '/dashboard/binlog-browser' },
 			];
+		},
+		consolePlaceholder() {
+			return this.consoleTab === 'SQL' ? 'SELECT name FROM tabUser LIMIT 5' : 'import frappe\nprint(frappe.get_all("User", limit=5))';
 		},
 		logFilters() { return ['all', 'error', 'info']; },
 		filteredLogs() {
