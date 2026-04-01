@@ -37,9 +37,9 @@ def _docker_result(output, returncode=0):
     return {"status": "Success", "output": output, "returncode": returncode}
 
 
-SAMPLE_LOG_OUTPUT = """2026-04-01 10:30:15,123 ERROR frappe.log: pymysql.err.OperationalError
-2026-04-01 10:29:00,456 INFO worker.log: Job completed in 2.34s
-2026-04-01 10:28:30,789 INFO scheduler.log: Scheduler tick: 14 tasks
+SAMPLE_LOG_OUTPUT = """2026-04-01 10:30:15,123 ERROR frappe pymysql.err.OperationalError
+2026-04-01 10:29:00,456 INFO scheduler Job completed in 2.34s
+2026-04-01 10:28:30,789 INFO /home/frappe/.local/bin/bench Scheduler tick: 14 tasks
 """
 
 

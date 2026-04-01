@@ -371,18 +371,31 @@ def run_python_on_site(site_name, code):
 _LOG_PATTERN = re.compile(
 	r"^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}),?\d*\s+"
 	r"(ERROR|WARNING|INFO|DEBUG)\s+"
-	r"(\S+?):\s*(.*)$"
+	r"(\S+?)\s+(.*)$"
 )
+
+# Log files available in a typical bench container
+_LOG_FILES = [
+	"logs/frappe.log",
+	"logs/scheduler.log",
+	"logs/web.error.log",
+	"logs/bench.log",
+]
 
 
 @frappe.whitelist()
 def get_recent_logs(bench_name, log_type=None, limit=50):
-	"""Read recent log lines from bench container (merged from frappe.log, worker.log, scheduler.log)."""
+	"""Read recent log lines from bench container (frappe.log, scheduler.log, web.error.log, bench.log)."""
 	frappe.only_for("System Manager")
 	bench = frappe.get_doc("Bench", bench_name)
+	# Tail each file separately (avoids ==> header <== from multi-file tail),
+	# grep for timestamped lines only, sort reverse, take top N
+	safe_limit = str(int(limit))
+	files = " ".join(_LOG_FILES)
 	cmd = (
-		"tail -n 200 logs/frappe.log logs/worker.log logs/scheduler.log 2>/dev/null"
-		" | sort -r | head -n " + str(int(limit))
+		f"for f in {files}; do "
+		f"[ -f $f ] && tail -n 50 $f; "
+		f"done 2>/dev/null | grep -E '^[0-9]{{4}}-' | sort -r | head -n {safe_limit}"
 	)
 	try:
 		raw = bench.docker_execute(cmd)
