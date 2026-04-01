@@ -301,3 +301,149 @@ def push_app_to_github(bench_name, app, message):
 	safe_message = message.replace("'", "'\\''")
 	cmd = f"git add -A && git commit -m '{safe_message}' && git push"
 	return bench.docker_execute(cmd, subdir=f"apps/{app}")
+
+
+# ── Console APIs ─────────────────────────────────────────────────────────────
+
+_WRITE_KEYWORDS = {"INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE", "REPLACE"}
+
+
+@frappe.whitelist()
+def run_sql_on_site(site_name, query, commit=False):
+	"""Run a SQL query on a site via bench mariadb inside the container."""
+	frappe.only_for("System Manager")
+	# Block write queries unless commit flag is set
+	first_word = (query.strip().split()[0] or "").upper()
+	if first_word in _WRITE_KEYWORDS and not commit:
+		return {"error": f"Write query ({first_word}) blocked — pass commit=True to allow."}
+	site = frappe.get_doc("Site", site_name)
+	bench = frappe.get_doc("Bench", site.bench)
+	safe_query = query.replace("'", "'\\''")
+	cmd = f"bench --site {site.name} mariadb -e '{safe_query}'"
+	try:
+		raw = bench.docker_execute(cmd)
+		return {"output": raw.get("output", ""), "returncode": raw.get("returncode", 0)}
+	except Exception as e:
+		return {"error": str(e)}
+
+
+@frappe.whitelist()
+def run_python_on_site(site_name, code):
+	"""Run Python code on a site via bench execute inside the container."""
+	frappe.only_for("System Manager")
+	site = frappe.get_doc("Site", site_name)
+	bench = frappe.get_doc("Bench", site.bench)
+	safe_code = code.replace("'", "'\\''")
+	cmd = f"bench --site {site.name} execute 'frappe.utils.safe_exec.safe_exec' --args \"('{safe_code}',)\""
+	try:
+		raw = bench.docker_execute(cmd)
+		return {"output": raw.get("output", ""), "returncode": raw.get("returncode", 0)}
+	except Exception as e:
+		return {"error": str(e)}
+
+
+# ── Recent Logs API ──────────────────────────────────────────────────────────
+
+import re
+
+_LOG_PATTERN = re.compile(
+	r"^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}),?\d*\s+"
+	r"(ERROR|WARNING|INFO|DEBUG)\s+"
+	r"(\S+?):\s*(.*)$"
+)
+
+
+@frappe.whitelist()
+def get_recent_logs(bench_name, log_type=None, limit=50):
+	"""Read recent log lines from bench container (merged from frappe.log, worker.log, scheduler.log)."""
+	frappe.only_for("System Manager")
+	bench = frappe.get_doc("Bench", bench_name)
+	cmd = (
+		"tail -n 200 logs/frappe.log logs/worker.log logs/scheduler.log 2>/dev/null"
+		" | sort -r | head -n " + str(int(limit))
+	)
+	try:
+		raw = bench.docker_execute(cmd)
+		output = (raw.get("output") or "").strip()
+	except Exception:
+		return []
+	if not output:
+		return []
+	entries = []
+	for line in output.split("\n"):
+		line = line.strip()
+		if not line:
+			continue
+		m = _LOG_PATTERN.match(line)
+		if not m:
+			continue
+		level = m.group(2)
+		if log_type and log_type.upper() != level:
+			continue
+		entries.append({
+			"timestamp": m.group(1),
+			"level": level,
+			"source": m.group(3),
+			"message": m.group(4).strip(),
+		})
+	return entries
+
+
+# ── DB Process List APIs ─────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def get_db_processlist(site_name):
+	"""Return active MariaDB processes for a site via SHOW PROCESSLIST."""
+	frappe.only_for("System Manager")
+	site = frappe.get_doc("Site", site_name)
+	bench = frappe.get_doc("Bench", site.bench)
+	cmd = (
+		f"bench --site {site.name} mariadb -e "
+		"\"SELECT ID, USER, TIME, COMMAND AS state, "
+		"SUBSTRING(INFO, 1, 200) AS query "
+		"FROM INFORMATION_SCHEMA.PROCESSLIST "
+		f"WHERE DB LIKE '%{site.name.replace('-', '_')}%' "
+		"ORDER BY TIME DESC\" --batch"
+	)
+	try:
+		raw = bench.docker_execute(cmd)
+		output = (raw.get("output") or "").strip()
+	except Exception:
+		return []
+	if not output:
+		return []
+	lines = output.split("\n")
+	results = []
+	for line in lines:
+		parts = line.split("\t")
+		if len(parts) < 4:
+			continue
+		# Skip header row
+		if parts[0] == "ID" or parts[0] == "id":
+			continue
+		try:
+			proc_id = int(parts[0])
+		except (ValueError, IndexError):
+			continue
+		results.append({
+			"id": proc_id,
+			"user": parts[1] if len(parts) > 1 else "",
+			"time": int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0,
+			"state": parts[3] if len(parts) > 3 else "",
+			"query": parts[4].strip() if len(parts) > 4 else "",
+		})
+	return results
+
+
+@frappe.whitelist()
+def kill_db_process(site_name, process_id):
+	"""Kill a MariaDB process by ID for a site."""
+	frappe.only_for("System Manager")
+	process_id = int(process_id)  # Raises ValueError/TypeError for non-int
+	site = frappe.get_doc("Site", site_name)
+	bench = frappe.get_doc("Bench", site.bench)
+	cmd = f"bench --site {site.name} mariadb -e 'KILL {process_id}'"
+	try:
+		return bench.docker_execute(cmd)
+	except Exception as e:
+		return {"error": str(e)}
