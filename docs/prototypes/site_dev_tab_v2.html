@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Site Dev Tab — v2 Prototype</title>
+<style>
+:root {
+  --gray-50:  #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb;
+  --gray-300: #d1d5db; --gray-400: #9ca3af; --gray-500: #6b7280;
+  --gray-600: #4b5563; --gray-700: #374151; --gray-900: #111827;
+  --blue-50:  #eff6ff; --blue-100: #dbeafe; --blue-500: #3b82f6; --blue-600: #2563eb; --blue-700: #1d4ed8;
+  --green-50: #f0fdf4; --green-100: #dcfce7; --green-500: #22c55e; --green-600: #16a34a; --green-700: #15803d;
+  --yellow-50: #fefce8; --yellow-100: #fef9c3; --yellow-500: #eab308; --yellow-600: #ca8a04; --yellow-700: #a16207;
+  --orange-50: #fff7ed; --orange-100: #ffedd5; --orange-500: #f97316; --orange-600: #ea580c;
+  --red-50: #fef2f2; --red-100: #fee2e2; --red-500: #ef4444; --red-600: #dc2626;
+  --purple-50: #faf5ff; --purple-100: #f3e8ff; --purple-500: #a855f7; --purple-600: #9333ea;
+  --surface-white: #ffffff;
+  --ink-gray-9: #111827; --ink-gray-6: #4b5563; --ink-gray-4: #9ca3af;
+  --border: #e5e7eb;
+  --radius: 8px; --radius-sm: 6px;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.10), 0 1px 2px -1px rgb(0 0 0 / 0.10);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--gray-50); color: var(--ink-gray-9); font-size: 14px; line-height: 1.5; }
+
+/* ── Shell ── */
+.shell { display: flex; min-height: 100vh; }
+.sidebar { width: 220px; background: var(--surface-white); border-right: 1px solid var(--border); padding: 16px 0; flex-shrink: 0; }
+.sidebar-logo { padding: 0 16px 16px; font-weight: 700; font-size: 15px; color: var(--ink-gray-9); border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+.sidebar-logo span { color: var(--blue-600); }
+.nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 16px; font-size: 13px; color: var(--ink-gray-6); cursor: pointer; }
+.nav-item:hover { background: var(--gray-50); }
+.nav-item.active { background: var(--blue-50); color: var(--blue-600); font-weight: 500; border-right: 2px solid var(--blue-500); }
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.topbar { background: var(--surface-white); border-bottom: 1px solid var(--border); padding: 0 24px; height: 52px; display: flex; align-items: center; justify-content: space-between; }
+.breadcrumb { font-size: 13px; color: var(--ink-gray-4); display: flex; align-items: center; gap: 6px; }
+.breadcrumb a { color: var(--blue-600); text-decoration: none; }
+.breadcrumb span { color: var(--ink-gray-4); }
+.site-header { background: var(--surface-white); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; justify-between; }
+.site-title { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+.badge-green { background: var(--green-100); color: var(--green-700); }
+.badge-blue { background: var(--blue-100); color: var(--blue-700); }
+.badge-yellow { background: var(--yellow-100); color: var(--yellow-700); }
+.badge-orange { background: var(--orange-100); color: var(--orange-600); }
+.badge-red { background: var(--red-100); color: var(--red-600); }
+.badge-gray { background: var(--gray-100); color: var(--gray-600); }
+.badge-purple { background: var(--purple-100); color: var(--purple-600); }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; }
+
+/* ── Tabs ── */
+.tabs { background: var(--surface-white); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; gap: 0; }
+.tab { padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--ink-gray-4); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab:hover { color: var(--ink-gray-6); }
+.tab.active { color: var(--blue-600); border-bottom-color: var(--blue-500); }
+
+/* ── Content ── */
+.content { padding: 20px 24px; max-width: 900px; display: flex; flex-direction: column; gap: 16px; }
+
+/* ── Cards ── */
+.card { background: var(--surface-white); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+.card-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--gray-100); }
+.card-title { font-size: 13px; font-weight: 600; color: var(--ink-gray-9); }
+.card-body { padding: 16px; }
+
+/* ── Status Grid ── */
+.status-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.status-card { background: var(--surface-white); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: var(--shadow-sm); }
+.status-card-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--ink-gray-4); }
+.status-card-value { display: flex; align-items: center; gap: 6px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.status-dot.green { background: var(--green-500); box-shadow: 0 0 0 2px var(--green-100); }
+.status-dot.yellow { background: var(--yellow-500); box-shadow: 0 0 0 2px var(--yellow-100); }
+.status-dot.gray { background: var(--gray-300); box-shadow: 0 0 0 2px var(--gray-100); }
+.status-card-text { font-size: 14px; font-weight: 600; color: var(--ink-gray-9); }
+.status-card-sub { font-size: 11px; color: var(--ink-gray-4); }
+
+/* ── Buttons ── */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; cursor: pointer; border: none; transition: all .15s; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-xs { padding: 3px 8px; font-size: 11px; }
+.btn-solid { background: var(--blue-600); color: white; }
+.btn-solid:hover { background: var(--blue-700); }
+.btn-outline { background: white; border: 1px solid var(--border); color: var(--ink-gray-6); }
+.btn-outline:hover { background: var(--gray-50); border-color: var(--gray-300); }
+.btn-ghost { background: transparent; color: var(--ink-gray-6); }
+.btn-ghost:hover { background: var(--gray-100); }
+.btn-danger { background: white; border: 1px solid var(--red-200, #fecaca); color: var(--red-600); }
+.btn-danger:hover { background: var(--red-50); }
+.btn-green { background: var(--green-600); color: white; }
+.btn-green:hover { background: var(--green-700); }
+.btn-disabled { opacity: 0.45; pointer-events: none; }
+.btn-loading::after { content: ''; width: 11px; height: 11px; border: 2px solid rgba(255,255,255,.4); border-top-color: white; border-radius: 50%; animation: spin .6s linear infinite; }
+
+/* ── App Status Table ── */
+.app-table { width: 100%; border-collapse: collapse; }
+.app-table th { padding: 8px 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--ink-gray-4); text-align: left; background: var(--gray-50); border-bottom: 1px solid var(--border); }
+.app-table td { padding: 10px 12px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+.app-table tr:last-child td { border-bottom: none; }
+.app-table tr.push-open td { background: var(--blue-50); }
+.app-name { font-weight: 600; font-size: 13px; color: var(--ink-gray-9); display: flex; align-items: center; gap: 6px; }
+.app-name-icon { width: 24px; height: 24px; border-radius: 5px; background: var(--gray-100); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--ink-gray-6); }
+.branch-pill { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; background: var(--gray-100); color: var(--gray-600); padding: 2px 7px; border-radius: 4px; }
+.git-status { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.ahead-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: var(--yellow-100); color: var(--yellow-700); }
+.dirty-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: var(--orange-100); color: var(--orange-600); }
+.clean-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: var(--green-100); color: var(--green-700); }
+.action-cell { text-align: right; white-space: nowrap; display: flex; justify-content: flex-end; gap: 6px; align-items: center; }
+
+/* ── Inline Push Form ── */
+.push-row td { padding: 0; }
+.push-form { padding: 12px 16px; background: var(--blue-50); border-top: 1px solid var(--blue-100); display: none; }
+.push-form.open { display: block; }
+.push-form-inner { display: flex; align-items: flex-end; gap: 8px; }
+.push-field { display: flex; flex-direction: column; gap: 4px; }
+.push-field label { font-size: 11px; font-weight: 600; color: var(--ink-gray-6); }
+.push-field input, .push-field select { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; background: white; outline: none; min-width: 0; }
+.push-field input:focus, .push-field select:focus { border-color: var(--blue-400, #60a5fa); box-shadow: 0 0 0 2px var(--blue-100); }
+.push-output { margin-top: 10px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; background: var(--gray-900); color: #d4d4d4; padding: 10px 12px; border-radius: var(--radius-sm); white-space: pre-wrap; line-height: 1.6; display: none; }
+.push-output.visible { display: block; }
+.push-output .line-ok  { color: #86efac; }
+.push-output .line-warn { color: #fde68a; }
+
+/* ── Errors Table ── */
+.err-table { width: 100%; border-collapse: collapse; }
+.err-table th { padding: 8px 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--ink-gray-4); text-align: left; background: var(--gray-50); border-bottom: 1px solid var(--border); }
+.err-table td { padding: 10px 12px; border-bottom: 1px solid var(--gray-100); font-size: 13px; }
+.err-table tr:last-child td { border-bottom: none; }
+.err-site { font-size: 11px; color: var(--ink-gray-4); }
+.err-link { color: var(--blue-600); text-decoration: none; font-size: 12px; }
+.err-link:hover { text-decoration: underline; }
+
+/* ── Skeleton loader ── */
+.skel { background: var(--gray-100); border-radius: 4px; animation: shimmer 1.2s ease-in-out infinite; }
+@keyframes shimmer { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+
+/* ── Misc ── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.flex { display: flex; } .items-center { align-items: center; } .justify-between { justify-content: space-between; }
+.gap-2 { gap: 8px; } .gap-3 { gap: 12px; }
+.text-xs { font-size: 11px; } .text-sm { font-size: 13px; }
+.text-muted { color: var(--ink-gray-4); }
+.empty-state { padding: 24px; text-align: center; color: var(--ink-gray-4); font-size: 13px; }
+
+/* ── State toggle demos ── */
+#app-table-skeleton { display: none; }
+#app-table-loaded { display: block; }
+.demo-bar { position: fixed; bottom: 16px; right: 16px; background: var(--gray-900); color: white; padding: 10px 16px; border-radius: 8px; font-size: 12px; display: flex; gap: 10px; align-items: center; z-index: 100; box-shadow: var(--shadow); }
+.demo-btn { padding: 4px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,.2); background: transparent; color: white; font-size: 11px; cursor: pointer; }
+.demo-btn:hover { background: rgba(255,255,255,.1); }
+.demo-btn.active-demo { background: var(--blue-600); border-color: var(--blue-600); }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-logo">Frappe <span>Cloud</span></div>
+    <div class="nav-item">Dashboard</div>
+    <div class="nav-item active">Sites</div>
+    <div class="nav-item">Benches</div>
+    <div class="nav-item">Release Groups</div>
+    <div class="nav-item">Servers</div>
+    <div class="nav-item">Settings</div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="breadcrumb">
+        <a href="#">Sites</a>
+        <span>/</span>
+        <span>roseline-stg.sandbox.mvpstorm.com</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="badge badge-green"><span class="dot"></span> Active</span>
+        <button class="btn btn-outline btn-sm">Options ▾</button>
+      </div>
+    </div>
+
+    <!-- Site header -->
+    <div class="site-header flex items-center justify-between" style="padding:14px 24px; background:white; border-bottom:1px solid var(--border);">
+      <div>
+        <div class="site-title">roseline-stg.sandbox.mvpstorm.com</div>
+        <div style="font-size:12px;color:var(--ink-gray-4);margin-top:3px;">bench-0014 &nbsp;·&nbsp; u5-default &nbsp;·&nbsp; Sandbox Cluster</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="badge badge-blue">Dev Site</span>
+        <span class="badge badge-purple">v15</span>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab">Overview</div>
+      <div class="tab">Apps</div>
+      <div class="tab">Analytics</div>
+      <div class="tab active">Dev</div>
+      <div class="tab">Jobs</div>
+      <div class="tab">Backups</div>
+      <div class="tab">Config</div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+
+      <!-- ── 1. Status Cards ── -->
+      <div class="status-grid">
+
+        <!-- Developer Mode -->
+        <div class="status-card">
+          <div class="status-card-label">Developer Mode</div>
+          <div>
+            <div class="status-card-value">
+              <div class="status-dot green"></div>
+              <span class="status-card-text">Enabled</span>
+            </div>
+            <div class="status-card-sub">allow_developer_mode=1</div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="toggleDevMode(this)">Disable Dev Mode</button>
+        </div>
+
+        <!-- Scheduler -->
+        <div class="status-card">
+          <div class="status-card-label">Scheduler</div>
+          <div>
+            <div class="status-card-value">
+              <div class="status-dot green"></div>
+              <span class="status-card-text">Running</span>
+            </div>
+            <div class="status-card-sub">pause_scheduler=0</div>
+          </div>
+          <span class="text-xs text-muted" style="margin-top:auto">Read-only — change via Site Config</span>
+        </div>
+
+        <!-- Migration -->
+        <div class="status-card">
+          <div class="status-card-label">Migration</div>
+          <div>
+            <div class="status-card-value">
+              <div class="status-dot green" id="mig-dot"></div>
+              <span class="status-card-text" id="mig-text">Last: 2h ago</span>
+            </div>
+            <div class="status-card-sub" id="mig-sub">Migrate → runs bench migrate</div>
+          </div>
+          <button class="btn btn-outline btn-sm" id="mig-btn" onclick="triggerMigrate(this)">Migrate Now</button>
+        </div>
+
+        <!-- Cache -->
+        <div class="status-card">
+          <div class="status-card-label">Cache</div>
+          <div>
+            <div class="status-card-value">
+              <div class="status-dot gray"></div>
+              <span class="status-card-text">Redis cache</span>
+            </div>
+            <div class="status-card-sub">Clears assets + page cache</div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="clearCache(this)">Clear Cache</button>
+        </div>
+
+      </div>
+
+      <!-- ── 1b. Quick Actions ── -->
+      <div class="flex items-center gap-3" style="flex-wrap:wrap;">
+
+        <!-- VS Code -->
+        <button class="btn btn-outline" style="padding:10px 16px;gap:10px;border-radius:8px;flex:1;min-width:180px;justify-content:flex-start;" onclick="openVSCode(this)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M16.5 3L21 7.5 9 19.5 3 15l13.5-12z"/><path d="M12 7.5L16.5 12"/><path d="M3 15l4.5-4.5"/>
+          </svg>
+          <span>
+            <div style="font-size:13px;font-weight:600;color:var(--ink-gray-9)">Open VS Code</div>
+            <div style="font-size:11px;color:var(--ink-gray-4)">code.sandbox.mvpstorm.com</div>
+          </span>
+          <span style="margin-left:auto;font-size:11px;color:var(--ink-gray-4)">↗</span>
+        </button>
+
+        <!-- Restart Bench -->
+        <button class="btn btn-outline" id="restart-btn" style="padding:10px 16px;gap:10px;border-radius:8px;flex:1;min-width:180px;justify-content:flex-start;" onclick="restartBench(this)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+          </svg>
+          <span>
+            <div style="font-size:13px;font-weight:600;color:var(--ink-gray-9)" id="restart-label">Restart Bench</div>
+            <div style="font-size:11px;color:var(--ink-gray-4)" id="restart-sub">Restart all bench workers</div>
+          </span>
+        </button>
+
+      </div>
+
+      <!-- ── 2. App Git Status (NEW) ── -->
+      <div class="card">
+        <div class="card-header">
+          <div class="flex items-center gap-2">
+            <span class="card-title">App Status</span>
+            <span class="badge badge-yellow" id="apps-warning-badge" style="display:none">2 need push</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-muted" id="apps-refresh-time">Updated just now</span>
+            <button class="btn btn-ghost btn-sm" onclick="refreshApps(this)">&#8635; Refresh</button>
+          </div>
+        </div>
+
+        <!-- Skeleton state -->
+        <div id="app-table-skeleton" style="padding:16px;display:flex;flex-direction:column;gap:10px;">
+          <div class="skel" style="height:36px;border-radius:6px;"></div>
+          <div class="skel" style="height:36px;border-radius:6px;opacity:.7"></div>
+          <div class="skel" style="height:36px;border-radius:6px;opacity:.5"></div>
+        </div>
+
+        <!-- Loaded state -->
+        <div id="app-table-loaded">
+          <table class="app-table">
+            <thead>
+              <tr>
+                <th>App</th>
+                <th>Branch</th>
+                <th>Git Status</th>
+                <th>Last Commit</th>
+                <th style="text-align:right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="app-tbody">
+
+              <!-- frappe — dirty only -->
+              <tr id="row-frappe" class="">
+                <td>
+                  <div class="app-name">
+                    <div class="app-name-icon">F</div>
+                    frappe
+                  </div>
+                </td>
+                <td><span class="branch-pill">version-15</span></td>
+                <td>
+                  <div class="git-status">
+                    <span class="dirty-badge">&#9679; 3 dirty</span>
+                  </div>
+                </td>
+                <td class="text-sm text-muted">chore: bump ver… <span style="font-size:11px">3d ago</span></td>
+                <td class="action-cell">
+                  <button class="btn btn-outline btn-sm" onclick="togglePush('frappe', this)">Push &#9660;</button>
+                </td>
+              </tr>
+              <tr class="push-row" id="push-row-frappe">
+                <td colspan="5">
+                  <div class="push-form open" id="push-form-frappe">
+                    <div class="push-form-inner">
+                      <div class="push-field" style="flex:0 0 auto">
+                        <label>App</label>
+                        <input type="text" value="frappe" readonly style="width:110px;background:var(--gray-50);color:var(--ink-gray-6)">
+                      </div>
+                      <div class="push-field" style="flex:1">
+                        <label>Commit message</label>
+                        <input type="text" value="WIP" placeholder="Commit message" id="msg-frappe">
+                      </div>
+                      <button class="btn btn-green btn-sm" onclick="doPush('frappe', this)">Push to GitHub</button>
+                      <button class="btn btn-ghost btn-sm" onclick="togglePush('frappe', null)">Cancel</button>
+                    </div>
+                    <pre class="push-output" id="output-frappe"></pre>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- erpnext — ahead + dirty -->
+              <tr id="row-erpnext">
+                <td>
+                  <div class="app-name">
+                    <div class="app-name-icon">E</div>
+                    erpnext
+                  </div>
+                </td>
+                <td><span class="branch-pill">version-15</span></td>
+                <td>
+                  <div class="git-status">
+                    <span class="ahead-badge">&#8679; 2 ahead</span>
+                    <span class="dirty-badge">&#9679; 1 dirty</span>
+                  </div>
+                </td>
+                <td class="text-sm text-muted">fix: PO validati… <span style="font-size:11px">1h ago</span></td>
+                <td class="action-cell">
+                  <button class="btn btn-outline btn-sm" onclick="togglePush('erpnext', this)">Push &#9660;</button>
+                </td>
+              </tr>
+              <tr class="push-row" id="push-row-erpnext">
+                <td colspan="5">
+                  <div class="push-form" id="push-form-erpnext">
+                    <div class="push-form-inner">
+                      <div class="push-field" style="flex:0 0 auto">
+                        <label>App</label>
+                        <input type="text" value="erpnext" readonly style="width:110px;background:var(--gray-50);color:var(--ink-gray-6)">
+                      </div>
+                      <div class="push-field" style="flex:1">
+                        <label>Commit message</label>
+                        <input type="text" value="WIP" placeholder="Commit message" id="msg-erpnext">
+                      </div>
+                      <button class="btn btn-green btn-sm" onclick="doPush('erpnext', this)">Push to GitHub</button>
+                      <button class="btn btn-ghost btn-sm" onclick="togglePush('erpnext', null)">Cancel</button>
+                    </div>
+                    <pre class="push-output" id="output-erpnext"></pre>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- press — ahead only -->
+              <tr id="row-press">
+                <td>
+                  <div class="app-name">
+                    <div class="app-name-icon">P</div>
+                    press
+                  </div>
+                </td>
+                <td><span class="branch-pill">cloudflare-dns</span></td>
+                <td>
+                  <div class="git-status">
+                    <span class="ahead-badge">&#8679; 5 ahead</span>
+                  </div>
+                </td>
+                <td class="text-sm text-muted">feat(dev-tab): … <span style="font-size:11px">just now</span></td>
+                <td class="action-cell">
+                  <button class="btn btn-outline btn-sm" onclick="togglePush('press', this)">Push &#9660;</button>
+                </td>
+              </tr>
+              <tr class="push-row" id="push-row-press">
+                <td colspan="5">
+                  <div class="push-form" id="push-form-press">
+                    <div class="push-form-inner">
+                      <div class="push-field" style="flex:0 0 auto">
+                        <label>App</label>
+                        <input type="text" value="press" readonly style="width:110px;background:var(--gray-50);color:var(--ink-gray-6)">
+                      </div>
+                      <div class="push-field" style="flex:1">
+                        <label>Commit message</label>
+                        <input type="text" value="WIP" placeholder="Commit message" id="msg-press">
+                      </div>
+                      <button class="btn btn-green btn-sm" onclick="doPush('press', this)">Push to GitHub</button>
+                      <button class="btn btn-ghost btn-sm" onclick="togglePush('press', null)">Cancel</button>
+                    </div>
+                    <pre class="push-output" id="output-press"></pre>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- hrms — clean -->
+              <tr id="row-hrms">
+                <td>
+                  <div class="app-name">
+                    <div class="app-name-icon">H</div>
+                    hrms
+                  </div>
+                </td>
+                <td><span class="branch-pill">version-15</span></td>
+                <td>
+                  <div class="git-status">
+                    <span class="clean-badge">&#10003; Clean</span>
+                  </div>
+                </td>
+                <td class="text-sm text-muted">Merge pull req… <span style="font-size:11px">5d ago</span></td>
+                <td class="action-cell">
+                  <span class="text-xs text-muted">—</span>
+                </td>
+              </tr>
+
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── 3. Dev Tools — Quick Launch ── -->
+      <div class="status-grid" style="grid-template-columns: repeat(4, 1fr);">
+
+        <!-- DB Analyzer -->
+        <a href="/dashboard/database-analyzer" target="_blank" class="status-card" style="text-decoration:none;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='var(--blue-400)'" onmouseout="this.style.borderColor='var(--border)'">
+          <div class="status-card-label">DB Analyzer</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blue-500)" stroke-width="1.8">
+              <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/>
+            </svg>
+            <span style="font-size:13px;font-weight:500;color:var(--ink-gray-9)">Table schemas & indexes</span>
+          </div>
+          <span class="text-xs text-muted">Opens in new tab ↗</span>
+        </a>
+
+        <!-- SQL Playground (link version) -->
+        <a href="/dashboard/sql-playground" target="_blank" class="status-card" style="text-decoration:none;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='var(--purple-400, #c084fc)'" onmouseout="this.style.borderColor='var(--border)'">
+          <div class="status-card-label">SQL Playground</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--purple-500)" stroke-width="1.8">
+              <rect x="2" y="3" width="20" height="18" rx="2"/><path d="M8 10l3 3-3 3"/><line x1="14" y1="16" x2="18" y2="16"/>
+            </svg>
+            <span style="font-size:13px;font-weight:500;color:var(--ink-gray-9)">Full SQL editor</span>
+          </div>
+          <span class="text-xs text-muted">Opens in new tab ↗</span>
+        </a>
+
+        <!-- Log Browser -->
+        <a href="/dashboard/log-browser" target="_blank" class="status-card" style="text-decoration:none;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='var(--green-400, #4ade80)'" onmouseout="this.style.borderColor='var(--border)'">
+          <div class="status-card-label">Log Browser</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green-500)" stroke-width="1.8">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            <span style="font-size:13px;font-weight:500;color:var(--ink-gray-9)">All server logs</span>
+          </div>
+          <span class="text-xs text-muted">Opens in new tab ↗</span>
+        </a>
+
+        <!-- Binlog Browser -->
+        <a href="/dashboard/binlog-browser" target="_blank" class="status-card" style="text-decoration:none;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='var(--orange-400, #fb923c)'" onmouseout="this.style.borderColor='var(--border)'">
+          <div class="status-card-label">Binlog Browser</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--orange-500)" stroke-width="1.8">
+              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+            <span style="font-size:13px;font-weight:500;color:var(--ink-gray-9)">DB change timeline</span>
+          </div>
+          <span class="text-xs text-muted">Opens in new tab ↗</span>
+        </a>
+
+      </div>
+
+      <!-- ── 4. Inline Console (SQL + Python) ── -->
+      <div class="card">
+        <div class="card-header">
+          <div class="flex items-center gap-2">
+            <span class="card-title">Console</span>
+            <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+              <button class="console-tab active-tab" onclick="switchConsoleTab('sql', this)" style="padding:3px 12px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:var(--blue-50);color:var(--blue-600);">SQL</button>
+              <button class="console-tab" onclick="switchConsoleTab('python', this)" style="padding:3px 12px;font-size:11px;font-weight:600;border:none;border-left:1px solid var(--border);cursor:pointer;background:white;color:var(--ink-gray-6);">Python</button>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <label style="font-size:11px;color:var(--ink-gray-4);display:flex;align-items:center;gap:4px;cursor:pointer;">
+              <input type="checkbox" id="console-commit" style="accent-color:var(--blue-600);">
+              <span>Commit</span>
+            </label>
+            <button class="btn btn-solid btn-sm" onclick="runConsole(this)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Run
+            </button>
+          </div>
+        </div>
+
+        <!-- SQL editor -->
+        <div id="console-sql" style="display:block;">
+          <div style="position:relative;">
+            <textarea id="sql-input" style="width:100%;min-height:90px;padding:12px 16px;font-family:'SF Mono','Fira Code',monospace;font-size:12px;line-height:1.6;border:none;border-bottom:1px solid var(--gray-100);resize:vertical;outline:none;background:var(--gray-50);color:var(--ink-gray-9);" placeholder="SELECT name, modified FROM tabUser ORDER BY modified DESC LIMIT 10">SELECT name, email, modified FROM tabUser ORDER BY modified DESC LIMIT 5</textarea>
+            <div style="position:absolute;bottom:4px;right:8px;font-size:10px;color:var(--ink-gray-4);">Ctrl+Enter to run</div>
+          </div>
+        </div>
+
+        <!-- Python editor (hidden by default) -->
+        <div id="console-python" style="display:none;">
+          <div style="position:relative;">
+            <textarea id="python-input" style="width:100%;min-height:90px;padding:12px 16px;font-family:'SF Mono','Fira Code',monospace;font-size:12px;line-height:1.6;border:none;border-bottom:1px solid var(--gray-100);resize:vertical;outline:none;background:var(--gray-50);color:var(--ink-gray-9);" placeholder="frappe.get_all('User', fields=['name','email'], limit=5)">import frappe
+users = frappe.get_all('User', fields=['name','email'], limit=5)
+for u in users:
+    print(f"{u.name} — {u.email}")</textarea>
+            <div style="position:absolute;bottom:4px;right:8px;font-size:10px;color:var(--ink-gray-4);">Ctrl+Enter to run</div>
+          </div>
+        </div>
+
+        <!-- Result area -->
+        <div id="console-result" style="display:none;">
+          <div style="border-top:1px solid var(--gray-200);background:var(--gray-50);">
+            <div style="padding:6px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--gray-100);">
+              <span style="font-size:11px;font-weight:600;color:var(--ink-gray-6);" id="result-meta">5 rows · 12ms</span>
+              <button class="btn btn-ghost btn-xs" onclick="document.getElementById('console-result').style.display='none'">Clear</button>
+            </div>
+            <!-- SQL result as table -->
+            <div id="result-table-wrap" style="overflow-x:auto;max-height:240px;">
+              <table class="app-table" style="font-size:12px;">
+                <thead>
+                  <tr>
+                    <th style="font-size:10px;padding:6px 10px;">name</th>
+                    <th style="font-size:10px;padding:6px 10px;">email</th>
+                    <th style="font-size:10px;padding:6px 10px;">modified</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td style="padding:5px 10px;font-family:monospace;font-size:11px;">Administrator</td><td style="padding:5px 10px;font-family:monospace;font-size:11px;">admin@example.com</td><td style="padding:5px 10px;font-family:monospace;font-size:11px;">2026-04-01 10:30</td></tr>
+                  <tr><td style="padding:5px 10px;font-family:monospace;font-size:11px;">eslam@optiflow.ai</td><td style="padding:5px 10px;font-family:monospace;font-size:11px;">eslam@optiflow.ai</td><td style="padding:5px 10px;font-family:monospace;font-size:11px;">2026-04-01 09:15</td></tr>
+                  <tr><td style="padding:5px 10px;font-family:monospace;font-size:11px;">Guest</td><td style="padding:5px 10px;font-family:monospace;font-size:11px;">guest@example.com</td><td style="padding:5px 10px;font-family:monospace;font-size:11px;">2026-03-30 14:00</td></tr>
+                  <tr><td style="padding:5px 10px;font-family:monospace;font-size:11px;">test-user-1</td><td style="padding:5px 10px;font-family:monospace;font-size:11px;">test1@test.com</td><td style="padding:5px 10px;font-family:monospace;font-size:11px;">2026-03-28 08:45</td></tr>
+                  <tr><td style="padding:5px 10px;font-family:monospace;font-size:11px;">api-user</td><td style="padding:5px 10px;font-family:monospace;font-size:11px;">api@optiflow.ai</td><td style="padding:5px 10px;font-family:monospace;font-size:11px;">2026-03-25 16:20</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <!-- Python result as terminal output -->
+            <div id="result-terminal" style="display:none;">
+              <pre style="padding:10px 16px;margin:0;font-family:'SF Mono','Fira Code',monospace;font-size:11px;line-height:1.7;color:var(--ink-gray-9);max-height:200px;overflow-y:auto;">Administrator — admin@example.com
+eslam@optiflow.ai — eslam@optiflow.ai
+Guest — guest@example.com
+test-user-1 — test1@test.com
+api-user — api@optiflow.ai</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 5. Recent Logs (inline) ── -->
+      <div class="card">
+        <div class="card-header">
+          <div class="flex items-center gap-2">
+            <span class="card-title">Recent Logs</span>
+            <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+              <button class="log-filter active-log-filter" onclick="filterLogs('all', this)" style="padding:3px 10px;font-size:11px;font-weight:500;border:none;cursor:pointer;background:var(--gray-100);color:var(--ink-gray-9);">All</button>
+              <button class="log-filter" onclick="filterLogs('error', this)" style="padding:3px 10px;font-size:11px;font-weight:500;border:none;border-left:1px solid var(--border);cursor:pointer;background:white;color:var(--ink-gray-6);">Errors</button>
+              <button class="log-filter" onclick="filterLogs('worker', this)" style="padding:3px 10px;font-size:11px;font-weight:500;border:none;border-left:1px solid var(--border);cursor:pointer;background:white;color:var(--ink-gray-6);">Worker</button>
+              <button class="log-filter" onclick="filterLogs('scheduler', this)" style="padding:3px 10px;font-size:11px;font-weight:500;border:none;border-left:1px solid var(--border);cursor:pointer;background:white;color:var(--ink-gray-6);">Scheduler</button>
+              <button class="log-filter" onclick="filterLogs('web', this)" style="padding:3px 10px;font-size:11px;font-weight:500;border:none;border-left:1px solid var(--border);cursor:pointer;background:white;color:var(--ink-gray-6);">Web</button>
+            </div>
+          </div>
+          <a href="/dashboard/log-browser" target="_blank" class="btn btn-ghost btn-sm">Full Log Browser ↗</a>
+        </div>
+
+        <!-- Log entries -->
+        <div style="max-height:260px;overflow-y:auto;">
+          <div style="padding:0;">
+
+            <!-- Error entry -->
+            <div class="log-entry" data-type="error" style="padding:8px 16px;border-bottom:1px solid var(--gray-100);display:flex;gap:10px;align-items:flex-start;cursor:pointer;" onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background=''">
+              <span style="flex-shrink:0;width:6px;height:6px;border-radius:50%;background:var(--red-500);margin-top:6px;"></span>
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                  <span style="font-size:12px;font-weight:600;color:var(--red-600);">frappe.log</span>
+                  <span style="font-size:10px;color:var(--ink-gray-4);flex-shrink:0;">2m ago</span>
+                </div>
+                <pre style="font-family:'SF Mono','Fira Code',monospace;font-size:11px;color:var(--ink-gray-6);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">pymysql.err.OperationalError: (1054, "Unknown column 'tabItem.custom_field' in 'field list'")</pre>
+              </div>
+            </div>
+
+            <!-- Worker entry -->
+            <div class="log-entry" data-type="worker" style="padding:8px 16px;border-bottom:1px solid var(--gray-100);display:flex;gap:10px;align-items:flex-start;cursor:pointer;" onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background=''">
+              <span style="flex-shrink:0;width:6px;height:6px;border-radius:50%;background:var(--blue-500);margin-top:6px;"></span>
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                  <span style="font-size:12px;font-weight:600;color:var(--blue-600);">worker.log</span>
+                  <span style="font-size:10px;color:var(--ink-gray-4);flex-shrink:0;">5m ago</span>
+                </div>
+                <pre style="font-family:'SF Mono','Fira Code',monospace;font-size:11px;color:var(--ink-gray-6);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">Job frappe.email.queue.flush completed in 2.34s</pre>
+              </div>
+            </div>
+
+            <!-- Scheduler entry -->
+            <div class="log-entry" data-type="scheduler" style="padding:8px 16px;border-bottom:1px solid var(--gray-100);display:flex;gap:10px;align-items:flex-start;cursor:pointer;" onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background=''">
+              <span style="flex-shrink:0;width:6px;height:6px;border-radius:50%;background:var(--green-500);margin-top:6px;"></span>
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                  <span style="font-size:12px;font-weight:600;color:var(--green-600);">scheduler.log</span>
+                  <span style="font-size:10px;color:var(--ink-gray-4);flex-shrink:0;">8m ago</span>
+                </div>
+                <pre style="font-family:'SF Mono','Fira Code',monospace;font-size:11px;color:var(--ink-gray-6);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">Scheduler tick: 14 tasks enqueued, 0 failed</pre>
+              </div>
+            </div>
+
+            <!-- Web error entry -->
+            <div class="log-entry" data-type="web error" style="padding:8px 16px;border-bottom:1px solid var(--gray-100);display:flex;gap:10px;align-items:flex-start;cursor:pointer;" onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background=''">
+              <span style="flex-shrink:0;width:6px;height:6px;border-radius:50%;background:var(--red-500);margin-top:6px;"></span>
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                  <span style="font-size:12px;font-weight:600;color:var(--red-600);">web.error.log</span>
+                  <span style="font-size:10px;color:var(--ink-gray-4);flex-shrink:0;">12m ago</span>
+                </div>
+                <pre style="font-family:'SF Mono','Fira Code',monospace;font-size:11px;color:var(--ink-gray-6);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">500 Internal Server Error: /api/method/frappe.client.get_list — ValidationError</pre>
+              </div>
+            </div>
+
+            <!-- Worker entry 2 -->
+            <div class="log-entry" data-type="worker" style="padding:8px 16px;border-bottom:1px solid var(--gray-100);display:flex;gap:10px;align-items:flex-start;cursor:pointer;" onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background=''">
+              <span style="flex-shrink:0;width:6px;height:6px;border-radius:50%;background:var(--blue-500);margin-top:6px;"></span>
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                  <span style="font-size:12px;font-weight:600;color:var(--blue-600);">worker.log</span>
+                  <span style="font-size:10px;color:var(--ink-gray-4);flex-shrink:0;">15m ago</span>
+                </div>
+                <pre style="font-family:'SF Mono','Fira Code',monospace;font-size:11px;color:var(--ink-gray-6);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">Job press.press.doctype.site.backups.backup_site completed in 45.12s</pre>
+              </div>
+            </div>
+
+            <!-- Scheduler entry 2 -->
+            <div class="log-entry" data-type="scheduler" style="padding:8px 16px;display:flex;gap:10px;align-items:flex-start;cursor:pointer;" onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background=''">
+              <span style="flex-shrink:0;width:6px;height:6px;border-radius:50%;background:var(--green-500);margin-top:6px;"></span>
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                  <span style="font-size:12px;font-weight:600;color:var(--green-600);">scheduler.log</span>
+                  <span style="font-size:10px;color:var(--ink-gray-4);flex-shrink:0;">20m ago</span>
+                </div>
+                <pre style="font-family:'SF Mono','Fira Code',monospace;font-size:11px;color:var(--ink-gray-6);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">Running press.press.doctype.agent_job.agent_job.poll_pending_jobs</pre>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 6. DB Process List (inline) ── -->
+      <div class="card">
+        <div class="card-header">
+          <div class="flex items-center gap-2">
+            <span class="card-title">Active DB Processes</span>
+            <span class="badge badge-blue">3 active</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="btn btn-ghost btn-sm" onclick="refreshProcesses(this)">&#8635; Refresh</button>
+          </div>
+        </div>
+        <table class="app-table" style="font-size:12px;">
+          <thead>
+            <tr>
+              <th style="font-size:10px;padding:6px 10px;">ID</th>
+              <th style="font-size:10px;padding:6px 10px;">User</th>
+              <th style="font-size:10px;padding:6px 10px;">Time</th>
+              <th style="font-size:10px;padding:6px 10px;">State</th>
+              <th style="font-size:10px;padding:6px 10px;">Query</th>
+              <th style="font-size:10px;padding:6px 10px;text-align:right;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:5px 10px;font-family:monospace;font-size:11px;">142</td>
+              <td style="padding:5px 10px;font-size:11px;">_roseline-stg</td>
+              <td style="padding:5px 10px;font-size:11px;">0s</td>
+              <td style="padding:5px 10px;"><span class="badge badge-green" style="font-size:10px;">Execute</span></td>
+              <td style="padding:5px 10px;font-family:monospace;font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">SELECT name FROM tabUser WHERE…</td>
+              <td style="padding:5px 10px;text-align:right;"><button class="btn btn-danger btn-xs" onclick="this.textContent='Killed';this.disabled=true;this.style.opacity='.5'">Kill</button></td>
+            </tr>
+            <tr>
+              <td style="padding:5px 10px;font-family:monospace;font-size:11px;">289</td>
+              <td style="padding:5px 10px;font-size:11px;">_roseline-stg</td>
+              <td style="padding:5px 10px;font-size:11px;color:var(--orange-600);font-weight:600;">4.2s</td>
+              <td style="padding:5px 10px;"><span class="badge badge-yellow" style="font-size:10px;">Sending data</span></td>
+              <td style="padding:5px 10px;font-family:monospace;font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">SELECT `tabSales Invoice`.* FROM…</td>
+              <td style="padding:5px 10px;text-align:right;"><button class="btn btn-danger btn-xs" onclick="this.textContent='Killed';this.disabled=true;this.style.opacity='.5'">Kill</button></td>
+            </tr>
+            <tr>
+              <td style="padding:5px 10px;font-family:monospace;font-size:11px;">301</td>
+              <td style="padding:5px 10px;font-size:11px;">_roseline-stg</td>
+              <td style="padding:5px 10px;font-size:11px;">0s</td>
+              <td style="padding:5px 10px;"><span class="badge badge-gray" style="font-size:10px;">Sleep</span></td>
+              <td style="padding:5px 10px;font-family:monospace;font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</td>
+              <td style="padding:5px 10px;text-align:right;"><button class="btn btn-danger btn-xs" onclick="this.textContent='Killed';this.disabled=true;this.style.opacity='.5'">Kill</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── 7. Recent Errors ── -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Recent Errors</span>
+          <div class="flex items-center gap-2">
+            <span class="badge badge-red">3 failures</span>
+            <button class="btn btn-ghost btn-sm" onclick="refreshErrors(this)">&#8635; Refresh</button>
+          </div>
+        </div>
+        <table class="err-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Job Type</th>
+              <th>Site</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="text-muted" style="font-size:12px;">2m ago</td>
+              <td><span style="font-weight:500">New Site</span></td>
+              <td><span class="err-site">roseline-stg.sandbox.mvpstorm.com</span></td>
+              <td><a href="#" class="err-link">View →</a></td>
+            </tr>
+            <tr>
+              <td class="text-muted" style="font-size:12px;">18m ago</td>
+              <td><span style="font-weight:500">Migrate Site</span></td>
+              <td><span class="err-site">roseline-stg.sandbox.mvpstorm.com</span></td>
+              <td><a href="#" class="err-link">View →</a></td>
+            </tr>
+            <tr>
+              <td class="text-muted" style="font-size:12px;">1h ago</td>
+              <td><span style="font-weight:500">Backup Site</span></td>
+              <td><span class="err-site">roseline-stg.sandbox.mvpstorm.com</span></td>
+              <td><a href="#" class="err-link">View →</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /shell -->
+
+<!-- Demo control bar -->
+<div class="demo-bar">
+  <span style="opacity:.5">Demo:</span>
+  <button class="demo-btn active-demo" onclick="setState('loaded')">Loaded</button>
+  <button class="demo-btn" onclick="setState('loading')">Loading</button>
+  <button class="demo-btn" onclick="setState('pushing')">Pushing…</button>
+  <button class="demo-btn" onclick="setState('pushed')">Push done</button>
+  <button class="demo-btn" onclick="setState('allclean')">All clean</button>
+  <button class="demo-btn" onclick="setState('console-py')">Python console</button>
+</div>
+
+<script>
+// ── Push form toggle ──
+const openForms = new Set();
+
+function togglePush(app, btn) {
+  const form = document.getElementById('push-form-' + app);
+  const row  = document.getElementById('row-' + app);
+  const isOpen = form.classList.contains('open');
+
+  // close all
+  document.querySelectorAll('.push-form').forEach(f => f.classList.remove('open'));
+  document.querySelectorAll('tr[id^="row-"]').forEach(r => r.classList.remove('push-open'));
+  document.querySelectorAll('button[onclick^="togglePush"]').forEach(b => b.textContent !== 'Cancel' && (b.textContent = 'Push ▼'));
+
+  if (!isOpen && btn) {
+    form.classList.add('open');
+    row.classList.add('push-open');
+    if (btn) btn.textContent = 'Push ▲';
+    document.getElementById('push-form-' + app).querySelector('input[type=text]:not([readonly])').focus();
+  }
+}
+
+// ── Push action ──
+function doPush(app, btn) {
+  const out = document.getElementById('output-' + app);
+  btn.classList.add('btn-loading');
+  btn.textContent = '';
+  out.classList.remove('visible');
+
+  setTimeout(() => {
+    btn.classList.remove('btn-loading');
+    btn.textContent = 'Push to GitHub';
+    out.innerHTML = '<span class="line-ok">[main 57f04bd] WIP</span>\n<span class="line-ok"> 1 file changed, 12 insertions(+), 4 deletions(-)</span>\n<span class="line-ok">Enumerating objects: 7, done.</span>\nCounting objects: 100% (7/7), done.\nDelta compression using up to 4 threads\nCompressing objects: 100% (4/4), done.\n<span class="line-ok">To github.com:accurate-systems/press.git\n   4d4d9f8..57f04bd  cloudflare-dns -> cloudflare-dns</span>';
+    out.classList.add('visible');
+
+    // update badge to clean
+    const gitCell = document.querySelector('#row-' + app + ' .git-status');
+    gitCell.innerHTML = '<span class="clean-badge">&#10003; Clean</span>';
+    const actionCell = document.querySelector('#row-' + app + ' .action-cell');
+    actionCell.innerHTML = '<span class="text-xs text-muted">—</span>';
+    document.getElementById('push-form-' + app).classList.remove('open');
+
+    checkWarningBadge();
+  }, 1800);
+}
+
+function checkWarningBadge() {
+  const needsPush = document.querySelectorAll('.ahead-badge, .dirty-badge').length;
+  const badge = document.getElementById('apps-warning-badge');
+  if (needsPush > 0) {
+    badge.style.display = 'inline-flex';
+    badge.textContent = needsPush + ' need push';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ── Status card actions ──
+function toggleDevMode(btn) {
+  const dot   = btn.parentElement.querySelector('.status-dot');
+  const text  = btn.parentElement.querySelector('.status-card-text');
+  const isOn  = dot.classList.contains('green');
+  dot.className  = 'status-dot ' + (isOn ? 'gray' : 'green');
+  text.textContent = isOn ? 'Disabled' : 'Enabled';
+  btn.textContent  = isOn ? 'Enable Dev Mode' : 'Disable Dev Mode';
+}
+
+function triggerMigrate(btn) {
+  const dot = document.getElementById('mig-dot');
+  const txt = document.getElementById('mig-text');
+  btn.classList.add('btn-loading');
+  btn.textContent = '';
+  txt.textContent = 'Migrating…';
+  dot.className = 'status-dot yellow';
+  setTimeout(() => {
+    btn.classList.remove('btn-loading');
+    btn.textContent = 'Migrate Now';
+    txt.textContent = 'Last: just now';
+    dot.className = 'status-dot green';
+  }, 2200);
+}
+
+function clearCache(btn) {
+  btn.classList.add('btn-loading');
+  btn.textContent = '';
+  setTimeout(() => {
+    btn.classList.remove('btn-loading');
+    btn.textContent = 'Clear Cache';
+    // brief flash
+    btn.style.color = 'var(--green-700)';
+    setTimeout(() => btn.style.color = '', 1200);
+  }, 1000);
+}
+
+function openVSCode(btn) {
+  window.open('https://code.sandbox.mvpstorm.com', '_blank');
+}
+
+function restartBench(btn) {
+  const label = document.getElementById('restart-label');
+  const sub   = document.getElementById('restart-sub');
+  btn.disabled = true;
+  btn.style.opacity = '0.7';
+  label.textContent = 'Restarting…';
+  sub.textContent   = 'Stopping workers';
+  let dots = 0;
+  const tick = setInterval(() => {
+    dots = (dots + 1) % 4;
+    const msgs = ['Stopping workers', 'Starting workers', 'Waiting for ready', 'Done ✓'];
+    sub.textContent = msgs[dots] + '.'.repeat(dots % 3);
+  }, 700);
+  setTimeout(() => {
+    clearInterval(tick);
+    label.textContent = 'Restart Bench';
+    sub.textContent   = 'Restarted just now';
+    btn.disabled = false;
+    btn.style.opacity = '';
+    btn.style.borderColor = 'var(--green-500)';
+    btn.querySelector('svg').style.color = 'var(--green-600)';
+    setTimeout(() => {
+      btn.style.borderColor = '';
+      btn.querySelector('svg').style.color = '';
+      sub.textContent = 'Restart all bench workers';
+    }, 2500);
+  }, 2800);
+}
+
+function refreshErrors(btn) {
+  btn.textContent = '…';
+  setTimeout(() => { btn.textContent = '↻ Refresh'; }, 800);
+}
+
+function refreshApps(btn) {
+  btn.textContent = '…';
+  document.getElementById('app-table-loaded').style.display = 'none';
+  document.getElementById('app-table-skeleton').style.display = 'flex';
+  setTimeout(() => {
+    document.getElementById('app-table-skeleton').style.display = 'none';
+    document.getElementById('app-table-loaded').style.display = 'block';
+    btn.textContent = '↻ Refresh';
+    document.getElementById('apps-refresh-time').textContent = 'Updated just now';
+  }, 1200);
+}
+
+// ── Demo states ──
+function setState(state) {
+  document.querySelectorAll('.demo-btn').forEach(b => b.classList.remove('active-demo'));
+  event.target.classList.add('active-demo');
+
+  const skel   = document.getElementById('app-table-skeleton');
+  const loaded = document.getElementById('app-table-loaded');
+
+  if (state === 'loading') {
+    skel.style.display = 'flex'; loaded.style.display = 'none';
+  } else if (state === 'loaded') {
+    skel.style.display = 'none'; loaded.style.display = 'block';
+    // restore original state
+    document.querySelectorAll('.push-form').forEach(f => f.classList.remove('open'));
+    document.querySelectorAll('.push-output').forEach(o => { o.classList.remove('visible'); o.textContent = ''; });
+  } else if (state === 'pushing') {
+    skel.style.display = 'none'; loaded.style.display = 'block';
+    togglePush('erpnext', document.querySelector('#row-erpnext .action-cell button'));
+    const btn = document.querySelector('#push-form-erpnext .btn-green');
+    btn.classList.add('btn-loading'); btn.textContent = '';
+  } else if (state === 'pushed') {
+    skel.style.display = 'none'; loaded.style.display = 'block';
+    const out = document.getElementById('output-press');
+    const form = document.getElementById('push-form-press');
+    form.classList.add('open');
+    document.getElementById('row-press').classList.add('push-open');
+    out.innerHTML = '<span class="line-ok">To github.com:accurate-systems/press.git\n   4d4d9f8..57f04bd  cloudflare-dns -> cloudflare-dns</span>';
+    out.classList.add('visible');
+  } else if (state === 'console-py') {
+    skel.style.display = 'none'; loaded.style.display = 'block';
+    // Switch to Python tab and show result
+    switchConsoleTab('python', document.querySelectorAll('.console-tab')[1]);
+    document.getElementById('console-result').style.display = 'block';
+    document.getElementById('result-table-wrap').style.display = 'none';
+    document.getElementById('result-terminal').style.display = 'block';
+    document.getElementById('result-meta').textContent = 'Output · 3ms';
+  } else if (state === 'allclean') {
+    skel.style.display = 'none'; loaded.style.display = 'block';
+    document.querySelectorAll('.git-status').forEach(c => {
+      c.innerHTML = '<span class="clean-badge">✓ Clean</span>';
+    });
+    document.querySelectorAll('.action-cell').forEach(c => {
+      c.innerHTML = '<span class="text-xs text-muted">—</span>';
+    });
+    document.getElementById('apps-warning-badge').style.display = 'none';
+  }
+}
+
+// ── Console tab switching ──
+function switchConsoleTab(tab, btn) {
+  document.getElementById('console-sql').style.display = tab === 'sql' ? 'block' : 'none';
+  document.getElementById('console-python').style.display = tab === 'python' ? 'block' : 'none';
+  document.querySelectorAll('.console-tab').forEach(t => {
+    t.style.background = 'white'; t.style.color = 'var(--ink-gray-6)';
+  });
+  btn.style.background = 'var(--blue-50)'; btn.style.color = 'var(--blue-600)';
+}
+
+function runConsole(btn) {
+  btn.classList.add('btn-loading');
+  const isSql = document.getElementById('console-sql').style.display !== 'none';
+  setTimeout(() => {
+    btn.classList.remove('btn-loading');
+    const result = document.getElementById('console-result');
+    result.style.display = 'block';
+    document.getElementById('result-table-wrap').style.display = isSql ? 'block' : 'none';
+    document.getElementById('result-terminal').style.display = isSql ? 'none' : 'block';
+    document.getElementById('result-meta').textContent = isSql ? '5 rows · 12ms' : 'Output · 3ms';
+  }, 800);
+}
+
+// ── Log filtering ──
+function filterLogs(type, btn) {
+  document.querySelectorAll('.log-filter').forEach(f => {
+    f.style.background = 'white'; f.style.color = 'var(--ink-gray-6)';
+  });
+  btn.style.background = 'var(--gray-100)'; btn.style.color = 'var(--ink-gray-9)';
+  document.querySelectorAll('.log-entry').forEach(entry => {
+    const entryType = entry.dataset.type;
+    if (type === 'all') { entry.style.display = 'flex'; return; }
+    if (type === 'error' && (entryType === 'error' || entryType === 'web error')) {
+      entry.style.display = 'flex';
+    } else if (type === 'web' && entryType === 'web error') {
+      entry.style.display = 'flex';
+    } else if (entryType === type) {
+      entry.style.display = 'flex';
+    } else {
+      entry.style.display = 'none';
+    }
+  });
+}
+
+function refreshProcesses(btn) {
+  btn.textContent = '…';
+  setTimeout(() => { btn.textContent = '↻ Refresh'; }, 800);
+}
+
+// init
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('apps-warning-badge').style.display = 'inline-flex';
+});
+</script>
+</body>
+</html>
