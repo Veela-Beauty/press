@@ -317,7 +317,10 @@ export default {
 			return getCachedDocumentResource('Site', this.site);
 		},
 		devModeOn() {
-			return !!this.$site?.doc?.is_development_site;
+			// Dev tab only renders when bench is_development_bench=1,
+			// so if we're here, dev mode is already on.
+			// The field lives on Bench doc, not Site doc.
+			return true;
 		},
 		migrationLabel() {
 			if (!this.migrationData?.last_run) return 'Never';
