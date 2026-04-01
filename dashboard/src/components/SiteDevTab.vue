@@ -165,9 +165,11 @@
 					<label class="flex cursor-pointer items-center gap-1 text-[11px] text-gray-400">
 						<input v-model="consoleCommit" type="checkbox" class="accent-blue-600" /> Commit
 					</label>
-					<Button size="sm" variant="solid" :loading="consoleRunning" @click="runConsole">
-						<svg class="mr-1 h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run
-					</Button>
+					<button @click="runConsole" :disabled="consoleRunning || !consoleInput.trim()"
+						class="inline-flex items-center gap-1.5 rounded-md border border-green-300 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-40">
+						<svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+						{{ consoleRunning ? 'Running…' : 'Run' }}
+					</button>
 				</div>
 			</div>
 			<textarea v-model="consoleInput" :placeholder="consolePlaceholder"
@@ -264,7 +266,7 @@
 					<tr v-for="err in errorList" :key="err.name" class="border-b border-gray-50 last:border-0">
 						<td class="px-4 py-2 text-gray-500">{{ relativeTime(err.creation) }}</td>
 						<td class="px-4 py-2">{{ err.job_type }}</td>
-						<td class="px-4 py-2"><a :href="`/dashboard/sites/${site}/jobs/${err.name}`" class="text-blue-600 hover:underline">View</a></td>
+						<td class="px-4 py-2"><a :href="`/dashboard/sites/${site}/insights/jobs/${err.name}`" class="text-blue-600 hover:underline">View</a></td>
 					</tr>
 				</tbody>
 			</table>
