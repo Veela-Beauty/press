@@ -1,5 +1,25 @@
 <template>
-	<div class="p-5" v-if="deploy">
+	<div v-if="$resources.deploy.loading" class="p-5 flex items-center justify-center h-96">
+		<div class="text-center">
+			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+			<p class="text-gray-600">Loading build information...</p>
+		</div>
+	</div>
+	<div v-else-if="!deploy" class="p-5">
+		<div class="rounded-lg border border-red-200 bg-red-50 p-4">
+			<h3 class="text-sm font-medium text-red-900">Build Not Found</h3>
+			<p class="mt-2 text-sm text-red-700">
+				The build <code class="bg-red-100 px-2 py-1 rounded">{{ id }}</code> could not be found or you don't have access to it.
+			</p>
+			<Button :route="{ name: 'Home' }" class="mt-4">
+				<template #prefix>
+					<lucide-arrow-left class="inline-block h-4 w-4" />
+				</template>
+				Go Back
+			</Button>
+		</div>
+	</div>
+	<div v-else class="p-5">
 		<AlertAddressableError
 			v-if="error"
 			class="mb-5"
@@ -351,6 +371,9 @@ export default {
 			}
 		},
 		transformDeploy(deploy) {
+			if (!deploy || !deploy.build_steps) {
+				return deploy;
+			}
 			for (let step of deploy.build_steps) {
 				if (step.status === 'Running') {
 					step.isOpen = true;
