@@ -129,6 +129,10 @@
 				<div class="flex items-center gap-2">
 					<span class="text-xs text-gray-400">{{ gitStatusAge }}</span>
 					<Button size="sm" variant="ghost" :loading="gitStatusLoading" @click="loadGitStatus">Refresh</Button>
+					<Button size="sm" variant="solid" @click="showCreateApp = true">
+						<template #prefix><lucide-plus class="h-3.5 w-3.5" /></template>
+						New App
+					</Button>
 				</div>
 			</div>
 			<div v-if="gitStatusLoading && !appGitStatus.length" class="space-y-2 p-4">
@@ -158,9 +162,15 @@
 							</td>
 							<td class="max-w-[180px] truncate px-4 py-2.5 text-xs text-gray-500">{{ item.last_msg }}</td>
 							<td class="px-4 py-2.5 text-right">
-								<Button v-if="item.ahead > 0 || item.dirty > 0" size="sm" variant="outline" @click="togglePushRow(item.app)">
-									{{ openPushApp === item.app ? 'Cancel' : 'Push ↓' }}
-								</Button>
+								<div class="flex justify-end gap-1">
+									<Button v-if="item.ahead > 0 || item.dirty > 0" size="sm" variant="outline" @click="togglePushRow(item.app)">
+										{{ openPushApp === item.app ? 'Cancel' : 'Push ↓' }}
+									</Button>
+									<Button v-if="!item.has_remote" size="sm" variant="outline" @click="openInitGithub(item.app)">
+										<template #prefix><lucide-github class="h-3.5 w-3.5" /></template>
+										GitHub
+									</Button>
+								</div>
 							</td>
 						</tr>
 						<tr v-if="openPushApp === item.app" :key="item.app + '-push'">
@@ -316,6 +326,54 @@
 			</table>
 		</div>
 
+		<!-- Create App Dialog -->
+		<Dialog :options="{ title: 'Create App Locally', size: 'md' }" v-model="showCreateApp">
+			<template #body-content>
+				<div class="space-y-4">
+					<FormControl label="App Name" v-model="newAppName" placeholder="my_custom_app"
+						description="Lowercase, underscores. Becomes the Python module."
+						@input="newAppName = $event.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_')" />
+					<FormControl label="App Title" v-model="newAppTitle" placeholder="My Custom App"
+						description="Human-readable title." />
+					<div v-if="createAppOutput" class="rounded bg-gray-900 p-3">
+						<pre class="whitespace-pre-wrap text-xs text-green-300">{{ createAppOutput }}</pre>
+					</div>
+				</div>
+			</template>
+			<template #actions>
+				<Button variant="solid" :loading="creatingApp" :disabled="!newAppName || !newAppTitle" @click="doCreateApp">
+					<template #prefix><lucide-plus class="h-4 w-4" /></template>
+					Create App
+				</Button>
+			</template>
+		</Dialog>
+
+		<!-- Push to GitHub Dialog -->
+		<Dialog :options="{ title: 'Push to GitHub', size: 'md' }" v-model="showInitGithub">
+			<template #body-content>
+				<div class="space-y-4">
+					<p class="text-sm text-gray-600">Push <strong>{{ initGithubApp }}</strong> to GitHub and register in Press.</p>
+					<div v-if="loadingAccounts" class="text-sm text-gray-400">Loading GitHub accounts...</div>
+					<div v-else-if="!githubAccounts.length" class="text-sm text-red-600">No GitHub accounts found.</div>
+					<div v-else class="flex flex-col gap-2">
+						<button v-for="acc in githubAccounts" :key="acc.login"
+							class="flex items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm"
+							:class="selectedGithubOwner === acc.login ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'"
+							@click="selectedGithubOwner = acc.login">
+							<img v-if="acc.avatar" :src="acc.avatar" class="h-5 w-5 rounded-full" />
+							<span class="font-medium">{{ acc.login }}</span>
+						</button>
+					</div>
+					<div v-if="initGithubOutput" class="rounded bg-gray-900 p-3">
+						<pre class="whitespace-pre-wrap text-xs text-green-300">{{ initGithubOutput }}</pre>
+					</div>
+				</div>
+			</template>
+			<template #actions>
+				<Button variant="solid" :loading="pushingToGithub" :disabled="!selectedGithubOwner" @click="doInitGithub">Push to GitHub</Button>
+			</template>
+		</Dialog>
+
 	</div>
 </template>
 
@@ -349,6 +407,9 @@ export default {
 			// Code Server
 			codeServer: { enabled: false, exists: false, status: null, url: null, name: null },
 			codeServerLaunching: false,
+			showCreateApp: false, newAppName: '', newAppTitle: '', creatingApp: false, createAppOutput: '',
+			showInitGithub: false, initGithubApp: '', githubAccounts: [], loadingAccounts: false,
+			selectedGithubOwner: '', pushingToGithub: false, initGithubOutput: '',
 		};
 	},
 	computed: {
@@ -512,6 +573,39 @@ export default {
 			if (diffMin < 60) return `${diffMin}m ago`;
 			const h = Math.floor(diffMin / 60);
 			return h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
+		},
+		async doCreateApp() {
+			this.creatingApp = true; this.createAppOutput = '';
+			try {
+				const b = this.$site?.doc?.bench;
+				if (!b) { toast.error('No bench found'); return; }
+				const result = await call('press.press.doctype.bench.bench_app_management.create_app_locally', {
+					bench_name: b, app_name: this.newAppName, app_title: this.newAppTitle,
+				});
+				this.createAppOutput = result?.output || 'App created';
+				toast.success(`App "${this.newAppTitle}" created`);
+				this.loadGitStatus();
+				setTimeout(() => { this.showCreateApp = false; this.newAppName = ''; this.newAppTitle = ''; this.createAppOutput = ''; }, 2000);
+			} catch (e) { toast.error(e.messages?.[0] || 'Failed'); } finally { this.creatingApp = false; }
+		},
+		openInitGithub(appName) {
+			this.initGithubApp = appName; this.initGithubOutput = ''; this.showInitGithub = true; this.loadingAccounts = true;
+			call('press.press.doctype.bench.bench_app_management.get_github_accounts')
+				.then(accs => { this.githubAccounts = accs; if (accs.length) this.selectedGithubOwner = accs[0].login; })
+				.catch(() => toast.error('Failed to load accounts'))
+				.finally(() => { this.loadingAccounts = false; });
+		},
+		async doInitGithub() {
+			this.pushingToGithub = true; this.initGithubOutput = '';
+			try {
+				const b = this.$site?.doc?.bench;
+				const result = await call('press.press.doctype.bench.bench_app_management.init_github_for_app', {
+					bench_name: b, app_name: this.initGithubApp, github_owner: this.selectedGithubOwner,
+				});
+				this.initGithubOutput = result?.push_result?.output || 'Pushed';
+				toast.success(`Pushed to ${result.repository_url}`);
+				this.loadGitStatus();
+			} catch (e) { toast.error(e.messages?.[0] || 'Failed'); } finally { this.pushingToGithub = false; }
 		},
 	},
 };

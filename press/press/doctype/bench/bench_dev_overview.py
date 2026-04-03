@@ -261,9 +261,10 @@ def get_app_git_status(bench_name):
 			f"branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?') && "
 			f"ahead=$(git rev-list --count '@{{u}}..HEAD' 2>/dev/null || echo 0) && "
 			f"dirty=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ') && "
+			f"has_remote=$(git remote get-url origin >/dev/null 2>&1 && echo 1 || echo 0) && "
 			f"msg=$(git log -1 --format='%s' 2>/dev/null | cut -c1-60) && "
-			f'echo "{app}:$branch:$ahead:$dirty:$msg" && cd ../.. '
-			f'|| echo "{app}:?:0:0:" && cd ../.. 2>/dev/null'
+			f'echo "{app}:$branch:$ahead:$dirty:$has_remote:$msg" && cd ../.. '
+			f'|| echo "{app}:?:0:0:0:" && cd ../.. 2>/dev/null'
 		)
 	cmd = " ; ".join(lines)
 	try:
@@ -276,8 +277,8 @@ def get_app_git_status(bench_name):
 		line = line.strip()
 		if not line:
 			continue
-		# Format: app:branch:ahead:dirty:msg
-		parts = line.split(":", 4)
+		# Format: app:branch:ahead:dirty:has_remote:msg
+		parts = line.split(":", 5)
 		if len(parts) < 1:
 			continue
 		app = parts[0]
@@ -286,7 +287,8 @@ def get_app_git_status(bench_name):
 			"branch": parts[1] if len(parts) > 1 else "?",
 			"ahead": int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0,
 			"dirty": int(parts[3]) if len(parts) > 3 and parts[3].strip().isdigit() else 0,
-			"last_msg": parts[4].strip() if len(parts) > 4 else "",
+			"has_remote": parts[4].strip() == "1" if len(parts) > 4 else True,
+			"last_msg": parts[5].strip() if len(parts) > 5 else "",
 		})
 	return results
 
@@ -371,6 +373,7 @@ def push_app_to_github(bench_name, app, message):
 	safe_message = message.replace("'", "'\\''")
 	cmd = f"git add -A && git commit -m '{safe_message}' && git push"
 	return bench.docker_execute(cmd, subdir=f"apps/{app}")
+
 
 
 # ── Shared helpers ───────────────────────────────────────────────────────────
