@@ -257,44 +257,33 @@ def get_app_git_status(bench_name, site_name=None):
 		app_names = [ae.app for ae in bench.apps if ae.app]
 	if not app_names:
 		return []
-	# Build a shell script that iterates all apps and outputs one line per app
-	# Format per line: APP_NAME:branch:ahead:dirty:has_remote:last_msg
-	lines = []
-	for app in app_names:
-		lines.append(
-			f"cd apps/{app} 2>/dev/null && "
-			f"branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?') && "
-			f"ahead=$(git rev-list --count '@{{u}}..HEAD' 2>/dev/null || echo 0) && "
-			f"dirty=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ') && "
-			f"has_remote=$(git remote get-url origin >/dev/null 2>&1 && echo 1 || echo 0) && "
-			f"msg=$(git log -1 --format='%s' 2>/dev/null | cut -c1-60) && "
-			f'echo "{app}:$branch:$ahead:$dirty:$has_remote:$msg" && cd ../.. '
-			f'|| echo "{app}:?:0:0:1:" && cd ../.. 2>/dev/null'
-		)
-	cmd = " ; ".join(lines)
-	try:
-		raw = bench.docker_execute(cmd, save_output=False, create_log=False)
-		output = (raw.get("output") or "").strip()
-	except Exception:
-		return [{"app": a, "branch": "?", "ahead": 0, "dirty": 0, "last_msg": ""} for a in app_names]
+	# One docker_execute per app — subshells don't expand inside docker exec
 	results = []
-	for line in output.split("\n"):
-		line = line.strip()
-		if not line or line.startswith("OCI ") or line.startswith("Error"):
-			continue
-		# Format: app:branch:ahead:dirty:has_remote:msg
-		parts = line.split(":", 5)
-		if len(parts) < 1:
-			continue
-		app = parts[0]
-		results.append({
-			"app": app,
-			"branch": parts[1] if len(parts) > 1 else "?",
-			"ahead": int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0,
-			"dirty": int(parts[3]) if len(parts) > 3 and parts[3].strip().isdigit() else 0,
-			"has_remote": parts[4].strip() == "1" if len(parts) > 4 else True,
-			"last_msg": parts[5].strip() if len(parts) > 5 else "",
-		})
+	for app in app_names:
+		d = f"apps/{app}"
+		try:
+			r1 = bench.docker_execute(f"git -C {d} log -1 --format=%D:::%s", save_output=False, create_log=False)
+			out = (r1.get("output") or "").strip()
+			parts = out.split(":::", 1)
+			refs = parts[0].strip() if parts else ""
+			branch = "detached"
+			for ref in refs.split(","):
+				ref = ref.strip()
+				if ref.startswith("HEAD -> "):
+					branch = ref[8:]; break
+			msg = parts[1].strip()[:60] if len(parts) > 1 else ""
+			r2 = bench.docker_execute(f"git -C {d} remote get-url origin", save_output=False, create_log=False)
+			has_remote = r2.get("returncode") == 0
+			r3 = bench.docker_execute(f"git -C {d} status --porcelain", save_output=False, create_log=False)
+			dirty = len([l for l in (r3.get("output") or "").split("\n") if l.strip()])
+			ahead = 0
+			if has_remote:
+				r4 = bench.docker_execute(f"git -C {d} rev-list --count @{{u}}..HEAD", save_output=False, create_log=False)
+				a = (r4.get("output") or "").strip()
+				ahead = int(a) if a.isdigit() else 0
+			results.append({"app": app, "branch": branch, "ahead": ahead, "dirty": dirty, "has_remote": has_remote, "last_msg": msg})
+		except Exception:
+			results.append({"app": app, "branch": "?", "ahead": 0, "dirty": 0, "has_remote": True, "last_msg": ""})
 	return results
 
 
