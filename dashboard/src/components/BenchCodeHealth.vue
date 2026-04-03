@@ -75,9 +75,20 @@
 			</div>
 		</div>
 
-		<!-- Not scanned -->
-		<div v-if="!scanning && !summary" class="flex h-48 items-center justify-center text-gray-400 text-sm">
-			Click "Scan Now" to analyze code health
+		<!-- Not scanned — prominent CTA -->
+		<div v-if="!scanning && !summary" class="flex h-64 items-center justify-center">
+			<div class="text-center">
+				<div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/20">
+					<svg class="h-8 w-8 text-blue-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+						<path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0 1 12 2.944a11.955 11.955 0 0 1-8.618 3.04A12.02 12.02 0 0 0 3 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+					</svg>
+				</div>
+				<h3 class="text-lg font-semibold text-gray-900 dark:text-white">No scan data yet</h3>
+				<p class="mt-1 text-sm text-gray-500">Analyze file sizes, code quality, and security patterns</p>
+				<button @click="scan" class="mt-4 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
+					Scan This Bench
+				</button>
+			</div>
 		</div>
 
 		<!-- TAB: Overview -->
@@ -360,7 +371,13 @@ const DIM_KEYS = ['claude_md', 'readme', 'documentation', 'tests', 'clean_code',
 
 export default {
 	name: 'BenchCodeHealth',
-	props: { benchName: { type: String, required: true } },
+	props: {
+		benchName: { type: String, required: true },
+		autoScan: { type: Boolean, default: false },
+	},
+	mounted() {
+		if (this.autoScan) this.scan();
+	},
 	data() {
 		return {
 			scanning: false, scanStep: '', activeTab: 'overview', lastScanAge: '',
