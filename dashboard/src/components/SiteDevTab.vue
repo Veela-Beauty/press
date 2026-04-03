@@ -117,6 +117,17 @@
 			</button>
 		</div>
 
+		<!-- Code Health Dashboard -->
+		<div class="rounded-lg border border-gray-200 bg-white shadow-sm">
+			<div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+				<p class="text-sm font-semibold">Code Health</p>
+				<Button size="sm" :variant="showHealth ? 'solid' : 'outline'" @click="showHealth = !showHealth">
+					{{ showHealth ? 'Hide' : 'Show' }} Health Dashboard
+				</Button>
+			</div>
+			<BenchCodeHealth v-if="showHealth && $site?.doc?.bench" :bench-name="$site.doc.bench" />
+		</div>
+
 		<!-- 3. App Git Status -->
 		<div class="rounded-lg border border-gray-200 bg-white shadow-sm">
 			<div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
@@ -380,6 +391,7 @@
 <script>
 import { call, getCachedDocumentResource } from 'frappe-ui';
 import { toast } from 'vue-sonner';
+import BenchCodeHealth from './BenchCodeHealth.vue';
 
 const API = 'press.press.doctype.bench.bench_dev_overview';
 
@@ -407,6 +419,7 @@ export default {
 			// Code Server
 			codeServer: { enabled: false, exists: false, status: null, url: null, name: null },
 			codeServerLaunching: false,
+			showHealth: false,
 			showCreateApp: false, newAppName: '', newAppTitle: '', creatingApp: false, createAppOutput: '',
 			showInitGithub: false, initGithubApp: '', githubAccounts: [], loadingAccounts: false,
 			selectedGithubOwner: '', pushingToGithub: false, initGithubOutput: '',
