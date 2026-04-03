@@ -599,19 +599,257 @@ git commit -m "feat(ui): unified code health dashboard with 3 tabs"
 
 ---
 
+---
+
+### Task 8: Scoring Engine — rate each dimension 0-100
+
+**Files:**
+- Add to: `press/press/doctype/bench/bench_code_health.py`
+
+**Goal:** Score each app on 6 dimensions. Not just "exists/doesn't exist" — actually read content and check quality.
+
+**Scoring dimensions:**
+
+| Dimension | How scored (0-100) |
+|-----------|-------------------|
+| **CLAUDE.md** | 0=missing, 20=exists but empty, +15 per required section found (Stack, Commands, Structure, Architecture, Conventions, Key Context) = max 100 |
+| **README** | 0=missing, 20=exists, +20 per section (What it does, Install, Run, Architecture, Contributing) = max 100 |
+| **Documentation** | 0=no docs/, 30=docs/ exists, +15 per wiki file (overview, architecture, doctype-tree, api-reference) = max 90, +10 if >5 files |
+| **Tests** | 0=no tests/, test file ratio: (test_files / code_files) * 200, capped at 100 |
+| **Clean Code** | (files_under_500 / total_code_files) * 100. Penalty: -2 per file >700 lines |
+| **Code Patterns** | 100 - (anti_pattern_violations / total_lines * 1000). bare except, print(), console.log, etc. |
+
+```python
+@frappe.whitelist()
+def get_app_scores(bench_name):
+    """Score each app on 6 quality dimensions for radar chart."""
+    frappe.only_for("System Manager")
+    bench = frappe.get_doc("Bench", bench_name)
+    
+    r = bench.docker_execute("ls apps/", save_output=False, create_log=False)
+    apps = [a.strip() for a in r.get("output", "").split() if a.strip()]
+    
+    upstream = {"frappe", "erpnext", "hrms", "payments", "lending", "ifrs_reporting",
+                "webshop", "lms", "helpdesk", "insights", "print_designer", "wiki"}
+    
+    results = []
+    for app in apps:
+        if app in upstream:
+            continue
+        
+        scores = {
+            "claude_md": _score_claude_md(bench, app),
+            "readme": _score_readme(bench, app),
+            "documentation": _score_docs(bench, app),
+            "tests": _score_tests(bench, app),
+            "clean_code": _score_clean_code(bench, app),
+            "code_patterns": _score_patterns(bench, app),
+        }
+        scores["overall"] = round(sum(scores.values()) / len(scores))
+        results.append({"app": app, "scores": scores})
+    
+    return results
+
+
+CLAUDE_SECTIONS = ["Stack", "Commands", "Structure", "Architecture", "Conventions", "Key Context"]
+
+def _score_claude_md(bench, app):
+    r = bench.docker_execute(f"cat apps/{app}/CLAUDE.md 2>/dev/null || echo __MISSING__",
+                             save_output=False, create_log=False)
+    content = r.get("output", "")
+    if "__MISSING__" in content:
+        return 0
+    if len(content.strip()) < 50:
+        return 20
+    score = 20  # exists
+    for section in CLAUDE_SECTIONS:
+        if f"## {section}" in content or f"# {section}" in content:
+            score += 13
+    return min(score, 100)
+
+
+README_SECTIONS = ["install", "setup", "usage", "run", "architecture", "structure"]
+
+def _score_readme(bench, app):
+    r = bench.docker_execute(f"cat apps/{app}/README.md 2>/dev/null || echo __MISSING__",
+                             save_output=False, create_log=False)
+    content = r.get("output", "").lower()
+    if "__missing__" in content:
+        return 0
+    if len(content.strip()) < 50:
+        return 20
+    score = 20
+    for keyword in README_SECTIONS:
+        if keyword in content:
+            score += 16
+    return min(score, 100)
+
+
+def _score_docs(bench, app):
+    r = bench.docker_execute(f"find apps/{app}/docs -type f -name '*.md' 2>/dev/null | wc -l",
+                             save_output=False, create_log=False)
+    count = int(r.get("output", "0").strip() or 0)
+    if count == 0:
+        return 0
+    if count <= 2:
+        return 30
+    if count <= 5:
+        return 60
+    return min(30 + count * 10, 100)
+
+
+def _score_tests(bench, app):
+    r = bench.docker_execute(
+        f"find apps/{app} -name 'test_*.py' -not -path '*__pycache__*' | wc -l",
+        save_output=False, create_log=False,
+    )
+    test_count = int(r.get("output", "0").strip() or 0)
+    r2 = bench.docker_execute(
+        f"find apps/{app} -name '*.py' -not -name 'test_*' -not -path '*__pycache__*' | wc -l",
+        save_output=False, create_log=False,
+    )
+    code_count = int(r2.get("output", "0").strip() or 0)
+    if code_count == 0:
+        return 0
+    ratio = test_count / code_count
+    return min(round(ratio * 200), 100)
+
+
+def _score_clean_code(bench, app):
+    r = bench.docker_execute(
+        f"find apps/{app} \\( -name '*.py' -o -name '*.js' -o -name '*.vue' \\) "
+        f"-not -path '*node_modules*' -not -path '*__pycache__*' "
+        f"-exec wc -l {{}} + 2>/dev/null | grep -v ' total$'",
+        save_output=False, create_log=False,
+    )
+    lines_data = []
+    for line in r.get("output", "").strip().split("\n"):
+        parts = line.strip().split(None, 1)
+        if parts and parts[0].isdigit():
+            lines_data.append(int(parts[0]))
+    if not lines_data:
+        return 100
+    under_500 = sum(1 for l in lines_data if l < 500)
+    over_700 = sum(1 for l in lines_data if l > 700)
+    score = round((under_500 / len(lines_data)) * 100) - (over_700 * 2)
+    return max(0, min(score, 100))
+
+
+def _score_patterns(bench, app):
+    r = bench.docker_execute(
+        f"grep -r -c 'except:' apps/{app}/ --include='*.py' 2>/dev/null | "
+        f"awk -F: '{{s+=$2}} END {{print s+0}}'",
+        save_output=False, create_log=False,
+    )
+    bare_except = int(r.get("output", "0").strip() or 0)
+    r2 = bench.docker_execute(
+        f"grep -r -c 'console\\.log' apps/{app}/ --include='*.js' --include='*.vue' 2>/dev/null | "
+        f"awk -F: '{{s+=$2}} END {{print s+0}}'",
+        save_output=False, create_log=False,
+    )
+    console_logs = int(r2.get("output", "0").strip() or 0)
+    r3 = bench.docker_execute(
+        f"grep -r -c 'print(' apps/{app}/ --include='*.py' 2>/dev/null | "
+        f"awk -F: '{{s+=$2}} END {{print s+0}}'",
+        save_output=False, create_log=False,
+    )
+    prints = int(r3.get("output", "0").strip() or 0)
+    
+    violations = bare_except * 5 + console_logs + prints
+    return max(0, 100 - violations * 2)
+```
+
+**Step 1: Commit**
+
+```bash
+git commit -m "feat(api): 6-dimension scoring engine for app quality radar chart"
+```
+
+---
+
+### Task 9: Radar Chart Component — visual per-app quality shape
+
+**Files:**
+- Create: `dashboard/src/components/AppRadarChart.vue`
+
+**Goal:** D3 radar chart per app. 6 axes = 6 dimensions. Full hexagon = perfect. Dents = weak areas.
+
+```
+        CLAUDE.md (90%)
+           /\
+          /  \
+  Tests  /    \ README
+  (20%) /      \ (75%)
+        \      /
+  Clean  \    / Docs
+  Code    \  /  (60%)
+   (89%)   \/
+      Patterns (95%)
+```
+
+**Implementation:** D3 radar polygon chart. Each app gets its own radar. Side by side for comparison.
+
+Key Vue structure:
+```vue
+<template>
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-3">
+    <div v-for="app in appScores" :key="app.app"
+      class="rounded-lg border border-gray-200 p-4">
+      <div class="mb-2 flex items-center justify-between">
+        <h3 class="text-sm font-semibold">{{ app.app }}</h3>
+        <Badge :label="app.scores.overall + '%'"
+          :theme="app.scores.overall >= 80 ? 'green' : app.scores.overall >= 50 ? 'orange' : 'red'" />
+      </div>
+      <svg :ref="'radar-' + app.app" class="h-48 w-full"></svg>
+    </div>
+  </div>
+</template>
+```
+
+D3 draws a polygon per app using `d3.lineRadial()` with 6 data points.
+
+**Step 1: Commit**
+
+```bash
+git commit -m "feat(ui): radar chart component for per-app quality scoring"
+```
+
+---
+
+### Updated Task 7: Unified Dashboard — now 4 tabs
+
+```
+┌─────────────────────────────────────────────────┐
+│ Code Health Dashboard                    [Scan] │
+├─────────────────────────────────────────────────┤
+│ Overall: 76% │ 2,128 files │ 323K lines │ 54 ⚠ │
+├─────────────────────────────────────────────────┤
+│ [Health Map] [Radar Scores] [Stack] [Compliance]│
+├─────────────────────────────────────────────────┤
+│ Tab 1: Circle packing — file structure + health │
+│ Tab 2: Radar charts per app — 6 quality axes    │
+│ Tab 3: App cards — framework, version, files    │
+│ Tab 4: Compliance grid — Y/N per standard       │
+└─────────────────────────────────────────────────┘
+```
+
+---
+
 ## Full Feature Summary
 
 | What | From one look you see |
 |------|----------------------|
 | **Health Map** | Every file as a circle — green/yellow/red. Click to zoom. Violations glow red. |
+| **Radar Scores** | Per-app hexagon chart — CLAUDE.md, README, docs, tests, clean code, patterns. Dents = weak areas. |
 | **Stack Info** | Each app's framework, version, Python/JS file count |
 | **Docs Compliance** | Which apps follow your standards. Red = missing docs. Forces team to comply. |
 | **Health Badge** | Quick number on bench detail header (89% healthy) |
 
 ## Future Enhancements (not in this plan)
 
-- Codegraph dependency view as fourth tab
+- Codegraph dependency view as fifth tab
 - Per-app health comparison (before/after deploy)
 - Health score history over time (store in DB)
 - Auto-block deploys if health drops below threshold
 - Pre-deploy gate: "3 files exceed 700 lines — split before deploying"
+- AI-powered deep analysis: read CLAUDE.md content quality, suggest missing sections
