@@ -400,6 +400,13 @@ export default {
 			cluster: null,
 			provider: null,
 			plan: null,
+			siteType: Production,
+			siteTypes: [
+				{ value: Production, label: Production, devOnly: false },
+				{ value: Staging, label: Staging, devOnly: false },
+				{ value: Dev, label: Dev, devOnly: true },
+				{ value: Demo, label: Demo, devOnly: true },
+			],
 			apps: [],
 			appPlans: {},
 			selectedApp: null,
@@ -581,6 +588,7 @@ export default {
 								group: this.selectedVersion.group.name,
 								domain: this.domain,
 								subscription_plan: this.plan.name,
+								site_type: this.siteType,
 								share_details_consent: this.shareDetailsConsent,
 								server: this.selectedDedicatedServer || null,
 							},
@@ -696,6 +704,10 @@ export default {
 				case_type === 'user_choice_single' ||
 				case_type === 'user_choice_multiple'
 			);
+		},
+		isDevBench() {
+			if (!this.bench) return false;
+			return this.$resources.benchInfo?.data?.is_development_bench || false;
 		},
 		isDedicatedServerSite() {
 			return !!(this.useDedicatedServer && this.selectedDedicatedServer);

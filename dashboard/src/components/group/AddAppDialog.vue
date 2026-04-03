@@ -41,6 +41,18 @@
 					<Button
 						@click="
 							showDialog = false;
+							showCreateDialog = true;
+						"
+						variant="solid"
+					>
+						<template #prefix>
+							<lucide-plus class="h-4 w-4" />
+						</template>
+						Create New App
+					</Button>
+					<Button
+						@click="
+							showDialog = false;
 							showNewAppDialog = true;
 						"
 					>
@@ -126,7 +138,12 @@
 			</div>
 		</template>
 	</Dialog>
-	<NewAppDialog
+	<CreateAppDialog
+			v-if="showCreateDialog"
+			:group="group"
+			@success="(result) => { showCreateDialog = false; $emit(appAdd); }"
+		/>
+		<NewAppDialog
 		v-if="showNewAppDialog"
 		@app-added="addAppFromGithub"
 		:group="group"
@@ -173,6 +190,7 @@ export default {
 		return {
 			searchQuery: '',
 			showNewAppDialog: false,
+			showCreateDialog: false,
 			selectedAppSources: [],
 			showDialog: true,
 			addedApps: [],

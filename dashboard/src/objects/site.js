@@ -88,6 +88,7 @@ export default {
 			'creation',
 			'is_monitoring_disabled',
 			'is_development_site',
+				'site_type',
 		],
 		orderBy: 'creation desc',
 		searchField: 'host_name',
@@ -152,6 +153,16 @@ export default {
 				},
 			},
 			{ label: 'Status', fieldname: 'status', type: 'Badge', width: '140px' },
+			{
+				label: 'Type',
+				fieldname: 'site_type',
+				type: 'Badge',
+				width: '90px',
+				theme(value) {
+					const m = { Production: 'blue', Staging: 'orange', Dev: 'green', Demo: 'purple' };
+					return m[value] || 'gray';
+				},
+			},
 			{
 				label: 'Plan',
 				fieldname: 'plan',

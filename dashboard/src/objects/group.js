@@ -467,6 +467,10 @@ export default {
 							fieldname: 'status',
 							type: 'Badge',
 							width: 0.5,
+							theme(value) {
+								const m = { Success: "green", Failure: "red", Running: "blue", Preparing: "blue", Pending: "orange", Scheduled: "orange" };
+								return m[value] || "gray";
+							},
 							suffix(row) {
 								if (!row.addressable_notification) {
 									return;
@@ -481,6 +485,17 @@ export default {
 									},
 									() => h(icon('alert-circle', 'w-3 h-3'), {}),
 								);
+							},
+						},
+						{
+							label: 'Details',
+							fieldname: 'build_error',
+							class: 'text-gray-500 truncate',
+							width: 1,
+							format(value, row) {
+								if (row.status === 'Failure' && value) return value.substring(0, 50);
+								if (row.status === 'Failure') return 'Build failed';
+								return '';
 							},
 						},
 						{
