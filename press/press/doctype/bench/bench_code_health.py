@@ -239,8 +239,11 @@ def get_health_summary(bench_name):
     warnings = sum(1 for l in nums if SOFT_LIMIT < l <= HARD_LIMIT)
     clean = total - violations - warnings
 
+    # Scan only custom apps (exclude upstream frappe/erpnext/hrms/payments/etc.)
+    exclude_grep = " | ".join(f"grep -v apps/{u}/" for u in ("frappe", "erpnext", "hrms", "payments", "lending", "webshop", "lms", "helpdesk", "insights", "wiki", "drive", "crm", "print_designer"))
     sec_r = _exec(bench, 'grep -r -Ec "api_key\\s*=\\s*.|password\\s*=\\s*..{8,}|secret_key\\s*=\\s*.|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|sk-[A-Za-z0-9]{20}" '
                          'apps/ --include="*.py" 2>/dev/null | '
+                         f"{exclude_grep} | "
                          "grep -v node_modules | grep -v __pycache__ | "
                          "awk -F: '{s+=$2} END {print s+0}'")
     security_alerts = int(sec_r.get("output", "0").strip() or 0)
