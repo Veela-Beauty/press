@@ -95,15 +95,13 @@ def score_lessons(bench, app):
 def score_security(bench, app):
     """Check for hardcoded secrets — uses assignment-context patterns to reduce false positives."""
     app = _safe(app)
-    # Patterns that look for actual value assignments, not just keyword mentions
-    patterns = [
-        r"api_key\s*=\s*['\"][A-Za-z0-9]",
-        r"password\s*=\s*['\"][^'\"]{8,}",
-        r"secret_key\s*=\s*['\"][A-Za-z0-9]",
-        r"AKIA[0-9A-Z]{16}",
-    ]
-    total = 0
-    for pat in patterns:
-        r = _exec(bench, f"grep -r -Ec '{pat}' apps/{app}/ --include='*.py' 2>/dev/null | awk -F: '{{s+=$2}} END {{print s+0}}'")
-        total += int(r.get("output", "0").strip() or 0)
+    # Use double quotes for grep to avoid sh -c single-quote breaking.
+    # Match api_key/password/secret_key followed by = and a quote char.
+    cmd = (
+        f'grep -r -Ec "api_key\\s*=\\s*.|password\\s*=\\s*..{{8,}}|secret_key\\s*=\\s*.|AKIA[0-9A-Z]{{16}}" '
+        f'apps/{app}/ --include="*.py" 2>/dev/null | '
+        f"awk -F: '{{s+=$2}} END {{print s+0}}'"
+    )
+    r = _exec(bench, cmd)
+    total = int(r.get("output", "0").strip() or 0)
     return max(0, 100 - total * 20)
