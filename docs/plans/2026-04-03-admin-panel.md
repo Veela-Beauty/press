@@ -245,16 +245,62 @@ import json
 import frappe
 
 
+## Feature Registry — Dynamic, Role-Gated
+
+CORE features (always visible, cannot disable):
+Sites, Benches, Servers, Billing, Settings, Notifications
+
+TOOL features (admin toggles per team + role-gated via sidebar):
+
 DEFAULT_FEATURES = {
-    "daman_backup": {"label": "Daman Backup", "icon": "database", "color": "#2490ef"},
-    "code_server": {"label": "Code Server", "icon": "code", "color": "#28a745"},
-    "dev_tools": {"label": "Dev Tools", "icon": "wrench", "color": "#6f42c1"},
-    "database_access": {"label": "Database Access", "icon": "terminal", "color": "#fd7e14"},
-    "ssh_access": {"label": "SSH Access", "icon": "key", "color": "#dc3545"},
-    "private_benches": {"label": "Private Benches", "icon": "server", "color": "#8d99a6"},
-    "servers": {"label": "Servers", "icon": "cloud", "color": "#20c997"},
-    "security_portal": {"label": "Security Portal", "icon": "shield", "color": "#6610f2"},
+    # Category: Backup & Ops
+    "daman_backup":    {"label": "Daman Backup",     "icon": "database",  "color": "#2490ef", "category": "ops",
+                        "roles": ["Platform Admin", "DevOps Admin", "DevOps User"]},
+    # Category: Development
+    "dev_overview":    {"label": "Dev Overview",      "icon": "eye",       "color": "#6f42c1", "category": "dev",
+                        "roles": ["Platform Admin", "DevOps Admin", "DevOps User", "Developer"]},
+    "code_health":     {"label": "Code Health",       "icon": "heartbeat", "color": "#dc3545", "category": "dev",
+                        "roles": ["Platform Admin", "DevOps Admin", "Developer"]},
+    "code_server":     {"label": "Code Server",       "icon": "code",      "color": "#28a745", "category": "dev",
+                        "roles": ["Platform Admin", "DevOps Admin", "Developer"]},
+    "site_dev_tab":    {"label": "Site Dev Tab",      "icon": "terminal",  "color": "#fd7e14", "category": "dev",
+                        "roles": ["Platform Admin", "DevOps Admin", "DevOps User", "Developer", "Implementor"]},
+    "ai_dev_tab":      {"label": "AI Dev Assistant",  "icon": "magic",     "color": "#007bff", "category": "dev",
+                        "roles": ["Platform Admin", "DevOps Admin", "Developer"]},
+    # Category: Database Tools
+    "sql_playground":  {"label": "SQL Playground",    "icon": "table",     "color": "#6f42c1", "category": "db",
+                        "roles": ["Platform Admin", "DevOps Admin", "Developer"]},
+    "db_analyzer":     {"label": "DB Analyzer",       "icon": "search",    "color": "#17a2b8", "category": "db",
+                        "roles": ["Platform Admin", "DevOps Admin", "Developer"]},
+    "binlog_browser":  {"label": "Binlog Browser",    "icon": "clock-o",   "color": "#fd7e14", "category": "db",
+                        "roles": ["Platform Admin", "DevOps Admin"]},
+    "log_browser":     {"label": "Log Browser",       "icon": "file-text", "color": "#28a745", "category": "db",
+                        "roles": ["Platform Admin", "DevOps Admin", "DevOps User", "Developer"]},
+    "database_access": {"label": "Database Access",   "icon": "terminal",  "color": "#fd7e14", "category": "db",
+                        "roles": ["Platform Admin", "DevOps Admin", "Developer"]},
+    # Category: Infrastructure
+    "ssh_access":      {"label": "SSH Access",        "icon": "key",       "color": "#dc3545", "category": "infra",
+                        "roles": ["Platform Admin", "DevOps Admin"]},
+    "private_benches": {"label": "Private Benches",   "icon": "server",    "color": "#8d99a6", "category": "infra",
+                        "roles": ["Platform Admin", "DevOps Admin", "DevOps User"]},
+    "servers":         {"label": "Servers",           "icon": "cloud",     "color": "#20c997", "category": "infra",
+                        "roles": ["Platform Admin", "DevOps Admin"]},
+    # Category: Admin
+    "admin_panel":     {"label": "Admin Panel",       "icon": "shield",    "color": "#343a40", "category": "admin",
+                        "roles": ["Platform Admin"]},
+    "partner_admin":   {"label": "Partner Admin",     "icon": "handshake-o","color": "#6610f2", "category": "admin",
+                        "roles": ["Platform Admin"]},
+    "security_portal": {"label": "Security Portal",   "icon": "lock",      "color": "#6610f2", "category": "admin",
+                        "roles": ["Platform Admin", "DevOps Admin"]},
 }
+
+Sidebar rendering logic:
+  for feature in DEFAULT_FEATURES:
+      if team.has_feature(feature_id) AND user_role in feature["roles"]:
+          show_sidebar_item(feature)
+
+Adding a new tool = add one entry to DEFAULT_FEATURES + create the route/page.
+No sidebar code changes needed — it reads from the registry dynamically.
 
 # Server costs (Hetzner Cloud pricing, updated manually)
 SERVER_COSTS = {
