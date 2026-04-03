@@ -438,11 +438,34 @@ export default {
 			DIMS, DIM_KEYS,
 		};
 	},
-	mounted() {
+	async mounted() {
+		// Try loading cached summary first (fast — no docker calls)
+		try {
+			const cached = await call(`${API}.get_health_summary`, { bench_name: this.benchName });
+			if (cached && cached.total_files > 0) {
+				this.summary = cached;
+				this.lastScanAge = 'From cache';
+				return; // data exists, don't re-scan
+			}
+		} catch (e) { /* no cache, proceed to scan */ }
 		if (this.autoScan) this.scan();
 	},
 	beforeUnmount() {
 		if (this._cpInstance) { this._cpInstance.destroy(); this._cpInstance = null; }
+	},
+	watch: {
+		activeTab(tab) {
+			// Lazy render: D3 needs visible container with real dimensions
+			if (tab === 'health' && this.healthData && !this._cpInstance) {
+				this.$nextTick(() => this.initCirclePack());
+			}
+			if (tab === 'radar' && this.appScores.length) {
+				this.$nextTick(() => this.renderRadars());
+			}
+			if (tab === 'overview' && this.appScores.length) {
+				this.$nextTick(() => this.renderOverallRadar());
+			}
+		},
 	},
 	computed: {
 		complianceHeaders() {
@@ -503,7 +526,6 @@ export default {
 				// Step 2: File tree (moderate — single find+wc)
 				this.scanStep = '2/4 — file health map';
 				this.healthData = await call(`${API}.scan_bench_health`, { bench_name: this.benchName });
-				this.$nextTick(() => this.initCirclePack());
 
 				// Step 3: Scores + compliance (heavy — many docker calls, sequential)
 				this.scanStep = '3/4 — app scores + compliance';
@@ -513,7 +535,6 @@ export default {
 				]);
 				this.appScores = scores;
 				this.compliance = comp;
-				this.$nextTick(() => { this.renderRadars(); this.renderOverallRadar(); });
 
 				// Step 4: Stack + interactions + scripts
 				this.scanStep = '4/4 — stack info + interactions';
@@ -526,6 +547,12 @@ export default {
 				this.interactions = inter;
 				this.scriptsInventory = scripts;
 				this.lastScanAge = 'Scanned just now';
+				// Trigger D3 render for the currently active tab
+				this.$nextTick(() => {
+					if (this.activeTab === 'health') this.initCirclePack();
+					if (this.activeTab === 'overview') this.renderOverallRadar();
+					if (this.activeTab === 'radar') this.renderRadars();
+				});
 			} catch (e) {
 				console.error('Scan failed:', e);
 				this.scanStep = 'Error: ' + (e?.messages?.[0] || String(e));
@@ -534,7 +561,8 @@ export default {
 			}
 		},
 		initCirclePack() {
-			if (!this.healthData || !this.$refs.circlePack) return;
+			const el = this.$refs.circlePack;
+			if (!this.healthData || !el || el.clientWidth === 0) return;
 			if (this._cpInstance) this._cpInstance.destroy();
 			// Build app→repo map for GitHub links in sidebar
 			const appRepos = {};
