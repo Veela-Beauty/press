@@ -146,7 +146,7 @@ const SPACING = {
   spread:  { linkDep: 550, linkContains: 200, linkExt: 600, chargeMod: -5000, chargeClass: -500, collClass: 50, collMod: 80 },
 };
 
-fetch('codegraph-data.json').then(r => r.json()).then(d => { document.getElementById('loading').remove(); DATA = d; initGraph(); })
+fetch('press-codegraph-data.json').then(r => r.json()).then(d => { document.getElementById('loading').remove(); DATA = d; initGraph(); })
   .catch(e => { document.getElementById('loading').textContent = 'Error: ' + e.message; });
 
 function initGraph() {
