@@ -845,11 +845,158 @@ git commit -m "feat(ui): radar chart component for per-app quality scoring"
 | **Docs Compliance** | Which apps follow your standards. Red = missing docs. Forces team to comply. |
 | **Health Badge** | Quick number on bench detail header (89% healthy) |
 
+---
+
+### Task 10: App Interaction Overlay on Health Map (Site view only)
+
+**Files:**
+- Modify: `dashboard/src/components/SiteCodeHealth.vue` (new component for site)
+
+**Goal:** The Health Map circle packing gets an extra layer showing how apps interact — arcs drawn OVER the circles connecting apps through hooks, doc_events, client scripts, server scripts.
+
+**Layers (toggle each from filter toolbar):**
+
+| Layer | Visual | Data source |
+|-------|--------|-------------|
+| hooks | Solid arc between app circles | Parse `hooks.py` per app |
+| doc_events | Solid arc, different color | Parse `hooks.py` doc_events |
+| override | Dashed arc | Parse `hooks.py` override_doctype_class |
+| client_script | Dotted line from script node to DocType circle | Query Client Script doctype from DB |
+| server_script | Dotted line from script node to DocType circle | Query Server Script doctype from DB |
+| custom_field | Thin line from field badge to target DocType | Query Custom Field doctype from DB |
+
+**Backend API needed:**
+
+```python
+@frappe.whitelist()
+def get_site_interactions(bench_name, site_name):
+    """Return app-to-app interactions for a site."""
+    bench = frappe.get_doc("Bench", bench_name)
+    
+    interactions = []
+    
+    # 1. Parse hooks.py per app for doc_events, override_doctype_class
+    apps = get_bench_app_names(bench_name)
+    for app in apps:
+        r = bench.docker_execute(
+            f"cat apps/{app}/hooks.py 2>/dev/null || echo NONE",
+            save_output=False, create_log=False,
+        )
+        hooks_content = r.get("output", "")
+        # Parse doc_events, override_doctype_class, scheduler_events
+        # Each becomes an interaction record
+    
+    # 2. Query DB-stored scripts (runs on the site, not in container)
+    # Client Scripts, Server Scripts, Custom Fields, Workflows
+    # These need bench.docker_execute("bench --site X execute ...")
+    
+    return interactions
+```
+
+**D3 implementation:**
+- Arcs use `d3.arc()` drawn between the center of each app's cluster circle
+- Client/server scripts rendered as small diamond nodes with dotted lines to target
+- Each layer has its own SVG group, toggled via CSS opacity
+- Filter toolbar extends the existing health filter bar with layer toggles
+
+---
+
+## Prototype-to-Implementation Checklist
+
+Before building, verify EVERY feature from both prototypes is accounted for.
+
+**Skills to use per phase:**
+- `/create-prototype` — already done (reference + site prototypes)
+- `/ui-ux-ba` — review prototype against real data before implementing
+- `/test-driven-development` — TDD for all backend APIs
+- `/code-review` — after each task
+- `/clean-code` — after each task
+- `/verify` — test each feature against prototype
+
+### Bench Prototype Checklist (code_health_dashboard_prototype.html)
+
+**Standalone /dashboard/code-health page:**
+- [ ] Summary cards row: 5 metrics (benches, health%, files, violations, security)
+- [ ] Security alert banner (HIGH RISK — red)
+- [ ] Table view: bench rows with health%, apps, violations, compliance, security, last scan
+- [ ] Card view: mini radar per bench card
+- [ ] Table/Card toggle button
+- [ ] "Scan All" button
+
+**Bench detail tabs:**
+- [ ] Overview tab: overall radar + score breakdown
+- [ ] Overview tab: app ranking with progress bars (sorted best→worst)
+- [ ] Overview tab: action required list (prioritized — security > missing docs > violations)
+- [ ] Health Map tab: circle packing with REAL data from scanner API
+- [ ] Health Map tab: filter toolbar (violation/warning/clean/non-code toggles with counts)
+- [ ] Health Map tab: file type filters (.py/.js/.vue/.ts/.json/.md with counts)
+- [ ] Health Map tab: "Showing X/Y files" live counter
+- [ ] Health Map tab: zoom +/- buttons (top right)
+- [ ] Health Map tab: mouse wheel zoom
+- [ ] Health Map tab: click folder circle → zoom in (with 100% padding)
+- [ ] Health Map tab: click background → zoom out one level
+- [ ] Health Map tab: breadcrumb path on zoom
+- [ ] Health Map tab: hover file → tooltip (name, lines, ext, health, violations)
+- [ ] Health Map tab: click file → sidebar (path, lines, ext, size, health, MUST SPLIT badge, violations list, close button)
+- [ ] Radar Scores tab: per-app radar chart (8 axes)
+- [ ] Radar Scores tab: score breakdown grid per app
+- [ ] Stack Info tab: app cards (framework, version, py files, js files, lines, branch)
+- [ ] Compliance tab: grid table (Y/N per check: CLAUDE, README, docs, DEVLOG, tests, lessons, .gitignore, security)
+- [ ] Compliance tab: HIGH RISK flag for security issues
+- [ ] Compliance tab: score % per app with colored badge
+
+### Site Prototype Checklist (site_health_prototype.html)
+
+**Everything from bench PLUS:**
+- [ ] Header: site name, bench name, app count, file count, lines
+- [ ] "Back to Dev Tab" button
+- [ ] Summary cards: includes DB Scripts count
+- [ ] Overview tab: installed apps progress bars with file counts
+- [ ] Overview tab: Quick Stats (client scripts, server scripts, custom fields, workflows, print formats)
+- [ ] App Interactions tab: interaction graph (nodes = apps + script types)
+- [ ] App Interactions tab: arc links (hooks, doc_events, override)
+- [ ] App Interactions tab: dotted links (client_script, server_script, custom_field)
+- [ ] App Interactions tab: filter toggles per interaction type
+- [ ] App Interactions tab: interaction details table
+- [ ] **App Interactions overlay on Health Map** (Task 10 — arcs over circle packing)
+- [ ] Scripts tab: client scripts table (name, doctype, lines)
+- [ ] Scripts tab: server scripts table (name, doctype, event, lines)
+- [ ] Scripts tab: custom fields table (doctype, fields)
+- [ ] Violations tab: sortable table (file, app, lines, health badge, violation details)
+- [ ] Violations tab: red background for MUST SPLIT, yellow for WARNING
+
+### Backend API Checklist
+
+- [ ] `scan_bench_health(bench_name, app_filter)` — file tree + line counts + health
+- [ ] `get_health_summary(bench_name)` — quick counts (no full tree)
+- [ ] `get_app_scores(bench_name)` — 8-dimension scoring for radar
+- [ ] `get_app_stack_info(bench_name)` — framework, version, file counts per app
+- [ ] `get_docs_compliance(bench_name)` — compliance checks per app
+- [ ] `get_site_interactions(bench_name, site_name)` — hooks/scripts/fields interactions
+
+### Testing Checklist
+
+- [ ] API: scan_bench_health returns valid JSON for bench with 3+ apps
+- [ ] API: get_health_summary returns correct counts
+- [ ] API: get_app_scores returns 8 scores per custom app, skips upstream
+- [ ] API: get_docs_compliance checks all 8 items per app
+- [ ] API: get_site_interactions parses hooks.py correctly
+- [ ] API: security scanner detects hardcoded tokens (test with known pattern)
+- [ ] UI: circle packing renders with 2000+ files without lag
+- [ ] UI: zoom in/out works (click, wheel, buttons)
+- [ ] UI: filter toggles hide/show files and update counter
+- [ ] UI: file sidebar shows correct data
+- [ ] UI: radar chart renders 8 axes with correct scores
+- [ ] UI: compliance grid shows correct Y/N per app
+- [ ] UI: interaction arcs render over circle packing
+- [ ] Edge: empty bench (no apps) shows graceful empty state
+- [ ] Edge: container not running shows error message
+- [ ] Edge: bench with only upstream apps (no custom) shows "no custom apps"
+
 ## Future Enhancements (not in this plan)
 
-- Codegraph dependency view as fifth tab
 - Per-app health comparison (before/after deploy)
-- Health score history over time (store in DB)
+- Health score history over time (store in Press DocType)
 - Auto-block deploys if health drops below threshold
 - Pre-deploy gate: "3 files exceed 700 lines — split before deploying"
 - AI-powered deep analysis: read CLAUDE.md content quality, suggest missing sections
