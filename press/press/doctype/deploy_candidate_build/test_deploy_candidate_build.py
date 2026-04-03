@@ -16,7 +16,13 @@ from press.press.doctype.deploy_candidate.test_deploy_candidate import (
 	create_test_deploy_candidate_build,
 	create_test_press_admin_team,
 )
-from press.press.doctype.deploy_candidate_build.deploy_candidate_build import DeployCandidateBuild
+from press.press.doctype.deploy_candidate_build.deploy_candidate_build import (
+	DeployCandidateBuild,
+	get_build_estimate,
+)
+from press.press.doctype.deploy_candidate_build.build_diagnostics import (
+	get_failure_details,
+)
 from press.press.doctype.release_group.test_release_group import (
 	create_test_release_group,
 )
@@ -182,3 +188,86 @@ class TestDeployCandidateBuild(FrappeTestCase):
 				self.assertEqual(newly_created_build.name, build)
 			else:
 				self.assertEqual(deploy_candidate_build.name, build)
+
+	def test_get_failure_details_returns_failed_step(self, mock_commit):
+		"""When a build has a failed step, get_failure_details returns the step info and output."""
+		build = self.deploy_candidate_build
+		build.status = "Failure"
+		build.build_error = "Package step failed: tar exited with code 1"
+
+		# Simulate build steps — some succeeded, one failed
+		build.build_steps = []
+		build.append("build_steps", {
+			"stage": "Clone",
+			"step": "Clone frappe",
+			"stage_slug": "clone",
+			"step_slug": "clone-frappe",
+			"status": "Success",
+			"duration": 5.0,
+			"command": "git clone https://github.com/frappe/frappe",
+			"output": "Cloning into frappe...\nDone.",
+		})
+		build.append("build_steps", {
+			"stage": "Validate",
+			"step": "Validate apps",
+			"stage_slug": "validate",
+			"step_slug": "validate-apps",
+			"status": "Success",
+			"duration": 2.0,
+			"command": "python validate.py",
+			"output": "All apps valid.",
+		})
+		build.append("build_steps", {
+			"stage": "Package",
+			"step": "Create tar",
+			"stage_slug": "package",
+			"step_slug": "create-tar",
+			"status": "Failure",
+			"duration": 10.0,
+			"command": "tar czf bench.tar.gz .",
+			"output": "tar: Error: No space left on device\ntar: Exiting with failure status",
+		})
+		build.save()
+		frappe.db.commit()
+
+		result = get_failure_details(build.name)
+
+		self.assertEqual(result["status"], "Failure")
+		self.assertEqual(result["build_error"], "Package step failed: tar exited with code 1")
+		self.assertIsNotNone(result["failed_step"])
+		self.assertEqual(result["failed_step"]["stage"], "Package")
+		self.assertEqual(result["failed_step"]["step"], "Create tar")
+		self.assertIn("No space left on device", result["failed_step"]["output"])
+		self.assertEqual(result["total_steps"], 3)
+		self.assertEqual(result["completed_steps"], 2)
+
+	def test_get_failure_details_no_failed_step(self, mock_commit):
+		"""When build failed but no step has Failure status, return build_error only."""
+		build = self.deploy_candidate_build
+		build.status = "Failure"
+		build.build_error = "Build worker crashed unexpectedly"
+		build.build_steps = []
+		build.save()
+		frappe.db.commit()
+
+		result = get_failure_details(build.name)
+
+		self.assertEqual(result["status"], "Failure")
+		self.assertEqual(result["build_error"], "Build worker crashed unexpectedly")
+		self.assertIsNone(result["failed_step"])
+		self.assertEqual(result["total_steps"], 0)
+		self.assertEqual(result["completed_steps"], 0)
+
+	def test_get_failure_details_success_build(self, mock_commit):
+		"""When build succeeded, return status with no failure info."""
+		build = self.deploy_candidate_build
+		build.status = "Success"
+		build.build_error = ""
+		build.save()
+		frappe.db.commit()
+
+		result = get_failure_details(build.name)
+
+		self.assertEqual(result["status"], "Success")
+		self.assertIsNone(result["failed_step"])
+		self.assertFalse(result["build_error"])
