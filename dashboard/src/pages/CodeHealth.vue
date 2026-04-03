@@ -53,7 +53,7 @@
 				<div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
 					<p class="text-[10px] font-medium uppercase tracking-wider text-gray-500">Total Benches</p>
 					<p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{{ benches.length }}</p>
-					<p class="text-[10px] text-gray-400">{{ activeBenches }} active, {{ benches.length - activeBenches }} other</p>
+					<p class="text-[10px] text-gray-400">{{ activeBenches }} active, {{ benches.length - activeBenches }} archived</p>
 				</div>
 				<div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
 					<p class="text-[10px] font-medium uppercase tracking-wider text-gray-500">Overall Health</p>
@@ -105,12 +105,12 @@
 							<th class="px-3 py-2.5 text-left">Server</th>
 							<th class="px-3 py-2.5 text-left">Team</th>
 							<th class="px-3 py-2.5 text-center">Apps</th>
-							<th class="px-3 py-2.5 text-center">Sites</th>
 							<th class="px-3 py-2.5 text-center">Health</th>
 							<th class="px-3 py-2.5 text-center">Files</th>
 							<th class="px-3 py-2.5 text-center">Violations</th>
+							<th class="px-3 py-2.5 text-center">Compliance</th>
 							<th class="px-3 py-2.5 text-center">Security</th>
-							<th class="px-3 py-2.5 text-right">Status</th>
+							<th class="px-3 py-2.5 text-right">Last Scan</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -120,6 +120,11 @@
 							<td class="px-4 py-2.5">
 								<div class="flex items-center gap-2">
 									<span class="font-semibold text-gray-900 dark:text-white">{{ b.name }}</span>
+									<span class="rounded-full px-2 py-0.5 text-[10px] font-medium"
+										:class="b.status === 'Active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+											: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'">
+										{{ b.status }}
+									</span>
 									<span v-if="b.is_dev" class="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">Dev</span>
 								</div>
 								<p class="text-[10px] text-gray-400">{{ b.group_title || b.group }}</p>
@@ -130,7 +135,6 @@
 							</td>
 							<td class="px-3 py-2.5 text-xs text-gray-600 dark:text-gray-400">{{ b.team || '---' }}</td>
 							<td class="px-3 py-2.5 text-center text-gray-600 dark:text-gray-400">{{ b.app_count }}</td>
-							<td class="px-3 py-2.5 text-center text-gray-600 dark:text-gray-400">{{ b.site_count }}</td>
 							<td class="px-3 py-2.5 text-center">
 								<span v-if="b.health" class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
 									:class="b.health.health_pct >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
@@ -149,6 +153,15 @@
 								<span v-else class="text-xs text-gray-300">---</span>
 							</td>
 							<td class="px-3 py-2.5 text-center">
+								<span v-if="b.health" class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
+									:class="b.health.compliance_pct >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+										: b.health.compliance_pct >= 50 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+										: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'">
+									{{ b.health.compliance_pct ?? '---' }}%
+								</span>
+								<span v-else class="text-xs text-gray-300">---</span>
+							</td>
+							<td class="px-3 py-2.5 text-center">
 								<span v-if="b.health && b.health.security_alerts > 0"
 									class="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600 dark:bg-red-900/30 dark:text-red-400">
 									{{ b.health.security_alerts }} alerts
@@ -156,12 +169,8 @@
 								<span v-else-if="b.health" class="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-600 dark:bg-green-900/30 dark:text-green-400">Clean</span>
 								<span v-else class="text-xs text-gray-300">---</span>
 							</td>
-							<td class="px-3 py-2.5 text-right">
-								<span class="rounded-full px-2 py-0.5 text-[10px] font-medium"
-									:class="b.status === 'Active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-										: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'">
-									{{ b.status }}
-								</span>
+							<td class="px-3 py-2.5 text-right text-xs text-gray-400">
+								{{ b.health ? 'Scanned' : 'Never' }}
 							</td>
 						</tr>
 					</tbody>
@@ -204,7 +213,7 @@ export default {
 		totalSecurity() { return this.scannedBenches.reduce((s, b) => s + (b.health?.security_alerts || 0), 0); },
 	},
 	mounted() {
-		if (!this.selectedBench) this.loadBenches();
+		this.loadBenches();
 	},
 	methods: {
 		hc(pct) { return pct >= 80 ? '#3fb950' : pct >= 50 ? '#d29922' : '#f85149'; },

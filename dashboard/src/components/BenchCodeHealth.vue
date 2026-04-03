@@ -146,12 +146,35 @@
 
 		<!-- TAB: Health Map -->
 		<div v-show="activeTab === 'health' && !scanning && healthData">
+			<!-- Mini stat cards -->
+			<div class="mb-3 grid grid-cols-4 gap-3" v-if="summary">
+				<div class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+					<p class="text-[10px] font-medium uppercase text-gray-500">Clean Files</p>
+					<p class="mt-1 text-xl font-bold text-green-500">{{ summary.clean?.toLocaleString() }}</p>
+				</div>
+				<div class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+					<p class="text-[10px] font-medium uppercase text-gray-500">Warnings (500-700)</p>
+					<p class="mt-1 text-xl font-bold text-yellow-500">{{ summary.warning }}</p>
+				</div>
+				<div class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+					<p class="text-[10px] font-medium uppercase text-gray-500">Violations (&gt;700)</p>
+					<p class="mt-1 text-xl font-bold text-red-500">{{ summary.violation }}</p>
+				</div>
+				<div class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+					<p class="text-[10px] font-medium uppercase text-gray-500">Health Score</p>
+					<p class="mt-1 text-xl font-bold" :style="{ color: hc(summary.health_pct) }">{{ summary.health_pct }}%</p>
+					<div class="mt-1 h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+						<div class="h-full rounded-full" :style="{ width: summary.health_pct + '%', background: hc(summary.health_pct) }"></div>
+					</div>
+				</div>
+			</div>
 			<!-- Filter toolbar -->
 			<div class="mb-3 flex flex-wrap items-center gap-1.5 text-[11px]">
 				<span class="text-gray-500 mr-1">Show:</span>
 				<button v-for="f in healthFilters" :key="f.key" @click="toggleFilter(f)"
-					class="rounded-full border px-2.5 py-0.5 font-semibold cursor-pointer"
+					class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 font-semibold cursor-pointer"
 					:style="{ borderColor: f.color, color: f.color, background: f.active ? f.bg : 'transparent', opacity: f.active ? 1 : 0.35 }">
+					<span class="inline-block h-1.5 w-1.5 rounded-full" :style="{ background: f.color }"></span>
 					{{ f.label }} {{ f.count }}
 				</button>
 				<span class="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-700"></span>
@@ -235,8 +258,13 @@
 						:class="app.compliance_pct < 40 ? 'bg-red-50 dark:bg-red-900/10' : ''">
 						<td class="px-3 py-2 font-semibold text-gray-900 dark:text-white">{{ app.app }}</td>
 						<td v-for="ch in app.checks" :key="ch.name" class="px-2 py-2 text-center">
-							<span v-if="ch.status" class="text-green-500">&#10003;</span>
-							<span v-else class="text-red-500">&#10007;</span>
+							<template v-if="ch.name === 'Security' && !ch.status">
+								<span class="text-red-500 font-semibold text-[10px]">&#9888; HIGH RISK</span>
+							</template>
+							<template v-else>
+								<span v-if="ch.status" class="text-green-500">&#10003;</span>
+								<span v-else class="text-red-500">&#10007;</span>
+							</template>
 						</td>
 						<td class="px-3 py-2 text-right">
 							<Badge size="sm" :label="app.compliance_pct + '%'" :theme="app.compliance_pct >= 80 ? 'green' : app.compliance_pct >= 50 ? 'orange' : 'red'" />
@@ -324,7 +352,7 @@
 							<span>{{ deepAnalysis[deepSelectedApp].meta?.analyzed_at?.slice(0, 19) || '' }}</span>
 						</div>
 					</div>
-					<div v-html="deepAnalysis[deepSelectedApp].html" class="p-4"></div>
+					<iframe :srcdoc="deepAnalysis[deepSelectedApp].html" sandbox="" class="w-full border-0" style="min-height:400px" @load="$event.target.style.height = $event.target.contentDocument?.body?.scrollHeight + 'px'"></iframe>
 				</div>
 				<!-- Empty state -->
 				<div v-else-if="!deepLoading" class="text-center text-sm text-gray-400 py-8">
@@ -475,6 +503,7 @@ export default {
 			this.visibleFiles = visible;
 		},
 		async scan() {
+			if (this.scanning) return;
 			this.scanning = true;
 			try {
 				this.scanStep = 'summary + health data';
@@ -592,8 +621,14 @@ export default {
 			// Update breadcrumb
 			const bc = this.$refs.breadcrumb;
 			if (bc) {
-				const path = []; let n = d; while (n) { path.unshift(n.data.name); n = n.parent; }
-				bc.innerHTML = path.map(p => `<span>${p}</span>`).join(' <span style="color:#8b949e">/</span> ');
+				const nodes = []; let n = d; while (n) { nodes.unshift(n); n = n.parent; }
+				this._bcNodes = nodes;
+				bc.innerHTML = nodes.map((nd, idx) =>
+					`<span style="cursor:pointer" data-bc-idx="${idx}">${nd.data.name}</span>`
+				).join(' <span style="color:#8b949e">/</span> ');
+				bc.querySelectorAll('[data-bc-idx]').forEach(el => {
+					el.onclick = (e) => { e.stopPropagation(); this._zoom(this._bcNodes[parseInt(el.dataset.bcIdx)]); };
+				});
 			}
 		},
 		_showSidebar(d, sb) {
@@ -602,6 +637,7 @@ export default {
 			sb.innerHTML = `<div class="flex justify-between items-center mb-2"><span class="font-semibold text-white text-sm">${d.data.name}</span><button onclick="this.parentElement.parentElement.classList.add('hidden')" class="text-gray-400 text-lg">&times;</button></div>`
 				+ `<div class="text-[10px] text-gray-500 break-all mb-3">${path.join('/')}</div>`
 				+ `<div class="flex justify-between py-1.5 border-b border-gray-800 text-xs"><span class="text-gray-500">Lines</span><span>${d.data.lines||0}</span></div>`
+				+ `<div class="flex justify-between py-1.5 border-b border-gray-800 text-xs"><span class="text-gray-500">Extension</span><span>${d.data.ext||'—'}</span></div>`
 				+ `<div class="flex justify-between py-1.5 border-b border-gray-800 text-xs"><span class="text-gray-500">Health</span><span style="color:${c}" class="font-semibold">${(d.data.health||'').toUpperCase()}</span></div>`
 				+ (d.data.lines > 700 ? '<div class="mt-3 rounded bg-red-900/30 border border-red-500 p-2 text-xs text-red-400 font-semibold">MUST SPLIT — exceeds 700 lines</div>' : '')
 				+ (d.data.lines > 500 && d.data.lines <= 700 ? '<div class="mt-3 rounded bg-yellow-900/30 border border-yellow-500 p-2 text-xs text-yellow-400 font-semibold">Plan split — approaching limit</div>' : '');

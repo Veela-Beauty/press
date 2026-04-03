@@ -5,7 +5,7 @@ Called from bench_code_health.py (the @whitelist stub).
 
 import re
 
-from .bench_code_health import _exec, UPSTREAM_APPS
+from .bench_code_health import _exec, _safe, UPSTREAM_APPS
 
 
 def scan_app_interactions(bench):
@@ -15,6 +15,7 @@ def scan_app_interactions(bench):
 
     results = []
     for app in apps:
+        app = _safe(app)
         r = _exec(bench, f"cat apps/{app}/{app}/hooks.py 2>/dev/null || echo __MISSING__")
         content = r.get("output", "")
         if "__MISSING__" in content:

@@ -62,6 +62,12 @@ def analyze_app_code(git_url, commit_hash, output_format="both"):
     git_url = git_url.strip()
     commit_hash = commit_hash.strip()
 
+    # SSRF guard — only allow github.com/gitlab.com HTTPS URLs or git@ SSH URLs
+    import re
+    if not re.match(r'^https://(github\.com|gitlab\.com|bitbucket\.org)/', git_url) \
+       and not re.match(r'^git@(github\.com|gitlab\.com|bitbucket\.org):', git_url):
+        return {"error": "Only github.com, gitlab.com, and bitbucket.org URLs are allowed"}
+
     # Check config
     config = _get_analysis_config()
     if not config.get("url"):

@@ -38,6 +38,18 @@ CACHE_TTL = 3600 * 24  # 24 hours
 
 # ── Shared helpers (imported by sibling modules) ─────────────────────────
 
+import re as _re
+
+_SAFE_NAME = _re.compile(r'^[a-zA-Z0-9_\-\.]+$')
+
+
+def _safe(name):
+    """Validate name is safe for shell interpolation (alphanumeric + _-. only)."""
+    if not name or not _SAFE_NAME.match(name):
+        frappe.throw(f"Invalid name for shell command: {name!r}")
+    return name
+
+
 def _exec(bench, cmd):
     """Shorthand for docker_execute with no logging."""
     return bench.docker_execute(cmd, save_output=False, create_log=False)
@@ -161,7 +173,7 @@ def scan_bench_health(bench_name, app_filter=None):
     frappe.only_for("System Manager")
     bench = frappe.get_doc("Bench", bench_name)
 
-    filter_path = f"apps/{app_filter}" if app_filter else "apps"
+    filter_path = f"apps/{_safe(app_filter)}" if app_filter else "apps"
     cmd = (
         f"find {filter_path} -type f "
         f"\\( -name '*.py' -o -name '*.js' -o -name '*.ts' -o -name '*.tsx' "
@@ -213,9 +225,10 @@ def get_health_summary(bench_name):
     warnings = sum(1 for l in nums if SOFT_LIMIT < l <= HARD_LIMIT)
     clean = total - violations - warnings
 
-    sec_r = _exec(bench, "grep -r -l 'api_key\\|password\\|secret_key\\|AKIA\\|ghp_\\|sk-' "
+    sec_r = _exec(bench, "grep -r -Ec 'api_key\\s*=\\s*[\\x27\"]|password\\s*=\\s*[\\x27\"][^\\x27\"]{8,}|secret_key\\s*=\\s*[\\x27\"]|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|sk-[A-Za-z0-9]{20}' "
                          "apps/ --include='*.py' 2>/dev/null | "
-                         "grep -v node_modules | grep -v __pycache__ | wc -l")
+                         "grep -v node_modules | grep -v __pycache__ | "
+                         "awk -F: '{s+=$2} END {print s+0}'")
     security_alerts = int(sec_r.get("output", "0").strip() or 0)
 
     import json as _json
@@ -337,6 +350,7 @@ def get_app_stack_info(bench_name):
         if cached:
             results.append(cached)
             continue
+        app = _safe(app)
         info = {"app": app, "framework": "unknown", "version": ""}
 
         r = _exec(bench, f"test -f apps/{app}/hooks.py && echo frappe || "
