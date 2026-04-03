@@ -174,3 +174,4 @@ docs/.vitepress/cache
 docs/.vitepress/dist
 .codegraph/codegraph.db
 codegraph-data.json
+press-health-data.json
