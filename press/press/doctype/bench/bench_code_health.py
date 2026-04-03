@@ -2,11 +2,11 @@
 Code health scanner for benches — runs inside Docker containers.
 Returns circle-packing JSON + scoring + compliance data.
 
-Two access modes:
-1. Frappe whitelisted (@frappe.whitelist) — for dashboard UI
-2. Token-based API (/api/method/...?token=X) — for external tools
-
-Works on any codebase: Python, JS/TS, Vue, Dart, Rust, Go.
+Stub file: constants, cache, _exec, and @whitelist wrappers.
+Logic lives in sibling modules:
+  - health_scoring.py  — 8 quality dimension scorers
+  - health_tree.py     — circle-packing tree builder + stats
+  - health_inventory.py — hooks interactions + scripts inventory
 """
 
 import frappe
@@ -23,7 +23,6 @@ UPSTREAM_APPS = {
     "print_designer", "ifrs_reporting",
 }
 
-# Security patterns to detect hardcoded credentials
 SECURITY_PATTERNS = [
     ("api_key.*=.*['\\\"][A-Za-z0-9_-]{20,}", "hardcoded API key"),
     ("password.*=.*['\\\"][^'\\\"]{8,}", "hardcoded password"),
@@ -34,15 +33,58 @@ SECURITY_PATTERNS = [
     ("sk-[A-Za-z0-9]{20,}", "secret key (OpenAI/Stripe)"),
 ]
 
+CACHE_TTL = 3600 * 24  # 24 hours
+
+
+# ── Shared helpers (imported by sibling modules) ─────────────────────────
 
 def _exec(bench, cmd):
     """Shorthand for docker_execute with no logging."""
     return bench.docker_execute(cmd, save_output=False, create_log=False)
 
 
+def _get_app_commits(bench):
+    """Get commit hashes for all apps in the bench."""
+    r = _exec(bench, "for d in apps/*/; do echo \"$(basename $d):$(git -C $d rev-parse --short HEAD 2>/dev/null || echo none)\"; done")
+    commits = {}
+    for line in r.get("output", "").strip().split("\n"):
+        if ":" in line:
+            app, h = line.strip().split(":", 1)
+            commits[app.strip()] = h.strip()
+    return commits
+
+
+def _cache_key(prefix, app, commit):
+    return f"code_health:{prefix}:{app}:{commit}"
+
+
+def _get_cached(prefix, app, commit):
+    import json
+    val = frappe.cache.get_value(_cache_key(prefix, app, commit))
+    if val:
+        try:
+            return json.loads(val)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return None
+
+
+def _set_cached(prefix, app, commit, data):
+    import json
+    frappe.cache.set_value(_cache_key(prefix, app, commit), json.dumps(data), expires_in_sec=CACHE_TTL)
+
+
+def _list_apps(bench):
+    r = _exec(bench, "ls apps/")
+    return [a.strip() for a in r.get("output", "").split() if a.strip()]
+
+
+# ── @whitelist API wrappers ──────────────────────────────────────────────
+
 @frappe.whitelist()
 def scan_bench_health(bench_name, app_filter=None):
     """Scan apps in a bench — returns circle-packing JSON with health data."""
+    from .health_tree import build_tree, compute_stats
     frappe.only_for("System Manager")
     bench = frappe.get_doc("Bench", bench_name)
 
@@ -57,10 +99,8 @@ def scan_bench_health(bench_name, app_filter=None):
         f"-exec wc -l {{}} +"
     )
     result = _exec(bench, cmd)
-    output = result.get("output", "")
-
     file_data = {}
-    for line in output.strip().split("\n"):
+    for line in result.get("output", "").strip().split("\n"):
         line = line.strip()
         if not line or line.endswith(" total"):
             continue
@@ -68,14 +108,14 @@ def scan_bench_health(bench_name, app_filter=None):
         if len(parts) == 2 and parts[0].isdigit():
             file_data[parts[1]] = int(parts[0])
 
-    tree = _build_tree(file_data, bench_name)
-    _compute_stats(tree)
+    tree = build_tree(file_data, bench_name)
+    compute_stats(tree)
     return tree
 
 
 @frappe.whitelist()
 def get_health_summary(bench_name):
-    """Quick health summary — counts only, no full tree. Uses find -exec wc."""
+    """Quick health summary — counts only, no full tree."""
     frappe.only_for("System Manager")
     bench = frappe.get_doc("Bench", bench_name)
 
@@ -100,44 +140,60 @@ def get_health_summary(bench_name):
     warnings = sum(1 for l in nums if SOFT_LIMIT < l <= HARD_LIMIT)
     clean = total - violations - warnings
 
+    sec_r = _exec(bench, "grep -r -l 'api_key\\|password\\|secret_key\\|AKIA\\|ghp_\\|sk-' "
+                         "apps/ --include='*.py' 2>/dev/null | "
+                         "grep -v node_modules | grep -v __pycache__ | wc -l")
+    security_alerts = int(sec_r.get("output", "0").strip() or 0)
+
     return {
         "total_files": total, "total_lines": sum(nums),
         "clean": clean, "warning": warnings, "violation": violations,
         "health_pct": round(clean / total * 100) if total else 0,
+        "security_alerts": security_alerts,
     }
 
 
 @frappe.whitelist()
-def get_app_scores(bench_name):
-    """Score each custom app on 8 quality dimensions for radar chart."""
+def get_app_scores(bench_name, include_all=False):
+    """Score each app on 8 quality dimensions. Cached per (app, commit)."""
+    from .health_scoring import (score_claude, score_readme, score_docs, score_tests,
+                                  score_clean, score_patterns, score_lessons, score_security)
     frappe.only_for("System Manager")
     bench = frappe.get_doc("Bench", bench_name)
-
-    r = _exec(bench, "ls apps/")
-    apps = [a.strip() for a in r.get("output", "").split() if a.strip()]
+    apps = _list_apps(bench)
+    commits = _get_app_commits(bench)
 
     results = []
     for app in apps:
-        if app in UPSTREAM_APPS:
+        if not include_all and app in UPSTREAM_APPS:
+            continue
+        commit = commits.get(app, "")
+        cached = _get_cached("scores", app, commit) if commit else None
+        if cached:
+            results.append(cached)
             continue
         scores = {
-            "claude_md": _score_claude(bench, app),
-            "readme": _score_readme(bench, app),
-            "documentation": _score_docs(bench, app),
-            "tests": _score_tests(bench, app),
-            "clean_code": _score_clean(bench, app),
-            "code_patterns": _score_patterns(bench, app),
-            "lessons": _score_lessons(bench, app),
-            "security": _score_security(bench, app),
+            "claude_md": score_claude(bench, app),
+            "readme": score_readme(bench, app),
+            "documentation": score_docs(bench, app),
+            "tests": score_tests(bench, app),
+            "clean_code": score_clean(bench, app),
+            "code_patterns": score_patterns(bench, app),
+            "lessons": score_lessons(bench, app),
+            "security": score_security(bench, app),
         }
         scores["overall"] = round(sum(scores.values()) / len(scores))
-        results.append({"app": app, "scores": scores})
+        entry = {"app": app, "scores": scores}
+        if commit:
+            _set_cached("scores", app, commit, entry)
+        results.append(entry)
     return results
 
 
 @frappe.whitelist()
 def get_docs_compliance(bench_name):
-    """Check documentation compliance per app."""
+    """Check documentation compliance per app. Cached per (app, commit)."""
+    from .health_scoring import score_security
     frappe.only_for("System Manager")
     bench = frappe.get_doc("Bench", bench_name)
 
@@ -151,11 +207,17 @@ def get_docs_compliance(bench_name):
         (".gitignore", "test -f apps/{app}/.gitignore"),
     ]
 
-    r = _exec(bench, "ls apps/")
-    apps = [a.strip() for a in r.get("output", "").split() if a.strip()]
+    apps = _list_apps(bench)
+    commits = _get_app_commits(bench)
 
     results = []
     for app in apps:
+        commit = commits.get(app, "")
+        cached = _get_cached("compliance", app, commit) if commit else None
+        if cached:
+            results.append(cached)
+            continue
+
         checks = []
         passed = 0
         for name, cmd_tpl in CHECKS:
@@ -165,33 +227,39 @@ def get_docs_compliance(bench_name):
             if ok:
                 passed += 1
 
-        # Security check
-        sec = _score_security(bench, app)
+        sec = score_security(bench, app)
         sec_ok = sec >= 80
         checks.append({"name": "Security", "status": sec_ok, "score": sec})
         if sec_ok:
             passed += 1
 
         total = len(checks)
-        results.append({
+        entry = {
             "app": app, "is_custom": app not in UPSTREAM_APPS,
             "checks": checks, "passed": passed, "total": total,
             "compliance_pct": round(passed / total * 100) if total else 0,
-        })
+        }
+        if commit:
+            _set_cached("compliance", app, commit, entry)
+        results.append(entry)
     return results
 
 
 @frappe.whitelist()
 def get_app_stack_info(bench_name):
-    """Tech stack summary per app."""
+    """Tech stack summary per app. Cached per (app, commit)."""
     frappe.only_for("System Manager")
     bench = frappe.get_doc("Bench", bench_name)
-
-    r = _exec(bench, "ls apps/")
-    apps = [a.strip() for a in r.get("output", "").split() if a.strip()]
+    apps = _list_apps(bench)
+    commits = _get_app_commits(bench)
 
     results = []
     for app in apps:
+        commit = commits.get(app, "")
+        cached = _get_cached("stack", app, commit) if commit else None
+        if cached:
+            results.append(cached)
+            continue
         info = {"app": app, "framework": "unknown", "version": ""}
 
         r = _exec(bench, f"test -f apps/{app}/hooks.py && echo frappe || "
@@ -211,146 +279,44 @@ def get_app_stack_info(bench_name):
         r = _exec(bench, f"find apps/{app} \\( -name '*.js' -o -name '*.ts' -o -name '*.vue' \\) -not -path '*node_modules*' -not -path '*.git*' | wc -l")
         info["js_files"] = int(r.get("output", "0").strip() or 0)
 
+        r = _exec(bench, f"find apps/{app} \\( -name '*.py' -o -name '*.js' -o -name '*.vue' \\) "
+                         f"-not -path '*node_modules*' -not -path '*__pycache__*' -not -path '*.git*' "
+                         f"-exec wc -l {{}} + 2>/dev/null | tail -1")
+        total_line = r.get("output", "").strip()
+        info["total_lines"] = int(total_line.split()[0]) if total_line and total_line.split()[0].isdigit() else 0
+
+        r = _exec(bench, f"git -C apps/{app} rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown")
+        info["branch"] = r.get("output", "").strip() or "unknown"
+
+        r = _exec(bench, f"git -C apps/{app} rev-parse --short HEAD 2>/dev/null || echo ?")
+        info["commit_hash"] = r.get("output", "").strip()
+
+        r = _exec(bench, f"git -C apps/{app} remote get-url origin 2>/dev/null || echo ?")
+        remote = r.get("output", "").strip()
+        if "github.com" in remote:
+            info["repository"] = remote.split("github.com")[-1].strip("/:.").replace(".git", "")
+        else:
+            info["repository"] = ""
+
+        if commit:
+            _set_cached("stack", app, commit, info)
         results.append(info)
     return results
 
 
-# ── Scoring functions ──────────────────────────────────────────────────────
-
-def _score_claude(bench, app):
-    r = _exec(bench, f"cat apps/{app}/CLAUDE.md 2>/dev/null || echo __MISSING__")
-    c = r.get("output", "")
-    if "__MISSING__" in c:
-        return 0
-    if len(c.strip()) < 50:
-        return 20
-    score = 20
-    for s in CLAUDE_SECTIONS:
-        if f"## {s}" in c or f"# {s}" in c:
-            score += 13
-    return min(score, 100)
+@frappe.whitelist()
+def get_app_interactions(bench_name):
+    """Scan hooks.py per app — returns doc_events, scheduler, overrides."""
+    from .health_inventory import scan_app_interactions
+    frappe.only_for("System Manager")
+    bench = frappe.get_doc("Bench", bench_name)
+    return scan_app_interactions(bench)
 
 
-def _score_readme(bench, app):
-    r = _exec(bench, f"cat apps/{app}/README.md 2>/dev/null || echo __MISSING__")
-    c = r.get("output", "").lower()
-    if "__missing__" in c:
-        return 0
-    if len(c.strip()) < 50:
-        return 20
-    score = 20
-    for kw in README_KEYWORDS:
-        if kw in c:
-            score += 11
-    return min(score, 100)
-
-
-def _score_docs(bench, app):
-    r = _exec(bench, f"find apps/{app}/docs -type f -name '*.md' 2>/dev/null | wc -l")
-    n = int(r.get("output", "0").strip() or 0)
-    if n == 0:
-        return 0
-    return min(30 + n * 10, 100)
-
-
-def _score_tests(bench, app):
-    r = _exec(bench, f"find apps/{app} -name 'test_*.py' -not -path '*__pycache__*' | wc -l")
-    tests = int(r.get("output", "0").strip() or 0)
-    r2 = _exec(bench, f"find apps/{app} -name '*.py' -not -name 'test_*' -not -path '*__pycache__*' | wc -l")
-    code = int(r2.get("output", "0").strip() or 0)
-    if code == 0:
-        return 0
-    return min(round(tests / code * 200), 100)
-
-
-def _score_clean(bench, app):
-    r = _exec(bench, f"find apps/{app} \\( -name '*.py' -o -name '*.js' -o -name '*.vue' \\) "
-                     f"-not -path '*node_modules*' -not -path '*__pycache__*' -not -path '*.git*' "
-                     f"-exec wc -l {{}} + 2>/dev/null | grep -v ' total$'")
-    nums = []
-    for line in r.get("output", "").strip().split("\n"):
-        p = line.strip().split(None, 1)
-        if p and p[0].isdigit():
-            nums.append(int(p[0]))
-    if not nums:
-        return 100
-    under = sum(1 for l in nums if l < SOFT_LIMIT)
-    over = sum(1 for l in nums if l > HARD_LIMIT)
-    return max(0, min(round(under / len(nums) * 100) - over * 2, 100))
-
-
-def _score_patterns(bench, app):
-    r = _exec(bench, f"grep -r -c 'except:' apps/{app}/ --include='*.py' 2>/dev/null | awk -F: '{{s+=$2}} END {{print s+0}}'")
-    bare = int(r.get("output", "0").strip() or 0)
-    r2 = _exec(bench, f"grep -r -c 'console\\.log' apps/{app}/ --include='*.js' --include='*.vue' 2>/dev/null | awk -F: '{{s+=$2}} END {{print s+0}}'")
-    console = int(r2.get("output", "0").strip() or 0)
-    r3 = _exec(bench, f"grep -r -c 'print(' apps/{app}/ --include='*.py' 2>/dev/null | awk -F: '{{s+=$2}} END {{print s+0}}'")
-    prints = int(r3.get("output", "0").strip() or 0)
-    return max(0, 100 - (bare * 5 + console + prints) * 2)
-
-
-def _score_lessons(bench, app):
-    r = _exec(bench, f"test -f apps/{app}/lessons-learned.md && echo Y || "
-                     f"test -f apps/{app}/LESSONS.md && echo Y || "
-                     f"test -f apps/{app}/docs/wiki/lessons-learned.md && echo Y || echo N")
-    return 100 if r.get("output", "").strip() == "Y" else 0
-
-
-def _score_security(bench, app):
-    # Simple check: look for common secret patterns without complex regex
-    checks = [
-        ("api_key", "*.py"),
-        ("password", "*.py"),
-        ("secret_key", "*.py"),
-        ("AKIA", "*.py"),  # AWS key prefix
-    ]
-    total = 0
-    for keyword, glob in checks:
-        r = _exec(bench, f"grep -r -l {keyword} apps/{app}/ --include={glob} 2>/dev/null | wc -l")
-        n = int(r.get("output", "0").strip() or 0)
-        total += n
-    # Deduct proportionally but flag HIGH RISK
-    return max(0, 100 - total * 20)
-
-
-# ── Tree builders ──────────────────────────────────────────────────────────
-
-def _build_tree(file_data, root_name):
-    root = {"name": root_name, "children": []}
-    for filepath, lines in sorted(file_data.items()):
-        parts = filepath.split("/")
-        if parts[0] == "apps":
-            parts = parts[1:]
-        node = root
-        for i, part in enumerate(parts):
-            if i == len(parts) - 1:
-                ext = "." + part.rsplit(".", 1)[-1] if "." in part else ""
-                health = "non-code"
-                if ext in CODE_EXTS:
-                    health = "violation" if lines > HARD_LIMIT else "warning" if lines > SOFT_LIMIT else "clean"
-                node["children"].append({"name": part, "ext": ext, "lines": lines, "health": health})
-            else:
-                existing = next((c for c in node.get("children", []) if c.get("name") == part and "children" in c), None)
-                if not existing:
-                    existing = {"name": part, "children": []}
-                    node.setdefault("children", []).append(existing)
-                node = existing
-    return root
-
-
-def _compute_stats(tree):
-    if "children" not in tree:
-        is_code = tree.get("ext", "") in CODE_EXTS
-        return {"total_files": 1 if is_code else 0, "total_lines": tree.get("lines", 0),
-                "clean": 1 if tree.get("health") == "clean" else 0,
-                "warning": 1 if tree.get("health") == "warning" else 0,
-                "violation": 1 if tree.get("health") == "violation" else 0}
-    stats = {"total_files": 0, "total_lines": 0, "clean": 0, "warning": 0, "violation": 0}
-    for child in tree["children"]:
-        cs = _compute_stats(child)
-        for k in stats:
-            stats[k] += cs[k]
-    tree["stats"] = stats
-    if stats["total_files"] > 0:
-        tree["health_pct"] = round(stats["clean"] / stats["total_files"] * 100)
-    return stats
+@frappe.whitelist()
+def get_scripts_inventory(bench_name):
+    """Inventory: client scripts, controllers, whitelisted methods, reports per app."""
+    from .health_inventory import scan_scripts_inventory
+    frappe.only_for("System Manager")
+    bench = frappe.get_doc("Bench", bench_name)
+    return scan_scripts_inventory(bench)

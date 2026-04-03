@@ -436,6 +436,8 @@ export default {
 		appsNeedingPush() { return this.appGitStatus.filter(a => a.ahead > 0 || a.dirty > 0).length; },
 		devTools() {
 			return [
+				{ label: 'Dev Overview', desc: 'All benches at a glance', icon: '⊞', iconColor: 'text-gray-700', href: '/dashboard/dev-overview' },
+				{ label: 'Code Health', desc: 'File sizes & quality', icon: '♥', iconColor: 'text-red-500', href: `/dashboard/code-health?bench=${this.$site?.doc?.bench || ''}` },
 				{ label: 'DB Analyzer', desc: 'Table schemas & indexes', icon: '⛁', iconColor: 'text-blue-500', href: '/dashboard/database-analyzer' },
 				{ label: 'SQL Playground', desc: 'Full SQL editor', icon: '⌨', iconColor: 'text-purple-500', href: '/dashboard/sql-playground' },
 				{ label: 'Log Browser', desc: 'All server logs', icon: '📄', iconColor: 'text-green-500', href: '/dashboard/log-browser' },

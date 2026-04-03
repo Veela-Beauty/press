@@ -24,6 +24,7 @@ import Code from '~icons/lucide/code';
 import Archive from '~icons/lucide/archive';
 import Camera from '~icons/lucide/camera';
 import FileSearch from '~icons/lucide/file-search';
+import HeartPulse from '~icons/lucide/heart-pulse';
 import HardDrive from '~icons/lucide/hard-drive';
 import Bell from '~icons/lucide/bell';
 import ListOrdered from '~icons/lucide/list-ordered';
@@ -198,20 +199,24 @@ export default {
 					isActive: ['Daman Overview', 'Daman Backup Jobs', 'Daman Job Queue', 'Daman Backup Servers', 'Daman Clients', 'Daman Client Detail', 'Daman Run Log', 'Daman Backup Alerts'].includes(routeName),
 				},
 				{
-					name: 'Dev Overview',
-					icon: () => h(Activity),
-					route: '/dev-overview',
-					isActive: routeName === 'Dev Overview',
-					condition: onboardingComplete && !isSaasUser,
-					disabled: enforce2FA,
-				},
-				{
 					name: 'Dev Tools',
 					icon: () => h(Code),
 					route: '/devtools',
 					condition: onboardingComplete && !isSaasUser,
 					disabled: enforce2FA,
 					children: [
+						{
+							name: 'Dev Overview',
+							icon: () => h(LayoutDashboard),
+							route: '/dev-overview',
+							isActive: routeName === 'Dev Overview',
+						},
+						{
+							name: 'Code Health',
+							icon: () => h(HeartPulse),
+							route: '/code-health',
+							isActive: routeName === 'Code Health',
+						},
 						{
 							name: 'Log Browser',
 							icon: () => h(Logs),
@@ -239,9 +244,11 @@ export default {
 						},
 					].filter((item) => item.condition ?? true),
 					isActive: [
-						'SQL Playground',
-						'DB Analyzer',
+						'Dev Overview',
+						'Code Health',
 						'Log Browser',
+						'DB Analyzer',
+						'SQL Playground',
 						'Binlog Browser',
 					].includes(routeName),
 					disabled: enforce2FA,

@@ -489,6 +489,11 @@ let router = createRouter({
 			component: () => import('./pages/DevOverview.vue'),
 			props: true,
 		},
+		{
+			path: '/code-health',
+			name: 'Code Health',
+			component: () => import('./pages/CodeHealth.vue'),
+		},
 		...generateRoutes(),
 		// TODO: makeshift redirect fixes for /insights paths
 		{
