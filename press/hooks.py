@@ -174,6 +174,7 @@ doc_events = {
 	},
 	"Address": {"validate": "press.api.billing.validate_gst"},
 	"Site": {
+		"validate": "press.press.doctype.site.site_type_validation.validate_site_type",
 		"before_insert": "press.press.doctype.team.team.validate_site_creation",
 		"after_insert": "press.press.doctype.press_role.press_role.create_user_resource",
 	},
