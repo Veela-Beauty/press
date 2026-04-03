@@ -10,7 +10,7 @@ const COLORS = { clean: '#3fb950', warning: '#d29922', violation: '#f85149', 'no
  * Render circle-packing visualization into an SVG element.
  * Returns { svg, dirs, files, labels, w, packed, leaves } for zoom control.
  */
-export function renderCirclePack(el, healthData, { tooltip, sidebar, breadcrumb, onZoom, onFilter }) {
+export function renderCirclePack(el, healthData, { tooltip, sidebar, breadcrumb, onZoom, onFilter, appRepos }) {
 	const svg = d3.select(el);
 	const w = el.clientWidth, h = el.clientHeight;
 	svg.selectAll('*').remove();
@@ -84,11 +84,19 @@ export function renderCirclePack(el, healthData, { tooltip, sidebar, breadcrumb,
 	function showSidebar(d) {
 		const c = COLORS[d.data.health] || '#8b949e';
 		const path = []; let n = d; while (n.parent) { path.unshift(n.data.name); n = n.parent; }
+		const fullPath = path.join('/');
+		// Build GitHub link: first path segment = app name → look up repo
+		const appName = path[0] || '';
+		const repoPath = path.slice(1).join('/');
+		const repo = appRepos?.[appName] || '';
+		const ghLink = repo && repoPath ? `https://github.com/${repo}/blob/HEAD/${repoPath}` : '';
+
 		sidebar.innerHTML = `<div class="flex justify-between items-center mb-2"><span class="font-semibold text-white text-sm">${d.data.name}</span><button onclick="this.parentElement.parentElement.classList.add('hidden')" class="text-gray-400 text-lg">&times;</button></div>`
-			+ `<div class="text-[10px] text-gray-500 break-all mb-3">${path.join('/')}</div>`
+			+ `<div class="text-[10px] text-gray-500 break-all mb-3">${fullPath}</div>`
 			+ `<div class="flex justify-between py-1.5 border-b border-gray-800 text-xs"><span class="text-gray-500">Lines</span><span>${d.data.lines || 0}</span></div>`
 			+ `<div class="flex justify-between py-1.5 border-b border-gray-800 text-xs"><span class="text-gray-500">Extension</span><span>${d.data.ext || '\u2014'}</span></div>`
 			+ `<div class="flex justify-between py-1.5 border-b border-gray-800 text-xs"><span class="text-gray-500">Health</span><span style="color:${c}" class="font-semibold">${(d.data.health || '').toUpperCase()}</span></div>`
+			+ (ghLink ? `<a href="${ghLink}" target="_blank" class="mt-3 flex items-center gap-1.5 rounded bg-gray-800 border border-gray-700 p-2 text-xs text-blue-400 hover:text-blue-300 hover:border-blue-500"><svg class="h-3.5 w-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>View on GitHub</a>` : '')
 			+ (d.data.lines > 700 ? '<div class="mt-3 rounded bg-red-900/30 border border-red-500 p-2 text-xs text-red-400 font-semibold">MUST SPLIT \u2014 exceeds 700 lines</div>' : '')
 			+ (d.data.lines > 500 && d.data.lines <= 700 ? '<div class="mt-3 rounded bg-yellow-900/30 border border-yellow-500 p-2 text-xs text-yellow-400 font-semibold">Plan split \u2014 approaching limit</div>' : '');
 		sidebar.classList.remove('hidden');

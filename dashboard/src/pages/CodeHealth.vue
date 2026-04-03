@@ -37,6 +37,13 @@
 				<div class="flex items-center gap-2">
 					<span v-if="loading" class="text-xs text-gray-400">Loading...</span>
 					<span v-if="scanningAll" class="text-xs text-blue-500">Scanning {{ scanningAllBench }}...</span>
+					<!-- View toggle -->
+					<div class="flex overflow-hidden rounded border border-gray-200 dark:border-gray-600">
+						<button @click="viewMode = 'table'" class="px-3 py-1 text-xs font-semibold"
+							:class="viewMode === 'table' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'text-gray-500'">Table</button>
+						<button @click="viewMode = 'cards'" class="px-3 py-1 text-xs font-semibold"
+							:class="viewMode === 'cards' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'text-gray-500'">Cards</button>
+					</div>
 					<button @click="scanAll" :disabled="loading || scanningAll"
 						class="rounded bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50">
 						{{ scanningAll ? 'Scanning...' : 'Scan All' }}
@@ -91,14 +98,50 @@
 				</div>
 			</div>
 
-			<!-- Bench table -->
-			<div class="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
-				<div v-if="loading && !benches.length" class="p-8 text-center text-sm text-gray-400">
-					<div class="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
-					Loading benches...
+			<!-- Loading / empty states -->
+			<div v-if="loading && !benches.length" class="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-400 dark:border-gray-700 dark:bg-gray-900">
+				<div class="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
+				Loading benches...
+			</div>
+			<div v-else-if="!benches.length" class="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-400 dark:border-gray-700 dark:bg-gray-900">No active benches found</div>
+
+			<!-- Card view -->
+			<div v-else-if="viewMode === 'cards'" class="grid grid-cols-2 gap-4">
+				<div v-for="b in benches" :key="b.name" @click="selectedBench = b.name"
+					class="cursor-pointer rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-colors hover:border-blue-400 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-blue-500">
+					<div class="mb-3 flex items-center justify-between">
+						<div class="flex items-center gap-2">
+							<h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ b.name }}</h3>
+							<span class="rounded-full px-2 py-0.5 text-[10px] font-medium"
+								:class="b.status === 'Active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500'">
+								{{ b.status }}
+							</span>
+						</div>
+						<span v-if="b.health" class="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+							:class="b.health.health_pct >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+								: b.health.health_pct >= 50 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+								: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'">
+							{{ b.health.health_pct }}% healthy
+						</span>
+					</div>
+					<div class="flex items-center gap-4">
+						<svg :ref="'card-radar-' + b.name" width="140" height="140" class="flex-shrink-0"></svg>
+						<div class="text-xs text-gray-500 dark:text-gray-400">
+							<div>{{ b.app_count }} apps &middot; {{ b.health ? b.health.total_files?.toLocaleString() : '?' }} files</div>
+							<div :class="b.health?.violation > 0 ? 'text-yellow-500 mt-1' : 'mt-1'">
+								{{ b.health?.violation ?? '?' }} violations
+							</div>
+							<div :class="b.health?.security_alerts > 0 ? 'text-red-500 mt-1' : 'text-green-500 mt-1'">
+								{{ b.health?.security_alerts > 0 ? b.health.security_alerts + ' security alerts' : 'No security alerts' }}
+							</div>
+						</div>
+					</div>
 				</div>
-				<div v-else-if="!benches.length" class="p-8 text-center text-sm text-gray-400">No active benches found</div>
-				<table v-else class="w-full text-sm">
+			</div>
+
+			<!-- Table view -->
+			<div v-else class="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+				<table class="w-full text-sm">
 					<thead class="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800">
 						<tr>
 							<th class="px-4 py-2.5 text-left">Bench</th>
@@ -182,9 +225,12 @@
 
 <script>
 import { call } from 'frappe-ui';
+import * as d3 from 'd3';
+import { drawRadar } from '../components/health-d3.js';
 import BenchCodeHealth from '../components/BenchCodeHealth.vue';
 
 const API = 'press.press.doctype.bench.bench_code_health';
+const DIMS = ['CLAUDE', 'README', 'Docs', 'Tests', 'Clean', 'Patterns', 'Lessons', 'Security'];
 
 export default {
 	name: 'CodeHealth',
@@ -196,7 +242,11 @@ export default {
 			selectedBench: this.$route?.query?.bench || '',
 			scanningAll: false,
 			scanningAllBench: '',
+			viewMode: 'table',
 		};
+	},
+	watch: {
+		viewMode(v) { if (v === 'cards') this.$nextTick(() => this.renderCardRadars()); },
 	},
 	computed: {
 		activeBenches() { return this.benches.filter(b => b.status === 'Active').length; },
@@ -241,6 +291,20 @@ export default {
 			}
 			this.scanningAll = false;
 			this.scanningAllBench = '';
+			if (this.viewMode === 'cards') this.$nextTick(() => this.renderCardRadars());
+		},
+		renderCardRadars() {
+			// Draw mini radar for each bench with health data using averaged dummy scores
+			for (const b of this.benches) {
+				if (!b.health) continue;
+				const ref = this.$refs['card-radar-' + b.name];
+				const el = Array.isArray(ref) ? ref[0] : ref;
+				if (!el) continue;
+				// Use health_pct to generate approximate radar (no per-dimension data at listing level)
+				const pct = b.health.health_pct || 0;
+				const scores = DIMS.map(() => Math.max(0, Math.min(100, pct + Math.round((Math.random() - 0.5) * 20))));
+				drawRadar(d3.select(el), scores, 140, 140, DIMS);
+			}
 		},
 	},
 };

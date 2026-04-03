@@ -536,8 +536,11 @@ export default {
 		initCirclePack() {
 			if (!this.healthData || !this.$refs.circlePack) return;
 			if (this._cpInstance) this._cpInstance.destroy();
+			// Build app→repo map for GitHub links in sidebar
+			const appRepos = {};
+			for (const s of this.stackInfo) { if (s.repository) appRepos[s.app] = s.repository; }
 			this._cpInstance = renderCirclePack(this.$refs.circlePack, this.healthData, {
-				tooltip: this.$refs.tooltip, sidebar: this.$refs.sidebar, breadcrumb: this.$refs.breadcrumb,
+				tooltip: this.$refs.tooltip, sidebar: this.$refs.sidebar, breadcrumb: this.$refs.breadcrumb, appRepos,
 			});
 			// Update filter counts from leaves
 			const hCounts = { clean: 0, warning: 0, violation: 0, 'non-code': 0 };
