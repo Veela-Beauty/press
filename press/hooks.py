@@ -174,7 +174,10 @@ doc_events = {
 	},
 	"Address": {"validate": "press.api.billing.validate_gst"},
 	"Site": {
-		"validate": "press.press.doctype.site.site_type_validation.validate_site_type",
+		"validate": [
+			"press.press.doctype.site.site_type_validation.validate_site_type",
+			"press.press.doctype.team.team_quota_enforcement.check_site_quota",
+		],
 		"before_insert": "press.press.doctype.team.team.validate_site_creation",
 		"after_insert": "press.press.doctype.press_role.press_role.create_user_resource",
 	},
@@ -182,6 +185,7 @@ doc_events = {
 		"on_update": "press.press.doctype.storage_integration_subscription.storage_integration_subscription.create_after_insert",
 	},
 	"Release Group": {
+		"validate": "press.press.doctype.team.team_quota_enforcement.check_bench_quota",
 		"after_insert": "press.press.doctype.press_role.press_role.create_user_resource",
 	},
 	"Server": {
