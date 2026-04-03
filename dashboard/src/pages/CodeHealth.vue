@@ -213,7 +213,7 @@
 								<span v-else class="text-xs text-gray-300">---</span>
 							</td>
 							<td class="px-3 py-2.5 text-right text-xs text-gray-400">
-								{{ b.health ? 'Scanned' : 'Never' }}
+								{{ b.health?.scanned_at ? timeAgo(b.health.scanned_at) : (b.health ? 'Scanned' : 'Never') }}
 							</td>
 						</tr>
 					</tbody>
@@ -267,6 +267,15 @@ export default {
 	},
 	methods: {
 		hc(pct) { return pct >= 80 ? '#3fb950' : pct >= 50 ? '#d29922' : '#f85149'; },
+		timeAgo(iso) {
+			if (!iso) return '';
+			const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+			if (diff < 1) return 'just now';
+			if (diff < 60) return `${diff}m ago`;
+			const h = Math.floor(diff / 60);
+			if (h < 24) return `${h}h ago`;
+			return `${Math.floor(h / 24)}d ago`;
+		},
 		async loadBenches() {
 			this.loading = true;
 			try {

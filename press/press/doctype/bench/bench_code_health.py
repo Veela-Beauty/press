@@ -249,13 +249,29 @@ def get_health_summary(bench_name):
     security_alerts = int(sec_r.get("output", "0").strip() or 0)
 
     import json as _json
+    from datetime import datetime, timezone
+
+    # Quick compliance: count how many custom apps pass basic checks
+    apps = _list_apps(bench)
+    custom_apps = [a for a in apps if a not in UPSTREAM_APPS]
+    compliance_passed = 0
+    compliance_total = 0
+    for app in custom_apps:
+        app = _safe(app)
+        for check_cmd in ("test -f apps/{a}/CLAUDE.md", "test -f apps/{a}/README.md", "test -d apps/{a}/docs"):
+            compliance_total += 1
+            r = _exec(bench, check_cmd.format(a=app) + " && echo Y || echo N")
+            if r.get("output", "").strip() == "Y":
+                compliance_passed += 1
+
     summary = {
         "total_files": total, "total_lines": sum(nums),
         "clean": clean, "warning": warnings, "violation": violations,
         "health_pct": round(clean / total * 100) if total else 0,
         "security_alerts": security_alerts,
+        "compliance_pct": round(compliance_passed / compliance_total * 100) if compliance_total else 0,
+        "scanned_at": datetime.now(timezone.utc).isoformat(),
     }
-    # Cache for the listing page (no TTL — refreshed on next scan)
     frappe.cache.set_value(f"code_health:summary:{bench_name}", _json.dumps(summary), expires_in_sec=CACHE_TTL)
     return summary
 
