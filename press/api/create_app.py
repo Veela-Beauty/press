@@ -64,24 +64,19 @@ node_modules/
 
 
 def _get_token_for_team() -> str:
-    """Get GitHub token: team-level first, fallback to global for admins."""
+    """Get GitHub token: team-level first, then global fallback."""
     team = get_current_team()
     # 1. Check team's own OAuth token
     team_token = frappe.db.get_value("Team", team, "github_access_token")
     if team_token:
         return team_token
 
-    # 2. Fallback to global admin token (only for desk users)
-    is_desk = frappe.db.get_value("Team", team, "is_desk_user")
-    if is_desk:
-        global_token = frappe.db.get_single_value("Press Settings", "github_access_token")
-        if global_token:
-            return global_token
+    # 2. Fallback to global token (self-hosted instance — all teams trusted)
+    global_token = frappe.db.get_single_value("Press Settings", "github_access_token")
+    if global_token:
+        return global_token
 
-    frappe.throw(
-        "No GitHub connection found. Please connect GitHub first via 'Add from GitHub' button.",
-        frappe.PermissionError,
-    )
+    frappe.throw("No GitHub connection configured. Contact your administrator.")
 
 
 def _get_headers(token: str) -> dict:
