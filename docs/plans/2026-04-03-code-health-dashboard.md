@@ -390,9 +390,228 @@ ssh press-ctrl "bench build --app press && bench clear-cache"
 ssh press-ctrl "supervisorctl restart frappe-bench-web:* frappe-bench-workers:*"
 ```
 
+---
+
+### Task 5: App Stack Summary — tech stack + dependencies per app
+
+**Files:**
+- Add to: `press/press/doctype/bench/bench_code_health.py`
+
+**Goal:** For each app in the bench, show a summary card:
+
+| Field | How to detect |
+|-------|---------------|
+| Framework | `hooks.py` → Frappe, `pubspec.yaml` → Flutter, `package.json` → Node/React/Vue, `Cargo.toml` → Rust |
+| Language | Count `.py` vs `.js`/`.ts` vs `.dart` vs `.rs` files |
+| App version | Read from `__init__.py` (`__version__`) or `pyproject.toml` |
+| Total files / lines | From health scan |
+| Key dependencies | Parse `pyproject.toml` [project.dependencies] or `package.json` dependencies |
+
+**Step 1: Add `get_app_stack_info` API**
+
+```python
+@frappe.whitelist()
+def get_app_stack_info(bench_name):
+    """Return tech stack summary per app in the bench."""
+    frappe.only_for("System Manager")
+    bench = frappe.get_doc("Bench", bench_name)
+    
+    # List apps
+    r = bench.docker_execute("ls apps/", save_output=False, create_log=False)
+    apps = [a.strip() for a in r.get("output", "").split() if a.strip()]
+    
+    results = []
+    for app in apps:
+        info = {"app": app, "framework": "unknown", "language": "Python", "version": ""}
+        
+        # Detect framework
+        r = bench.docker_execute(
+            f"test -f apps/{app}/hooks.py && echo frappe || "
+            f"test -f apps/{app}/pubspec.yaml && echo flutter || "
+            f"test -f apps/{app}/Cargo.toml && echo rust || "
+            f"test -f apps/{app}/package.json && echo node || echo unknown",
+            save_output=False, create_log=False,
+        )
+        info["framework"] = r.get("output", "").strip() or "unknown"
+        
+        # Get version
+        r = bench.docker_execute(
+            f"grep -m1 __version__ apps/{app}/*/__init__.py 2>/dev/null || echo ?",
+            save_output=False, create_log=False,
+        )
+        ver = r.get("output", "").strip()
+        if "__version__" in ver:
+            info["version"] = ver.split("=")[-1].strip().strip("'\"")
+        
+        # Count files by type
+        r = bench.docker_execute(
+            f"find apps/{app} -name '*.py' -not -path '*__pycache__*' | wc -l",
+            save_output=False, create_log=False,
+        )
+        info["py_files"] = int(r.get("output", "0").strip() or 0)
+        
+        r = bench.docker_execute(
+            f"find apps/{app} \\( -name '*.js' -o -name '*.ts' -o -name '*.vue' \\) -not -path '*node_modules*' | wc -l",
+            save_output=False, create_log=False,
+        )
+        info["js_files"] = int(r.get("output", "0").strip() or 0)
+        
+        results.append(info)
+    
+    return results
+```
+
+**Step 2: Commit**
+
+```bash
+git add press/press/doctype/bench/bench_code_health.py
+git commit -m "feat(api): app stack summary — framework, version, file counts per app"
+```
+
+---
+
+### Task 6: Docs Compliance Checker — enforce team standards
+
+**Files:**
+- Add to: `press/press/doctype/bench/bench_code_health.py`
+
+**Goal:** Check every app against your documentation standards (from `rules/project-docs.md`):
+
+| Check | Required | How to detect |
+|-------|----------|---------------|
+| CLAUDE.md | All apps | `test -f apps/{app}/CLAUDE.md` |
+| README.md | All apps | `test -f apps/{app}/README.md` |
+| docs/wiki/ | Apps with 3+ DocTypes | `test -d apps/{app}/docs/wiki` |
+| DEVLOG.md | All custom apps | `test -f apps/{app}/DEVLOG.md` |
+| tests/ | All apps | `test -d apps/{app}/tests` |
+| .gitignore | All apps | `test -f apps/{app}/.gitignore` |
+
+**Compliance score:** Each check = 1 point. Max 6 per app. Show as percentage.
+
+**Step 1: Add `get_docs_compliance` API**
+
+```python
+@frappe.whitelist()
+def get_docs_compliance(bench_name):
+    """Check documentation compliance per app against team standards."""
+    frappe.only_for("System Manager")
+    bench = frappe.get_doc("Bench", bench_name)
+    
+    CHECKS = [
+        ("CLAUDE.md", "test -f apps/{app}/CLAUDE.md"),
+        ("README.md", "test -f apps/{app}/README.md"),
+        ("docs/wiki/", "test -d apps/{app}/docs/wiki"),
+        ("DEVLOG.md", "test -f apps/{app}/DEVLOG.md"),
+        ("tests/", "test -d apps/{app}/tests"),
+        (".gitignore", "test -f apps/{app}/.gitignore"),
+    ]
+    
+    # List apps
+    r = bench.docker_execute("ls apps/", save_output=False, create_log=False)
+    apps = [a.strip() for a in r.get("output", "").split() if a.strip()]
+    
+    # Skip upstream apps — only check custom apps
+    upstream = {"frappe", "erpnext", "hrms", "payments", "lending", "webshop", "lms",
+                "helpdesk", "insights", "gameplan", "builder", "wiki", "drive", "crm",
+                "print_designer", "ifrs_reporting"}
+    
+    results = []
+    for app in apps:
+        is_custom = app not in upstream
+        checks = []
+        passed = 0
+        for name, cmd_tpl in CHECKS:
+            cmd = cmd_tpl.format(app=app)
+            r = bench.docker_execute(
+                cmd + " && echo PASS || echo FAIL",
+                save_output=False, create_log=False,
+            )
+            status = r.get("output", "").strip() == "PASS"
+            checks.append({"name": name, "status": status})
+            if status:
+                passed += 1
+        
+        results.append({
+            "app": app,
+            "is_custom": is_custom,
+            "checks": checks,
+            "passed": passed,
+            "total": len(CHECKS),
+            "compliance_pct": round(passed / len(CHECKS) * 100),
+        })
+    
+    return results
+```
+
+**Current state (bench-0005):**
+
+| App | CLAUDE | README | docs/ | tests/ | Compliance |
+|-----|--------|--------|-------|--------|------------|
+| accubuild_core | Y | Y | Y | Y | **100%** |
+| sanad_business_intelligence_ai | Y | Y | Y | N | 83% |
+| frappe_theme_switcher | N | Y | Y | N | 50% |
+| tamkeen_suite_app | N | Y | N | N | 33% |
+
+**Step 2: Commit**
+
+```bash
+git add press/press/doctype/bench/bench_code_health.py
+git commit -m "feat(api): docs compliance checker — enforce team standards per app"
+```
+
+---
+
+### Task 7: Unified Dashboard Component — combine all metrics
+
+**Files:**
+- Modify: `dashboard/src/components/BenchCodeHealth.vue`
+
+**Goal:** Three sections in one component:
+
+```
+┌─────────────────────────────────────────────────┐
+│ Code Health Dashboard                    [Scan] │
+├─────────────────────────────────────────────────┤
+│ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌────────┐ │
+│ │ 89%     │ │ 2,128   │ │ 323K    │ │ 54     │ │
+│ │ Health  │ │ Files   │ │ Lines   │ │ Violations│
+│ └─────────┘ └─────────┘ └─────────┘ └────────┘ │
+├─────────────────────────────────────────────────┤
+│ [Health Map] [Stack Info] [Docs Compliance]     │
+├─────────────────────────────────────────────────┤
+│ Tab 1: Circle packing visualization             │
+│ Tab 2: App cards with framework, version, files │
+│ Tab 3: Compliance checklist per app (Y/N grid)  │
+└─────────────────────────────────────────────────┘
+```
+
+**Step 1: Add tabs to BenchCodeHealth.vue**
+
+Three tabs: Health Map (D3 circles), Stack (app cards), Compliance (checklist grid).
+Each tab lazy-loads its data on first click.
+
+**Step 2: Commit**
+
+```bash
+git add dashboard/src/components/BenchCodeHealth.vue
+git commit -m "feat(ui): unified code health dashboard with 3 tabs"
+```
+
+---
+
+## Full Feature Summary
+
+| What | From one look you see |
+|------|----------------------|
+| **Health Map** | Every file as a circle — green/yellow/red. Click to zoom. Violations glow red. |
+| **Stack Info** | Each app's framework, version, Python/JS file count |
+| **Docs Compliance** | Which apps follow your standards. Red = missing docs. Forces team to comply. |
+| **Health Badge** | Quick number on bench detail header (89% healthy) |
+
 ## Future Enhancements (not in this plan)
 
-- Codegraph dependency view as second tab in the component
+- Codegraph dependency view as fourth tab
 - Per-app health comparison (before/after deploy)
 - Health score history over time (store in DB)
 - Auto-block deploys if health drops below threshold
+- Pre-deploy gate: "3 files exceed 700 lines — split before deploying"
