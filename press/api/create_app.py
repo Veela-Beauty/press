@@ -171,10 +171,17 @@ def create_app(
 
     # 5. Auto-add to bench
     added_to_bench = False
+    repo_url = f"https://github.com/{github_owner}/{app_name}"
     if bench_group:
         try:
             rg = frappe.get_doc("Release Group", bench_group)
-            rg.add_app({"app": app_name, "source": source.name})
+            rg.add_app({
+                "name": app_name,
+                "title": app_title,
+                "repository_url": repo_url,
+                "branch": "main",
+                "source": source.name,
+            })
             added_to_bench = True
         except Exception as e:
             frappe.log_error(f"Failed to auto-add app to bench: {e}")
