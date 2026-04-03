@@ -17,9 +17,10 @@ Running at `demo.mvpstorm.com`. Fork of `frappe/press`, branch `cloudflare-dns`.
 
 | Server | IP | Role |
 |--------|----|------|
-| press-ctrl | 89.167.116.92 | Press controller, scheduler, Docker registry |
-| press-f1 | 89.167.57.21 | App server (standalone: Server + DB + Proxy) |
-| u4 | 157.90.244.216 | App server (standalone: sandbox cluster) |
+| press-ctrl | 89.167.116.92 | Press controller, scheduler, Docker registry (301G disk) |
+| press-f1 | 89.167.57.21 | App + Build server, standalone (150G disk) |
+| u4 | 157.90.244.216 | App server, sandbox cluster (38G disk) |
+| u5 | 46.224.170.58 | App server, Mohammed's team benches (38G disk) |
 
 SSH aliases: `ssh press-ctrl`, `ssh press-f1`, `ssh u4`
 SSH key: `E:/.ssh/new_id_ed25519` (all three servers)
@@ -106,18 +107,42 @@ three separate DocType records, each with its own `agent_password` in `__Auth` t
 
 ## Custom Files Added
 
-- `press/press/doctype/bench/bench_dev_overview.py` — Dev Overview API (standalone, avoids editing 5000-line bench.py)
-  - `get_dev_overview_benches()` — all benches with commit/build/site/gap data (batch SQL, no N+1)
-  - `get_dev_panel_data(bench_name)` — per-bench expanded panel data (sites, commits, build history, errors)
+### Backend APIs (sibling files — avoids editing upstream 5000-line controllers)
+- `press/press/doctype/bench/bench_dev_overview.py` — Dev Overview + git status + console + logs APIs
+  - `get_dev_overview_benches()` — all benches with commit/build/site/gap data
+  - `get_dev_panel_data(bench_name)` — per-bench panel (sites, commits, build history)
+  - `get_app_git_status(bench_name, site_name)` — per-app git branch/dirty/ahead/remote
+  - `get_bench_dev_info()` — server IP, SSH port, is_development_bench
+  - `push_app_to_github()` — git commit + push from inside container
+  - `run_sql_on_site()` / `run_python_on_site()` — inline console
+  - `get_recent_logs()` / `get_db_processlist()` — log browser + process list
+- `press/press/doctype/bench/bench_app_management.py` — Local app creation + GitHub push
+  - `create_app_locally(bench_name, app_name, app_title)` — bench new-app inside container
+  - `init_github_for_app(bench_name, app_name, github_owner)` — create repo + push + register
+  - `get_github_accounts()` — list GitHub user + orgs for current team
+- `press/press/doctype/deploy_candidate_build/build_diagnostics.py` — Deploy failure analysis
+  - `get_failure_details(dn)` — failed step, stage, output, progress count
+- `press/api/create_app.py` — Create New App (GitHub-first flow from bench Apps tab)
+  - `create_app()` — scaffold + GitHub repo + push + register + auto-add to bench
+  - `get_github_owners()` — GitHub account selector
+
+### Dashboard Pages & Components
 - `dashboard/src/pages/DevOverview.vue` — Watch Tower dashboard at `/dashboard/dev-overview`
+- `dashboard/src/pages/DeployCandidate.vue` — Enhanced deploy build page (7 UX improvements)
+- `dashboard/src/components/SiteDevTab.vue` — Dev tab with git status, console, logs, app management
+- `dashboard/src/components/group/CreateAppDialog.vue` — Create New App dialog with GitHub selector
 
-## Dev Overview Patterns (key decisions)
+## Patterns & Lessons
 
-- **Standalone API module**: Add new whitelisted methods alongside `bench.py` in a sibling file, not inside it. Use `@frappe.whitelist()` directly. No changes to the 5000-line controller.
-- **`bool("0")` trap**: Site config values come back as strings. Always check `value in (True, 1, "1", "true")` — never `bool(value)`.
-- **Site Activity action enum**: The `action` field in Site Activity has a fixed option list. Custom strings (e.g., "Dev mode enabled") raise validation errors. Use `frappe.logger()` for non-standard audit events.
-- **Vue 3 `<template v-for>` + group headers**: Put `:key` on the `<template>` tag. Use `(item, idx)` to access previous item for group-header comparison: `idx === 0 || list[idx-1].group !== item.group`.
-- **Always syntax-check Python before deploying**: `python3 -c "import ast; ast.parse(open('file.py').read())"` — an IndentationError silently kills every API call to that module.
+- **Standalone API module**: Add whitelisted methods in sibling files, not inside upstream controllers.
+- **`bool("0")` trap**: Site config values are strings. Use `value in (True, 1, "1", "true")`.
+- **Site Activity action enum**: Fixed option list — use `frappe.logger()` for custom audit events.
+- **Vue 3 `<template v-for>`**: Put `:key` on the `<template>` tag for group headers.
+- **Syntax-check before deploy**: `python3 -c "import ast; ast.parse(open('file.py').read())"`.
+- **docker_execute quirks**: Agent passes command to `docker exec` with `sh -c` but `$()` subshells expand on the HOST, not the container. Use `git -C` instead of `cd` + subshells. One command per docker_execute call is safest.
+- **Deploy page blank screen**: frappe-ui document resources have `get.loading` not `.loading`. Always use `$resources.x?.get?.loading` with optional chaining.
+- **press-f1 disk**: 75G was too small for build server (each image ~3-4G). Expanded to 150G. Daily cleanup cron at `/etc/cron.d/docker-cleanup`.
+- **GitHub token security**: `Press Settings.github_access_token` is global admin token. Team members should use per-team tokens via GitHub App. On self-hosted, global fallback is OK for trusted teams.
 
 ## Ops Wiki
 

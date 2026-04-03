@@ -567,3 +567,39 @@ const DEV_OVERVIEW_URL = 'press.press.doctype.bench.bench_dev_overview.get_dev_o
 ```
 
 **Lesson:** You don't need to put every whitelisted method inside the DocType controller. Sibling files in the same folder work perfectly — the dotted path just needs to resolve to the function. This keeps large controllers clean and makes feature code easier to test in isolation.
+
+---
+
+### 64. press-f1 disk full (100%) — build server needs room for Docker images
+**Status:** PERMANENT  
+**What happened:** Every deploy build failed at "Upload / Build Context" step. Blank screen on deploy page.  
+**Root cause:** press-f1 had a 75G disk with 76G of Docker data (images + build cache + overlay layers). Zero bytes free.  
+**Fix:** Cleaned 16G (build cache 8.5G, old images, /tmp backups, journal logs). Expanded disk 75G → 150G in Hetzner. Installed daily cleanup cron at `/etc/cron.d/docker-cleanup` (prune images >72h, build cache, /tmp, journals daily at 3 AM; Docker logs weekly).  
+**Lesson:** Build servers need 2-3x headroom vs active images. Each bench image is 3-4G. With 11 images, 75G is too tight. Monitor with `df -h` and `docker system df`.
+
+---
+
+### 65. docker_execute $() subshells expand on the HOST, not inside the container
+**Status:** KNOWLEDGE  
+**What happened:** Git status script using `echo "app:$(git ...)"` showed raw script text as app names.  
+**Root cause:** The Press agent runs `docker exec container sh -c 'command'` but `$()` in the command gets expanded by the HOST shell first (which has no `apps/` directory). The subshell returns empty/error.  
+**Fix:** Replaced compound subshell scripts with individual `git -C apps/appname` commands — one `docker_execute()` call per git operation. Slower but reliable.  
+**Lesson:** Never use `$()` subshells in docker_execute commands. Use `git -C path` instead of `cd path && git`. `&&` works (shell operator), but `cd` fails (not a binary). `set -e` fails (not a binary).
+
+---
+
+### 66. Deploy page blank screen — frappe-ui resource `.loading` vs `.get.loading`
+**Status:** PERMANENT  
+**What happened:** Deploy build page showed blank white screen. No loading indicator, no error.  
+**Root cause:** Template had `v-if="deploy"` which is falsy when doc hasn't loaded. frappe-ui document resources have `.get.loading` not `.loading` at the top level. Accessing `$resources.deploy.loading` returned `undefined` (falsy), and the else branch for error state was also missing.  
+**Fix:** Added 3 states: loading spinner (`$resources.deploy?.get?.loading`), error ("Build Not Found"), content (`v-else`). Added `immediate: true` to status watcher for timer init on page load.  
+**Lesson:** Every resource-driven page needs 3 states: loading, error, content. Never assume a resource loads.
+
+---
+
+### 67. rg.add_app() expects {name, title, repository_url} — not {app, source}
+**Status:** KNOWLEDGE  
+**What happened:** Created app registered in Press (App + App Source + Release) but never appeared in the bench's app list. No error shown.  
+**Root cause:** `Release Group.add_app()` checks `app.get("name")` for the app name. Passing `{"app": "x", "source": "y"}` returns `None` silently because `name` key is missing.  
+**Fix:** Pass `{name, title, repository_url, branch, source}` matching the method's expected keys.  
+**Lesson:** Read the actual method signature before calling Press APIs. Silent failures are common — always verify the result.
