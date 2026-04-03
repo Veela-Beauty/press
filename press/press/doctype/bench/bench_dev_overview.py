@@ -252,21 +252,23 @@ def get_app_git_status(bench_name):
 	app_names = [ae.app for ae in bench.apps if ae.app]
 	if not app_names:
 		return []
-	# Build a single shell script that iterates all apps and outputs one line per app
-	# Format per line: APP_NAME:branch:ahead:dirty:last_msg
-	lines = ["set -e"]
+	# Build a bash script that iterates all apps and outputs one line per app
+	# Format per line: APP_NAME:branch:ahead:dirty:has_remote:last_msg
+	# Wrapped in bash -c because docker_execute runs without a shell
+	script_lines = []
 	for app in app_names:
-		lines.append(
+		script_lines.append(
 			f"cd apps/{app} 2>/dev/null && "
-			f"branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?') && "
-			f"ahead=$(git rev-list --count '@{{u}}..HEAD' 2>/dev/null || echo 0) && "
+			f"branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo ?) && "
+			f"ahead=$(git rev-list --count @{{u}}..HEAD 2>/dev/null || echo 0) && "
 			f"dirty=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ') && "
 			f"has_remote=$(git remote get-url origin >/dev/null 2>&1 && echo 1 || echo 0) && "
-			f"msg=$(git log -1 --format='%s' 2>/dev/null | cut -c1-60) && "
-			f'echo "{app}:$branch:$ahead:$dirty:$has_remote:$msg" && cd ../.. '
-			f'|| echo "{app}:?:0:0:0:" && cd ../.. 2>/dev/null'
+			f"msg=$(git log -1 --format=%s 2>/dev/null | cut -c1-60) && "
+			f"echo {app}:$branch:$ahead:$dirty:$has_remote:$msg && cd ../.. "
+			f"|| echo {app}:?:0:0:1: && cd ../.. 2>/dev/null"
 		)
-	cmd = " ; ".join(lines)
+	inner = " ; ".join(script_lines)
+	cmd = f"bash -c '{inner}'"
 	try:
 		raw = bench.docker_execute(cmd, save_output=False, create_log=False)
 		output = (raw.get("output") or "").strip()
@@ -275,7 +277,7 @@ def get_app_git_status(bench_name):
 	results = []
 	for line in output.split("\n"):
 		line = line.strip()
-		if not line:
+		if not line or line.startswith("OCI ") or line.startswith("Error"):
 			continue
 		# Format: app:branch:ahead:dirty:has_remote:msg
 		parts = line.split(":", 5)
@@ -305,6 +307,7 @@ def get_bench_dev_info(bench_name):
 		"ssh_port": ssh_port,
 		"bench_name": bench.name,
 		"bench_path": "/home/frappe/frappe-bench",
+		"is_development_bench": bench.is_development_bench,
 	}
 
 

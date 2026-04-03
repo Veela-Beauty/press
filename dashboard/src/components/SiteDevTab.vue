@@ -129,7 +129,7 @@
 				<div class="flex items-center gap-2">
 					<span class="text-xs text-gray-400">{{ gitStatusAge }}</span>
 					<Button size="sm" variant="ghost" :loading="gitStatusLoading" @click="loadGitStatus">Refresh</Button>
-					<Button size="sm" variant="solid" @click="showCreateApp = true">
+					<Button v-if="isDevBench" size="sm" variant="solid" @click="showCreateApp = true">
 						<template #prefix><lucide-plus class="h-3.5 w-3.5" /></template>
 						New App
 					</Button>
@@ -414,6 +414,7 @@ export default {
 	},
 	computed: {
 		$site() { return getCachedDocumentResource('Site', this.site); },
+		isDevBench() { return this.devInfo?.is_development_bench; },
 		devModeOn() { return true; },
 		migrationLabel() {
 			if (!this.migrationData?.last_run) return 'Never';

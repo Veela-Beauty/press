@@ -28,13 +28,14 @@ def create_app_locally(bench_name, app_name, app_title):
 	if app_name in existing:
 		frappe.throw(f"App '{app_name}' already exists in this bench.")
 
-	safe_title = app_title.replace("'", "'\\''")
+	safe_title = app_title.replace("'", "")
 	cmd = (
+		f"bash -c \""
 		f"echo -e '{safe_title}\\n{safe_title}\\n\\n\\nMIT' "
 		f"| bench new-app --no-git {app_name} "
 		f"&& cd apps/{app_name} "
 		f"&& git init && git checkout -b main && git add -A "
-		f"&& git commit -m 'feat: scaffold {safe_title} app'"
+		f'&& git commit -m \\"feat: scaffold {safe_title} app\\""'
 	)
 
 	result = bench.docker_execute(cmd)
@@ -44,7 +45,7 @@ def create_app_locally(bench_name, app_name, app_title):
 			"Site", {"bench": bench_name, "status": "Active"}, pluck="name", limit=1,
 		)
 		if sites:
-			bench.docker_execute(f"bench --site {sites[0]} install-app {app_name}")
+			bench.docker_execute(f"bash -c 'bench --site {sites[0]} install-app {app_name}'")
 
 	return result
 
@@ -75,14 +76,15 @@ def init_github_for_app(bench_name, app_name, github_owner, repo_name=""):
 	elif resp.status_code != 201:
 		frappe.throw(f"Failed to create repo: {resp.json().get('message', resp.text[:200])}")
 
-	# Add remote and push
+	# Add remote and push inside container
 	push_url = f"https://{token}@github.com/{github_owner}/{repo_name}.git"
 	cmd = (
+		f"bash -c 'cd apps/{app_name} && "
 		f"git remote remove origin 2>/dev/null; "
-		f"git remote add origin '{push_url}' "
-		f"&& git push -u origin main"
+		f"git remote add origin {push_url} "
+		f"&& git push -u origin main'"
 	)
-	result = bench.docker_execute(cmd, subdir=f"apps/{app_name}")
+	result = bench.docker_execute(cmd)
 
 	# Register in Press
 	repo_url = f"https://github.com/{github_owner}/{repo_name}"
