@@ -129,12 +129,26 @@ def list_bench_health():
         app_counts[a.parent] = a.cnt
 
     # Team from Release Group
+    # Resolve team IDs → display names
     group_teams = {}
     groups = list({b.group for b in benches if b.group})
     if groups:
+        team_ids = set()
         for g in frappe.get_all("Release Group", fields=["name", "team"],
                                 filters={"name": ["in", groups]}):
             group_teams[g.name] = g.team
+            if g.team:
+                team_ids.add(g.team)
+        # Look up team display names
+        team_names = {}
+        if team_ids:
+            for t in frappe.get_all("Team", fields=["name", "team_title", "user"],
+                                    filters={"name": ["in", list(team_ids)]}):
+                team_names[t.name] = t.team_title or t.user or t.name
+        # Replace IDs with display names
+        for g_name in group_teams:
+            tid = group_teams[g_name]
+            group_teams[g_name] = team_names.get(tid, tid)
 
     results = []
     for b in benches:
