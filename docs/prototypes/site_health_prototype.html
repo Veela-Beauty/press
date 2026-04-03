@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Site Health — Code Health + App Interactions</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+:root{--bg:#0d1117;--sf:#161b22;--bd:#30363d;--bl:#21262d;--tx:#c9d1d9;--tm:#8b949e;--tb:#e6edf3;--blue:#58a6ff;--grn:#3fb950;--ylw:#d29922;--red:#f85149;--grn-bg:rgba(63,185,80,.15);--ylw-bg:rgba(210,153,34,.15);--red-bg:rgba(248,81,73,.15);--blu-bg:rgba(88,166,255,.1)}
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--tx)}
+.pg{max-width:1400px;margin:0 auto;padding:20px}.hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.hd h1{font-size:18px;font-weight:600;color:var(--tb)}.hd .sub{font-size:11px;color:var(--tm);margin-top:2px}
+.btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--bd);display:inline-flex;align-items:center;gap:5px}.btn-p{background:#238636;color:#fff;border-color:#238636}.btn-d{background:var(--sf);color:var(--tx)}
+.bg{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}.bg-g{background:var(--grn-bg);color:var(--grn)}.bg-y{background:var(--ylw-bg);color:var(--ylw)}.bg-r{background:var(--red-bg);color:var(--red)}.bg-b{background:var(--blu-bg);color:var(--blue)}
+.tabs{display:flex;border-bottom:1px solid var(--bd);margin-bottom:16px}.tab{padding:8px 18px;font-size:12px;font-weight:600;color:var(--tm);cursor:pointer;border-bottom:2px solid transparent}.tab:hover{color:var(--tx)}.tab.a{color:var(--blue);border-bottom-color:var(--blue)}
+.pn{display:none}.pn.a{display:block}.cd{background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:14px}.cd h3{font-size:13px;font-weight:600;color:var(--tb);margin-bottom:10px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.pr{height:5px;background:var(--bl);border-radius:3px;overflow:hidden}.pr-f{height:100%;border-radius:3px}
+table{width:100%;border-collapse:collapse}th{background:var(--sf);padding:7px 10px;text-align:left;font-size:10px;font-weight:600;color:var(--tm);text-transform:uppercase;border-bottom:1px solid var(--bd)}td{padding:8px 10px;border-bottom:1px solid var(--bl);font-size:12px}
+.sr{display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;font-size:11px}.sr span:nth-child(odd){color:var(--tm)}
+.node{cursor:pointer}.node:hover{opacity:.8}
+.link{stroke-opacity:.4}
+.filter-bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center}
+.fbtn{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--bd);background:transparent;color:var(--tm);opacity:.5}
+.fbtn.on{opacity:1;background:var(--blu-bg);color:var(--blue);border-color:var(--blue)}
+</style>
+</head>
+<body>
+<div class="pg">
+<div class="hd">
+  <div>
+    <h1>new122.sandbox.mvpstorm.com — Site Health</h1>
+    <div class="sub">bench-0014 &middot; 3 installed apps (frappe, erpnext, payments) &middot; 4,215 files &middot; 198K lines</div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-d">&#8592; Back to Dev Tab</button>
+    <button class="btn btn-p">&#8635; Scan</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab a" onclick="st(this,'ov')">Overview</div>
+  <div class="tab" onclick="st(this,'rd')">App Radars</div>
+  <div class="tab" onclick="st(this,'int')">App Interactions</div>
+  <div class="tab" onclick="st(this,'sc')">Scripts</div>
+  <div class="tab" onclick="st(this,'vl')">Violations</div>
+</div>
+
+<!-- OVERVIEW -->
+<div id="p-ov" class="pn a">
+<div class="g2">
+  <!-- Left: site radar -->
+  <div class="cd">
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px"><h3>Site Health Score</h3><span class="bg bg-g" style="font-size:15px;padding:4px 12px">82%</span></div>
+    <svg id="rs" width="260" height="260" style="display:block;margin:0 auto"></svg>
+    <div class="sr" style="margin-top:8px;padding:0 12px">
+      <span>CLAUDE.md</span><span style="color:var(--grn);text-align:right">80%</span>
+      <span>README</span><span style="color:var(--grn);text-align:right">90%</span>
+      <span>Documentation</span><span style="color:var(--ylw);text-align:right">70%</span>
+      <span>Tests</span><span style="color:var(--red);text-align:right">40%</span>
+      <span>Clean Code</span><span style="color:var(--grn);text-align:right">85%</span>
+      <span>Patterns</span><span style="color:var(--grn);text-align:right">88%</span>
+      <span>Lessons</span><span style="color:var(--ylw);text-align:right">60%</span>
+      <span>Security</span><span style="color:var(--grn);text-align:right">100%</span>
+    </div>
+  </div>
+  <!-- Right: per-app bars + alerts -->
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <div class="cd" style="flex:1">
+      <h3>Installed Apps</h3>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px"><div style="width:80px;font-size:13px;font-weight:600;color:var(--tb)">frappe</div><div class="pr" style="flex:1"><div class="pr-f" style="width:92%;background:var(--grn)"></div></div><span style="font-size:12px;color:var(--grn);width:36px;text-align:right">92%</span><span style="font-size:10px;color:var(--tm);width:50px">1,355 py</span></div>
+        <div style="display:flex;align-items:center;gap:10px"><div style="width:80px;font-size:13px;font-weight:600;color:var(--tb)">erpnext</div><div class="pr" style="flex:1"><div class="pr-f" style="width:78%;background:var(--ylw)"></div></div><span style="font-size:12px;color:var(--ylw);width:36px;text-align:right">78%</span><span style="font-size:10px;color:var(--tm);width:50px">2,840 py</span></div>
+        <div style="display:flex;align-items:center;gap:10px"><div style="width:80px;font-size:13px;font-weight:600;color:var(--tb)">payments</div><div class="pr" style="flex:1"><div class="pr-f" style="width:95%;background:var(--grn)"></div></div><span style="font-size:12px;color:var(--grn);width:36px;text-align:right">95%</span><span style="font-size:10px;color:var(--tm);width:50px">124 py</span></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <span style="font-size:11px;padding:3px 8px;border-radius:4px;background:var(--red-bg);color:var(--red)">8 files &gt;700</span>
+        <span style="font-size:11px;padding:3px 8px;border-radius:4px;background:var(--ylw-bg);color:var(--ylw)">23 warnings</span>
+        <span style="font-size:11px;padding:3px 8px;border-radius:4px;background:var(--grn-bg);color:var(--grn)">No security issues</span>
+      </div>
+    </div>
+    <div class="cd">
+      <h3>Quick Stats</h3>
+      <div class="sr">
+        <span>Client Scripts</span><span style="text-align:right;color:var(--tb)">12</span>
+        <span>Server Scripts</span><span style="text-align:right;color:var(--tb)">5</span>
+        <span>Custom Fields</span><span style="text-align:right;color:var(--tb)">34</span>
+        <span>Workflows</span><span style="text-align:right;color:var(--tb)">2</span>
+        <span>Webhooks</span><span style="text-align:right;color:var(--tb)">3</span>
+        <span>Print Formats</span><span style="text-align:right;color:var(--tb)">8</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- APP RADARS -->
+<div id="p-rd" class="pn">
+<div class="g3">
+  <div class="cd"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><h3>frappe</h3><span class="bg bg-g">92%</span></div><svg id="r1" width="220" height="220" style="display:block;margin:0 auto"></svg></div>
+  <div class="cd"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><h3>erpnext</h3><span class="bg bg-y">78%</span></div><svg id="r2" width="220" height="220" style="display:block;margin:0 auto"></svg></div>
+  <div class="cd"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><h3>payments</h3><span class="bg bg-g">95%</span></div><svg id="r3" width="220" height="220" style="display:block;margin:0 auto"></svg></div>
+</div>
+</div>
+
+<!-- APP INTERACTIONS -->
+<div id="p-int" class="pn">
+  <div class="filter-bar">
+    <span style="font-size:11px;color:var(--tm)">Filter:</span>
+    <button class="fbtn on" onclick="this.classList.toggle('on')">hooks</button>
+    <button class="fbtn on" onclick="this.classList.toggle('on')">doc_events</button>
+    <button class="fbtn on" onclick="this.classList.toggle('on')">override</button>
+    <button class="fbtn on" onclick="this.classList.toggle('on')">client_script</button>
+    <button class="fbtn on" onclick="this.classList.toggle('on')">server_script</button>
+    <button class="fbtn on" onclick="this.classList.toggle('on')">custom_field</button>
+  </div>
+  <div class="cd" style="height:420px;position:relative;overflow:hidden">
+    <svg id="interactions" width="100%" height="100%"></svg>
+  </div>
+  <div style="margin-top:12px">
+    <table>
+      <thead><tr><th>From</th><th>To</th><th>Type</th><th>Details</th></tr></thead>
+      <tbody>
+        <tr><td style="color:var(--tb)">erpnext</td><td>frappe</td><td><span class="bg bg-b">hooks</span></td><td style="color:var(--tm)">override_doctype_class: Journal Entry, Payment Entry</td></tr>
+        <tr><td style="color:var(--tb)">erpnext</td><td>frappe</td><td><span class="bg bg-b">doc_events</span></td><td style="color:var(--tm)">on_update: User, on_trash: Address</td></tr>
+        <tr><td style="color:var(--tb)">payments</td><td>erpnext</td><td><span class="bg bg-b">hooks</span></td><td style="color:var(--tm)">payment_gateway_enabled: Payment Gateway</td></tr>
+        <tr><td style="color:var(--tb)">payments</td><td>frappe</td><td><span class="bg bg-b">doc_events</span></td><td style="color:var(--tm)">on_update: Payment Request</td></tr>
+        <tr><td style="color:var(--tb)">Client Script #1</td><td>Sales Invoice</td><td><span class="bg" style="background:rgba(168,85,247,.15);color:#a855f7">client_script</span></td><td style="color:var(--tm)">Custom validation on item rates</td></tr>
+        <tr><td style="color:var(--tb)">Server Script #1</td><td>Customer</td><td><span class="bg" style="background:rgba(168,85,247,.15);color:#a855f7">server_script</span></td><td style="color:var(--tm)">Auto-assign territory on create</td></tr>
+        <tr><td style="color:var(--tb)">Custom Field</td><td>Item</td><td><span class="bg" style="background:rgba(234,179,8,.15);color:#eab308">custom_field</span></td><td style="color:var(--tm)">custom_weight (Float), custom_origin (Data)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- SCRIPTS -->
+<div id="p-sc" class="pn">
+<div class="g2">
+  <div>
+    <div class="cd" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px"><h3>Client Scripts (12)</h3><span class="bg bg-b">JS</span></div>
+      <table><thead><tr><th>Name</th><th>DocType</th><th>Lines</th></tr></thead><tbody>
+        <tr><td style="color:var(--tb)">Item Rate Validator</td><td>Sales Invoice</td><td>45</td></tr>
+        <tr><td style="color:var(--tb)">Customer Auto-fill</td><td>Quotation</td><td>32</td></tr>
+        <tr><td style="color:var(--tb)">Warehouse Filter</td><td>Stock Entry</td><td>28</td></tr>
+        <tr><td style="color:var(--tb)">PO Custom Buttons</td><td>Purchase Order</td><td>67</td></tr>
+      </tbody></table>
+    </div>
+  </div>
+  <div>
+    <div class="cd" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px"><h3>Server Scripts (5)</h3><span class="bg" style="background:rgba(168,85,247,.15);color:#a855f7">Python</span></div>
+      <table><thead><tr><th>Name</th><th>DocType</th><th>Event</th><th>Lines</th></tr></thead><tbody>
+        <tr><td style="color:var(--tb)">Auto Territory</td><td>Customer</td><td>Before Save</td><td>18</td></tr>
+        <tr><td style="color:var(--tb)">Credit Limit Check</td><td>Sales Order</td><td>Before Submit</td><td>35</td></tr>
+        <tr><td style="color:var(--tb)">Stock Sync API</td><td>-</td><td>API</td><td>52</td></tr>
+      </tbody></table>
+    </div>
+    <div class="cd">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px"><h3>Custom Fields (34)</h3><span class="bg bg-y">Extends</span></div>
+      <table><thead><tr><th>DocType</th><th>Fields</th></tr></thead><tbody>
+        <tr><td style="color:var(--tb)">Item</td><td>custom_weight, custom_origin, custom_hs_code</td></tr>
+        <tr><td style="color:var(--tb)">Customer</td><td>custom_segment, custom_credit_rating</td></tr>
+        <tr><td style="color:var(--tb)">Sales Invoice</td><td>custom_delivery_date, custom_ref_no</td></tr>
+      </tbody></table>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- VIOLATIONS -->
+<div id="p-vl" class="pn">
+<table>
+  <thead><tr><th>File</th><th>App</th><th>Lines</th><th>Health</th><th>Violations</th></tr></thead>
+  <tbody>
+    <tr><td style="color:var(--tb)">accounts/doctype/payment_entry/payment_entry.py</td><td>erpnext</td><td style="color:var(--red);font-weight:600">2,847</td><td><span class="bg bg-r">MUST SPLIT</span></td><td style="color:var(--tm)">bare except (3), print() (7)</td></tr>
+    <tr><td style="color:var(--tb)">stock/doctype/stock_entry/stock_entry.py</td><td>erpnext</td><td style="color:var(--red);font-weight:600">2,124</td><td><span class="bg bg-r">MUST SPLIT</span></td><td style="color:var(--tm)">bare except (2)</td></tr>
+    <tr><td style="color:var(--tb)">accounts/doctype/sales_invoice/sales_invoice.py</td><td>erpnext</td><td style="color:var(--red);font-weight:600">1,893</td><td><span class="bg bg-r">MUST SPLIT</span></td><td style="color:var(--tm)">print() (4)</td></tr>
+    <tr><td style="color:var(--tb)">core/doctype/doctype/doctype.py</td><td>frappe</td><td style="color:var(--red);font-weight:600">1,456</td><td><span class="bg bg-r">MUST SPLIT</span></td><td></td></tr>
+    <tr><td style="color:var(--tb)">model/document.py</td><td>frappe</td><td style="color:var(--red);font-weight:600">1,231</td><td><span class="bg bg-r">MUST SPLIT</span></td><td></td></tr>
+    <tr style="background:var(--ylw-bg)"><td style="color:var(--tb)">stock/doctype/item/item.py</td><td>erpnext</td><td style="color:var(--ylw);font-weight:600">682</td><td><span class="bg bg-y">WARNING</span></td><td style="color:var(--tm)">print() (2)</td></tr>
+    <tr style="background:var(--ylw-bg)"><td style="color:var(--tb)">selling/doctype/quotation/quotation.py</td><td>erpnext</td><td style="color:var(--ylw);font-weight:600">612</td><td><span class="bg bg-y">WARNING</span></td><td></td></tr>
+  </tbody>
+</table>
+</div>
+
+</div>
+<script>
+function st(el,id){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('a'));el.classList.add('a');document.querySelectorAll('.pn').forEach(p=>p.classList.remove('a'));document.getElementById('p-'+id).classList.add('a')}
+function R(id,s,w,h){const d=['CLAUDE','README','Docs','Tests','Clean','Patterns','Lessons','Security'],n=d.length,cx=w/2,cy=h/2,r=Math.min(w,h)/2-18,sv=d3.select('#'+id);sv.selectAll('*').remove();const g=sv.append('g').attr('transform',`translate(${cx},${cy})`);[.25,.5,.75,1].forEach(l=>{g.append('circle').attr('r',r*l).attr('fill','none').attr('stroke','#30363d').attr('stroke-width',.5)});const a=2*Math.PI/n;d.forEach((dm,i)=>{const an=a*i-Math.PI/2;g.append('line').attr('x1',0).attr('y1',0).attr('x2',r*Math.cos(an)).attr('y2',r*Math.sin(an)).attr('stroke','#30363d').attr('stroke-width',.5);g.append('text').attr('x',(r+12)*Math.cos(an)).attr('y',(r+12)*Math.sin(an)).attr('text-anchor','middle').attr('dominant-baseline','middle').attr('fill','#8b949e').attr('font-size',8).text(dm)});const p=s.map((v,i)=>{const an=a*i-Math.PI/2;return[r*(v/100)*Math.cos(an),r*(v/100)*Math.sin(an)]});p.push(p[0]);g.append('path').datum(p).attr('d',d3.line().x(d=>d[0]).y(d=>d[1])).attr('fill','rgba(88,166,255,.2)').attr('stroke','#58a6ff').attr('stroke-width',1.5);s.forEach((v,i)=>{const an=a*i-Math.PI/2;g.append('circle').attr('cx',r*(v/100)*Math.cos(an)).attr('cy',r*(v/100)*Math.sin(an)).attr('r',3).attr('fill',v>=80?'#3fb950':v>=50?'#d29922':'#f85149')})}
+R('rs',[80,90,70,40,85,88,60,100],260,260);
+R('r1',[90,95,80,50,92,90,70,100],220,220);
+R('r2',[75,85,65,35,78,82,50,100],220,220);
+R('r3',[95,90,60,45,95,92,80,100],220,220);
+
+// App Interaction Graph
+(function(){
+  const svg=d3.select('#interactions'),w=900,h=400;
+  svg.attr('viewBox',[0,0,w,h]);
+  const nodes=[
+    {id:'frappe',x:200,y:200,r:60,color:'#3572A5'},
+    {id:'erpnext',x:500,y:200,r:70,color:'#2490ef'},
+    {id:'payments',x:750,y:200,r:40,color:'#28a745'},
+    {id:'Client Scripts',x:500,y:60,r:25,color:'#a855f7'},
+    {id:'Server Scripts',x:350,y:350,r:22,color:'#a855f7'},
+    {id:'Custom Fields',x:650,y:350,r:20,color:'#eab308'},
+  ];
+  const links=[
+    {source:'erpnext',target:'frappe',label:'hooks + doc_events',w:3},
+    {source:'payments',target:'erpnext',label:'hooks',w:2},
+    {source:'payments',target:'frappe',label:'doc_events',w:1.5},
+    {source:'Client Scripts',target:'erpnext',label:'12 scripts',w:2,dash:true},
+    {source:'Server Scripts',target:'frappe',label:'5 scripts',w:1.5,dash:true},
+    {source:'Custom Fields',target:'erpnext',label:'34 fields',w:2,dash:true},
+  ];
+  // Draw links
+  links.forEach(l=>{
+    const s=nodes.find(n=>n.id===l.source),t=nodes.find(n=>n.id===l.target);
+    svg.append('line').attr('x1',s.x).attr('y1',s.y).attr('x2',t.x).attr('y2',t.y)
+      .attr('stroke','#58a6ff').attr('stroke-width',l.w).attr('stroke-opacity',.3)
+      .attr('stroke-dasharray',l.dash?'5,3':'none');
+    const mx=(s.x+t.x)/2,my=(s.y+t.y)/2-8;
+    svg.append('text').attr('x',mx).attr('y',my).attr('text-anchor','middle')
+      .attr('fill','#8b949e').attr('font-size',9).text(l.label);
+  });
+  // Draw nodes
+  nodes.forEach(n=>{
+    svg.append('circle').attr('cx',n.x).attr('cy',n.y).attr('r',n.r)
+      .attr('fill',n.color).attr('fill-opacity',.2).attr('stroke',n.color).attr('stroke-width',2)
+      .attr('class','node');
+    svg.append('text').attr('x',n.x).attr('y',n.y+4).attr('text-anchor','middle')
+      .attr('fill','#e6edf3').attr('font-size',n.r>30?12:10).attr('font-weight',600).text(n.id);
+  });
+})();
+</script>
+</body>
+</html>
