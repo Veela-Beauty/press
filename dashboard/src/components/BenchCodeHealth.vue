@@ -99,6 +99,7 @@
 
 <script>
 import { call } from 'frappe-ui';
+import * as d3 from 'd3';
 
 const API = 'press.press.doctype.bench.bench_code_health';
 const COLORS = { clean: '#3fb950', warning: '#d29922', violation: '#f85149', 'non-code': '#484f58' };
@@ -152,7 +153,7 @@ export default {
 		},
 		renderCirclePack() {
 			if (!this.healthData || !this.$refs.circlePack) return;
-			const d3 = window.d3; if (!d3) return;
+			if (!d3) return;
 			const svg = d3.select(this.$refs.circlePack);
 			const el = this.$refs.circlePack;
 			const w = el.clientWidth, h = el.clientHeight;
@@ -210,7 +211,7 @@ export default {
 		},
 		_zoom(d, svg, dirs, files, labels, w) {
 			this._focus = d;
-			const d3 = window.d3;
+			// d3 imported at top
 			svg.transition().duration(400).tween('z', () => {
 				const i = d3.interpolateZoom(this._view, [d.x, d.y, d.r * 4]);
 				return t => this._zoomTo(i(t), dirs, files, labels, w);
@@ -231,7 +232,7 @@ export default {
 		zoomOut() { if (this._focus?.parent && this._els) this._zoom(this._focus.parent, this._els.svg, this._els.dirs, this._els.files, this._els.labels, this._els.w); },
 		zoomReset() { if (this._packed && this._els) this._zoom(this._packed, this._els.svg, this._els.dirs, this._els.files, this._els.labels, this._els.w); },
 		renderRadars() {
-			const d3 = window.d3; if (!d3) return;
+			if (!d3) return;
 			const dims = ['CLAUDE', 'README', 'Docs', 'Tests', 'Clean', 'Patterns', 'Lessons', 'Security'];
 			const keys = ['claude_md', 'readme', 'documentation', 'tests', 'clean_code', 'code_patterns', 'lessons', 'security'];
 			for (const app of this.appScores) {
