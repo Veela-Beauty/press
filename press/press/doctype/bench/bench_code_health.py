@@ -82,6 +82,79 @@ def _list_apps(bench):
 # ── @whitelist API wrappers ──────────────────────────────────────────────
 
 @frappe.whitelist()
+def list_bench_health():
+    """List all active benches with team, server, app count, and cached health data.
+    No docker commands — reads from Frappe DB + Redis cache only (fast)."""
+    frappe.only_for("System Manager")
+
+    benches = frappe.get_all(
+        "Bench",
+        fields=["name", "status", "group", "group.title as group_title",
+                "server", "server.title as server_title",
+                "cluster.title as cluster_title",
+                "is_development_bench", "creation"],
+        filters={"status": ["not in", ["Archived"]]},
+        order_by="name asc",
+        limit=200,
+    )
+    if not benches:
+        return []
+
+    bench_names = [b.name for b in benches]
+
+    # Sites per bench
+    site_counts = {}
+    for s in frappe.get_all("Site", fields=["bench", "count(name) as cnt"],
+                            filters={"bench": ["in", bench_names], "status": ["!=", "Archived"]},
+                            group_by="bench"):
+        site_counts[s.bench] = s.cnt
+
+    # Apps per bench (from Bench App child table)
+    app_counts = {}
+    for a in frappe.get_all("Bench App", fields=["parent", "count(name) as cnt"],
+                            filters={"parent": ["in", bench_names]},
+                            group_by="parent"):
+        app_counts[a.parent] = a.cnt
+
+    # Team from Release Group
+    group_teams = {}
+    groups = list({b.group for b in benches if b.group})
+    if groups:
+        for g in frappe.get_all("Release Group", fields=["name", "team"],
+                                filters={"name": ["in", groups]}):
+            group_teams[g.name] = g.team
+
+    results = []
+    for b in benches:
+        # Check if we have cached health summary
+        cached_summary = frappe.cache.get_value(f"code_health:summary:{b.name}")
+        health = None
+        if cached_summary:
+            import json
+            try:
+                health = json.loads(cached_summary)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        results.append({
+            "name": b.name,
+            "status": b.status,
+            "group": b.group,
+            "group_title": b.group_title,
+            "server": b.server,
+            "server_title": b.server_title,
+            "cluster_title": b.cluster_title,
+            "is_dev": b.is_development_bench,
+            "creation": str(b.creation),
+            "site_count": site_counts.get(b.name, 0),
+            "app_count": app_counts.get(b.name, 0),
+            "team": group_teams.get(b.group, ""),
+            "health": health,
+        })
+    return results
+
+
+@frappe.whitelist()
 def scan_bench_health(bench_name, app_filter=None):
     """Scan apps in a bench — returns circle-packing JSON with health data."""
     from .health_tree import build_tree, compute_stats
@@ -145,12 +218,16 @@ def get_health_summary(bench_name):
                          "grep -v node_modules | grep -v __pycache__ | wc -l")
     security_alerts = int(sec_r.get("output", "0").strip() or 0)
 
-    return {
+    import json as _json
+    summary = {
         "total_files": total, "total_lines": sum(nums),
         "clean": clean, "warning": warnings, "violation": violations,
         "health_pct": round(clean / total * 100) if total else 0,
         "security_alerts": security_alerts,
     }
+    # Cache for the listing page (no TTL — refreshed on next scan)
+    frappe.cache.set_value(f"code_health:summary:{bench_name}", _json.dumps(summary), expires_in_sec=CACHE_TTL)
+    return summary
 
 
 @frappe.whitelist()
