@@ -439,15 +439,17 @@ export default {
 		};
 	},
 	async mounted() {
-		// Try loading cached summary first (fast — no docker calls)
+		// Try loading all cached data first (uses Redis + per-app commit cache — fast)
 		try {
-			const cached = await call(`${API}.get_health_summary`, { bench_name: this.benchName });
-			if (cached && cached.total_files > 0) {
-				this.summary = cached;
-				this.lastScanAge = 'From cache';
-				return; // data exists, don't re-scan
+			const summary = await call(`${API}.get_health_summary`, { bench_name: this.benchName });
+			if (summary && summary.total_files > 0) {
+				this.summary = summary;
+				this.lastScanAge = summary.scanned_at ? this.formatAge(summary.scanned_at) : 'From cache';
+				// Load remaining data in background (all cached by commit — no docker calls)
+				this.loadCachedData();
+				return;
 			}
-		} catch (e) { /* no cache, proceed to scan */ }
+		} catch (e) { /* no cache */ }
 		if (this.autoScan) this.scan();
 	},
 	beforeUnmount() {
@@ -514,6 +516,43 @@ export default {
 		applyFilters() {
 			if (!this._cpInstance) return;
 			this.visibleFiles = this._cpInstance.applyFilters(this.healthFilters, this.extFilters);
+		},
+		formatAge(iso) {
+			if (!iso) return '';
+			const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+			if (diff < 1) return 'just now';
+			if (diff < 60) return `${diff}m ago`;
+			const h = Math.floor(diff / 60);
+			if (h < 24) return `${h}h ago`;
+			return `${Math.floor(h / 24)}d ago`;
+		},
+		async loadCachedData() {
+			// Load all tab data from backend cache — no docker calls if commit cache hits
+			const bn = this.benchName;
+			try {
+				const [health, scores, comp, stack, inter, scripts] = await Promise.all([
+					call(`${API}.scan_bench_health`, { bench_name: bn }),
+					call(`${API}.get_app_scores`, { bench_name: bn, include_all: true }),
+					call(`${API}.get_docs_compliance`, { bench_name: bn }),
+					call(`${API}.get_app_stack_info`, { bench_name: bn }),
+					call(`${API}.get_app_interactions`, { bench_name: bn }),
+					call(`${API}.get_scripts_inventory`, { bench_name: bn }),
+				]);
+				this.healthData = health;
+				this.appScores = scores;
+				this.compliance = comp;
+				this.stackInfo = stack;
+				this.interactions = inter;
+				this.scriptsInventory = scripts;
+				// Trigger D3 for the active tab
+				this.$nextTick(() => {
+					if (this.activeTab === 'health') this.initCirclePack();
+					if (this.activeTab === 'overview') this.renderOverallRadar();
+					if (this.activeTab === 'radar') this.renderRadars();
+				});
+			} catch (e) {
+				console.error('Failed to load cached data:', e);
+			}
 		},
 		async scan() {
 			if (this.scanning) return;
