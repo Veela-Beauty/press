@@ -241,34 +241,37 @@ def get_bench_app_names(bench_name):
 
 
 @frappe.whitelist()
-def get_app_git_status(bench_name):
+def get_app_git_status(bench_name, site_name=None):
 	"""
 	Return per-app git status for a bench: branch, commits ahead of remote,
 	dirty file count, and last commit message.
-	Single docker_execute call (batched) — polls all apps in one shell script.
+	If site_name is provided, only shows apps installed on that site.
 	"""
 	frappe.only_for("System Manager")
 	bench = frappe.get_doc("Bench", bench_name)
-	app_names = [ae.app for ae in bench.apps if ae.app]
+	if site_name:
+		# Get apps installed on the specific site
+		site_apps = frappe.get_all("Site App", {"parent": site_name}, pluck="app")
+		app_names = [ae.app for ae in bench.apps if ae.app and ae.app in site_apps]
+	else:
+		app_names = [ae.app for ae in bench.apps if ae.app]
 	if not app_names:
 		return []
-	# Build a bash script that iterates all apps and outputs one line per app
+	# Build a shell script that iterates all apps and outputs one line per app
 	# Format per line: APP_NAME:branch:ahead:dirty:has_remote:last_msg
-	# Wrapped in bash -c because docker_execute runs without a shell
-	script_lines = []
+	lines = []
 	for app in app_names:
-		script_lines.append(
+		lines.append(
 			f"cd apps/{app} 2>/dev/null && "
-			f"branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo ?) && "
-			f"ahead=$(git rev-list --count @{{u}}..HEAD 2>/dev/null || echo 0) && "
+			f"branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?') && "
+			f"ahead=$(git rev-list --count '@{{u}}..HEAD' 2>/dev/null || echo 0) && "
 			f"dirty=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ') && "
 			f"has_remote=$(git remote get-url origin >/dev/null 2>&1 && echo 1 || echo 0) && "
-			f"msg=$(git log -1 --format=%s 2>/dev/null | cut -c1-60) && "
-			f"echo {app}:$branch:$ahead:$dirty:$has_remote:$msg && cd ../.. "
-			f"|| echo {app}:?:0:0:1: && cd ../.. 2>/dev/null"
+			f"msg=$(git log -1 --format='%s' 2>/dev/null | cut -c1-60) && "
+			f'echo "{app}:$branch:$ahead:$dirty:$has_remote:$msg" && cd ../.. '
+			f'|| echo "{app}:?:0:0:1:" && cd ../.. 2>/dev/null'
 		)
-	inner = " ; ".join(script_lines)
-	cmd = f"bash -c '{inner}'"
+	cmd = " ; ".join(lines)
 	try:
 		raw = bench.docker_execute(cmd, save_output=False, create_log=False)
 		output = (raw.get("output") or "").strip()

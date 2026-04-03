@@ -469,7 +469,7 @@ export default {
 			const b = this.$site?.doc?.bench; if (!b) return;
 			this.gitStatusLoading = true;
 			try {
-				const result = await call(`${API}.get_app_git_status`, { bench_name: b });
+				const result = await call(`${API}.get_app_git_status`, { bench_name: b, site_name: this.site });
 				this.appGitStatus = Array.isArray(result) ? result : [];
 				this.gitStatusAge = 'Updated just now';
 				this.appGitStatus.forEach(a => { if (!this.pushMessages[a.app]) this.pushMessages[a.app] = 'WIP'; });
