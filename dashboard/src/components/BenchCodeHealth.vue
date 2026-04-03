@@ -391,9 +391,9 @@
 <script>
 import { call } from 'frappe-ui';
 import * as d3 from 'd3';
+import { renderCirclePack, drawRadar } from './health-d3.js';
 
 const API = 'press.press.doctype.bench.bench_code_health';
-const COLORS = { clean: '#3fb950', warning: '#d29922', violation: '#f85149', 'non-code': '#484f58' };
 const DIMS = ['CLAUDE', 'README', 'Docs', 'Tests', 'Clean', 'Patterns', 'Lessons', 'Security'];
 const DIM_KEYS = ['claude_md', 'readme', 'documentation', 'tests', 'clean_code', 'code_patterns', 'lessons', 'security'];
 
@@ -402,9 +402,6 @@ export default {
 	props: {
 		benchName: { type: String, required: true },
 		autoScan: { type: Boolean, default: false },
-	},
-	mounted() {
-		if (this.autoScan) this.scan();
 	},
 	data() {
 		return {
@@ -437,9 +434,15 @@ export default {
 				{ ext: '.md', color: '#8b949e', bg: 'rgba(139,148,158,0.1)', active: false, count: 0 },
 			],
 			visibleFiles: 0, totalFiles: 0,
-			_focus: null, _packed: null, _view: null, _els: null, _leaves: null,
+			_cpInstance: null,
 			DIMS, DIM_KEYS,
 		};
+	},
+	mounted() {
+		if (this.autoScan) this.scan();
+	},
+	beforeUnmount() {
+		if (this._cpInstance) { this._cpInstance.destroy(); this._cpInstance = null; }
 	},
 	computed: {
 		complianceHeaders() {
@@ -461,10 +464,9 @@ export default {
 			if (this.summary?.security_alerts > 0)
 				items.push({ sev: 'high', text: `${this.summary.security_alerts} files with potential hardcoded secrets` });
 			if (this.summary?.violation > 0)
-				items.push({ sev: 'high', text: `${this.summary.violation} files exceed 700 lines — need splitting` });
+				items.push({ sev: 'high', text: `${this.summary.violation} files exceed 700 lines` });
 			if (this.summary?.warning > 0)
-				items.push({ sev: 'warn', text: `${this.summary.warning} files in warning zone (500-700 lines)` });
-			// Missing docs from compliance
+				items.push({ sev: 'warn', text: `${this.summary.warning} files in warning zone (500-700)` });
 			for (const app of this.compliance) {
 				const missing = app.checks.filter(c => !c.status).map(c => c.name);
 				if (missing.length > 0)
@@ -477,48 +479,44 @@ export default {
 		hc(pct) { return pct >= 80 ? '#3fb950' : pct >= 50 ? '#d29922' : '#f85149'; },
 		avgDimScore(dimIdx) {
 			if (!this.appScores.length) return 0;
-			const key = DIM_KEYS[dimIdx];
-			return Math.round(this.appScores.reduce((s, a) => s + (a.scores[key] || 0), 0) / this.appScores.length);
+			return Math.round(this.appScores.reduce((s, a) => s + (a.scores[DIM_KEYS[dimIdx]] || 0), 0) / this.appScores.length);
 		},
 		dimAppCount(dimIdx) {
-			const key = DIM_KEYS[dimIdx];
-			return this.appScores.filter(a => (a.scores[key] || 0) >= 50).length;
+			return this.appScores.filter(a => (a.scores[DIM_KEYS[dimIdx]] || 0) >= 50).length;
 		},
 		toggleFilter(f) {
 			f.active = !f.active;
 			this.applyFilters();
 		},
 		applyFilters() {
-			if (!this._leaves || !this._els) return;
-			const activeHealth = new Set(this.healthFilters.filter(f => f.active).map(f => f.key));
-			const activeExt = new Set(this.extFilters.filter(f => f.active).map(f => f.ext));
-			let visible = 0;
-			this._els.files.each(function(d) {
-				const h = d.data.health || 'non-code';
-				const ext = d.data.ext || '';
-				const show = activeHealth.has(h) && (activeExt.has(ext) || (!ext && activeHealth.has('non-code')));
-				d3.select(this).attr('opacity', show ? (h === 'non-code' ? 0.35 : 0.8) : 0.03);
-				if (show) visible++;
-			});
-			this.visibleFiles = visible;
+			if (!this._cpInstance) return;
+			this.visibleFiles = this._cpInstance.applyFilters(this.healthFilters, this.extFilters);
 		},
 		async scan() {
 			if (this.scanning) return;
 			this.scanning = true;
 			try {
-				this.scanStep = 'summary + health data';
-				const [summary, health, scores, comp] = await Promise.all([
-					call(`${API}.get_health_summary`, { bench_name: this.benchName }),
-					call(`${API}.scan_bench_health`, { bench_name: this.benchName }),
+				// Step 1: Quick summary (fast — single docker command)
+				this.scanStep = '1/4 — health summary';
+				this.summary = await call(`${API}.get_health_summary`, { bench_name: this.benchName });
+
+				// Step 2: File tree (moderate — single find+wc)
+				this.scanStep = '2/4 — file health map';
+				this.healthData = await call(`${API}.scan_bench_health`, { bench_name: this.benchName });
+				this.$nextTick(() => this.initCirclePack());
+
+				// Step 3: Scores + compliance (heavy — many docker calls, sequential)
+				this.scanStep = '3/4 — app scores + compliance';
+				const [scores, comp] = await Promise.all([
 					call(`${API}.get_app_scores`, { bench_name: this.benchName, include_all: true }),
 					call(`${API}.get_docs_compliance`, { bench_name: this.benchName }),
 				]);
-				this.summary = summary;
-				this.healthData = health;
 				this.appScores = scores;
 				this.compliance = comp;
+				this.$nextTick(() => { this.renderRadars(); this.renderOverallRadar(); });
 
-				this.scanStep = 'stack + interactions + scripts';
+				// Step 4: Stack + interactions + scripts
+				this.scanStep = '4/4 — stack info + interactions';
 				const [stack, inter, scripts] = await Promise.all([
 					call(`${API}.get_app_stack_info`, { bench_name: this.benchName }),
 					call(`${API}.get_app_interactions`, { bench_name: this.benchName }),
@@ -527,142 +525,50 @@ export default {
 				this.stackInfo = stack;
 				this.interactions = inter;
 				this.scriptsInventory = scripts;
-
 				this.lastScanAge = 'Scanned just now';
-				this.$nextTick(() => {
-					this.renderCirclePack();
-					this.renderRadars();
-					this.renderOverallRadar();
-				});
 			} catch (e) {
 				console.error('Scan failed:', e);
+				this.scanStep = 'Error: ' + (e?.messages?.[0] || String(e));
 			} finally {
 				this.scanning = false;
 			}
 		},
-		renderCirclePack() {
+		initCirclePack() {
 			if (!this.healthData || !this.$refs.circlePack) return;
-			const svg = d3.select(this.$refs.circlePack);
-			const el = this.$refs.circlePack;
-			const w = el.clientWidth, h = el.clientHeight;
-			svg.selectAll('*').remove();
-			svg.attr('viewBox', [-w/2, -h/2, w, h]).style('cursor', 'pointer');
-
-			const hier = d3.hierarchy(this.healthData)
-				.sum(d => d.children ? 0 : Math.max(d.lines || 1, 4))
-				.sort((a, b) => (b.value || 0) - (a.value || 0));
-			const packed = d3.pack().size([w-4, h-4]).padding(3)(hier);
-
-			this._packed = packed;
-			this._focus = packed;
-			this._view = [packed.x, packed.y, packed.r * 2];
-			this._leaves = packed.leaves();
-
-			// Count filters
+			if (this._cpInstance) this._cpInstance.destroy();
+			this._cpInstance = renderCirclePack(this.$refs.circlePack, this.healthData, {
+				tooltip: this.$refs.tooltip, sidebar: this.$refs.sidebar, breadcrumb: this.$refs.breadcrumb,
+			});
+			// Update filter counts from leaves
 			const hCounts = { clean: 0, warning: 0, violation: 0, 'non-code': 0 };
 			const eCounts = {};
-			this._leaves.forEach(d => {
+			this._cpInstance.leaves.forEach(d => {
 				hCounts[d.data.health || 'non-code'] = (hCounts[d.data.health || 'non-code'] || 0) + 1;
 				eCounts[d.data.ext || ''] = (eCounts[d.data.ext || ''] || 0) + 1;
 			});
 			this.healthFilters.forEach(f => { f.count = hCounts[f.key] || 0; });
 			this.extFilters.forEach(f => { f.count = eCounts[f.ext] || 0; });
-			this.totalFiles = this._leaves.length;
-
-			const dirs = svg.append('g').selectAll('circle')
-				.data(packed.descendants().filter(d => d.children)).join('circle')
-				.attr('fill', 'none')
-				.attr('stroke', d => { const p = d.data.health_pct || 0; return p >= 80 ? '#238636' : p >= 50 ? '#9e6a03' : '#da3633'; })
-				.attr('stroke-width', d => d.depth < 1 ? 2 : 1).attr('stroke-opacity', 0.5)
-				.style('cursor', 'pointer')
-				.on('click', (e, d) => { e.stopPropagation(); this._zoom(d); });
-
-			const tt = this.$refs.tooltip;
-			const sb = this.$refs.sidebar;
-			const ctr = el.parentElement;
-			const files = svg.append('g').selectAll('circle')
-				.data(packed.leaves()).join('circle')
-				.attr('fill', d => COLORS[d.data.health] || '#484f58')
-				.attr('fill-opacity', d => d.data.health === 'non-code' ? 0.35 : 0.8)
-				.attr('stroke', d => d.data.health === 'violation' ? '#f85149' : 'none').attr('stroke-width', 2)
-				.style('cursor', 'pointer')
-				.on('mouseover', (e, d) => { const c = COLORS[d.data.health] || '#8b949e'; tt.innerHTML = `<div class="font-semibold text-white">${d.data.name}</div><div class="text-gray-400">${d.data.lines||0} lines</div><div class="mt-1 font-semibold" style="color:${c}">${(d.data.health||'').toUpperCase()}</div>`; tt.classList.remove('hidden'); })
-				.on('mousemove', (e) => { const r = ctr.getBoundingClientRect(); tt.style.left = (e.clientX-r.left+12)+'px'; tt.style.top = (e.clientY-r.top-10)+'px'; })
-				.on('mouseout', () => { tt.classList.add('hidden'); })
-				.on('click', (e, d) => { e.stopPropagation(); if (d.parent && d.parent !== this._focus) this._zoom(d.parent); this._showSidebar(d, sb); });
-
-			const labels = svg.append('g').selectAll('text')
-				.data(packed.descendants().filter(d => d.children && d.depth > 0)).join('text')
-				.attr('text-anchor', 'middle').attr('fill', '#8b949e').attr('pointer-events', 'none');
-
-			svg.on('click', () => { if (this._focus?.parent) this._zoom(this._focus.parent); else this._zoom(packed); sb.classList.add('hidden'); });
-			svg.on('wheel', (e) => { e.preventDefault(); e.deltaY < 0 ? this.zoomIn() : this.zoomOut(); });
-
-			this._els = { svg, dirs, files, labels, w };
-			this._zoomTo(this._view);
+			this.totalFiles = this._cpInstance.leaves.length;
 			this.applyFilters();
 		},
-		_zoomTo(v) {
-			const { dirs, files, labels, w } = this._els;
-			const k = w / v[2]; this._view = v;
-			dirs.attr('cx', d => (d.x-v[0])*k).attr('cy', d => (d.y-v[1])*k).attr('r', d => d.r*k);
-			files.attr('cx', d => (d.x-v[0])*k).attr('cy', d => (d.y-v[1])*k).attr('r', d => d.r*k);
-			labels.attr('x', d => (d.x-v[0])*k).attr('y', d => ((d.y-d.r)-v[1])*k+12)
-				.attr('font-size', d => Math.max(7, Math.min(12, d.r*k/4)))
-				.attr('display', d => d.r*k > 25 ? 'block' : 'none').text(d => d.data.name);
-		},
-		_zoom(d) {
-			this._focus = d;
-			const svg = this._els.svg;
-			svg.transition().duration(400).tween('z', () => {
-				const i = d3.interpolateZoom(this._view, [d.x, d.y, d.r * 4]);
-				return t => this._zoomTo(i(t));
-			});
-			// Update breadcrumb
-			const bc = this.$refs.breadcrumb;
-			if (bc) {
-				const nodes = []; let n = d; while (n) { nodes.unshift(n); n = n.parent; }
-				this._bcNodes = nodes;
-				bc.innerHTML = nodes.map((nd, idx) =>
-					`<span style="cursor:pointer" data-bc-idx="${idx}">${nd.data.name}</span>`
-				).join(' <span style="color:#8b949e">/</span> ');
-				bc.querySelectorAll('[data-bc-idx]').forEach(el => {
-					el.onclick = (e) => { e.stopPropagation(); this._zoom(this._bcNodes[parseInt(el.dataset.bcIdx)]); };
-				});
-			}
-		},
-		_showSidebar(d, sb) {
-			const c = COLORS[d.data.health] || '#8b949e';
-			const path = []; let n = d; while (n.parent) { path.unshift(n.data.name); n = n.parent; }
-			sb.innerHTML = `<div class="flex justify-between items-center mb-2"><span class="font-semibold text-white text-sm">${d.data.name}</span><button onclick="this.parentElement.parentElement.classList.add('hidden')" class="text-gray-400 text-lg">&times;</button></div>`
-				+ `<div class="text-[10px] text-gray-500 break-all mb-3">${path.join('/')}</div>`
-				+ `<div class="flex justify-between py-1.5 border-b border-gray-800 text-xs"><span class="text-gray-500">Lines</span><span>${d.data.lines||0}</span></div>`
-				+ `<div class="flex justify-between py-1.5 border-b border-gray-800 text-xs"><span class="text-gray-500">Extension</span><span>${d.data.ext||'—'}</span></div>`
-				+ `<div class="flex justify-between py-1.5 border-b border-gray-800 text-xs"><span class="text-gray-500">Health</span><span style="color:${c}" class="font-semibold">${(d.data.health||'').toUpperCase()}</span></div>`
-				+ (d.data.lines > 700 ? '<div class="mt-3 rounded bg-red-900/30 border border-red-500 p-2 text-xs text-red-400 font-semibold">MUST SPLIT — exceeds 700 lines</div>' : '')
-				+ (d.data.lines > 500 && d.data.lines <= 700 ? '<div class="mt-3 rounded bg-yellow-900/30 border border-yellow-500 p-2 text-xs text-yellow-400 font-semibold">Plan split — approaching limit</div>' : '');
-			sb.classList.remove('hidden');
-		},
-		zoomIn() { if (this._focus?.children && this._els) { const b = this._focus.children.reduce((a, c) => (c.value||0) > (a.value||0) ? c : a); this._zoom(b); } },
-		zoomOut() { if (this._focus?.parent && this._els) this._zoom(this._focus.parent); },
-		zoomReset() { if (this._packed && this._els) this._zoom(this._packed); },
+		zoomIn() { this._cpInstance?.zoomIn(); },
+		zoomOut() { this._cpInstance?.zoomOut(); },
+		zoomReset() { this._cpInstance?.zoomReset(); },
 		renderRadars() {
 			for (const app of this.appScores) {
 				const ref = this.$refs['radar-' + app.app];
 				const el = Array.isArray(ref) ? ref[0] : ref;
 				if (!el) continue;
-				this._drawRadar(d3.select(el), DIM_KEYS.map(k => app.scores[k] || 0), 220, 220);
+				drawRadar(d3.select(el), DIM_KEYS.map(k => app.scores[k] || 0), 220, 220, DIMS);
 			}
 		},
 		renderOverallRadar() {
 			const el = this.$refs.radarOverall;
 			if (!el || !this.appScores.length) return;
-			const avg = DIM_KEYS.map((k, i) => this.avgDimScore(i));
-			this._drawRadar(d3.select(el), avg, 280, 280);
+			drawRadar(d3.select(el), DIM_KEYS.map((_, i) => this.avgDimScore(i)), 280, 280, DIMS);
 		},
 		async runDeepAnalysis(app) {
 			const gitUrl = app.repository ? `https://github.com/${app.repository}` : '';
-			const commit = app.commit_hash || 'HEAD';
 			if (!gitUrl) {
 				this.deepAnalysis = { ...this.deepAnalysis, [app.app]: { error: 'No git remote found for this app' } };
 				this.deepSelectedApp = app.app;
@@ -672,7 +578,7 @@ export default {
 			this.deepLoading = app.app;
 			try {
 				const result = await call('press.press.doctype.bench.health_analysis.analyze_app_code', {
-					git_url: gitUrl, commit_hash: commit, output_format: 'both',
+					git_url: gitUrl, commit_hash: app.commit_hash || 'HEAD', output_format: 'both',
 				});
 				this.deepAnalysis = { ...this.deepAnalysis, [app.app]: result };
 			} catch (e) {
@@ -680,17 +586,6 @@ export default {
 			} finally {
 				this.deepLoading = '';
 			}
-		},
-		_drawRadar(svg, scores, w, h) {
-			svg.selectAll('*').remove();
-			const cx = w/2, cy = h/2, r = Math.min(w, h)/2 - 20;
-			const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);
-			const n = DIMS.length, a = 2 * Math.PI / n;
-			[0.25,0.5,0.75,1].forEach(l => g.append('circle').attr('r', r*l).attr('fill','none').attr('stroke','#e5e7eb').attr('stroke-width',0.5));
-			DIMS.forEach((d, i) => { const an = a*i - Math.PI/2; g.append('line').attr('x1',0).attr('y1',0).attr('x2',r*Math.cos(an)).attr('y2',r*Math.sin(an)).attr('stroke','#e5e7eb').attr('stroke-width',0.5); g.append('text').attr('x',(r+14)*Math.cos(an)).attr('y',(r+14)*Math.sin(an)).attr('text-anchor','middle').attr('dominant-baseline','middle').attr('fill','#9ca3af').attr('font-size',8).text(d); });
-			const pts = scores.map((s, i) => { const an = a*i - Math.PI/2; return [r*(s/100)*Math.cos(an), r*(s/100)*Math.sin(an)]; }); pts.push(pts[0]);
-			g.append('path').datum(pts).attr('d', d3.line().x(d=>d[0]).y(d=>d[1])).attr('fill','rgba(59,130,246,0.15)').attr('stroke','#3b82f6').attr('stroke-width',1.5);
-			scores.forEach((s, i) => { const an = a*i - Math.PI/2; g.append('circle').attr('cx',r*(s/100)*Math.cos(an)).attr('cy',r*(s/100)*Math.sin(an)).attr('r',3).attr('fill', s>=80?'#22c55e':s>=50?'#eab308':'#ef4444'); });
 		},
 	},
 };
