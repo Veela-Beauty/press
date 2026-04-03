@@ -442,6 +442,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
             <!-- Tabs -->
             <div class="detail-tabs">
               <div class="detail-tab active" onclick="switchTab(this,'tab-quotas-1')">Quotas & Features</div>
+              <div class="detail-tab" onclick="switchTab(this,'tab-ai-rules-1')">AI Rules</div>
               <div class="detail-tab" onclick="switchTab(this,'tab-members-1')">Members (1)</div>
               <div class="detail-tab" onclick="switchTab(this,'tab-sites-1')">Sites (11)</div>
               <div class="detail-tab" onclick="switchTab(this,'tab-benches-1')">Benches (5)</div>
@@ -539,6 +540,75 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
             </div>
 
             <!-- Tab: Members -->
+            <!-- Tab: AI Rules (team override) -->
+            <div id="tab-ai-rules-1" class="hidden">
+              <div class="banner info" style="margin-bottom:14px"><i class="fa fa-lightbulb-o"></i><span><strong>Team overrides</strong> — these settings override role defaults for this team only. Leave empty to use role defaults.</span></div>
+
+              <div class="section-title"><i class="fa fa-sliders"></i> Token & Access Overrides</div>
+              <div class="quota-grid" style="margin-bottom:16px">
+                <div class="quota-card">
+                  <div class="quota-label">Team Token Cap / Day</div>
+                  <div style="margin-top:6px">
+                    <input type="number" value="" placeholder="Use role default" style="width:100%;padding:6px 10px;border:1px solid var(--ab-block-border);border-radius:4px;font-size:13px">
+                  </div>
+                  <div style="font-size:10px;color:var(--ab-text-muted);margin-top:4px">Role default: Developer=100K, Implementor=50K</div>
+                </div>
+                <div class="quota-card">
+                  <div class="quota-label">AI on Production Sites</div>
+                  <div style="margin-top:6px">
+                    <select style="width:100%;padding:6px 10px;border:1px solid var(--ab-block-border);border-radius:4px;font-size:13px">
+                      <option value="">Use role default (Blocked)</option>
+                      <option value="blocked">Blocked</option>
+                      <option value="readonly">Read-only</option>
+                      <option value="full">Full Access</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="quota-card">
+                  <div class="quota-label">Review Before Apply</div>
+                  <div style="margin-top:6px">
+                    <select style="width:100%;padding:6px 10px;border:1px solid var(--ab-block-border);border-radius:4px;font-size:13px">
+                      <option value="">Use role default</option>
+                      <option value="mandatory">Mandatory</option>
+                      <option value="recommended">Recommended</option>
+                      <option value="optional">Optional</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="section-title"><i class="fa fa-ban"></i> Team-Specific Blocks</div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
+                <label class="site-type-check"><input type="checkbox"> Block raw SQL on this team</label>
+                <label class="site-type-check checked"><input type="checkbox" checked> Block AI on production sites</label>
+                <label class="site-type-check"><input type="checkbox"> Block app install/uninstall via AI</label>
+                <label class="site-type-check"><input type="checkbox"> Require TL approval for all actions</label>
+              </div>
+
+              <div class="section-title"><i class="fa fa-users"></i> Per-Member Token Overrides</div>
+              <table class="mini-table">
+                <thead><tr><th>Member</th><th>Role</th><th>Role Default</th><th>Override Cap</th><th>Today's Usage</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td style="font-weight:500">eng.elgogary@gmail.com</td>
+                    <td><span class="badge" style="background:var(--ab-purple-bg);color:var(--ab-purple-text)">Platform Admin</span></td>
+                    <td style="font-size:12px;color:var(--ab-text-muted)">Unlimited</td>
+                    <td><input type="number" value="" placeholder="—" style="width:70px;padding:3px 6px;font-size:12px;border:1px solid var(--ab-block-border);border-radius:4px;text-align:center"></td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <div class="progress-thin" style="width:60px"><div class="fill red" style="width:89%"></div></div>
+                        <span style="font-size:11px;color:var(--ab-danger-text)">89K</span>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div style="margin-top:12px;text-align:right">
+                <button class="btn btn-sm btn-primary"><i class="fa fa-save"></i> Save AI Overrides</button>
+              </div>
+            </div>
+
             <div id="tab-members-1" class="hidden">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
                 <div class="section-title" style="margin-bottom:0"><i class="fa fa-users"></i> Team Members</div>
@@ -849,6 +919,84 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
       <div class="rule-body"><div class="rule-title">Production data in prompt blocked</div><div class="rule-desc">PII detection in context — real emails, phone, amounts — block + alert.</div></div>
       <div class="rule-actions"><span class="badge" style="background:var(--ab-danger-bg);color:var(--ab-danger-text)">Hard block</span></div>
     </div>
+  </div>
+
+  <!-- Role-Level AI Rules -->
+  <div class="ai-card">
+    <div class="ai-card-head">
+      <div><div class="ai-card-title"><i class="fa fa-id-badge" style="color:var(--ab-primary);margin-right:4px"></i> Role-Level AI Limits</div>
+        <div style="font-size:11px;color:var(--ab-text-muted);margin-top:2px">Defaults per role — teams can override these in their expanded settings</div>
+      </div>
+      <button class="btn btn-sm btn-primary"><i class="fa fa-plus"></i> Add Role</button>
+    </div>
+    <table class="mini-table">
+      <thead>
+        <tr>
+          <th>Role</th>
+          <th>Token Cap / Day</th>
+          <th>AI on Prod Sites</th>
+          <th>Review Required</th>
+          <th>Escalation Level</th>
+          <th>Features</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="badge" style="background:var(--ab-purple-bg);color:var(--ab-purple-text)">Platform Admin</span></td>
+          <td><input type="number" value="0" style="width:70px;padding:3px 6px;font-size:12px;border:1px solid var(--ab-block-border);border-radius:4px;text-align:center"> <span style="font-size:10px;color:var(--ab-text-muted)">0=unlimited</span></td>
+          <td><span class="badge active">Full Access</span></td>
+          <td><span style="font-size:11px;color:var(--ab-text-muted)">Optional</span></td>
+          <td><span style="font-size:11px">Direct execute</span></td>
+          <td><span style="font-size:11px;color:var(--ab-text-muted)">All</span></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:var(--ab-info-bg);color:var(--ab-info-text)">DevOps Admin</span></td>
+          <td><input type="number" value="200000" style="width:70px;padding:3px 6px;font-size:12px;border:1px solid var(--ab-block-border);border-radius:4px;text-align:center"></td>
+          <td><span class="badge" style="background:var(--ab-warning-bg);color:var(--ab-warning-text)">Read-only</span></td>
+          <td><span style="font-size:11px">Recommended</span></td>
+          <td><span style="font-size:11px">Skip TL → Admin</span></td>
+          <td><span style="font-size:11px;color:var(--ab-text-muted)">All</span></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:var(--ab-info-bg);color:var(--ab-info-text)">DevOps User</span></td>
+          <td><input type="number" value="100000" style="width:70px;padding:3px 6px;font-size:12px;border:1px solid var(--ab-block-border);border-radius:4px;text-align:center"></td>
+          <td><span class="badge blocked">Blocked</span></td>
+          <td><span style="font-size:11px">Mandatory</span></td>
+          <td><span style="font-size:11px">User → TL → Admin</span></td>
+          <td><span style="font-size:11px;color:var(--ab-text-muted)">Deploy, Logs</span></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:var(--ab-success-bg);color:var(--ab-success-text)">Developer</span></td>
+          <td><input type="number" value="100000" style="width:70px;padding:3px 6px;font-size:12px;border:1px solid var(--ab-block-border);border-radius:4px;text-align:center"></td>
+          <td><span class="badge blocked">Blocked</span></td>
+          <td><span style="font-size:11px">Recommended</span></td>
+          <td><span style="font-size:11px">User → TL → Admin</span></td>
+          <td><span style="font-size:11px;color:var(--ab-text-muted)">Code, Dev Tools</span></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:var(--ab-warning-bg);color:var(--ab-warning-text)">Implementor</span></td>
+          <td><input type="number" value="50000" style="width:70px;padding:3px 6px;font-size:12px;border:1px solid var(--ab-block-border);border-radius:4px;text-align:center"></td>
+          <td><span class="badge blocked">Blocked</span></td>
+          <td><span class="badge" style="background:var(--ab-danger-bg);color:var(--ab-danger-text)">Mandatory</span></td>
+          <td><span style="font-size:11px">User → TL → Admin</span></td>
+          <td><span style="font-size:11px;color:var(--ab-text-muted)">Sites, Config</span></td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="background:var(--ab-gray-bg);color:var(--ab-gray-text)">Viewer</span></td>
+          <td><input type="number" value="0" style="width:70px;padding:3px 6px;font-size:12px;border:1px solid var(--ab-block-border);border-radius:4px;text-align:center"> <span style="font-size:10px;color:var(--ab-text-muted)">disabled</span></td>
+          <td><span class="badge blocked">Blocked</span></td>
+          <td><span style="font-size:11px;color:var(--ab-text-muted)">N/A</span></td>
+          <td><span style="font-size:11px;color:var(--ab-text-muted)">N/A</span></td>
+          <td><span style="font-size:11px;color:var(--ab-text-muted)">Read-only</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="margin-top:10px;text-align:right"><button class="btn btn-sm btn-primary"><i class="fa fa-save"></i> Save Role Defaults</button></div>
+  </div>
+
+  <div class="banner info" style="margin-top:0">
+    <i class="fa fa-lightbulb-o"></i>
+    <span><strong>Resolution order:</strong> Team override > Role default > Global default. If a team sets a custom token cap, it overrides the role. If not, the role default applies.</span>
   </div>
 </div>
 
