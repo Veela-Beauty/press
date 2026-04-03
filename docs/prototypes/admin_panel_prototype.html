@@ -185,6 +185,60 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
           border-radius: 6px; font-size: 12px; margin-bottom: 14px; line-height: 1.5; }
 .banner.info { background: var(--ab-info-bg); border: 1px solid var(--ab-info-border); color: var(--ab-info-text); }
 .banner.warning { background: var(--ab-warning-bg); border: 1px solid #ffc107; color: var(--ab-warning-text); }
+
+/* Main Tabs */
+.main-tab { padding: 10px 18px; font-size: 13px; font-weight: 500; color: var(--ab-text-muted);
+            cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px;
+            display: flex; align-items: center; gap: 6px; transition: all 0.15s; }
+.main-tab:hover { color: var(--ab-heading-color); }
+.main-tab.active { color: var(--ab-primary); border-bottom-color: var(--ab-primary); }
+.main-tab-panel { display: none; }
+.main-tab-panel.active { display: block; }
+
+/* AI Governance styles */
+.ai-card { background: #fff; border: 1px solid var(--ab-block-border-light); border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; }
+.ai-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.ai-card-title { font-size: 13px; font-weight: 600; color: var(--ab-heading-color); }
+.rule-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--ab-block-border-subtle); }
+.rule-row:last-child { border-bottom: none; }
+.rule-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center;
+             justify-content: center; flex-shrink: 0; font-size: 12px; font-weight: 700; }
+.rule-icon.block { background: var(--ab-danger-bg); color: var(--ab-danger-text); }
+.rule-icon.warn { background: var(--ab-warning-bg); color: var(--ab-warning-text); }
+.rule-icon.info-icon { background: var(--ab-info-bg); color: var(--ab-info-text); }
+.rule-body { flex: 1; }
+.rule-title { font-size: 12px; font-weight: 600; color: var(--ab-heading-color); margin-bottom: 2px; }
+.rule-desc { font-size: 11px; color: var(--ab-text-muted); line-height: 1.5; }
+.rule-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.toggle-sw { position: relative; width: 36px; height: 20px; display: inline-block; cursor: pointer; }
+.toggle-sw input { display: none; }
+.toggle-sw .track { position: absolute; inset: 0; border-radius: 10px; background: var(--ab-block-border); transition: background 0.2s; }
+.toggle-sw input:checked + .track { background: #28a745; }
+.toggle-sw .knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+                    background: #fff; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.toggle-sw input:checked ~ .knob { transform: translateX(16px); }
+.alert-row-ai { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px;
+                border-radius: 6px; margin-bottom: 8px; border: 1px solid; }
+.alert-row-ai.danger { background: var(--ab-danger-bg); border-color: #e5a0a0; }
+.alert-row-ai.warn { background: var(--ab-warning-bg); border-color: #ffc107; }
+.progress-thin { height: 4px; border-radius: 2px; background: var(--ab-block-border-light); overflow: hidden; }
+.progress-thin .fill { height: 100%; border-radius: 2px; }
+.fill.green { background: #28a745; }
+.fill.yellow { background: #ffc107; }
+.fill.red { background: #dc3545; }
+.esc-step { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--ab-block-border-subtle); }
+.esc-step:last-child { border-bottom: none; }
+.esc-num { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center;
+           justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
+.esc-num.done { background: var(--ab-success-bg); color: var(--ab-success-text); }
+.esc-num.pending { background: var(--ab-warning-bg); color: var(--ab-warning-text); }
+.esc-num.gray { background: var(--ab-gray-bg); color: var(--ab-gray-text); }
+.esc-num.blocked { background: var(--ab-danger-bg); color: var(--ab-danger-text); }
+.usage-row { display: grid; grid-template-columns: 140px 1fr 80px 80px; gap: 10px;
+             align-items: center; padding: 8px 0; border-bottom: 1px solid var(--ab-block-border-subtle); font-size: 12px; }
+.usage-row:last-child { border-bottom: none; }
+.policy-block { border: 1px solid var(--ab-block-border-light); border-radius: 6px; padding: 12px 14px; margin-bottom: 10px; }
+.policy-cat { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--ab-text-muted); margin-bottom: 8px; }
 </style>
 </head>
 <body>
@@ -203,7 +257,17 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
   </div>
 </div>
 
-<div class="page-content">
+<!-- Main Tabs -->
+<div style="display:flex;border-bottom:2px solid var(--ab-block-border-light);background:#fff;padding:0 24px">
+  <div class="main-tab active" onclick="switchMainTab(this,'tab-teams')"><i class="fa fa-users"></i> Teams</div>
+  <div class="main-tab" onclick="switchMainTab(this,'tab-servers')"><i class="fa fa-server"></i> Servers</div>
+  <div class="main-tab" onclick="switchMainTab(this,'tab-ai')"><i class="fa fa-robot"></i> AI Governance <span style="background:var(--ab-danger-bg);color:var(--ab-danger-text);font-size:9px;padding:1px 5px;border-radius:8px;margin-left:4px">2</span></div>
+  <div class="main-tab" onclick="switchMainTab(this,'tab-escalations')"><i class="fa fa-exclamation-circle"></i> Escalations <span style="background:var(--ab-warning-bg);color:var(--ab-warning-text);font-size:9px;padding:1px 5px;border-radius:8px;margin-left:4px">1</span></div>
+  <div class="main-tab" onclick="switchMainTab(this,'tab-usage')"><i class="fa fa-bar-chart"></i> Usage & Cost</div>
+  <div class="main-tab" onclick="switchMainTab(this,'tab-policy')"><i class="fa fa-file-text-o"></i> Policy</div>
+</div>
+
+<div class="page-content" id="tab-teams">
 
   <!-- Quick Stats -->
   <div class="stats-grid">
@@ -664,6 +728,230 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     </tbody>
   </table>
 
+</div><!-- end tab-teams -->
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB: Servers (placeholder)
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="page-content main-tab-panel" id="tab-servers" style="text-align:center;padding:40px;color:var(--ab-text-muted)">
+  <i class="fa fa-server" style="font-size:32px;margin-bottom:12px;display:block"></i>
+  Servers tab — existing panel from Press dashboard
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB: AI Governance
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="page-content main-tab-panel" id="tab-ai">
+  <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+    <div class="stat-card"><div class="stat-label">Active AI Users</div><div class="stat-value">14</div><div class="stat-sub">of 30 team members</div></div>
+    <div class="stat-card"><div class="stat-label">Tokens Today</div><div class="stat-value" style="color:#ffc107">2.4M</div><div class="stat-sub">78% of daily pool</div></div>
+    <div class="stat-card"><div class="stat-label">Blocked Actions</div><div class="stat-value" style="color:var(--ab-danger-text)">3</div><div class="stat-sub">linter catches today</div></div>
+    <div class="stat-card"><div class="stat-label">Open Escalations</div><div class="stat-value" style="color:#ffc107">1</div><div class="stat-sub">pending TL review</div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <!-- Anomaly Alerts -->
+    <div class="ai-card">
+      <div class="ai-card-head"><div class="ai-card-title">Anomaly Alerts</div><span class="badge" style="background:var(--ab-warning-bg);color:var(--ab-warning-text)">2 active</span></div>
+      <div class="alert-row-ai danger">
+        <i class="fa fa-exclamation-triangle" style="color:var(--ab-danger-text);flex-shrink:0;margin-top:2px"></i>
+        <div style="flex:1;font-size:12px;color:var(--ab-danger-text)">
+          <strong>Spike detected</strong> — eslam@accuratesystems 3x normal usage in 1hr (890K tokens)<br>
+          <span style="font-size:11px;opacity:0.8">Branch: dev-payment-fix · Provider: Anthropic</span>
+        </div>
+        <div style="font-size:11px;color:var(--ab-text-muted)">14:33</div>
+      </div>
+      <div class="alert-row-ai warn">
+        <i class="fa fa-info-circle" style="color:var(--ab-warning-text);flex-shrink:0;margin-top:2px"></i>
+        <div style="flex:1;font-size:12px;color:var(--ab-warning-text)">
+          <strong>Repetition pattern</strong> — same prompt 7 times in 20 minutes<br>
+          <span style="font-size:11px;opacity:0.8">User: junior.dev@team · Possible workflow loop</span>
+        </div>
+        <div style="font-size:11px;color:var(--ab-text-muted)">15:01</div>
+      </div>
+    </div>
+
+    <!-- Token Pool -->
+    <div class="ai-card">
+      <div class="ai-card-head"><div class="ai-card-title">Token Pool — Today</div></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+        <span style="color:var(--ab-text-muted)">Global daily pool</span>
+        <span style="font-weight:600">3.08M / 4M tokens</span>
+      </div>
+      <div class="progress-thin"><div class="fill yellow" style="width:77%"></div></div>
+      <div style="font-size:11px;color:var(--ab-text-muted);margin-bottom:12px">Reset in 8h 44m · Anthropic + Z.AI combined</div>
+
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
+          <span style="color:var(--ab-text-muted)">eslam@accuratesystems</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="progress-thin" style="width:80px"><div class="fill red" style="width:89%"></div></div>
+            <span style="color:var(--ab-danger-text);font-weight:600;font-size:11px">89K/100K</span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
+          <span style="color:var(--ab-text-muted)">junior.dev@team</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="progress-thin" style="width:80px"><div class="fill yellow" style="width:62%"></div></div>
+            <span style="color:var(--ab-warning-text);font-weight:600;font-size:11px">62K/100K</span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
+          <span style="color:var(--ab-text-muted)">impl.user@team</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="progress-thin" style="width:80px"><div class="fill green" style="width:23%"></div></div>
+            <span style="color:var(--ab-success-text);font-weight:600;font-size:11px">23K/100K</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Rules -->
+  <div class="ai-card">
+    <div class="ai-card-head"><div class="ai-card-title">Global AI Rules — Technical</div><button class="btn btn-sm btn-primary">Edit Policy</button></div>
+    <div class="rule-row">
+      <div class="rule-icon block">X</div>
+      <div class="rule-body"><div class="rule-title">Raw SQL blocked</div><div class="rule-desc">frappe.db.sql() with DELETE / DROP / TRUNCATE — linter strips from response + escalation</div></div>
+      <div class="rule-actions"><span class="badge" style="background:var(--ab-danger-bg);color:var(--ab-danger-text)">Hard block</span></div>
+    </div>
+    <div class="rule-row">
+      <div class="rule-icon block">X</div>
+      <div class="rule-body"><div class="rule-title">App uninstall / destroy blocked</div><div class="rule-desc">bench uninstall-app, bench destroy, rm -rf — hard block in linter</div></div>
+      <div class="rule-actions"><span class="badge" style="background:var(--ab-danger-bg);color:var(--ab-danger-text)">Hard block</span></div>
+    </div>
+    <div class="rule-row">
+      <div class="rule-icon block">X</div>
+      <div class="rule-body"><div class="rule-title">Production sites — AI actions blocked</div><div class="rule-desc">Any Production site — AI panel is read-only, Apply button hidden</div></div>
+      <div class="rule-actions"><span class="badge" style="background:var(--ab-danger-bg);color:var(--ab-danger-text)">Hard block</span></div>
+    </div>
+    <div class="rule-row">
+      <div class="rule-icon warn">!</div>
+      <div class="rule-body"><div class="rule-title">Daily token cap per user</div><div class="rule-desc">Default 100K tokens/day. At 80% — warning. At 100% — block until next day.</div></div>
+      <div class="rule-actions"><input type="number" value="100000" style="width:80px;padding:4px 8px;font-size:12px;border:1px solid var(--ab-block-border);border-radius:4px;text-align:center"> <span style="font-size:11px;color:var(--ab-text-muted)">tokens</span></div>
+    </div>
+  </div>
+
+  <div class="ai-card">
+    <div class="ai-card-head"><div class="ai-card-title">Global AI Rules — Behavioral & Compliance</div></div>
+    <div class="rule-row">
+      <div class="rule-icon warn">!</div>
+      <div class="rule-body"><div class="rule-title">AI output review before apply</div><div class="rule-desc">Implementors: diff review mandatory. Developers: recommended. System logs "applied without review".</div></div>
+      <div class="rule-actions"><label class="toggle-sw"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></label></div>
+    </div>
+    <div class="rule-row">
+      <div class="rule-icon block">X</div>
+      <div class="rule-body"><div class="rule-title">Client code confidentiality</div><div class="rule-desc">All AI code sent via company key only. Personal key on client data — warning + log.</div></div>
+      <div class="rule-actions"><span class="badge" style="background:var(--ab-warning-bg);color:var(--ab-warning-text)">Soft block</span></div>
+    </div>
+    <div class="rule-row">
+      <div class="rule-icon block">X</div>
+      <div class="rule-body"><div class="rule-title">Production data in prompt blocked</div><div class="rule-desc">PII detection in context — real emails, phone, amounts — block + alert.</div></div>
+      <div class="rule-actions"><span class="badge" style="background:var(--ab-danger-bg);color:var(--ab-danger-text)">Hard block</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB: Escalations
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="page-content main-tab-panel" id="tab-escalations">
+  <div class="section-title" style="font-size:16px;margin-bottom:16px"><i class="fa fa-exclamation-circle" style="color:var(--ab-primary)"></i> Escalation Requests</div>
+
+  <div class="ai-card">
+    <div class="banner warning" style="margin-bottom:14px"><i class="fa fa-clock-o"></i><span><strong>ESC-2024-003</strong> — Escalation from junior.dev@team · Pending Team Leader review for 23 minutes</span></div>
+
+    <div class="esc-step">
+      <div class="esc-num done">1</div>
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600;margin-bottom:2px">User Request</div>
+        <div style="font-size:11px;color:var(--ab-text-muted);line-height:1.6">
+          <strong>junior.dev@team</strong> — 15:14:32<br>
+          Requested: <code style="font-size:11px;background:var(--ab-gray-bg);padding:1px 4px;border-radius:3px">frappe.db.sql("DELETE FROM tabPayment Entry WHERE status='Cancelled'")</code><br>
+          Reason: "Need to clean cancelled payments on dev site"<br>
+          <span style="color:var(--ab-danger-text)">Linter: Raw SQL DELETE detected — stripped from response + escalation started</span>
+        </div>
+      </div>
+    </div>
+    <div class="esc-step" id="esc-step-2">
+      <div class="esc-num pending">2</div>
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600;margin-bottom:2px">Team Leader Review — Pending</div>
+        <div style="font-size:11px;color:var(--ab-text-muted)">
+          TL: eslam@accuratesystems<br>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button class="btn btn-sm btn-success" onclick="approveEscalation()"><i class="fa fa-check"></i> Approve — escalate to Admin</button>
+            <button class="btn btn-sm btn-danger" onclick="rejectEscalation()"><i class="fa fa-times"></i> Reject</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="esc-step" id="esc-step-3">
+      <div class="esc-num gray">3</div>
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600;margin-bottom:2px">Admin Final Decision</div>
+        <div style="font-size:11px;color:var(--ab-text-muted)">Waiting for Team Leader approval. AI will NOT execute this action — execution is always manual.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB: Usage & Cost
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="page-content main-tab-panel" id="tab-usage">
+  <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+    <div class="stat-card"><div class="stat-label">Cost This Month (est.)</div><div class="stat-value">$47.20</div><div class="stat-sub">Anthropic $38 · Z.AI $9.20</div></div>
+    <div class="stat-card"><div class="stat-label">Total Tokens — April</div><div class="stat-value">68.4M</div><div class="stat-sub">Input 52M · Output 16.4M</div></div>
+    <div class="stat-card"><div class="stat-label">Sessions</div><div class="stat-value">284</div><div class="stat-sub">avg 12 min / session</div></div>
+  </div>
+
+  <div class="ai-card">
+    <div class="ai-card-head"><div class="ai-card-title">Usage by User — April 2026</div>
+      <select style="font-size:12px;padding:4px 8px;border:1px solid var(--ab-block-border);border-radius:4px"><option>This month</option><option>Last 7 days</option><option>Today</option></select>
+    </div>
+    <div style="display:grid;grid-template-columns:140px 1fr 80px 80px;gap:10px;padding:6px 0;font-size:11px;color:var(--ab-text-muted);font-weight:600;border-bottom:1px solid var(--ab-block-border-light)">
+      <span>User</span><span>Usage</span><span style="text-align:right">Tokens</span><span style="text-align:right">Est. cost</span>
+    </div>
+    <div class="usage-row"><div><div style="font-weight:600">eslam</div><div style="font-size:11px;color:var(--ab-text-muted)">Developer · Anthropic</div></div><div><div class="progress-thin"><div class="fill red" style="width:82%"></div></div></div><div style="text-align:right">24.1M</div><div style="text-align:right;color:var(--ab-text-muted)">$18.40</div></div>
+    <div class="usage-row"><div><div style="font-weight:600">junior.dev</div><div style="font-size:11px;color:var(--ab-text-muted)">Developer · Z.AI</div></div><div><div class="progress-thin"><div class="fill yellow" style="width:54%"></div></div></div><div style="text-align:right">15.8M</div><div style="text-align:right;color:var(--ab-text-muted)">$6.20</div></div>
+    <div class="usage-row"><div><div style="font-weight:600">impl.user</div><div style="font-size:11px;color:var(--ab-text-muted)">Implementor · Z.AI</div></div><div><div class="progress-thin"><div class="fill green" style="width:28%"></div></div></div><div style="text-align:right">8.2M</div><div style="text-align:right;color:var(--ab-text-muted)">$3.10</div></div>
+    <div class="usage-row"><div><div style="font-weight:600">impl.user2</div><div style="font-size:11px;color:var(--ab-text-muted)">Implementor · Z.AI</div></div><div><div class="progress-thin"><div class="fill green" style="width:18%"></div></div></div><div style="text-align:right">5.1M</div><div style="text-align:right;color:var(--ab-text-muted)">$1.90</div></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB: Policy
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="page-content main-tab-panel" id="tab-policy">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div><div class="section-title" style="margin-bottom:2px"><i class="fa fa-file-text-o" style="color:var(--ab-primary)"></i> AI Usage Policy</div><div style="font-size:12px;color:var(--ab-text-muted)">Official policy — every user must agree before using the AI tab</div></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-sm">Preview as user</button><button class="btn btn-sm btn-primary">Save & publish</button></div>
+  </div>
+
+  <div class="ai-card">
+    <div class="policy-block">
+      <div class="policy-cat">Technical Rules</div>
+      <div class="rule-row" style="padding:6px 0"><div class="rule-icon block" style="width:22px;height:22px;font-size:10px">X</div><div class="rule-body"><div class="rule-title" style="font-size:11px">Block Raw SQL (DELETE/DROP/TRUNCATE) — Hard block, cannot override</div></div></div>
+      <div class="rule-row" style="padding:6px 0"><div class="rule-icon block" style="width:22px;height:22px;font-size:10px">X</div><div class="rule-body"><div class="rule-title" style="font-size:11px">Block uninstall app / destroy / rm -rf via AI</div></div></div>
+      <div class="rule-row" style="padding:6px 0"><div class="rule-icon block" style="width:22px;height:22px;font-size:10px">X</div><div class="rule-body"><div class="rule-title" style="font-size:11px">Block AI modifications on Production sites — read-only panel</div></div></div>
+      <div class="rule-row" style="padding:6px 0;border-bottom:none"><div class="rule-icon warn" style="width:22px;height:22px;font-size:10px">!</div><div class="rule-body"><div class="rule-title" style="font-size:11px">Max 100K token/day — warning at 80%, block at 100%</div></div></div>
+    </div>
+    <div class="policy-block">
+      <div class="policy-cat">Behavioral Rules</div>
+      <div class="rule-row" style="padding:6px 0"><div class="rule-icon warn" style="width:22px;height:22px;font-size:10px">!</div><div class="rule-body"><div class="rule-title" style="font-size:11px">AI output must be reviewed before apply — mandatory for implementors</div></div></div>
+      <div class="rule-row" style="padding:6px 0;border-bottom:none"><div class="rule-icon block" style="width:22px;height:22px;font-size:10px">X</div><div class="rule-body"><div class="rule-title" style="font-size:11px">Do not share AI sessions or API keys with others</div></div></div>
+    </div>
+    <div class="policy-block">
+      <div class="policy-cat">Compliance Rules</div>
+      <div class="rule-row" style="padding:6px 0"><div class="rule-icon block" style="width:22px;height:22px;font-size:10px">X</div><div class="rule-body"><div class="rule-title" style="font-size:11px">Client code sent via company key only — personal key on client data blocked</div></div></div>
+      <div class="rule-row" style="padding:6px 0"><div class="rule-icon block" style="width:22px;height:22px;font-size:10px">X</div><div class="rule-body"><div class="rule-title" style="font-size:11px">Real production data (PII) blocked from any prompt or context</div></div></div>
+      <div class="rule-row" style="padding:6px 0;border-bottom:none"><div class="rule-icon info-icon" style="width:22px;height:22px;font-size:10px">i</div><div class="rule-body"><div class="rule-title" style="font-size:11px">Escalation requests require a written reason — logged in audit</div></div></div>
+    </div>
+    <div style="padding:12px;border:1px solid var(--ab-block-border-light);border-radius:6px;background:var(--ab-control-bg);font-size:12px;color:var(--ab-text-muted)">
+      <strong>User acknowledgment:</strong> When first opening the AI Dev tab, users must check: <em>"I have read and agree to the AI Usage Policy — v1.0 — April 2026"</em>. Cannot use AI panel without agreement. Recorded with timestamp in Press DB.
+    </div>
+  </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════
@@ -793,6 +1081,37 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </div>
 
 <script>
+function switchMainTab(el, tabId) {
+  document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  // Hide all tab panels
+  document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.main-tab-panel').forEach(p => p.style.display = 'none');
+  // Show the selected one
+  const panel = document.getElementById(tabId);
+  if (panel) {
+    panel.style.display = 'block';
+    panel.classList.add('active');
+  }
+}
+// Initialize: show teams tab
+document.getElementById('tab-teams').style.display = 'block';
+document.getElementById('tab-teams').classList.add('active');
+
+function approveEscalation() {
+  document.querySelector('#esc-step-2 .esc-num').className = 'esc-num done';
+  document.querySelector('#esc-step-2 .esc-num').textContent = '\u2713';
+  document.querySelector('#esc-step-2 div:last-child').innerHTML = '<div style="font-size:12px;font-weight:600;margin-bottom:2px">Team Leader Review — Approved</div><div style="font-size:11px;color:var(--ab-success-text)">Approved by eslam@accuratesystems — 15:38. "Dev site only, not production. OK to proceed."</div>';
+  document.querySelector('#esc-step-3 .esc-num').className = 'esc-num pending';
+  document.querySelector('#esc-step-3 div:last-child').innerHTML = '<div style="font-size:12px;font-weight:600;margin-bottom:2px">Admin Final Decision — Action Required</div><div style="font-size:11px;color:var(--ab-text-muted)">AI will NOT execute — execution is always manual.<br><div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-sm btn-success"><i class="fa fa-check"></i> Log manual execution</button><button class="btn btn-sm btn-danger"><i class="fa fa-times"></i> Reject</button></div></div>';
+}
+
+function rejectEscalation() {
+  document.querySelector('#esc-step-2 .esc-num').className = 'esc-num blocked';
+  document.querySelector('#esc-step-2 .esc-num').textContent = '\u2717';
+  document.querySelector('#esc-step-2 div:last-child').innerHTML = '<div style="font-size:12px;font-weight:600;margin-bottom:2px">Team Leader Review — Rejected</div><div style="font-size:11px;color:var(--ab-danger-text)">Rejected by eslam@accuratesystems — 15:38. "Use frappe.get_list() instead of raw SQL."</div>';
+}
+
 function toggleTeam(id) {
   const row = document.getElementById(id);
   if (row) row.classList.toggle('hidden');
