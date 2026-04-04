@@ -133,12 +133,19 @@ def process_ai_request(
 
 def _call_provider(prompt: str, api_key: str, provider: str,
                    context: dict | None = None) -> dict:
-    """Call the LLM provider. This is the only function that makes external calls.
+    """Call the LLM provider via provider.py (OpenRouter, Anthropic, OpenAI, Z.AI).
 
     Returns: {"text": str, "input_tokens": int, "output_tokens": int, "model": str}
-
-    In production this routes through LiteLLM. In tests it's mocked.
     """
-    raise NotImplementedError(
-        "Provider calls require LiteLLM. Install with: pip install litellm"
+    from press.press.ai.provider import call_provider
+
+    system_prompt = ""
+    if context and "system_prompt" in context:
+        system_prompt = context["system_prompt"]
+
+    return call_provider(
+        prompt=prompt,
+        api_key=api_key,
+        provider=provider,
+        system_prompt=system_prompt,
     )
