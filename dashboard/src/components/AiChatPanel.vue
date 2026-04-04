@@ -164,6 +164,8 @@
 </template>
 
 <script>
+import { call } from 'frappe-ui';
+
 export default {
 	name: 'AiChatPanel',
 	props: {
@@ -211,17 +213,14 @@ export default {
 			this.loading = true;
 
 			try {
-				const response = await this.$call(
-					'press.press.ai.api.chat',
-					{
-						prompt: text,
-						site_name: this.siteName,
-						bench_name: this.benchName,
-						site_type: this.siteType,
-						branch: this.branch,
-						session_id: this.sessionId,
-					}
-				);
+				const response = await call('press.api.ai_chat.chat', {
+					prompt: text,
+					site_name: this.siteName,
+					bench_name: this.benchName,
+					site_type: this.siteType,
+					branch: this.branch,
+					session_id: this.sessionId,
+				});
 
 				if (response.success) {
 					this.sessionId = response.session_id;
@@ -291,24 +290,7 @@ export default {
 			return div.innerHTML.replace(/\n/g, '<br>');
 		},
 
-		$call(method, args) {
-			// Wrapper for frappe-ui call — works with Press dashboard
-			return new Promise((resolve, reject) => {
-				if (window.call) {
-					window.call(method, args).then(resolve).catch(reject);
-				} else {
-					// Fallback for testing without frappe-ui
-					fetch(`/api/method/${method}`, {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': window.csrf_token || '' },
-						body: JSON.stringify(args),
-					})
-					.then(r => r.json())
-					.then(d => resolve(d.message))
-					.catch(reject);
-				}
-			});
-		},
+		// call() imported from frappe-ui at module level
 	},
 };
 </script>
