@@ -97,7 +97,7 @@ def _list_apps(bench):
 def list_bench_health():
     """List all active benches with team, server, app count, and cached health data.
     No docker commands — reads from Frappe DB + Redis cache only (fast)."""
-    frappe.only_for("System Manager")
+    frappe.only_for(("System Manager", "Press Admin"))
 
     benches = frappe.get_all(
         "Bench",
@@ -184,7 +184,7 @@ def list_bench_health():
 def scan_bench_health(bench_name, app_filter=None):
     """Scan apps in a bench — returns circle-packing JSON with health data."""
     from .health_tree import build_tree, compute_stats
-    frappe.only_for("System Manager")
+    frappe.only_for(("System Manager", "Press Admin"))
     bench = frappe.get_doc("Bench", bench_name)
 
     filter_path = f"apps/{_safe(app_filter)}" if app_filter else "apps"
@@ -215,7 +215,7 @@ def scan_bench_health(bench_name, app_filter=None):
 @frappe.whitelist()
 def get_health_summary(bench_name):
     """Quick health summary — counts only, no full tree."""
-    frappe.only_for("System Manager")
+    frappe.only_for(("System Manager", "Press Admin"))
     bench = frappe.get_doc("Bench", bench_name)
 
     cmd = (
@@ -281,7 +281,7 @@ def get_app_scores(bench_name, include_all=False):
     """Score each app on 8 quality dimensions. Cached per (app, commit)."""
     from .health_scoring import (score_claude, score_readme, score_docs, score_tests,
                                   score_clean, score_patterns, score_lessons, score_security)
-    frappe.only_for("System Manager")
+    frappe.only_for(("System Manager", "Press Admin"))
     bench = frappe.get_doc("Bench", bench_name)
     apps = _list_apps(bench)
     commits = _get_app_commits(bench)
@@ -317,7 +317,7 @@ def get_app_scores(bench_name, include_all=False):
 def get_docs_compliance(bench_name):
     """Check documentation compliance per app. Cached per (app, commit)."""
     from .health_scoring import score_security
-    frappe.only_for("System Manager")
+    frappe.only_for(("System Manager", "Press Admin"))
     bench = frappe.get_doc("Bench", bench_name)
 
     CHECKS = [
@@ -371,7 +371,7 @@ def get_docs_compliance(bench_name):
 @frappe.whitelist()
 def get_app_stack_info(bench_name):
     """Tech stack summary per app. Cached per (app, commit)."""
-    frappe.only_for("System Manager")
+    frappe.only_for(("System Manager", "Press Admin"))
     bench = frappe.get_doc("Bench", bench_name)
     apps = _list_apps(bench)
     commits = _get_app_commits(bench)
@@ -432,7 +432,7 @@ def get_app_stack_info(bench_name):
 def get_app_interactions(bench_name):
     """Scan hooks.py per app — returns doc_events, scheduler, overrides."""
     from .health_inventory import scan_app_interactions
-    frappe.only_for("System Manager")
+    frappe.only_for(("System Manager", "Press Admin"))
     bench = frappe.get_doc("Bench", bench_name)
     return scan_app_interactions(bench)
 
@@ -441,6 +441,6 @@ def get_app_interactions(bench_name):
 def get_scripts_inventory(bench_name):
     """Inventory: client scripts, controllers, whitelisted methods, reports per app."""
     from .health_inventory import scan_scripts_inventory
-    frappe.only_for("System Manager")
+    frappe.only_for(("System Manager", "Press Admin"))
     bench = frappe.get_doc("Bench", bench_name)
     return scan_scripts_inventory(bench)

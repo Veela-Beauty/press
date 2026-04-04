@@ -51,7 +51,7 @@ def analyze_app_code(git_url, commit_hash, output_format="both"):
     Returns:
         dict with html, json, meta keys (filtered by output_format)
     """
-    frappe.only_for("System Manager")
+    frappe.only_for(("System Manager", "Press Admin"))
 
     # Validate inputs
     if not git_url or not git_url.strip():
