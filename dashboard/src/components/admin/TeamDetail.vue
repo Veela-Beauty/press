@@ -74,10 +74,18 @@
 			</div>
 			<div v-if="membersLoading" class="py-4 text-center text-sm text-gray-400">Loading...</div>
 			<table v-else class="w-full text-sm">
-				<thead class="border-b bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="px-3 py-2 text-left">User</th><th class="px-3 py-2 text-left">Joined</th><th class="px-3 py-2 text-right">Actions</th></tr></thead>
+				<thead class="border-b bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="px-3 py-2 text-left">User</th><th class="px-3 py-2 text-left">Role</th><th class="px-3 py-2 text-left">Joined</th><th class="px-3 py-2 text-right">Actions</th></tr></thead>
 				<tbody>
 					<tr v-for="m in members" :key="m.user" class="border-b border-gray-50">
 						<td class="px-3 py-2"><div class="font-medium">{{ m.full_name || m.user }}</div><div class="text-xs text-gray-400">{{ m.user }}</div></td>
+						<td class="px-3 py-2">
+							<select class="rounded border border-gray-200 px-2 py-1 text-xs font-medium"
+								:class="roleColor(m.press_role)"
+								:value="m.press_role"
+								@change="setRole(m.user, $event.target.value)">
+								<option v-for="r in roleOptions" :key="r" :value="r">{{ r }}</option>
+							</select>
+						</td>
 						<td class="px-3 py-2 text-xs text-gray-500">{{ m.joined?.split(' ')[0] }}</td>
 						<td class="px-3 py-2 text-right">
 							<Button size="sm" variant="outline" @click="openResetPw(m.user)">Reset Password</Button>
@@ -169,6 +177,7 @@ export default {
 			members: [], membersLoading: false,
 			sites: [], sitesLoading: false,
 			benches: [], benchesLoading: false,
+			roleOptions: ['Platform Admin', 'DevOps Admin', 'DevOps User', 'Developer', 'Implementor', 'Viewer'],
 			showResetPw: false, resetPwUser: '', resetPwValue: '', resettingPw: false,
 		};
 	},
@@ -224,6 +233,17 @@ export default {
 			try { this.benches = await call(`${API}.get_team_benches`, { team: this.team.name }); }
 			catch (e) { toast.error('Failed to load benches'); }
 			finally { this.benchesLoading = false; }
+		},
+		roleColor(role) {
+			const m = { 'Platform Admin': 'bg-purple-50 text-purple-700 border-purple-200', 'DevOps Admin': 'bg-blue-50 text-blue-700 border-blue-200', 'DevOps User': 'bg-blue-50 text-blue-600 border-blue-200', 'Developer': 'bg-green-50 text-green-700 border-green-200', 'Implementor': 'bg-orange-50 text-orange-700 border-orange-200', 'Viewer': 'bg-gray-50 text-gray-600 border-gray-200' };
+			return m[role] || '';
+		},
+		async setRole(user, role) {
+			try {
+				await call(`${API}.set_member_role`, { team: this.team.name, user, role });
+				toast.success(`${user} set to ${role}`);
+				this.loadMembers();
+			} catch (e) { toast.error(e.messages?.[0] || 'Failed to set role'); }
 		},
 		openResetPw(user) { this.resetPwUser = user; this.resetPwValue = ''; this.showResetPw = true; },
 		async doResetPw() {

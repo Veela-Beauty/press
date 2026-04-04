@@ -288,6 +288,13 @@ export default {
 					disabled: enforce2FA,
 				},
 				{
+					name: 'Admin Panel',
+					icon: () => h(Shield),
+					route: '/admin',
+					isActive: routeName === 'Admin Panel',
+					condition: this.$team.doc?.is_desk_user,
+				},
+				{
 					name: 'Settings',
 					icon: () => h(Settings),
 					route: '/settings',
@@ -323,6 +330,8 @@ export default {
 	},
 	methods: {
 		hasFeature(id) {
+			// Admin Panel always visible for desk users
+			if (id === 'admin_panel' && this.$team.doc?.is_desk_user) return true;
 			const f = this.$team.doc?.enabled_features;
 			if (!f || typeof f !== 'object' || Object.keys(f).length === 0) return true;
 			return !!f[id];
