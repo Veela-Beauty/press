@@ -63,7 +63,8 @@ def extract_codegraph(bench, app):
     # Build module grouping from file paths
     modules = {}
     for node in nodes:
-        parts = node.get("file", "").split("/")
+        fpath = node.get("file", "").replace(f"apps/{app}/", "", 1)
+        parts = fpath.split("/")
         mod = parts[0] if parts else "root"
         if mod not in modules:
             modules[mod] = {"name": mod, "files": set(), "classes": 0, "functions": 0}
@@ -110,6 +111,7 @@ def extract_ast_graph(bench, app):
     nodes = []
     edges = []
     modules = {}
+    _pending_imports = []
 
     for filepath in files:
         # Get module from path
@@ -136,18 +138,43 @@ def extract_ast_graph(bench, app):
                 })
                 modules[mod]["classes" if node_type == "class" else "functions"] += 1
 
-        # Extract imports for edges
-        r = _exec(bench, f"grep -n '^from \\|^import ' {filepath} 2>/dev/null | head -30")
+        # Collect import targets for second-pass edge resolution
+        r = _exec(bench, f"grep -oE '^from \\.?[a-zA-Z_]+|^import [a-zA-Z_]+' {filepath} 2>/dev/null | head -30")
         for line in r.get("output", "").strip().split("\n"):
             if not line.strip():
                 continue
-            # Match: from .module import X or from app.module import X
-            im = re.match(r"\d+:from\s+\.?(\w+)", line.strip())
+            im = re.match(r"(?:from|import)\s+\.?(\w+)", line.strip())
             if im:
-                target_mod = im.group(1)
-                if target_mod != mod and target_mod in modules:
-                    key = f"{mod}->{target_mod}"
-                    edges.append({"source": mod, "target": target_mod, "weight": 1, "layer": "import"})
+                _pending_imports.append((mod, im.group(1)))
+
+        # Extract function calls for function-level edges
+        # Look for self.method() and module.function() patterns
+        r = _exec(bench, f"grep -oE '\\b[a-z_]+\\(' {filepath} 2>/dev/null | sort | uniq -c | sort -rn | head -20")
+        for line in r.get("output", "").strip().split("\n"):
+            if not line.strip():
+                continue
+            cm = re.match(r"\s*(\d+)\s+(\w+)\(", line.strip())
+            if cm:
+                call_count = int(cm.group(1))
+                called_func = cm.group(2)
+                # Skip builtins and very common names
+                if called_func in ("self", "super", "print", "len", "str", "int", "dict", "list",
+                                   "range", "enumerate", "isinstance", "getattr", "setattr", "hasattr",
+                                   "format", "type", "open", "round", "sorted", "map", "filter", "zip"):
+                    continue
+                # Find if this function exists as a node
+                for node in nodes:
+                    if node["label"] == called_func and node["module"] != mod:
+                        edges.append({
+                            "source": f"{mod}/{called_func}", "target": node["id"],
+                            "weight": call_count, "layer": "call",
+                        })
+                        break
+
+    # Second pass: resolve import edges now that all modules are known
+    for src_mod, target_mod in _pending_imports:
+        if target_mod != src_mod and target_mod in modules:
+            edges.append({"source": src_mod, "target": target_mod, "weight": 1, "layer": "import"})
 
     # Deduplicate module-level edges
     seen = {}

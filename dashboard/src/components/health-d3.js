@@ -190,11 +190,14 @@ export function renderCodeGraph(el, graphData, { tooltip, sidebar, breadcrumb })
 		if (!data.nodes.length) return;
 
 		// Force simulation
+		if (state.sim) state.sim.stop();
+		const clonedEdges = data.edges.map(e => ({ ...e }));
 		const sim = d3.forceSimulation(data.nodes)
-			.force('link', d3.forceLink(data.edges).id(d => d.id).distance(120).strength(0.3))
+			.force('link', d3.forceLink(clonedEdges).id(d => d.id).distance(120).strength(0.3))
 			.force('charge', d3.forceManyBody().strength(-300))
 			.force('center', d3.forceCenter(w / 2, h / 2))
 			.force('collision', d3.forceCollide().radius(40));
+		state.sim = sim;
 
 		// Arrow markers
 		svg.append('defs').append('marker')
@@ -205,7 +208,7 @@ export function renderCodeGraph(el, graphData, { tooltip, sidebar, breadcrumb })
 
 		// Edges
 		const links = g.append('g').selectAll('line')
-			.data(data.edges).join('line')
+			.data(clonedEdges).join('line')
 			.attr('stroke', '#4b5563').attr('stroke-opacity', 0.5)
 			.attr('stroke-width', d => Math.min(Math.max(1, Math.sqrt(d.weight || 1)), 5))
 			.attr('marker-end', 'url(#arrow)');
@@ -290,6 +293,6 @@ export function renderCodeGraph(el, graphData, { tooltip, sidebar, breadcrumb })
 	render();
 
 	return {
-		destroy() { svg.selectAll('*').remove(); svg.on('click', null); },
+		destroy() { if (state.sim) state.sim.stop(); svg.selectAll('*').remove(); svg.on('click', null); },
 	};
 }
