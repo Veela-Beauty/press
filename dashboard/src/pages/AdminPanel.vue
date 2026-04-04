@@ -13,120 +13,172 @@
 			</div>
 		</div>
 
-		<!-- Stats -->
-		<div v-if="stats" class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<p class="text-xs font-medium uppercase text-gray-500">Teams</p>
-				<p class="mt-1 text-2xl font-bold">{{ stats.total_teams }}</p>
-			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<p class="text-xs font-medium uppercase text-gray-500">Sites</p>
-				<p class="mt-1 text-2xl font-bold">{{ stats.total_sites }}</p>
-			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<p class="text-xs font-medium uppercase text-gray-500">Benches</p>
-				<p class="mt-1 text-2xl font-bold">{{ stats.total_benches }}</p>
-			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<p class="text-xs font-medium uppercase text-gray-500">Monthly Cost</p>
-				<p class="mt-1 text-2xl font-bold text-blue-600">&euro;{{ stats.total_cost }}</p>
-			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4 sm:col-span-2">
-				<p class="text-xs font-medium uppercase text-gray-500">Servers</p>
-				<p class="mt-1 text-2xl font-bold">{{ serverCosts.length }}</p>
-				<p class="text-xs text-gray-400">{{ serverCosts.map(s => s.name.split('.')[0]).join(', ') }}</p>
-			</div>
+		<!-- Top Navigation Tabs -->
+		<div class="mb-4 flex items-center gap-1 border-b border-gray-200">
+			<button
+				v-for="tab in mainTabs"
+				:key="tab.id"
+				class="flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors"
+				:class="activeMainTab === tab.id
+					? 'border-blue-500 text-blue-700'
+					: 'border-transparent text-gray-500 hover:text-gray-700'"
+				@click="activeMainTab = tab.id"
+			>
+				<i :class="tab.icon" class="text-xs"></i>
+				<span>{{ tab.label }}</span>
+				<span
+					v-if="tab.badge"
+					class="rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none text-white"
+					:class="tab.badgeColor || 'bg-red-500'"
+				>{{ tab.badge }}</span>
+			</button>
 		</div>
 
-		<!-- Server Costs -->
-		<div class="mb-4 rounded-lg border border-gray-200 bg-white">
-			<div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-				<p class="text-sm font-semibold">Server Costs</p>
+		<!-- TAB: Teams (default) -->
+		<template v-if="activeMainTab === 'teams'">
+			<!-- Stats -->
+			<div v-if="stats" class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+				<div class="rounded-lg border border-gray-200 bg-white p-4">
+					<p class="text-xs font-medium uppercase text-gray-500">Teams</p>
+					<p class="mt-1 text-2xl font-bold">{{ stats.total_teams }}</p>
+				</div>
+				<div class="rounded-lg border border-gray-200 bg-white p-4">
+					<p class="text-xs font-medium uppercase text-gray-500">Sites</p>
+					<p class="mt-1 text-2xl font-bold">{{ stats.total_sites }}</p>
+				</div>
+				<div class="rounded-lg border border-gray-200 bg-white p-4">
+					<p class="text-xs font-medium uppercase text-gray-500">Benches</p>
+					<p class="mt-1 text-2xl font-bold">{{ stats.total_benches }}</p>
+				</div>
+				<div class="rounded-lg border border-gray-200 bg-white p-4">
+					<p class="text-xs font-medium uppercase text-gray-500">Monthly Cost</p>
+					<p class="mt-1 text-2xl font-bold text-blue-600">&euro;{{ stats.total_cost }}</p>
+				</div>
+				<div class="rounded-lg border border-gray-200 bg-white p-4 sm:col-span-2">
+					<p class="text-xs font-medium uppercase text-gray-500">Servers</p>
+					<p class="mt-1 text-2xl font-bold">{{ serverCosts.length }}</p>
+					<p class="text-xs text-gray-400">{{ serverCosts.map(s => s.name.split('.')[0]).join(', ') }}</p>
+				</div>
 			</div>
-			<table class="w-full text-sm">
-				<thead class="border-b border-gray-100 bg-gray-50 text-xs uppercase text-gray-500">
-					<tr><th class="px-4 py-2 text-left">Server</th><th class="px-4 py-2 text-left">IP</th><th class="px-4 py-2 text-left">Plan</th><th class="px-4 py-2 text-right">Teams</th><th class="px-4 py-2 text-right">Sites</th><th class="px-4 py-2 text-right">Cost/mo</th></tr>
-				</thead>
-				<tbody>
-					<tr v-for="s in serverCosts" :key="s.name" class="border-b border-gray-50 last:border-0">
-						<td class="px-4 py-2 font-medium">{{ s.name.split('.')[0] }}</td>
-						<td class="px-4 py-2 text-gray-500">{{ s.ip }}</td>
-						<td class="px-4 py-2">{{ s.plan }}</td>
-						<td class="px-4 py-2 text-right">{{ s.teams }}</td>
-						<td class="px-4 py-2 text-right">{{ s.sites }}</td>
-						<td class="px-4 py-2 text-right font-bold">&euro;{{ s.cost }}</td>
-					</tr>
-					<tr class="bg-gray-50 font-bold">
-						<td class="px-4 py-2" colspan="5">Total</td>
-						<td class="px-4 py-2 text-right text-blue-600">&euro;{{ stats?.total_cost }}</td>
-					</tr>
-				</tbody>
-			</table>
-		</div>
 
-		<!-- Search -->
-		<div class="mb-3 flex items-center gap-2">
-			<input v-model="search" type="text" placeholder="Search teams..." class="max-w-sm rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
-			<Button size="sm" :variant="filter === 'all' ? 'solid' : 'outline'" @click="filter = 'all'">All ({{ teams.length }})</Button>
-			<Button size="sm" :variant="filter === 'active' ? 'solid' : 'outline'" theme="green" @click="filter = 'active'">Active ({{ teams.filter(t => t.enabled).length }})</Button>
-			<Button size="sm" :variant="filter === 'blocked' ? 'solid' : 'outline'" theme="red" @click="filter = 'blocked'">Blocked ({{ teams.filter(t => !t.enabled).length }})</Button>
-		</div>
-
-		<!-- Teams Table -->
-		<div class="rounded-lg border border-gray-200 bg-white overflow-hidden">
-			<table class="w-full text-sm">
-				<thead class="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
-					<tr>
-						<th class="w-8 px-3 py-2"></th>
-						<th class="px-3 py-2 text-left">Team</th>
-						<th class="px-3 py-2 text-left">Status</th>
-						<th class="px-3 py-2 text-left">Members</th>
-						<th class="px-3 py-2 text-left">Sites</th>
-						<th class="px-3 py-2 text-left">Benches</th>
-						<th class="px-3 py-2 text-right">Cost/mo</th>
-						<th class="px-3 py-2 text-right">Actions</th>
-					</tr>
-				</thead>
-				<tbody>
-					<template v-for="team in filteredTeams" :key="team.name">
-						<tr class="cursor-pointer border-b border-gray-100 hover:bg-gray-50" :class="{ 'bg-blue-50': expandedTeam === team.name }" @click="toggleExpand(team.name)">
-							<td class="px-3 py-2.5"><lucide-chevron-right class="h-3.5 w-3.5 text-gray-400 transition-transform" :class="{ 'rotate-90': expandedTeam === team.name }" /></td>
-							<td class="px-3 py-2.5">
-								<div class="flex items-center gap-2">
-									<div class="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white" :style="{ background: team.enabled ? '#2490ef' : '#8d99a6' }">{{ (team.user || '?')[0].toUpperCase() }}</div>
-									<div><div class="font-medium">{{ team.user }}</div><div class="text-xs text-gray-400">{{ team.name }}</div></div>
-								</div>
-							</td>
-							<td class="px-3 py-2.5"><Badge :label="team.enabled ? 'Active' : 'Blocked'" :theme="team.enabled ? 'green' : 'red'" /></td>
-							<td class="px-3 py-2.5">{{ team.member_count }}</td>
-							<td class="px-3 py-2.5">
-								<div class="flex items-center gap-2">
-									<div class="h-1.5 w-16 overflow-hidden rounded-full bg-gray-200"><div class="h-full rounded-full" :class="usageColor(team.site_count, team.max_sites)" :style="{ width: usagePct(team.site_count, team.max_sites) + '%' }"></div></div>
-									<span class="text-xs text-gray-500">{{ team.site_count }}/{{ team.max_sites || '∞' }}</span>
-								</div>
-							</td>
-							<td class="px-3 py-2.5">
-								<div class="flex items-center gap-2">
-									<div class="h-1.5 w-16 overflow-hidden rounded-full bg-gray-200"><div class="h-full rounded-full" :class="usageColor(team.bench_count, team.max_benches)" :style="{ width: usagePct(team.bench_count, team.max_benches) + '%' }"></div></div>
-									<span class="text-xs text-gray-500">{{ team.bench_count }}/{{ team.max_benches || '∞' }}</span>
-								</div>
-							</td>
-							<td class="px-3 py-2.5 text-right font-bold text-blue-600">&euro;{{ team.cost }}</td>
-							<td class="px-3 py-2.5 text-right" @click.stop>
-								<Button v-if="team.enabled" size="sm" theme="red" variant="outline" @click="blockTeam(team.name)">Block</Button>
-								<Button v-else size="sm" theme="green" variant="outline" @click="unblockTeam(team.name)">Unblock</Button>
-							</td>
+			<!-- Server Costs -->
+			<div class="mb-4 rounded-lg border border-gray-200 bg-white">
+				<div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+					<p class="text-sm font-semibold">Server Costs</p>
+				</div>
+				<table class="w-full text-sm">
+					<thead class="border-b border-gray-100 bg-gray-50 text-xs uppercase text-gray-500">
+						<tr><th class="px-4 py-2 text-left">Server</th><th class="px-4 py-2 text-left">IP</th><th class="px-4 py-2 text-left">Plan</th><th class="px-4 py-2 text-right">Teams</th><th class="px-4 py-2 text-right">Sites</th><th class="px-4 py-2 text-right">Cost/mo</th></tr>
+					</thead>
+					<tbody>
+						<tr v-for="s in serverCosts" :key="s.name" class="border-b border-gray-50 last:border-0">
+							<td class="px-4 py-2 font-medium">{{ s.name.split('.')[0] }}</td>
+							<td class="px-4 py-2 text-gray-500">{{ s.ip }}</td>
+							<td class="px-4 py-2">{{ s.plan }}</td>
+							<td class="px-4 py-2 text-right">{{ s.teams }}</td>
+							<td class="px-4 py-2 text-right">{{ s.sites }}</td>
+							<td class="px-4 py-2 text-right font-bold">&euro;{{ s.cost }}</td>
 						</tr>
-						<!-- Expanded Detail -->
-						<tr v-if="expandedTeam === team.name">
-							<td colspan="8" class="border-b border-gray-200 bg-white p-0">
-								<TeamDetail :team="team" :features="featureRegistry" @updated="loadData" />
-							</td>
+						<tr class="bg-gray-50 font-bold">
+							<td class="px-4 py-2" colspan="5">Total</td>
+							<td class="px-4 py-2 text-right text-blue-600">&euro;{{ stats?.total_cost }}</td>
 						</tr>
-					</template>
-				</tbody>
-			</table>
-		</div>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Search -->
+			<div class="mb-3 flex items-center gap-2">
+				<input v-model="search" type="text" placeholder="Search teams..." class="max-w-sm rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
+				<Button size="sm" :variant="filter === 'all' ? 'solid' : 'outline'" @click="filter = 'all'">All ({{ teams.length }})</Button>
+				<Button size="sm" :variant="filter === 'active' ? 'solid' : 'outline'" theme="green" @click="filter = 'active'">Active ({{ teams.filter(t => t.enabled).length }})</Button>
+				<Button size="sm" :variant="filter === 'blocked' ? 'solid' : 'outline'" theme="red" @click="filter = 'blocked'">Blocked ({{ teams.filter(t => !t.enabled).length }})</Button>
+			</div>
+
+			<!-- Teams Table -->
+			<div class="rounded-lg border border-gray-200 bg-white overflow-hidden">
+				<table class="w-full text-sm">
+					<thead class="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
+						<tr>
+							<th class="w-8 px-3 py-2"></th>
+							<th class="px-3 py-2 text-left">Team</th>
+							<th class="px-3 py-2 text-left">Status</th>
+							<th class="px-3 py-2 text-left">Members</th>
+							<th class="px-3 py-2 text-left">Sites</th>
+							<th class="px-3 py-2 text-left">Benches</th>
+							<th class="px-3 py-2 text-right">Cost/mo</th>
+							<th class="px-3 py-2 text-right">Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						<template v-for="team in filteredTeams" :key="team.name">
+							<tr class="cursor-pointer border-b border-gray-100 hover:bg-gray-50" :class="{ 'bg-blue-50': expandedTeam === team.name }" @click="toggleExpand(team.name)">
+								<td class="px-3 py-2.5"><lucide-chevron-right class="h-3.5 w-3.5 text-gray-400 transition-transform" :class="{ 'rotate-90': expandedTeam === team.name }" /></td>
+								<td class="px-3 py-2.5">
+									<div class="flex items-center gap-2">
+										<div class="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white" :style="{ background: team.enabled ? '#2490ef' : '#8d99a6' }">{{ (team.user || '?')[0].toUpperCase() }}</div>
+										<div><div class="font-medium">{{ team.user }}</div><div class="text-xs text-gray-400">{{ team.name }}</div></div>
+									</div>
+								</td>
+								<td class="px-3 py-2.5"><Badge :label="team.enabled ? 'Active' : 'Blocked'" :theme="team.enabled ? 'green' : 'red'" /></td>
+								<td class="px-3 py-2.5">{{ team.member_count }}</td>
+								<td class="px-3 py-2.5">
+									<div class="flex items-center gap-2">
+										<div class="h-1.5 w-16 overflow-hidden rounded-full bg-gray-200"><div class="h-full rounded-full" :class="usageColor(team.site_count, team.max_sites)" :style="{ width: usagePct(team.site_count, team.max_sites) + '%' }"></div></div>
+										<span class="text-xs text-gray-500">{{ team.site_count }}/{{ team.max_sites || '∞' }}</span>
+									</div>
+								</td>
+								<td class="px-3 py-2.5">
+									<div class="flex items-center gap-2">
+										<div class="h-1.5 w-16 overflow-hidden rounded-full bg-gray-200"><div class="h-full rounded-full" :class="usageColor(team.bench_count, team.max_benches)" :style="{ width: usagePct(team.bench_count, team.max_benches) + '%' }"></div></div>
+										<span class="text-xs text-gray-500">{{ team.bench_count }}/{{ team.max_benches || '∞' }}</span>
+									</div>
+								</td>
+								<td class="px-3 py-2.5 text-right font-bold text-blue-600">&euro;{{ team.cost }}</td>
+								<td class="px-3 py-2.5 text-right" @click.stop>
+									<Button v-if="team.enabled" size="sm" theme="red" variant="outline" @click="blockTeam(team.name)">Block</Button>
+									<Button v-else size="sm" theme="green" variant="outline" @click="unblockTeam(team.name)">Unblock</Button>
+								</td>
+							</tr>
+							<!-- Expanded Detail -->
+							<tr v-if="expandedTeam === team.name">
+								<td colspan="8" class="border-b border-gray-200 bg-white p-0">
+									<TeamDetail :team="team" :features="featureRegistry" @updated="loadData" />
+								</td>
+							</tr>
+						</template>
+					</tbody>
+				</table>
+			</div>
+		</template>
+
+		<!-- TAB: Servers (placeholder) -->
+		<template v-if="activeMainTab === 'servers'">
+			<div class="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-400">
+				<i class="fa fa-server mb-2 text-2xl"></i>
+				<p>Servers tab — existing panel from Press dashboard</p>
+			</div>
+		</template>
+
+		<!-- TAB: AI Governance -->
+		<template v-if="activeMainTab === 'ai-governance'">
+			<AiGovernance @edit-rules="activeMainTab = 'policy'" />
+		</template>
+
+		<!-- TAB: Escalations -->
+		<template v-if="activeMainTab === 'escalations'">
+			<AiEscalations :is-team-leader="true" :is-admin="true" />
+		</template>
+
+		<!-- TAB: Usage & Cost -->
+		<template v-if="activeMainTab === 'usage-cost'">
+			<AiUsageCost />
+		</template>
+
+		<!-- TAB: Policy -->
+		<template v-if="activeMainTab === 'policy'">
+			<AiPolicyGate @acknowledged="activeMainTab = 'teams'" />
+		</template>
 
 		<!-- Create Team Dialog -->
 		<Dialog :options="{ title: 'Create New Team', size: 'md' }" v-model="showCreateTeam">
@@ -152,12 +204,16 @@
 import { call } from 'frappe-ui';
 import { toast } from 'vue-sonner';
 import TeamDetail from '../components/admin/TeamDetail.vue';
+import AiGovernance from '../components/admin/AiGovernance.vue';
+import AiEscalations from '../components/admin/AiEscalations.vue';
+import AiUsageCost from '../components/admin/AiUsageCost.vue';
+import AiPolicyGate from '../components/admin/AiPolicyGate.vue';
 
 const API = 'press.api.admin_panel';
 
 export default {
 	name: 'AdminPanel',
-	components: { TeamDetail },
+	components: { TeamDetail, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate },
 	data() {
 		return {
 			loading: false,
@@ -171,6 +227,15 @@ export default {
 			showCreateTeam: false,
 			creatingTeam: false,
 			newTeam: { email: '', fullName: '', maxSites: 0, maxBenches: 0, maxDisk: 0 },
+			activeMainTab: 'teams',
+			mainTabs: [
+				{ id: 'teams', label: 'Teams', icon: 'fa fa-users' },
+				{ id: 'servers', label: 'Servers', icon: 'fa fa-server' },
+				{ id: 'ai-governance', label: 'AI Governance', icon: 'fa fa-robot', badge: '2', badgeColor: 'bg-red-500' },
+				{ id: 'escalations', label: 'Escalations', icon: 'fa fa-exclamation-circle', badge: '1', badgeColor: 'bg-orange-500' },
+				{ id: 'usage-cost', label: 'Usage & Cost', icon: 'fa fa-bar-chart' },
+				{ id: 'policy', label: 'Policy', icon: 'fa fa-file-text-o' },
+			],
 		};
 	},
 	computed: {
