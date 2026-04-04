@@ -40,6 +40,7 @@ def chat(prompt, site_name="", bench_name="", site_type="Dev",
     context = None
     if bench_name:
         try:
+            frappe.has_permission("Bench", "read", bench_name, throw=True)
             bench = frappe.get_doc("Bench", bench_name)
             apps_raw = bench.docker_execute("ls apps/", save_output=False, create_log=False)
             apps = [a.strip() for a in apps_raw.get("output", "").split() if a.strip()]
@@ -138,19 +139,31 @@ def acknowledge_policy():
     return {"ok": True, "user": user, "acknowledged_at": frappe.utils.now()}
 
 
+import re as _re
+
+# Path validation: alphanumeric, dots, hyphens, underscores, slashes. No .. or leading /
+_SAFE_PATH = _re.compile(r"^[a-zA-Z0-9_./-]+$")
+
+
+def _validate_path(path):
+    """Validate file path is safe for shell use. Raises on bad input."""
+    if not path or not _SAFE_PATH.match(path):
+        frappe.throw(f"Invalid file path: {path}")
+    if ".." in path or path.startswith("/"):
+        frappe.throw(f"Path traversal blocked: {path}")
+
+
 @frappe.whitelist()
 def apply_patch(files, bench_name, branch, session_id, commit_message=""):
-    """Apply AI-generated file patches to the bench container.
-
-    Args:
-        files: JSON list of {path, content} objects
-        bench_name: Bench DocType name
-        branch: Git branch to commit to
-        session_id: AI session ID for traceability
-        commit_message: Optional custom commit message
-    """
+    """Apply AI-generated file patches to the bench container."""
     import json as json_mod
+    import base64
+    import shlex
+
     user = frappe.session.user
+
+    # Permission check — caller must have write access to this bench
+    frappe.has_permission("Bench", "write", bench_name, throw=True)
 
     if isinstance(files, str):
         files = json_mod.loads(files)
@@ -160,19 +173,18 @@ def apply_patch(files, bench_name, branch, session_id, commit_message=""):
     results = []
     for f in files:
         path = f["path"]
+        _validate_path(path)
         content = f["content"]
 
-        # Write file to container
-        # Use base64 encoding to handle special characters safely
-        import base64
         encoded = base64.b64encode(content.encode()).decode()
+        safe_path = shlex.quote(f"apps/{path}")
         bench.docker_execute(
-            f"echo '{encoded}' | base64 -d > apps/{path}",
+            f"echo '{encoded}' | base64 -d > {safe_path}",
             save_output=False, create_log=False,
         )
         results.append({"path": path, "status": "written"})
 
-    # Git commit
+    # Git commit — write message to temp file to avoid shell interpolation
     if not commit_message:
         file_list = ", ".join(f["path"].split("/")[-1] for f in files)
         commit_message = f"[Press AI] patch: {file_list}"
@@ -186,19 +198,29 @@ def apply_patch(files, bench_name, branch, session_id, commit_message=""):
         f"Files    : {', '.join(f['path'] for f in files)}"
     )
 
-    # Stage + commit inside container
-    file_paths = " ".join(f"apps/{f['path']}" for f in files)
+    # Write commit message to temp file inside container (avoids shell interpolation)
+    msg_encoded = base64.b64encode(commit_msg_full.encode()).decode()
     bench.docker_execute(
-        f"git -C apps add {file_paths}",
-        save_output=False, create_log=False,
-    )
-    bench.docker_execute(
-        f'git -C apps -c user.name="Press AI" -c user.email="ai@press.local" '
-        f'commit -m "{commit_msg_full}"',
+        f"echo '{msg_encoded}' | base64 -d > /tmp/.press-ai-commit-msg",
         save_output=False, create_log=False,
     )
 
-    # Get commit hash
+    # Stage files
+    safe_paths = " ".join(shlex.quote(f"apps/{f['path']}") for f in files)
+    bench.docker_execute(
+        f"git -C apps add {safe_paths}",
+        save_output=False, create_log=False,
+    )
+
+    # Commit using -F (file) instead of -m (avoids shell injection)
+    bench.docker_execute(
+        'git -C apps -c user.name="Press AI" -c user.email="ai@press.local" '
+        'commit -F /tmp/.press-ai-commit-msg',
+        save_output=False, create_log=False,
+    )
+
+    # Cleanup + get hash
+    bench.docker_execute("rm -f /tmp/.press-ai-commit-msg", save_output=False, create_log=False)
     hash_result = bench.docker_execute(
         "git -C apps log -1 --format=%H",
         save_output=False, create_log=False,
@@ -218,6 +240,8 @@ def update_team_ai_rules(team, settings):
     """Update AI rules for a team (admin only)."""
     import json as json_mod
 
+    # Permission: must be Administrator or Platform Admin with access to this team
+    frappe.has_permission("Team", "write", team, throw=True)
     if frappe.session.user != "Administrator":
         from press.press.doctype.team.team_roles import has_role_access
         if not has_role_access("Platform Admin"):
