@@ -1,11 +1,21 @@
 """Admin Panel API — team management, quotas, features, costs.
-All endpoints require System Manager role.
+All endpoints require desk user (Press admin).
 """
 import json
 
 import frappe
 
 from press.utils import get_current_team
+
+
+def _require_admin():
+    """Check that the current user is a Press admin (System User or Administrator)."""
+    if frappe.session.user == "Administrator":
+        return
+    user_type = frappe.db.get_value("User", frappe.session.user, "user_type")
+    if user_type == "System User":
+        return
+    frappe.throw("Only administrators can access the Admin Panel.", frappe.PermissionError)
 
 
 # Dynamic Feature Registry — role-gated, categorized
@@ -64,14 +74,14 @@ SERVER_COSTS = {
 @frappe.whitelist()
 def get_feature_registry():
     """Return the list of available features for toggle UI."""
-    frappe.only_for("System Manager")
+    _require_admin()
     return DEFAULT_FEATURES
 
 
 @frappe.whitelist()
 def get_admin_data():
     """Return all teams with quotas, usage, members, costs."""
-    frappe.only_for("System Manager")
+    _require_admin()
 
     teams = frappe.get_all("Team", fields=[
         "name", "user", "enabled", "team_title",
@@ -108,7 +118,7 @@ def get_admin_data():
 def update_team_quotas(team, max_sites=None, max_benches=None, max_disk_gb=None,
                        allowed_site_types=None, enabled_features=None):
     """Update quotas and feature flags for a team."""
-    frappe.only_for("System Manager")
+    _require_admin()
     updates = {}
     if max_sites is not None:
         updates["max_sites"] = int(max_sites)
@@ -134,7 +144,7 @@ def update_team_quotas(team, max_sites=None, max_benches=None, max_disk_gb=None,
 @frappe.whitelist()
 def toggle_team(team, action):
     """Block or unblock a team."""
-    frappe.only_for("System Manager")
+    _require_admin()
     team_doc = frappe.get_doc("Team", team)
     if action == "block":
         team_doc.ban()
@@ -151,7 +161,7 @@ def toggle_team(team, action):
 @frappe.whitelist()
 def get_team_members(team):
     """Return members of a team."""
-    frappe.only_for("System Manager")
+    _require_admin()
     members = frappe.get_all("Team Member", {"parent": team}, ["user", "press_role"])
     result = []
     for m in members:
@@ -169,7 +179,7 @@ def get_team_members(team):
 @frappe.whitelist()
 def set_member_role(team, user, role):
     """Set the press_role for a team member."""
-    frappe.only_for("System Manager")
+    _require_admin()
     from press.press.doctype.team.team_roles import PRESS_ROLES
     if role not in PRESS_ROLES:
         frappe.throw(f"Invalid role: {role}")
@@ -191,7 +201,7 @@ def get_roles():
 @frappe.whitelist()
 def reset_user_password(user, new_password):
     """Reset a user's password."""
-    frappe.only_for("System Manager")
+    _require_admin()
     if not new_password or len(new_password) < 8:
         frappe.throw("Password must be at least 8 characters.")
     from frappe.utils.password import update_password
@@ -202,7 +212,7 @@ def reset_user_password(user, new_password):
 @frappe.whitelist()
 def get_team_sites(team):
     """Return all sites for a team."""
-    frappe.only_for("System Manager")
+    _require_admin()
     return frappe.get_all("Site", {"team": team, "status": ("not in", ("Archived",))},
                           ["name", "status", "site_type", "group", "bench", "server", "creation"],
                           order_by="creation desc")
@@ -211,7 +221,7 @@ def get_team_sites(team):
 @frappe.whitelist()
 def get_team_benches(team):
     """Return all benches for a team."""
-    frappe.only_for("System Manager")
+    _require_admin()
     benches = frappe.get_all("Release Group", {"team": team, "enabled": 1},
                              ["name", "title", "version", "creation"],
                              order_by="creation desc")
@@ -232,7 +242,7 @@ def get_team_benches(team):
 def create_team_from_admin(email, full_name, max_sites=0, max_benches=0, max_disk_gb=0,
                            allowed_site_types="", enabled_features="{}"):
     """Admin-only: create a new team + user directly."""
-    frappe.only_for("System Manager")
+    _require_admin()
 
     if frappe.db.exists("User", email):
         frappe.throw(f"User {email} already exists.")
