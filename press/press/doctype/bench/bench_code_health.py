@@ -338,7 +338,7 @@ def get_health_summary(bench_name):
         "health_pct": round(clean / total * 100) if total else 0,
         "security_alerts": security_alerts,
         "compliance_pct": round(compliance_passed / compliance_total * 100) if compliance_total else 0,
-        "scanned_at": datetime.now(timezone.utc).isoformat(),
+        "scanned_at": str(now_datetime()),
     }
     frappe.cache.set_value(f"code_health:summary:{bench_name}", _json.dumps(summary), expires_in_sec=CACHE_TTL)
     return summary
