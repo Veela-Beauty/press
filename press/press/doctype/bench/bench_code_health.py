@@ -221,14 +221,8 @@ def list_bench_health():
     results = []
     for b in benches:
         # Check if we have cached health summary
-        cached_summary = frappe.cache.get_value(f"code_health:summary:{b.name}")
-        health = None
-        if cached_summary:
-            import json
-            try:
-                health = json.loads(cached_summary)
-            except (json.JSONDecodeError, TypeError):
-                pass
+        # Try Redis first, fall back to DB
+        health = _load_persisted("summary", b.name, b.name)
 
         results.append({
             "name": b.name,
@@ -341,6 +335,7 @@ def get_health_summary(bench_name):
         "scanned_at": str(now_datetime()),
     }
     frappe.cache.set_value(f"code_health:summary:{bench_name}", _json.dumps(summary), expires_in_sec=CACHE_TTL)
+    _persist_scan(bench_name, bench_name, bench_name, "summary", summary)
     return summary
 
 
