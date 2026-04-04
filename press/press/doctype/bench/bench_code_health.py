@@ -275,9 +275,16 @@ def scan_bench_health(bench_name, app_filter=None):
 
 
 @frappe.whitelist()
-def get_health_summary(bench_name):
-    """Quick health summary — counts only, no full tree."""
+def get_health_summary(bench_name, force=False):
+    """Quick health summary — counts only, no full tree. Returns cached if available."""
     frappe.only_for(("System Manager", "Press Admin"))
+
+    # Return cached data if available (Redis → DB fallback)
+    if not force:
+        cached = _load_persisted("summary", bench_name, bench_name)
+        if cached:
+            return cached
+
     bench = frappe.get_doc("Bench", bench_name)
 
     cmd = (

@@ -552,7 +552,7 @@ export default {
 			try {
 				// Step 1: Quick summary (fast — single docker command)
 				this.scanStep = '1/3 — health summary';
-				this.summary = await call(`${API}.get_health_summary`, { bench_name: this.benchName });
+				this.summary = await call(`${API}.get_health_summary`, { bench_name: this.benchName, force: true });
 
 				// Step 2: File tree (moderate — single find+wc)
 				this.scanStep = '2/3 — file health map';
