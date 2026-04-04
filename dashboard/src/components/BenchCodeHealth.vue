@@ -117,7 +117,8 @@
 						<div v-for="(app, i) in sortedApps" :key="app.app" class="flex items-center gap-2">
 							<span class="w-4 text-xs text-gray-400">{{ i + 1 }}.</span>
 							<span class="flex-1 text-sm font-medium text-gray-900 dark:text-white truncate">{{ app.app }}</span>
-							<div class="h-1.5 w-24 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+							<svg :ref="'trend-' + app.app" width="60" height="20" class="flex-shrink-0"></svg>
+							<div class="h-1.5 w-20 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
 								<div class="h-full rounded-full" :style="{ width: app.scores.overall + '%', background: hc(app.scores.overall) }"></div>
 							</div>
 							<Badge size="sm" :label="app.scores.overall + '%'" :theme="app.scores.overall >= 80 ? 'green' : app.scores.overall >= 50 ? 'orange' : 'red'" />
@@ -345,7 +346,7 @@
 <script>
 import { call } from 'frappe-ui';
 import * as d3 from 'd3';
-import { renderCirclePack, drawRadar } from './health-d3.js';
+import { renderCirclePack, drawRadar, drawSparkline } from './health-d3.js';
 import HealthAdvanced from './HealthAdvanced.vue';
 
 const API = 'press.press.doctype.bench.bench_code_health';
@@ -525,9 +526,23 @@ export default {
 		triggerD3() {
 			this.$nextTick(() => {
 				if (this.activeTab === 'health') this.initCirclePack();
-				if (this.activeTab === 'overview') this.renderOverallRadar();
+				if (this.activeTab === 'overview') { this.renderOverallRadar(); this.loadTrends(); }
 				if (this.activeTab === 'radar') this.renderRadars();
 			});
+		},
+		async loadTrends() {
+			if (!this.appScores.length) return;
+			for (const app of this.appScores) {
+				const name = app.app;
+				try {
+					const trends = await call(`${API}.get_health_trends`, { bench_name: this.benchName, app_name: name });
+					if (trends?.length) {
+						const ref = this.$refs['trend-' + name];
+						const el = Array.isArray(ref) ? ref[0] : ref;
+						if (el) drawSparkline(d3.select(el), trends, 60, 20);
+					}
+				} catch (e) { /* trends are optional */ }
+			}
 		},
 		async scan() {
 			if (this.scanning) return;

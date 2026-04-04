@@ -127,6 +127,30 @@ export function renderCirclePack(el, healthData, { tooltip, sidebar, breadcrumb,
 }
 
 /**
+ * Draw a sparkline (mini trend chart) showing health score over commits.
+ * @param {d3.Selection} svgSel - SVG selection to draw into
+ * @param {Array} data - [{overall: number, commit: string}] oldest→newest
+ * @param {number} w - width
+ * @param {number} h - height
+ */
+export function drawSparkline(svgSel, data, w, h) {
+	svgSel.selectAll('*').remove();
+	if (!data?.length) return;
+	const x = d3.scaleLinear().domain([0, data.length - 1]).range([4, w - 4]);
+	const y = d3.scaleLinear().domain([0, 100]).range([h - 2, 2]);
+	const line = d3.line().x((d, i) => x(i)).y(d => y(d.overall)).curve(d3.curveMonotoneX);
+	// Area fill
+	const area = d3.area().x((d, i) => x(i)).y0(h).y1(d => y(d.overall)).curve(d3.curveMonotoneX);
+	svgSel.append('path').datum(data).attr('d', area).attr('fill', 'rgba(59,130,246,0.1)');
+	// Line
+	svgSel.append('path').datum(data).attr('d', line).attr('fill', 'none').attr('stroke', '#3b82f6').attr('stroke-width', 1.5);
+	// Current dot
+	const last = data[data.length - 1];
+	const color = last.overall >= 80 ? '#22c55e' : last.overall >= 50 ? '#eab308' : '#ef4444';
+	svgSel.append('circle').attr('cx', x(data.length - 1)).attr('cy', y(last.overall)).attr('r', 3).attr('fill', color);
+}
+
+/**
  * Draw a radar chart into an SVG selection.
  */
 export function drawRadar(svgSel, scores, w, h, dims) {

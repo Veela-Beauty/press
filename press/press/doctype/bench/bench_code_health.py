@@ -621,3 +621,30 @@ def scan_app_graph(bench_name, app_name):
     if commit:
         _set_cached("graph", app_name, commit, result, bench_name=bench_name)
     return result
+
+
+@frappe.whitelist()
+def get_health_trends(bench_name, app_name, limit=20):
+    """Return health score history for an app across commits (newest first)."""
+    import json
+    frappe.only_for(("System Manager", "Press Admin"))
+
+    records = frappe.get_all("Code Health Scan", filters={
+        "bench": bench_name, "app_name": app_name, "scan_type": "single_app",
+    }, fields=["commit_hash", "scanned_at", "result_json"],
+       order_by="scanned_at asc", limit=limit)
+
+    trends = []
+    for rec in records:
+        overall = 0
+        try:
+            data = json.loads(rec.result_json or "{}")
+            overall = data.get("scores", {}).get("overall", 0)
+        except (json.JSONDecodeError, TypeError):
+            pass
+        trends.append({
+            "commit": rec.commit_hash,
+            "scanned_at": str(rec.scanned_at),
+            "overall": overall,
+        })
+    return trends
