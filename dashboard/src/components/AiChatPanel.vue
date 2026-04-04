@@ -19,6 +19,7 @@
 			<div class="flex items-center gap-1">
 				<button
 					class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+					aria-label="New session"
 					title="New session"
 					@click="resetSession"
 				>
@@ -26,6 +27,7 @@
 				</button>
 				<button
 					class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+					aria-label="Close AI Assistant panel"
 					title="Close"
 					@click="$emit('close')"
 				>
@@ -274,12 +276,19 @@ export default {
 		},
 
 		renderMarkdown(text) {
-			// Basic markdown rendering — code blocks and bold
-			return text
+			const raw = text
 				.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="my-2 rounded bg-gray-900 p-2 text-xs text-green-400 overflow-x-auto"><code>$2</code></pre>')
 				.replace(/`([^`]+)`/g, '<code class="rounded bg-gray-200 px-1 text-xs">$1</code>')
 				.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
 				.replace(/\n/g, '<br>');
+			// Sanitize to prevent XSS from AI responses or prompt injection
+			if (window.DOMPurify) {
+				return window.DOMPurify.sanitize(raw);
+			}
+			// Fallback: strip all tags except allowed ones
+			const div = document.createElement('div');
+			div.textContent = text;
+			return div.innerHTML.replace(/\n/g, '<br>');
 		},
 
 		$call(method, args) {

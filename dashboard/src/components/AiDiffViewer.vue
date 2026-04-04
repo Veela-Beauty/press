@@ -1,12 +1,12 @@
 <template>
-	<div v-if="files.length > 0" class="rounded-lg border border-gray-200 bg-white">
+	<div v-if="localFiles.length > 0" class="rounded-lg border border-gray-200 bg-white">
 		<!-- Header -->
 		<div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
 			<div class="flex items-center gap-2">
 				<i class="fa fa-code-fork text-sm text-blue-600"></i>
 				<span class="text-sm font-semibold">Code Changes</span>
 				<span class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
-					{{ files.length }} file{{ files.length > 1 ? 's' : '' }}
+					{{ localFiles.length }} file{{ localFiles.length > 1 ? 's' : '' }}
 				</span>
 			</div>
 			<div class="flex items-center gap-2">
@@ -29,7 +29,7 @@
 		<!-- File tabs -->
 		<div class="flex overflow-x-auto border-b border-gray-100 bg-gray-50 px-2">
 			<button
-				v-for="(file, i) in files"
+				v-for="(file, i) in localFiles"
 				:key="file.path"
 				class="flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-xs font-medium transition-colors"
 				:class="activeTab === i
@@ -61,6 +61,7 @@
 						+{{ activeFile.additions || 0 }} / -{{ activeFile.deletions || 0 }}
 					</span>
 					<button
+						aria-label="Approve this file"
 						class="rounded px-2 py-0.5 text-xs font-medium text-green-700 hover:bg-green-50"
 						:class="activeFile.decision === 'approved' ? 'bg-green-100' : ''"
 						@click="setDecision(activeTab, 'approved')"
@@ -68,6 +69,7 @@
 						<i class="fa fa-check"></i>
 					</button>
 					<button
+						aria-label="Reject this file"
 						class="rounded px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-50"
 						:class="activeFile.decision === 'rejected' ? 'bg-red-100' : ''"
 						@click="setDecision(activeTab, 'rejected')"
@@ -146,35 +148,44 @@ export default {
 	emits: ['apply', 'applied'],
 	data() {
 		return {
+			localFiles: [],
 			activeTab: 0,
 			applying: false,
 		};
 	},
+	watch: {
+		files: {
+			immediate: true,
+			handler(val) {
+				this.localFiles = val.map(f => ({ ...f }));
+			},
+		},
+	},
 	computed: {
 		activeFile() {
-			return this.files[this.activeTab] || null;
+			return this.localFiles[this.activeTab] || null;
 		},
 		approvedCount() {
-			return this.files.filter(f => f.decision === 'approved').length;
+			return this.localFiles.filter(f => f.decision === 'approved').length;
 		},
 		rejectedCount() {
-			return this.files.filter(f => f.decision === 'rejected').length;
+			return this.localFiles.filter(f => f.decision === 'rejected').length;
 		},
 		pendingCount() {
-			return this.files.filter(f => !f.decision).length;
+			return this.localFiles.filter(f => !f.decision).length;
 		},
 	},
 	methods: {
 		setDecision(index, decision) {
-			if (this.files[index]) {
-				this.files[index].decision = decision;
+			if (this.localFiles[index]) {
+				this.localFiles[index].decision = decision;
 			}
 		},
 		approveAll() {
-			this.files.forEach(f => { f.decision = 'approved'; });
+			this.localFiles.forEach(f => { f.decision = 'approved'; });
 		},
 		rejectAll() {
-			this.files.forEach(f => { f.decision = 'rejected'; });
+			this.localFiles.forEach(f => { f.decision = 'rejected'; });
 		},
 		fileName(path) {
 			return path.split('/').pop();
@@ -185,7 +196,7 @@ export default {
 			return icons[ext] || 'fa fa-file-o';
 		},
 		async applyApproved() {
-			const approved = this.files.filter(f => f.decision === 'approved');
+			const approved = this.localFiles.filter(f => f.decision === 'approved');
 			if (approved.length === 0) return;
 
 			this.applying = true;
@@ -195,6 +206,8 @@ export default {
 				branch: this.branch,
 				session_id: this.sessionId,
 			});
+			// Reset after emit — parent handles completion
+			setTimeout(() => { this.applying = false; }, 5000);
 		},
 	},
 };
