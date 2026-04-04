@@ -603,3 +603,30 @@ const DEV_OVERVIEW_URL = 'press.press.doctype.bench.bench_dev_overview.get_dev_o
 **Root cause:** `Release Group.add_app()` checks `app.get("name")` for the app name. Passing `{"app": "x", "source": "y"}` returns `None` silently because `name` key is missing.  
 **Fix:** Pass `{name, title, repository_url, branch, source}` matching the method's expected keys.  
 **Lesson:** Read the actual method signature before calling Press APIs. Silent failures are common — always verify the result.
+
+---
+
+### 68. Test fixtures (_Test Notification) enabled on production — 15K email error loop
+**Status:** PERMANENT  
+**What happened:** Email Queue had 15,803 Error emails + 48,417 Error Log entries. Workers spent all time retrying failed SMTP sends. The error was `SMTPRecipientsRefused` on every retry.  
+**Root cause:** Frappe test fixtures (`_Test Notification 1-6`) were enabled on the production site. These fire on every document New/Save/Value Change event, generating email notifications to invalid recipients. The test data was left behind from running `bench run-tests` on the production site (or from a restore that included test data).  
+**Fix:**  
+1. Disabled all `_Test Notification` records: `UPDATE tabNotification SET enabled=0 WHERE name LIKE '_Test%'`  
+2. Deleted all test data: `_Test Notification 1-6`, `_Test Role 1-4`, `_Test Print Format 1`  
+3. Purged 15,803 Error + 1,942 Not Sent emails from Email Queue  
+4. Purged 48,417 Error Log entries from email retry spam  
+**Lesson:**  
+- **NEVER run `bench run-tests` on a production site** — test fixtures persist after tests finish  
+- After any database restore to production, scan for `_Test%` records: `SELECT name FROM tabNotification WHERE name LIKE '_Test%'`  
+- If test fixtures exist, delete them AND their child tables (e.g. `tabNotification Recipient`, `tabHas Role`)  
+- Consider adding a Watch Tower rule to alert if `_Test%` records exist on production  
+**Quick cleanup command:**  
+```sql
+SET SQL_SAFE_UPDATES=0;
+DELETE FROM `tabNotification Recipient` WHERE parent LIKE '_Test%';
+DELETE FROM `tabNotification` WHERE name LIKE '_Test%';
+DELETE FROM `tabHas Role` WHERE role LIKE '_Test%';
+DELETE FROM `tabRole` WHERE name LIKE '_Test%';
+DELETE FROM `tabPrint Format` WHERE name LIKE '_Test%';
+SET SQL_SAFE_UPDATES=1;
+```
