@@ -1,0 +1,85 @@
+<template>
+	<div class="space-y-4">
+		<!-- Cost summary -->
+		<div class="grid grid-cols-3 gap-3">
+			<div class="rounded-lg border border-gray-200 bg-white p-4">
+				<p class="text-xs font-medium uppercase text-gray-500">Cost This Month</p>
+				<p class="mt-1 text-2xl font-bold">${{ totalCost.toFixed(2) }}</p>
+				<p class="text-xs text-gray-400">{{ providerBreakdown }}</p>
+			</div>
+			<div class="rounded-lg border border-gray-200 bg-white p-4">
+				<p class="text-xs font-medium uppercase text-gray-500">Total Tokens</p>
+				<p class="mt-1 text-2xl font-bold">{{ formatTokens(totalTokens) }}</p>
+				<p class="text-xs text-gray-400">Input {{ formatTokens(inputTokens) }} / Output {{ formatTokens(outputTokens) }}</p>
+			</div>
+			<div class="rounded-lg border border-gray-200 bg-white p-4">
+				<p class="text-xs font-medium uppercase text-gray-500">Sessions</p>
+				<p class="mt-1 text-2xl font-bold">{{ totalSessions }}</p>
+				<p class="text-xs text-gray-400">avg {{ avgDuration }} min / session</p>
+			</div>
+		</div>
+
+		<!-- Usage by user -->
+		<div class="rounded-lg border border-gray-200 bg-white p-4">
+			<div class="mb-3 flex items-center justify-between">
+				<h3 class="text-sm font-semibold">Usage by User</h3>
+				<select v-model="period" class="rounded border border-gray-200 px-2 py-1 text-xs">
+					<option value="today">Today</option>
+					<option value="week">Last 7 days</option>
+					<option value="month">This month</option>
+				</select>
+			</div>
+			<div class="space-y-2">
+				<div class="grid grid-cols-[140px_1fr_80px_80px] gap-2 border-b border-gray-100 pb-1 text-[10px] font-semibold text-gray-500">
+					<span>User</span><span>Usage</span><span class="text-right">Tokens</span><span class="text-right">Est. cost</span>
+				</div>
+				<div
+					v-for="u in userUsage"
+					:key="u.user"
+					class="grid grid-cols-[140px_1fr_80px_80px] items-center gap-2"
+				>
+					<div>
+						<p class="text-xs font-semibold text-gray-800">{{ u.user.split('@')[0] }}</p>
+						<p class="text-[10px] text-gray-400">{{ u.role }} / {{ u.provider }}</p>
+					</div>
+					<div class="h-1.5 rounded-full bg-gray-100">
+						<div
+							class="h-full rounded-full"
+							:class="u.pct >= 80 ? 'bg-red-500' : u.pct >= 50 ? 'bg-yellow-500' : 'bg-green-500'"
+							:style="{ width: u.pct + '%' }"
+						></div>
+					</div>
+					<span class="text-right text-xs">{{ formatTokens(u.tokens) }}</span>
+					<span class="text-right text-xs text-gray-500">${{ u.cost.toFixed(2) }}</span>
+				</div>
+			</div>
+		</div>
+	</div>
+</template>
+
+<script>
+export default {
+	name: 'AiUsageCost',
+	data() {
+		return {
+			period: 'month',
+			totalCost: 0,
+			totalTokens: 0,
+			inputTokens: 0,
+			outputTokens: 0,
+			totalSessions: 0,
+			avgDuration: 0,
+			providerBreakdown: '',
+			userUsage: [],
+		};
+	},
+	methods: {
+		formatTokens(n) {
+			if (!n) return '0';
+			if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+			if (n >= 1_000) return (n / 1_000).toFixed(0) + 'K';
+			return n.toString();
+		},
+	},
+};
+</script>
