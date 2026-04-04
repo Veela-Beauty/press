@@ -95,7 +95,7 @@ def _set_cached(prefix, app, commit, data, bench_name=""):
 def _persist_scan(bench_name, app_name, commit_hash, scan_type, data):
     """Save scan result to Code Health Scan DocType (permanent storage)."""
     import json
-    from datetime import datetime, timezone
+    from frappe.utils import now_datetime
 
     existing = frappe.get_all("Code Health Scan", filters={
         "bench": bench_name, "app_name": app_name,
@@ -105,7 +105,7 @@ def _persist_scan(bench_name, app_name, commit_hash, scan_type, data):
     if existing:
         doc = frappe.get_doc("Code Health Scan", existing[0].name)
         doc.result_json = json.dumps(data)
-        doc.scanned_at = datetime.now(timezone.utc)
+        doc.scanned_at = now_datetime()
         doc.status = "Success"
         doc.save(ignore_permissions=True)
     else:
@@ -115,7 +115,7 @@ def _persist_scan(bench_name, app_name, commit_hash, scan_type, data):
         doc.commit_hash = commit_hash
         doc.scan_type = scan_type
         doc.result_json = json.dumps(data)
-        doc.scanned_at = datetime.now(timezone.utc)
+        doc.scanned_at = now_datetime()
         doc.status = "Success"
         doc.insert(ignore_permissions=True)
 
@@ -317,7 +317,7 @@ def get_health_summary(bench_name):
     security_alerts = int(sec_r.get("output", "0").strip() or 0)
 
     import json as _json
-    from datetime import datetime, timezone
+    from frappe.utils import now_datetime
 
     # Quick compliance: count how many custom apps pass basic checks
     apps = _list_apps(bench)
