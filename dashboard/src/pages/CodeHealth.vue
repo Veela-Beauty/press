@@ -112,6 +112,9 @@
 					<div class="mb-3 flex items-center justify-between">
 						<div class="flex items-center gap-2">
 							<h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ b.name }}</h3>
+							<a :href="'/dashboard/groups/' + b.group" @click.stop class="text-gray-400 hover:text-blue-500" title="Open Bench Group">
+								<svg class="inline h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+							</a>
 							<span class="rounded-full px-2 py-0.5 text-[10px] font-medium"
 								:class="b.status === 'Active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500'">
 								{{ b.status }}
@@ -163,6 +166,9 @@
 							<td class="px-4 py-2.5">
 								<div class="flex items-center gap-2">
 									<span class="font-semibold text-gray-900 dark:text-white">{{ b.name }}</span>
+									<a :href="'/dashboard/groups/' + b.group" @click.stop class="text-gray-400 hover:text-blue-500" title="Open Bench Group">
+										<svg class="inline h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+									</a>
 									<span class="rounded-full px-2 py-0.5 text-[10px] font-medium"
 										:class="b.status === 'Active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
 											: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'">
