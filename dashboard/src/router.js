@@ -494,6 +494,11 @@ let router = createRouter({
 			name: 'Code Health',
 			component: () => import('./pages/CodeHealth.vue'),
 		},
+		{
+			path: '/admin',
+			name: 'Admin Panel',
+			component: () => import('./pages/AdminPanel.vue'),
+		},
 		...generateRoutes(),
 		// TODO: makeshift redirect fixes for /insights paths
 		{

@@ -6,5 +6,5 @@
 // biome-ignore lint: disable
 export {}
 declare global {
-
+  const LucideShield: typeof import('~icons/lucide/shield')['default']
 }

@@ -150,7 +150,7 @@ export default {
 					name: this.backupRunning ? 'Daman Backup …' : 'Daman Backup',
 					icon: () => h(HardDrive),
 					route: '/backups/overview',
-					condition: onboardingComplete && !isSaasUser && this.$session.isSystemUser,
+					condition: onboardingComplete && !isSaasUser && this.$session.isSystemUser && this.hasFeature('daman_backup'),
 					disabled: enforce2FA,
 					children: [
 						{
@@ -202,7 +202,7 @@ export default {
 					name: 'Dev Tools',
 					icon: () => h(Code),
 					route: '/devtools',
-					condition: onboardingComplete && !isSaasUser,
+					condition: onboardingComplete && !isSaasUser && this.hasFeature('dev_overview'),
 					disabled: enforce2FA,
 					children: [
 						{
@@ -299,7 +299,7 @@ export default {
 					icon: () => h(Shield),
 					route: '/partner-admin',
 					isActive: routeName === 'Partner Admin',
-					condition: Boolean(this.$team.doc.is_desk_user),
+					condition: Boolean(this.$team.doc.is_desk_user) && this.hasFeature('partner_admin'),
 				},
 			].filter((item) => item.condition ?? true);
 		},
@@ -320,6 +320,13 @@ export default {
 		this.$socket.off('backup_job_started');
 		this.$socket.off('backup_job_completed');
 		this.$socket.off('backup_job_failed');
+	},
+	methods: {
+		hasFeature(id) {
+			const f = this.$team.doc?.enabled_features;
+			if (!f || typeof f !== 'object' || Object.keys(f).length === 0) return true;
+			return !!f[id];
+		},
 	},
 };
 </script>

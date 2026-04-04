@@ -152,6 +152,8 @@ class Team(Document):
 		"company_name",
 		"hybrid_servers_enabled",
 		"relaxed_permissions",
+		"enabled_features",
+		"allowed_site_types",
 	)
 
 	def get_doc(self, doc):

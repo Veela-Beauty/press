@@ -117,7 +117,9 @@ def update_team_quotas(team, max_sites=None, max_benches=None, max_disk_gb=None,
     if max_disk_gb is not None:
         updates["max_disk_gb"] = float(max_disk_gb)
     if allowed_site_types is not None:
-        updates["allowed_site_types"] = allowed_site_types
+        # Normalize: strip whitespace, remove empty lines, standardize newlines
+        lines = [t.strip() for t in allowed_site_types.replace("\r\n", "\n").split("\n") if t.strip()]
+        updates["allowed_site_types"] = "\n".join(lines)
     if enabled_features is not None:
         updates["enabled_features"] = (
             enabled_features if isinstance(enabled_features, str)
@@ -140,6 +142,8 @@ def toggle_team(team, action):
         team_doc.enabled = 1
         team_doc.save(ignore_permissions=True)
         team_doc.unsuspend_sites()
+    else:
+        frappe.throw(f"Unknown action: {action}")
     frappe.db.commit()
     return {"ok": True}
 
@@ -165,6 +169,8 @@ def get_team_members(team):
 def reset_user_password(user, new_password):
     """Reset a user's password."""
     frappe.only_for("System Manager")
+    if not new_password or len(new_password) < 8:
+        frappe.throw("Password must be at least 8 characters.")
     from frappe.utils.password import update_password
     update_password(user, new_password)
     return {"ok": True}
@@ -220,6 +226,7 @@ def create_team_from_admin(email, full_name, max_sites=0, max_benches=0, max_dis
     team = frappe.get_doc({
         "doctype": "Team",
         "user": email,
+        "team_title": full_name,
         "enabled": 1,
         "max_sites": int(max_sites),
         "max_benches": int(max_benches),

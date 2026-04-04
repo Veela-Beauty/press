@@ -149,15 +149,19 @@ export default {
 	name: 'TeamDetail',
 	props: { team: Object, features: Object },
 	emits: ['updated'],
-	data() {
-		return {
-			activeTab: 'quotas',
-			tabs: [
+	computed: {
+		tabs() {
+			return [
 				{ id: 'quotas', label: 'Quotas & Features' },
 				{ id: 'members', label: `Members (${this.team.member_count})` },
 				{ id: 'sites', label: `Sites (${this.team.site_count})` },
 				{ id: 'benches', label: `Benches (${this.team.bench_count})` },
-			],
+			];
+		},
+	},
+	data() {
+		return {
+			activeTab: 'quotas',
 			quotas: { max_sites: this.team.max_sites || 0, max_benches: this.team.max_benches || 0, max_disk_gb: this.team.max_disk_gb || 0 },
 			allowedTypes: (this.team.allowed_site_types || '').split('\n').filter(Boolean),
 			enabledFeatures: { ...(this.team.features || {}) },
@@ -170,9 +174,9 @@ export default {
 	},
 	watch: {
 		activeTab(tab) {
-			if (tab === 'members' && !this.members.length) this.loadMembers();
-			if (tab === 'sites' && !this.sites.length) this.loadSites();
-			if (tab === 'benches' && !this.benches.length) this.loadBenches();
+			if (tab === 'members') this.loadMembers();
+			if (tab === 'sites') this.loadSites();
+			if (tab === 'benches') this.loadBenches();
 		},
 	},
 	methods: {
@@ -202,18 +206,24 @@ export default {
 		},
 		async loadMembers() {
 			this.membersLoading = true;
-			this.members = await call(`${API}.get_team_members`, { team: this.team.name });
-			this.membersLoading = false;
+			this.members = [];
+			try { this.members = await call(`${API}.get_team_members`, { team: this.team.name }); }
+			catch (e) { toast.error('Failed to load members'); }
+			finally { this.membersLoading = false; }
 		},
 		async loadSites() {
 			this.sitesLoading = true;
-			this.sites = await call(`${API}.get_team_sites`, { team: this.team.name });
-			this.sitesLoading = false;
+			this.sites = [];
+			try { this.sites = await call(`${API}.get_team_sites`, { team: this.team.name }); }
+			catch (e) { toast.error('Failed to load sites'); }
+			finally { this.sitesLoading = false; }
 		},
 		async loadBenches() {
 			this.benchesLoading = true;
-			this.benches = await call(`${API}.get_team_benches`, { team: this.team.name });
-			this.benchesLoading = false;
+			this.benches = [];
+			try { this.benches = await call(`${API}.get_team_benches`, { team: this.team.name }); }
+			catch (e) { toast.error('Failed to load benches'); }
+			finally { this.benchesLoading = false; }
 		},
 		openResetPw(user) { this.resetPwUser = user; this.resetPwValue = ''; this.showResetPw = true; },
 		async doResetPw() {
@@ -233,6 +243,7 @@ export default {
 			this.loadSites();
 		},
 		async unsuspendSite(site) {
+			if (!confirm(`Unsuspend ${site}?`)) return;
 			await call('press.api.client.run_doc_method', { dt: 'Site', dn: site, method: 'unsuspend' });
 			toast.success('Site unsuspended');
 			this.loadSites();

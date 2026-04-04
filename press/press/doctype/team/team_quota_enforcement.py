@@ -11,10 +11,13 @@ def check_site_quota(doc, method=None):
 
     team = doc.team
 
-    # 1. Check max_sites quota
+    # 1. Check max_sites quota (locked to prevent TOCTOU race)
     max_sites = frappe.db.get_value("Team", team, "max_sites") or 0
     if max_sites > 0:
-        current = frappe.db.count("Site", {"team": team, "status": ("not in", ("Archived",))})
+        current = frappe.db.sql(
+            "SELECT COUNT(*) FROM tabSite WHERE team=%s AND status NOT IN ('Archived') FOR UPDATE",
+            team,
+        )[0][0]
         if current >= max_sites:
             frappe.throw(
                 f"Site limit reached: {current}/{max_sites} sites. Contact your administrator.",
@@ -44,7 +47,10 @@ def check_bench_quota(doc, method=None):
 
     max_benches = frappe.db.get_value("Team", team, "max_benches") or 0
     if max_benches > 0:
-        current = frappe.db.count("Release Group", {"team": team, "enabled": 1})
+        current = frappe.db.sql(
+            "SELECT COUNT(*) FROM `tabRelease Group` WHERE team=%s AND enabled=1 FOR UPDATE",
+            team,
+        )[0][0]
         if current >= max_benches:
             frappe.throw(
                 f"Bench limit reached: {current}/{max_benches} benches. Contact your administrator.",
