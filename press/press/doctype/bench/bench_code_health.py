@@ -56,13 +56,22 @@ def _exec(bench, cmd):
 
 
 def _get_app_commits(bench):
-    """Get commit hashes for all apps in the bench."""
+    """Get commit hashes for all apps in the bench. Cached 60s to avoid repeat docker calls."""
+    import json as _json
+    cache_key = f"code_health:commits:{bench.name}"
+    cached = frappe.cache.get_value(cache_key)
+    if cached:
+        try:
+            return _json.loads(cached)
+        except (ValueError, TypeError):
+            pass
     r = _exec(bench, "for d in apps/*/; do echo \"$(basename $d):$(git -C $d rev-parse --short HEAD 2>/dev/null || echo none)\"; done")
     commits = {}
     for line in r.get("output", "").strip().split("\n"):
         if ":" in line:
             app, h = line.strip().split(":", 1)
             commits[app.strip()] = h.strip()
+    frappe.cache.set_value(cache_key, _json.dumps(commits), expires_in_sec=60)
     return commits
 
 
@@ -478,7 +487,8 @@ def scan_single_app(bench_name, app_name):
         "lessons": score_lessons(bench, app_name),
         "security": score_security(bench, app_name),
     }
-    scores["overall"] = round(sum(v for k, v in scores.items() if k != "app") / 8)
+    score_vals = [v for k, v in scores.items() if k != "app"]
+    scores["overall"] = round(sum(score_vals) / len(score_vals)) if score_vals else 0
 
     # Compliance checks
     checks = []

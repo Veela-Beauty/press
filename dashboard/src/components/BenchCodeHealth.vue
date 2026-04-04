@@ -542,23 +542,22 @@ export default {
 				this.scriptsInventory = scripts;
 				// Load per-app scores incrementally from cache
 				await this.loadAppScores(bn);
-				this.triggerD3();
 			} catch (e) {
 				console.error('Failed to load cached data:', e);
 			}
 		},
 		async loadAppScores(bn) {
-			// Get app list from health data tree (top-level children = apps)
 			const apps = this.healthData?.children?.map(c => c.name) || [];
 			for (const appName of apps) {
 				try {
 					const result = await call(`${API}.scan_single_app`, { bench_name: bn, app_name: appName });
 					if (result?.scores) {
-						this.appScores = [...this.appScores, { app: appName, scores: result.scores }];
+						this.appScores.push({ app: appName, scores: result.scores });
 					}
 					if (result?.compliance) {
-						this.compliance = [...this.compliance, result.compliance];
+						this.compliance.push(result.compliance);
 					}
+					this.triggerD3();
 				} catch (e) {
 					console.error(`Failed to load ${appName}:`, e);
 				}
@@ -594,10 +593,10 @@ export default {
 							bench_name: this.benchName, app_name: apps[i],
 						});
 						if (result?.scores) {
-							this.appScores = [...this.appScores, { app: apps[i], scores: result.scores }];
+							this.appScores.push({ app: apps[i], scores: result.scores });
 						}
 						if (result?.compliance) {
-							this.compliance = [...this.compliance, result.compliance];
+							this.compliance.push(result.compliance);
 						}
 						this.triggerD3();
 					} catch (e) {

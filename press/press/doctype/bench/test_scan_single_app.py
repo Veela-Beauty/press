@@ -47,7 +47,17 @@ def _mock_exec_output(output):
     return {"output": output, "status": "Success"}
 
 
-class TestScanSingleAppExists(unittest.TestCase):
+class _CleanupMixin:
+    """Reset shared frappe stub after each test to prevent cross-suite contamination."""
+    def tearDown(self):
+        _frappe_stub.only_for = lambda role: None
+        _frappe_stub.throw = MagicMock(side_effect=Exception("Frappe throw"))
+        _frappe_stub.cache = MagicMock()
+        _frappe_stub.cache.get_value = MagicMock(return_value=None)
+        _frappe_stub.cache.set_value = MagicMock()
+
+
+class TestScanSingleAppExists(_CleanupMixin, unittest.TestCase):
     """The API function must exist and be callable."""
 
     def test_function_exists(self):
@@ -55,7 +65,7 @@ class TestScanSingleAppExists(unittest.TestCase):
         self.assertTrue(callable(_bch.scan_single_app))
 
 
-class TestScanSingleAppParams(unittest.TestCase):
+class TestScanSingleAppParams(_CleanupMixin, unittest.TestCase):
     """Input validation."""
 
     @patch(f"{PATCH}.frappe")
@@ -75,7 +85,7 @@ class TestScanSingleAppParams(unittest.TestCase):
             _bch.scan_single_app("bench-001", "foo; rm -rf /")
 
 
-class TestScanSingleAppReturnStructure(unittest.TestCase):
+class TestScanSingleAppReturnStructure(_CleanupMixin, unittest.TestCase):
     """Return value must have scores + compliance keys."""
 
     @patch(f"{SCORE_PATCH}.score_claude", return_value=80)
@@ -182,7 +192,7 @@ class TestScanSingleAppReturnStructure(unittest.TestCase):
         self.assertEqual(result["compliance"]["app"], "myapp")
 
 
-class TestScanSingleAppCaching(unittest.TestCase):
+class TestScanSingleAppCaching(_CleanupMixin, unittest.TestCase):
     """Results cached by (app, commit_hash)."""
 
     @patch(f"{SCORE_PATCH}.score_claude", return_value=80)
@@ -222,6 +232,31 @@ class TestScanSingleAppCaching(unittest.TestCase):
             mock_score.assert_not_called()
 
         self.assertEqual(result["scores"]["overall"], 76)
+
+    @patch(f"{SCORE_PATCH}.score_claude", return_value=50)
+    @patch(f"{SCORE_PATCH}.score_readme", return_value=50)
+    @patch(f"{SCORE_PATCH}.score_docs", return_value=50)
+    @patch(f"{SCORE_PATCH}.score_tests", return_value=50)
+    @patch(f"{SCORE_PATCH}.score_clean", return_value=50)
+    @patch(f"{SCORE_PATCH}.score_patterns", return_value=50)
+    @patch(f"{SCORE_PATCH}.score_lessons", return_value=50)
+    @patch(f"{SCORE_PATCH}.score_security", return_value=50)
+    @patch(f"{PATCH}._get_app_commits", return_value={})
+    @patch(f"{PATCH}._exec")
+    @patch(f"{PATCH}.frappe")
+    def test_works_when_app_not_in_commits(self, mf, mock_exec, mock_commits, *score_mocks):
+        """App with no commit hash should still scan (just not cache)."""
+        mf.only_for = MagicMock()
+        mf.get_doc = MagicMock(return_value=_bench_doc())
+        mf.cache.get_value = MagicMock(return_value=None)
+        mf.cache.set_value = MagicMock()
+        mock_exec.return_value = _mock_exec_output("PASS")
+
+        result = _bch.scan_single_app("bench-001", "unknownapp")
+        self.assertIn("scores", result)
+        self.assertEqual(result["scores"]["overall"], 50)
+        # Should NOT cache since no commit hash
+        mf.cache.set_value.assert_not_called()
 
 
 if __name__ == "__main__":

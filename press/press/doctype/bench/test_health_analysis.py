@@ -64,7 +64,16 @@ SAMPLE_ANALYSIS = {
 }
 
 
-class TestAnalyzeAppCodeAuth(unittest.TestCase):
+class _ResetCacheMixin:
+    def setUp(self):
+        _frappe_stub.only_for = lambda role: None
+        _frappe_stub.throw = MagicMock(side_effect=Exception("Frappe throw"))
+        _frappe_stub.cache = MagicMock()
+        _frappe_stub.cache.get_value = MagicMock(return_value=None)
+        _frappe_stub.cache.set_value = MagicMock()
+
+
+class TestAnalyzeAppCodeAuth(_ResetCacheMixin, unittest.TestCase):
     """Auth and permission tests."""
 
     def test_requires_system_manager(self):
@@ -91,7 +100,7 @@ class TestAnalyzeAppCodeAuth(unittest.TestCase):
         self.assertIn("token", result["error"].lower())
 
 
-class TestAnalyzeAppCodeParams(unittest.TestCase):
+class TestAnalyzeAppCodeParams(_ResetCacheMixin, unittest.TestCase):
     """Parameter validation tests."""
 
     @patch(f"{PATCH}._get_analysis_config")
@@ -123,7 +132,7 @@ class TestAnalyzeAppCodeParams(unittest.TestCase):
             self.assertNotIn("error", result)
 
 
-class TestAnalyzeAppCodeServiceCall(unittest.TestCase):
+class TestAnalyzeAppCodeServiceCall(_ResetCacheMixin, unittest.TestCase):
     """Tests that the service is called correctly."""
 
     @patch(f"{PATCH}._get_analysis_config")
@@ -149,7 +158,7 @@ class TestAnalyzeAppCodeServiceCall(unittest.TestCase):
         self.assertEqual(config["token"], "secret-tok")
 
 
-class TestAnalyzeAppCodeDualFormat(unittest.TestCase):
+class TestAnalyzeAppCodeDualFormat(_ResetCacheMixin, unittest.TestCase):
     """Tests for dual output format (HTML + JSON)."""
 
     @patch(f"{PATCH}._get_analysis_config")
@@ -193,7 +202,7 @@ class TestAnalyzeAppCodeDualFormat(unittest.TestCase):
         self.assertIn("analyzed_at", result["meta"])
 
 
-class TestAnalyzeAppCodeCaching(unittest.TestCase):
+class TestAnalyzeAppCodeCaching(_ResetCacheMixin, unittest.TestCase):
     """Tests that results are cached by (git_url, commit)."""
 
     @patch(f"{PATCH}._get_analysis_config")
@@ -216,7 +225,7 @@ class TestAnalyzeAppCodeCaching(unittest.TestCase):
         _frappe_stub.cache.get_value.return_value = None  # restore
 
 
-class TestAnalyzeAppCodeErrors(unittest.TestCase):
+class TestAnalyzeAppCodeErrors(_ResetCacheMixin, unittest.TestCase):
     """Tests for error handling."""
 
     @patch(f"{PATCH}._get_analysis_config")
@@ -238,7 +247,7 @@ class TestAnalyzeAppCodeErrors(unittest.TestCase):
         _frappe_stub.cache.set_value.assert_not_called()
 
 
-class TestCallAnalysisService(unittest.TestCase):
+class TestCallAnalysisService(_ResetCacheMixin, unittest.TestCase):
     """Tests for the HTTP call to the external service."""
 
     @patch(f"{PATCH}.requests.post")
