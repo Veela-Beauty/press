@@ -253,6 +253,10 @@ export default {
 	},
 	watch: {
 		viewMode(v) { if (v === 'cards') this.$nextTick(() => this.renderCardRadars()); },
+		selectedBench(bench) {
+			const query = bench ? { bench } : {};
+			this.$router.replace({ query }).catch(() => {});
+		},
 	},
 	computed: {
 		activeBenches() { return this.benches.filter(b => b.status === 'Active').length; },

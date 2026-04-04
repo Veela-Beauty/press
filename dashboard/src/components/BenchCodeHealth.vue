@@ -75,8 +75,16 @@
 			</div>
 		</div>
 
+		<!-- Loading cached data -->
+		<div v-if="initialLoading" class="flex h-48 items-center justify-center">
+			<div class="text-center text-gray-400">
+				<div class="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
+				Loading health data...
+			</div>
+		</div>
+
 		<!-- Not scanned — prominent CTA -->
-		<div v-if="!scanning && !summary" class="flex h-64 items-center justify-center">
+		<div v-else-if="!scanning && !summary" class="flex h-64 items-center justify-center">
 			<div class="text-center">
 				<div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/20">
 					<svg class="h-8 w-8 text-blue-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -370,7 +378,7 @@ export default {
 	},
 	data() {
 		return {
-			scanning: false, scanStep: '', activeTab: 'overview', lastScanAge: '',
+			scanning: false, scanStep: '', activeTab: 'overview', lastScanAge: '', initialLoading: true,
 			summary: null, healthData: null, appScores: [], compliance: [],
 			stackInfo: [], interactions: [], scriptsInventory: [],
 			tabs: [
@@ -404,18 +412,19 @@ export default {
 		};
 	},
 	async mounted() {
-		// Try loading all cached data first (uses Redis + per-app commit cache — fast)
+		// Try loading cached data first (Redis → DB fallback — fast, no docker)
 		try {
 			const summary = await call(`${API}.get_health_summary`, { bench_name: this.benchName });
 			if (summary && summary.total_files > 0) {
 				this.summary = summary;
 				this.lastScanAge = summary.scanned_at ? this.formatAge(summary.scanned_at) : 'From cache';
-				// Load remaining data in background (all cached by commit — no docker calls)
+				this.initialLoading = false;
 				this.loadCachedData();
 				return;
 			}
 		} catch (e) { /* no cache */ }
-		if (this.autoScan) this.scan();
+		this.initialLoading = false;
+		// No cached data — show "Scan This Bench" CTA (don't auto-scan)
 	},
 	beforeUnmount() {
 		if (this._cpInstance) { this._cpInstance.destroy(); this._cpInstance = null; }
