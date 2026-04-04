@@ -152,7 +152,7 @@ def toggle_team(team, action):
 def get_team_members(team):
     """Return members of a team."""
     frappe.only_for("System Manager")
-    members = frappe.get_all("Team Member", {"parent": team}, ["user"])
+    members = frappe.get_all("Team Member", {"parent": team}, ["user", "press_role"])
     result = []
     for m in members:
         user = frappe.get_value("User", m.user, ["full_name", "last_active", "creation"], as_dict=True)
@@ -161,8 +161,31 @@ def get_team_members(team):
             "full_name": user.full_name if user else "",
             "joined": user.creation if user else "",
             "last_active": user.last_active if user else "",
+            "press_role": m.press_role or "Viewer",
         })
     return result
+
+
+@frappe.whitelist()
+def set_member_role(team, user, role):
+    """Set the press_role for a team member."""
+    frappe.only_for("System Manager")
+    from press.press.doctype.team.team_roles import PRESS_ROLES
+    if role not in PRESS_ROLES:
+        frappe.throw(f"Invalid role: {role}")
+    member = frappe.get_value("Team Member", {"parent": team, "user": user}, "name")
+    if not member:
+        frappe.throw(f"User {user} is not a member of team {team}")
+    frappe.db.set_value("Team Member", member, "press_role", role)
+    frappe.db.commit()
+    return {"ok": True}
+
+
+@frappe.whitelist()
+def get_roles():
+    """Return available press roles."""
+    from press.press.doctype.team.team_roles import PRESS_ROLES
+    return PRESS_ROLES
 
 
 @frappe.whitelist()
