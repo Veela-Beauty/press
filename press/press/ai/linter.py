@@ -75,6 +75,12 @@ CAT1_RULES = [
         "prose": re.compile(r"\bDROP\s+TABLE\b", re.IGNORECASE),
     },
     {
+        "name": "DROP DATABASE",
+        "description": "DROP DATABASE statement — destroys entire database",
+        "fence": re.compile(r"\bDROP\s+DATABASE\b", re.IGNORECASE),
+        "prose": re.compile(r"\bDROP\s+DATABASE\b", re.IGNORECASE),
+    },
+    {
         "name": "TRUNCATE",
         "description": "TRUNCATE statement — deletes all rows permanently",
         "fence": re.compile(r"\bTRUNCATE\s+(?:TABLE\s+)?\w+", re.IGNORECASE),
@@ -128,7 +134,8 @@ CAT1_RULES = [
         "name": "site_config.json write",
         "description": "Direct write to site_config.json — credential exposure risk",
         "fence": re.compile(
-            r"open\s*\([^)]*site_config\.json[^)]*,\s*['\"]w", re.IGNORECASE
+            r"(?:open\s*\([^)]*site_config\.json[^)]*,\s*['\"]w|site_config\.json[\s\S]{0,100}open\s*\([^)]*['\"]w|json\.dump[\s\S]{0,100}site_config)",
+            re.IGNORECASE,
         ),
         "prose": None,
     },
@@ -141,7 +148,7 @@ CAT2_RULES = [
         "name": "bulk delete_doc loop",
         "description": "Bulk deletion loop — may delete many records",
         "fence": re.compile(
-            r"for\s+\w+\s+in\s+frappe\.(?:get_all|db\.sql)[\s\S]*?frappe\.delete_doc\s*\(",
+            r"for\s+\w+\s+in\s+[\s\S]*?frappe\.delete_doc\s*\(",
             re.IGNORECASE,
         ),
         "prose": None,
@@ -184,6 +191,12 @@ CAT3_RULES = [
         "name": "git reset --hard",
         "description": "Hard git reset — discards uncommitted changes",
         "fence": re.compile(r"\bgit\s+reset\s+--hard\b", re.IGNORECASE),
+        "prose": None,
+    },
+    {
+        "name": "bench migrate",
+        "description": "Database migration — may alter schema and data",
+        "fence": re.compile(r"\bbench\s+(?:--site\s+\S+\s+)?migrate\b", re.IGNORECASE),
         "prose": None,
     },
 ]

@@ -360,5 +360,91 @@ class TestBypassPrevention(unittest.TestCase):
         self.assertEqual(result.most_severe_category, 0)
 
 
+class TestReviewFindings(unittest.TestCase):
+    """Tests from code-reviewer findings — gaps and corrections."""
+
+    # --- FIX: test_blocks_delete_sql asserted on pattern name not matched_text ---
+
+    def test_delete_violation_has_correct_matched_text(self):
+        from press.press.ai.linter import lint_response
+
+        text = '```python\nfrappe.db.sql("DELETE FROM tabPayment Entry")\n```'
+        result = lint_response(text)
+        self.assertTrue(result.has_violations)
+        cat1 = [v for v in result.violations if v.category == 1]
+        self.assertGreater(len(cat1), 0)
+        self.assertIn("DELETE FROM", cat1[0].matched_text)
+
+    # --- HIGH: DROP DATABASE not covered ---
+
+    def test_blocks_drop_database(self):
+        from press.press.ai.linter import lint_response
+
+        text = '```sql\nDROP DATABASE mysite;\n```'
+        result = lint_response(text)
+        cat1 = [v for v in result.violations if v.category == 1]
+        self.assertGreater(len(cat1), 0)
+
+    def test_blocks_drop_database_in_prose(self):
+        from press.press.ai.linter import lint_response
+
+        text = "You can run DROP DATABASE mysite to remove the database."
+        result = lint_response(text)
+        cat1 = [v for v in result.violations if v.category == 1]
+        self.assertGreater(len(cat1), 0)
+
+    # --- HIGH: site_config.json path variable bypass ---
+
+    def test_blocks_site_config_write_via_variable(self):
+        from press.press.ai.linter import lint_response
+
+        text = """```python
+path = "sites/mysite/site_config.json"
+with open(path, 'w') as f:
+    json.dump(config, f)
+```"""
+        result = lint_response(text)
+        cat1 = [v for v in result.violations if v.category == 1]
+        self.assertGreater(len(cat1), 0)
+
+    # --- HIGH: Bulk delete over plain list ---
+
+    def test_flags_bulk_delete_over_list(self):
+        from press.press.ai.linter import lint_response
+
+        text = """```python
+names = ["PE-001", "PE-002", "PE-003"]
+for name in names:
+    frappe.delete_doc("Payment Entry", name)
+```"""
+        result = lint_response(text)
+        cat2 = [v for v in result.violations if v.category == 2]
+        self.assertGreater(len(cat2), 0)
+
+    # --- MEDIUM: bench migrate on non-staging (Cat 3 fallback) ---
+
+    def test_warns_bench_migrate_generic(self):
+        """bench migrate without staging keyword should be Cat 3 warning."""
+        from press.press.ai.linter import lint_response
+
+        text = "```bash\nbench --site mysite.frappe.cloud migrate\n```"
+        result = lint_response(text)
+        # Should have at least a Cat 3 warning
+        cat23 = [v for v in result.violations if v.category in (2, 3)]
+        self.assertGreater(len(cat23), 0)
+
+    # --- Stronger assertion for multiple violations ---
+
+    def test_multiple_violations_have_distinct_patterns(self):
+        from press.press.ai.linter import lint_response
+
+        text = "```bash\nrm -rf /tmp/old\n```\n```python\nfrappe.db.sql('DROP TABLE tabOld')\n```"
+        result = lint_response(text)
+        cat1 = [v for v in result.violations if v.category == 1]
+        self.assertGreaterEqual(len(cat1), 2)
+        patterns = {v.pattern for v in cat1}
+        self.assertGreaterEqual(len(patterns), 2, "Should have at least 2 distinct patterns")
+
+
 if __name__ == "__main__":
     unittest.main()
