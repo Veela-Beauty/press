@@ -524,3 +524,31 @@ def scan_single_app(bench_name, app_name):
     if commit:
         _set_cached("single_app", app_name, commit, result)
     return result
+
+
+@frappe.whitelist()
+def scan_app_graph(bench_name, app_name):
+    """Extract module/function dependency graph for one app.
+    Uses codegraph if available, falls back to AST-based extraction."""
+    from .health_graph import extract_codegraph as _extract_codegraph
+    from .health_graph import extract_ast_graph as _extract_ast_graph
+    frappe.only_for(("System Manager", "Press Admin"))
+
+    app_name = _safe(app_name)
+    bench = frappe.get_doc("Bench", bench_name)
+    commits = _get_app_commits(bench)
+    commit = commits.get(app_name, "")
+
+    if commit:
+        cached = _get_cached("graph", app_name, commit)
+        if cached:
+            return cached
+
+    try:
+        result = _extract_codegraph(bench, app_name)
+    except Exception:
+        result = _extract_ast_graph(bench, app_name)
+
+    if commit:
+        _set_cached("graph", app_name, commit, result)
+    return result
