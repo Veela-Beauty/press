@@ -1,0 +1,100 @@
+{
+ "actions": [],
+ "creation": "2026-04-04 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "bench",
+  "app_name",
+  "commit_hash",
+  "column_break_1",
+  "scan_type",
+  "scanned_at",
+  "status",
+  "section_break_result",
+  "result_json"
+ ],
+ "fields": [
+  {
+   "fieldname": "bench",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Bench",
+   "options": "Bench",
+   "reqd": 1
+  },
+  {
+   "fieldname": "app_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "App Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "commit_hash",
+   "fieldtype": "Data",
+   "label": "Commit Hash"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "scan_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Scan Type",
+   "options": "summary\nscores\ncompliance\nstack\ninteractions\nscripts\ngraph\nsingle_app",
+   "reqd": 1
+  },
+  {
+   "fieldname": "scanned_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Scanned At"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Success\nFailed",
+   "default": "Success"
+  },
+  {
+   "fieldname": "section_break_result",
+   "fieldtype": "Section Break",
+   "label": "Result"
+  },
+  {
+   "fieldname": "result_json",
+   "fieldtype": "JSON",
+   "label": "Result JSON"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-04-04 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Press",
+ "name": "Code Health Scan",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Press Admin",
+   "write": 1
+  }
+ ],
+ "sort_field": "scanned_at",
+ "sort_order": "DESC",
+ "track_changes": 0,
+ "autoname": "hash"
+}

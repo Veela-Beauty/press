@@ -80,19 +80,78 @@ def _cache_key(prefix, app, commit):
 
 
 def _get_cached(prefix, app, commit):
+    """Read from Redis first, fall back to DB."""
+    return _load_persisted(prefix, app, commit)
+
+
+def _set_cached(prefix, app, commit, data, bench_name=""):
+    """Write to both Redis cache and DB."""
     import json
+    frappe.cache.set_value(_cache_key(prefix, app, commit), json.dumps(data), expires_in_sec=CACHE_TTL)
+    if bench_name and commit:
+        _persist_scan(bench_name, app, commit, prefix, data)
+
+
+def _persist_scan(bench_name, app_name, commit_hash, scan_type, data):
+    """Save scan result to Code Health Scan DocType (permanent storage)."""
+    import json
+    from datetime import datetime, timezone
+
+    existing = frappe.get_all("Code Health Scan", filters={
+        "bench": bench_name, "app_name": app_name,
+        "commit_hash": commit_hash, "scan_type": scan_type,
+    }, fields=["name"], limit=1)
+
+    if existing:
+        doc = frappe.get_doc("Code Health Scan", existing[0].name)
+        doc.result_json = json.dumps(data)
+        doc.scanned_at = datetime.now(timezone.utc)
+        doc.status = "Success"
+        doc.save(ignore_permissions=True)
+    else:
+        doc = frappe.new_doc("Code Health Scan")
+        doc.bench = bench_name
+        doc.app_name = app_name
+        doc.commit_hash = commit_hash
+        doc.scan_type = scan_type
+        doc.result_json = json.dumps(data)
+        doc.scanned_at = datetime.now(timezone.utc)
+        doc.status = "Success"
+        doc.insert(ignore_permissions=True)
+
+    # Also update Redis cache
+    frappe.cache.set_value(_cache_key(scan_type, app_name, commit_hash), json.dumps(data), expires_in_sec=CACHE_TTL)
+
+
+def _load_persisted(prefix, app, commit):
+    """Load from Redis first, fall back to DB. Repopulate Redis on DB hit."""
+    import json
+
+    # Try Redis first (fast)
     val = frappe.cache.get_value(_cache_key(prefix, app, commit))
     if val:
         try:
             return json.loads(val)
         except (json.JSONDecodeError, TypeError):
             pass
+
+    # Fall back to DB
+    if not commit:
+        return None
+    records = frappe.get_all("Code Health Scan", filters={
+        "app_name": app, "commit_hash": commit, "scan_type": prefix,
+    }, fields=["result_json"], limit=1)
+
+    if records and records[0].result_json:
+        try:
+            data = json.loads(records[0].result_json)
+            # Repopulate Redis
+            frappe.cache.set_value(_cache_key(prefix, app, commit), json.dumps(data), expires_in_sec=CACHE_TTL)
+            return data
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     return None
-
-
-def _set_cached(prefix, app, commit, data):
-    import json
-    frappe.cache.set_value(_cache_key(prefix, app, commit), json.dumps(data), expires_in_sec=CACHE_TTL)
 
 
 def _list_apps(bench):
@@ -317,7 +376,7 @@ def get_app_scores(bench_name, include_all=False):
         scores["overall"] = round(sum(scores.values()) / len(scores))
         entry = {"app": app, "scores": scores}
         if commit:
-            _set_cached("scores", app, commit, entry)
+            _set_cached("scores", app, commit, entry, bench_name=bench_name)
         results.append(entry)
     return results
 
@@ -372,7 +431,7 @@ def get_docs_compliance(bench_name):
             "compliance_pct": round(passed / total * 100) if total else 0,
         }
         if commit:
-            _set_cached("compliance", app, commit, entry)
+            _set_cached("compliance", app, commit, entry, bench_name=bench_name)
         results.append(entry)
     return results
 
@@ -432,27 +491,37 @@ def get_app_stack_info(bench_name):
             info["repository"] = ""
 
         if commit:
-            _set_cached("stack", app, commit, info)
+            _set_cached("stack", app, commit, info, bench_name=bench_name)
         results.append(info)
     return results
 
 
 @frappe.whitelist()
 def get_app_interactions(bench_name):
-    """Scan hooks.py per app — returns doc_events, scheduler, overrides."""
+    """Scan hooks.py per app — returns doc_events, scheduler, overrides. Cached per bench."""
     from .health_inventory import scan_app_interactions
     frappe.only_for(("System Manager", "Press Admin"))
+    cached = _load_persisted("interactions", bench_name, bench_name)
+    if cached:
+        return cached
     bench = frappe.get_doc("Bench", bench_name)
-    return scan_app_interactions(bench)
+    result = scan_app_interactions(bench)
+    _persist_scan(bench_name, bench_name, bench_name, "interactions", result)
+    return result
 
 
 @frappe.whitelist()
 def get_scripts_inventory(bench_name):
-    """Inventory: client scripts, controllers, whitelisted methods, reports per app."""
+    """Inventory: client scripts, controllers, whitelisted methods, reports per app. Cached per bench."""
     from .health_inventory import scan_scripts_inventory
     frappe.only_for(("System Manager", "Press Admin"))
+    cached = _load_persisted("scripts", bench_name, bench_name)
+    if cached:
+        return cached
     bench = frappe.get_doc("Bench", bench_name)
-    return scan_scripts_inventory(bench)
+    result = scan_scripts_inventory(bench)
+    _persist_scan(bench_name, bench_name, bench_name, "scripts", result)
+    return result
 
 
 @frappe.whitelist()
@@ -522,7 +591,7 @@ def scan_single_app(bench_name, app_name):
 
     result = {"scores": scores, "compliance": compliance}
     if commit:
-        _set_cached("single_app", app_name, commit, result)
+        _set_cached("single_app", app_name, commit, result, bench_name=bench_name)
     return result
 
 
@@ -550,5 +619,5 @@ def scan_app_graph(bench_name, app_name):
         result = _extract_ast_graph(bench, app_name)
 
     if commit:
-        _set_cached("graph", app_name, commit, result)
+        _set_cached("graph", app_name, commit, result, bench_name=bench_name)
     return result
