@@ -1,5 +1,7 @@
 <template>
-	<div class="mx-auto max-w-4xl space-y-4 p-4">
+	<div class="flex">
+	<!-- Main content -->
+	<div class="mx-auto max-w-4xl flex-1 space-y-4 p-4">
 
 		<!-- 1. Status Cards -->
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -386,12 +388,35 @@
 		</Dialog>
 
 	</div>
+
+	<!-- AI Assistant Toggle Button -->
+	<button
+		v-if="!showAiPanel"
+		class="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition-transform hover:scale-110 hover:bg-blue-700"
+		title="AI Assistant"
+		@click="showAiPanel = true"
+	>
+		<i class="fa fa-magic text-lg"></i>
+	</button>
+
+	<!-- AI Chat Panel (right side) -->
+	<AiChatPanel
+		:visible="showAiPanel"
+		:site-name="site"
+		:bench-name="$site?.doc?.bench || ''"
+		:site-type="$site?.doc?.site_type || 'Dev'"
+		:branch="currentBranch"
+		@close="showAiPanel = false"
+	/>
+
+	</div>
 </template>
 
 <script>
 import { call, getCachedDocumentResource } from 'frappe-ui';
 import { toast } from 'vue-sonner';
 import BenchCodeHealth from './BenchCodeHealth.vue';
+import AiChatPanel from './AiChatPanel.vue';
 
 const API = 'press.press.doctype.bench.bench_dev_overview';
 
@@ -419,7 +444,7 @@ export default {
 			// Code Server
 			codeServer: { enabled: false, exists: false, status: null, url: null, name: null },
 			codeServerLaunching: false,
-			showHealth: false,
+			showHealth: false, showAiPanel: false,
 			showCreateApp: false, newAppName: '', newAppTitle: '', creatingApp: false, createAppOutput: '',
 			showInitGithub: false, initGithubApp: '', githubAccounts: [], loadingAccounts: false,
 			selectedGithubOwner: '', pushingToGithub: false, initGithubOutput: '',
@@ -429,6 +454,10 @@ export default {
 		$site() { return getCachedDocumentResource('Site', this.site); },
 		isDevBench() { return this.devInfo?.is_development_bench; },
 		devModeOn() { return true; },
+		currentBranch() {
+			const first = this.appGitStatus?.[0];
+			return first?.branch || 'dev-default';
+		},
 		migrationLabel() {
 			if (!this.migrationData?.last_run) return 'Never';
 			return 'Last: ' + this.relativeTime(this.migrationData.last_run);

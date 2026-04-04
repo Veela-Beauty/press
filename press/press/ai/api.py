@@ -127,3 +127,108 @@ def _get_user_key(user):
     if frappe.db.has_column("User", "ai_api_key"):
         return frappe.db.get_value("User", user, "ai_api_key")
     return None
+
+
+@frappe.whitelist()
+def acknowledge_policy():
+    """Record that the user acknowledged the AI usage policy."""
+    user = frappe.session.user
+    frappe.db.set_value("User", user, "ai_policy_acknowledged", frappe.utils.now())
+    frappe.db.commit()
+    return {"ok": True, "user": user, "acknowledged_at": frappe.utils.now()}
+
+
+@frappe.whitelist()
+def apply_patch(files, bench_name, branch, session_id, commit_message=""):
+    """Apply AI-generated file patches to the bench container.
+
+    Args:
+        files: JSON list of {path, content} objects
+        bench_name: Bench DocType name
+        branch: Git branch to commit to
+        session_id: AI session ID for traceability
+        commit_message: Optional custom commit message
+    """
+    import json as json_mod
+    user = frappe.session.user
+
+    if isinstance(files, str):
+        files = json_mod.loads(files)
+
+    bench = frappe.get_doc("Bench", bench_name)
+
+    results = []
+    for f in files:
+        path = f["path"]
+        content = f["content"]
+
+        # Write file to container
+        # Use base64 encoding to handle special characters safely
+        import base64
+        encoded = base64.b64encode(content.encode()).decode()
+        bench.docker_execute(
+            f"echo '{encoded}' | base64 -d > apps/{path}",
+            save_output=False, create_log=False,
+        )
+        results.append({"path": path, "status": "written"})
+
+    # Git commit
+    if not commit_message:
+        file_list = ", ".join(f["path"].split("/")[-1] for f in files)
+        commit_message = f"[Press AI] patch: {file_list}"
+
+    commit_msg_full = (
+        f"{commit_message}\n\n"
+        f"Provider : AI Assistant\n"
+        f"Session  : {session_id}\n"
+        f"Branch   : {branch}\n"
+        f"User     : {user}\n"
+        f"Files    : {', '.join(f['path'] for f in files)}"
+    )
+
+    # Stage + commit inside container
+    file_paths = " ".join(f"apps/{f['path']}" for f in files)
+    bench.docker_execute(
+        f"git -C apps add {file_paths}",
+        save_output=False, create_log=False,
+    )
+    bench.docker_execute(
+        f'git -C apps -c user.name="Press AI" -c user.email="ai@press.local" '
+        f'commit -m "{commit_msg_full}"',
+        save_output=False, create_log=False,
+    )
+
+    # Get commit hash
+    hash_result = bench.docker_execute(
+        "git -C apps log -1 --format=%H",
+        save_output=False, create_log=False,
+    )
+    commit_hash = hash_result.get("output", "").strip()[:12]
+
+    return {
+        "ok": True,
+        "files": results,
+        "commit_hash": commit_hash,
+        "commit_message": commit_message,
+    }
+
+
+@frappe.whitelist()
+def update_team_ai_rules(team, settings):
+    """Update AI rules for a team (admin only)."""
+    import json as json_mod
+
+    if frappe.session.user != "Administrator":
+        from press.press.doctype.team.team_roles import has_role_access
+        if not has_role_access("Platform Admin"):
+            frappe.throw("Only Platform Admin can modify AI rules")
+
+    if isinstance(settings, str):
+        settings = json_mod.loads(settings)
+
+    # Store as JSON on Team custom field
+    if frappe.db.has_column("Team", "ai_rules"):
+        frappe.db.set_value("Team", team, "ai_rules", json_mod.dumps(settings))
+        frappe.db.commit()
+
+    return {"ok": True}
