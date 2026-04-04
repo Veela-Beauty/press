@@ -444,3 +444,73 @@ def get_scripts_inventory(bench_name):
     frappe.only_for(("System Manager", "Press Admin"))
     bench = frappe.get_doc("Bench", bench_name)
     return scan_scripts_inventory(bench)
+
+
+@frappe.whitelist()
+def scan_single_app(bench_name, app_name):
+    """Scan ONE app — returns scores + compliance. Cached by (app, commit).
+    Designed for per-app incremental scanning from the frontend (~8s per app
+    instead of 60-90s for all apps in one call)."""
+    from .health_scoring import (score_claude, score_readme, score_docs, score_tests,
+                                  score_clean, score_patterns, score_lessons, score_security)
+    frappe.only_for(("System Manager", "Press Admin"))
+
+    app_name = _safe(app_name)
+    bench = frappe.get_doc("Bench", bench_name)
+    commits = _get_app_commits(bench)
+    commit = commits.get(app_name, "")
+
+    # Check cache
+    if commit:
+        cached = _get_cached("single_app", app_name, commit)
+        if cached:
+            return cached
+
+    # Score
+    scores = {
+        "app": app_name,
+        "claude_md": score_claude(bench, app_name),
+        "readme": score_readme(bench, app_name),
+        "documentation": score_docs(bench, app_name),
+        "tests": score_tests(bench, app_name),
+        "clean_code": score_clean(bench, app_name),
+        "code_patterns": score_patterns(bench, app_name),
+        "lessons": score_lessons(bench, app_name),
+        "security": score_security(bench, app_name),
+    }
+    scores["overall"] = round(sum(v for k, v in scores.items() if k != "app") / 8)
+
+    # Compliance checks
+    checks = []
+    passed = 0
+    for name, cmd_tpl in [
+        ("CLAUDE.md", "test -f apps/{a}/CLAUDE.md"),
+        ("README.md", "test -f apps/{a}/README.md"),
+        ("docs/wiki/", "test -d apps/{a}/docs/wiki"),
+        ("DEVLOG.md", "test -f apps/{a}/DEVLOG.md"),
+        ("tests/", "test -d apps/{a}/tests"),
+        ("lessons", "test -f apps/{a}/lessons-learned.md"),
+        (".gitignore", "test -f apps/{a}/.gitignore"),
+    ]:
+        r = _exec(bench, cmd_tpl.format(a=app_name) + " && echo PASS || echo FAIL")
+        ok = r.get("output", "").strip() == "PASS"
+        checks.append({"name": name, "status": ok})
+        if ok:
+            passed += 1
+
+    sec_ok = scores["security"] >= 80
+    checks.append({"name": "Security", "status": sec_ok, "score": scores["security"]})
+    if sec_ok:
+        passed += 1
+
+    total = len(checks)
+    compliance = {
+        "app": app_name, "is_custom": app_name not in UPSTREAM_APPS,
+        "checks": checks, "passed": passed, "total": total,
+        "compliance_pct": round(passed / total * 100) if total else 0,
+    }
+
+    result = {"scores": scores, "compliance": compliance}
+    if commit:
+        _set_cached("single_app", app_name, commit, result)
+    return result

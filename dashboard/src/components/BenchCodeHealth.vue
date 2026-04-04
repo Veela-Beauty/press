@@ -527,56 +527,86 @@ export default {
 			return `${Math.floor(h / 24)}d ago`;
 		},
 		async loadCachedData() {
-			// Load all tab data from backend cache — no docker calls if commit cache hits
+			// Load health map + per-app data from backend cache (fast — cached by commit)
 			const bn = this.benchName;
 			try {
-				const [health, scores, comp, stack, inter, scripts] = await Promise.all([
+				const [health, stack, inter, scripts] = await Promise.all([
 					call(`${API}.scan_bench_health`, { bench_name: bn }),
-					call(`${API}.get_app_scores`, { bench_name: bn, include_all: true }),
-					call(`${API}.get_docs_compliance`, { bench_name: bn }),
 					call(`${API}.get_app_stack_info`, { bench_name: bn }),
 					call(`${API}.get_app_interactions`, { bench_name: bn }),
 					call(`${API}.get_scripts_inventory`, { bench_name: bn }),
 				]);
 				this.healthData = health;
-				this.appScores = scores;
-				this.compliance = comp;
 				this.stackInfo = stack;
 				this.interactions = inter;
 				this.scriptsInventory = scripts;
-				// Trigger D3 for the active tab
-				this.$nextTick(() => {
-					if (this.activeTab === 'health') this.initCirclePack();
-					if (this.activeTab === 'overview') this.renderOverallRadar();
-					if (this.activeTab === 'radar') this.renderRadars();
-				});
+				// Load per-app scores incrementally from cache
+				await this.loadAppScores(bn);
+				this.triggerD3();
 			} catch (e) {
 				console.error('Failed to load cached data:', e);
 			}
 		},
+		async loadAppScores(bn) {
+			// Get app list from health data tree (top-level children = apps)
+			const apps = this.healthData?.children?.map(c => c.name) || [];
+			for (const appName of apps) {
+				try {
+					const result = await call(`${API}.scan_single_app`, { bench_name: bn, app_name: appName });
+					if (result?.scores) {
+						this.appScores = [...this.appScores, { app: appName, scores: result.scores }];
+					}
+					if (result?.compliance) {
+						this.compliance = [...this.compliance, result.compliance];
+					}
+				} catch (e) {
+					console.error(`Failed to load ${appName}:`, e);
+				}
+			}
+		},
+		triggerD3() {
+			this.$nextTick(() => {
+				if (this.activeTab === 'health') this.initCirclePack();
+				if (this.activeTab === 'overview') this.renderOverallRadar();
+				if (this.activeTab === 'radar') this.renderRadars();
+			});
+		},
 		async scan() {
 			if (this.scanning) return;
 			this.scanning = true;
+			this.appScores = [];
+			this.compliance = [];
 			try {
 				// Step 1: Quick summary (fast — single docker command)
-				this.scanStep = '1/4 — health summary';
+				this.scanStep = '1/3 — health summary';
 				this.summary = await call(`${API}.get_health_summary`, { bench_name: this.benchName });
 
 				// Step 2: File tree (moderate — single find+wc)
-				this.scanStep = '2/4 — file health map';
+				this.scanStep = '2/3 — file health map';
 				this.healthData = await call(`${API}.scan_bench_health`, { bench_name: this.benchName });
 
-				// Step 3: Scores + compliance (heavy — many docker calls, sequential)
-				this.scanStep = '3/4 — app scores + compliance';
-				const [scores, comp] = await Promise.all([
-					call(`${API}.get_app_scores`, { bench_name: this.benchName, include_all: true }),
-					call(`${API}.get_docs_compliance`, { bench_name: this.benchName }),
-				]);
-				this.appScores = scores;
-				this.compliance = comp;
+				// Step 3: Per-app scoring (incremental — ~8s per app, results appear one by one)
+				const apps = this.healthData?.children?.map(c => c.name) || [];
+				for (let i = 0; i < apps.length; i++) {
+					this.scanStep = `3/3 — scoring ${apps[i]} (${i + 1}/${apps.length})`;
+					try {
+						const result = await call(`${API}.scan_single_app`, {
+							bench_name: this.benchName, app_name: apps[i],
+						});
+						if (result?.scores) {
+							this.appScores = [...this.appScores, { app: apps[i], scores: result.scores }];
+						}
+						if (result?.compliance) {
+							this.compliance = [...this.compliance, result.compliance];
+						}
+						this.triggerD3();
+					} catch (e) {
+						console.error(`Scan failed for ${apps[i]}:`, e);
+					}
+				}
 
-				// Step 4: Stack + interactions + scripts
-				this.scanStep = '4/4 — stack info + interactions';
+				// Step 4: Stack + interactions + scripts (fast — ~5s total)
+				this.scanStep = 'finishing up...';
 				const [stack, inter, scripts] = await Promise.all([
 					call(`${API}.get_app_stack_info`, { bench_name: this.benchName }),
 					call(`${API}.get_app_interactions`, { bench_name: this.benchName }),
@@ -586,12 +616,7 @@ export default {
 				this.interactions = inter;
 				this.scriptsInventory = scripts;
 				this.lastScanAge = 'Scanned just now';
-				// Trigger D3 render for the currently active tab
-				this.$nextTick(() => {
-					if (this.activeTab === 'health') this.initCirclePack();
-					if (this.activeTab === 'overview') this.renderOverallRadar();
-					if (this.activeTab === 'radar') this.renderRadars();
-				});
+				this.triggerD3();
 			} catch (e) {
 				console.error('Scan failed:', e);
 				this.scanStep = 'Error: ' + (e?.messages?.[0] || String(e));
