@@ -126,6 +126,19 @@ three separate DocType records, each with its own `agent_password` in `__Auth` t
   - `create_app()` — scaffold + GitHub repo + push + register + auto-add to bench
   - `get_github_owners()` — GitHub account selector
 
+### AI Governance Layer (`press/press/ai/`) — Press is governance only, Sanad AI is the engine
+Architecture: Sanad AI (installed on dev/staging sites) handles chat, tools, providers, billing.
+Press (on press-ctrl) enforces governance — scope guard, escalation, rollback triggers, policy.
+
+- `press/press/ai/site_scope_guard.py` — dev/staging/prod enforcement before AI actions
+- `press/press/ai/escalation.py` — 3-category escalation chain (hard block, approval, warning)
+- `press/press/ai/policy.py` — policy acknowledgment gate + per-team AI rules
+- `press/press/ai/rollback_trigger.py` — trigger rollback on target site via agent API
+- `press/press/ai/tests/` — 41 unit tests (TDD)
+
+Previously had 15 duplicate files (~2,585 lines) for linter, context injector, key storage, token budget,
+gateway, provider, DB setup. All deleted — now handled by Sanad AI's `ai_dev` module.
+
 ### Dashboard Pages & Components
 - `dashboard/src/pages/DevOverview.vue` — Watch Tower dashboard at `/dashboard/dev-overview`
 - `dashboard/src/pages/DeployCandidate.vue` — Enhanced deploy build page (7 UX improvements)
