@@ -799,12 +799,86 @@ All 16 gaps resolved. Implementation started 2026-04-04.
 - [x] Deleted 15 duplicate files (-2,585 lines) — now handled by Sanad AI
 - [x] E2E test: 10/10 passed across full pipeline
 
+#### Phase 4 — Integration wiring (next session)
+- [ ] Configure AI Settings on dev sites — set OpenRouter key on accubuild-stg + accuhub-dev
+- [ ] Hook linter_pipeline into Sanad AI chat — call `process_response()` after every AI response
+- [ ] Deploy latest Sanad AI to accubuild staging bench (bench-0005)
+- [ ] Enable MariaDB versioning on accuhub-dev — `ALTER TABLE ADD SYSTEM VERSIONING` via agent
+- [ ] Wire Admin Panel to live data — Governance + Usage tabs read from Sanad AI billing APIs
+- [ ] Escalation persistence — create Press DocType for escalation records (currently in-memory)
+
 #### Future
 - [ ] VS Code extension webview (v1.1)
 - [ ] Prompt Library for implementors (v2)
 
 ---
 
+## Milestones
+
+### Milestone 1: Architecture + Core Tools — COMPLETE (2026-04-05)
+**What:** Researched Odoo.sh, designed architecture (Sanad AI engine + Press governance),
+built ai_dev module with 6 tools + Playwright engine, all TDD.
+
+- Architecture shift: Sanad AI handles chat/tools/billing, Press handles governance
+- MariaDB System Versioning chosen for rollback (no external library)
+- 156 tests in Sanad AI, 41 in Press = 197 total
+- Code review: 9 issues found and fixed (5 HIGH security)
+- Playwright benchmark: 71 steps, 96% pass rate on live site
+
+### Milestone 2: Admin Panel + Deployment — COMPLETE (2026-04-05)
+**What:** Admin Panel wired into Press dashboard sidebar, 6 tabs all working,
+Sanad AI installed on Press site, E2E test 10/10.
+
+- Admin Panel route + sidebar entry added to Press dashboard
+- Policy tab: checkbox → acknowledge → API save → redirect (full flow)
+- AI Governance tab: stats cards + global rules + role-level limits
+- Escalations tab: "No open escalations" (ready for data)
+- Usage & Cost tab: cost/tokens/sessions stats + per-user table
+- Prototypes deployed: interactive prototype, reference gallery, playground
+
+### Milestone 3: Production Integration — PENDING
+**What:** Wire everything to live data so developers can actually use AI with guardrails.
+
+- Configure providers on dev/staging sites
+- Hook linter into chat pipeline
+- Enable rollback on target tables
+- Connect governance dashboard to Sanad AI billing
+- First real developer uses AI chat with full safety pipeline
+
+### Milestone 4: Team Rollout — FUTURE
+**What:** Roll out to 20 developers + 10 implementors with training.
+
+- VS Code extension webview (v1.1)
+- Prompt Library for implementors (v2)
+- Onboarding flow for new team members
+- Usage analytics and optimization
+
+---
+
+## Session Log
+
+### Session 1 (2026-04-04): Weeks 1-3
+- Built initial Press AI code (15 files, 132 tests, 5,000 lines)
+- Provider, linter, context injector, token budget, gateway
+- 7 Vue components, AI chat panel prototype
+- 4 code reviews, 8 security fixes
+
+### Session 2 (2026-04-05): Architecture Shift + ai_dev Module
+- Analyzed Odoo.sh (deep competitive analysis)
+- Discovered Sanad AI already installed → architecture shift
+- Built ai_dev module: 6 tools, 2 utils, Playground page
+- Playwright engine: 5/5 tests pass, 71-step benchmark 96%
+- Phase 1: wired tools to Sanad AI chat (dev_tools, verify_tools)
+- Phase 2: Press governance (escalation, policy, scope guard, rollback trigger)
+- Phase 3: rollback API + E2E 10/10
+- Deleted 15 duplicate files (-2,585 lines)
+- Admin Panel: route + sidebar + 6 tabs all verified
+- Policy flow: checkbox → API save → working
+- Code review: 9 issues found, all fixed
+- Total: 197 tests, 0 failures
+
+---
+
 *Document Owner: Eslam — Accurate Systems / Optiflow Solutions*  
 *Part of plan: `docs/plans/2026-04-03-admin-panel.md`*  
-*Version: 0.7 — Phase 1-3 complete: 156 ai_dev tests + 41 governance tests + architecture shift | 5 April 2026*
+*Version: 0.8 — Milestones 1-2 complete, Phase 4 pending | 5 April 2026*
