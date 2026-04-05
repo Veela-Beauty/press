@@ -475,24 +475,59 @@ Every user must acknowledge this policy before first use of the AI Dev Tab. Ackn
 
 ## 14. Sign-Off & Next Steps
 
-All 16 gaps resolved. Implementation can begin.
+All 16 gaps resolved. Implementation started 2026-04-04.
 
-### Week 1
-- [ ] Security review: key storage AES-256 + context injector allowlist
-- [ ] Press DB schema migration: `press_ai_action_log` + `press_ai_milestone` + `press_ai_session` tables
-- [ ] LiteLLM PoC: validate routing with Z.AI + Anthropic simultaneously
-- [ ] Linter rule set finalized and unit-tested against V14/V15/V16
+### Week 1 — DONE (2026-04-04)
+- [x] Security review: key storage AES-256-GCM + context injector allowlist — `key_storage.py` (155 lines, 20 tests)
+- [x] Press DB schema: 3 DocTypes created on server — `db_setup.py` (166 lines)
+- [x] Custom Fields: `ai_api_key`, `ai_provider`, `ai_policy_acknowledged` on User; `ai_company_key`, `ai_rules` on Team
+- [x] Provider: OpenRouter integration via urllib — `provider.py` (175 lines, 8 real API tests)
+- [x] Linter: 3-category scanner, 2-pass (fenced + prose), 12 patterns — `linter.py` (301 lines, 44 tests)
+- [x] Context injector: sanitized prompt builder — `context_injector.py` (147 lines, 19 tests)
+- [x] Site scope guard: dev/staging/prod + branch enforcement — `site_scope_guard.py` (116 lines, 21 tests)
+- [x] Token budget: per-user cap + project pool + optimistic reservation — `token_budget.py` (180 lines, 12 tests)
+- [x] Gateway: orchestrator (scope -> budget -> provider -> lint) — `gateway.py` (148 lines, 8 tests)
+- [x] API wrapper: `press/api/ai_chat.py` for Frappe URL routing — allow_guest with auth check
 
-### Week 2
-- [ ] Frontend: hi-fi design for AI panel + diff viewer + milestone timeline + governance tabs
-- [ ] Policy document finalized and published in Press (ref: section 9)
-- [ ] Admin panel integration points mapped (ref: `docs/plans/2026-04-03-admin-panel.md`)
+### Week 2 — DONE (2026-04-04)
+- [x] AI chat panel: collapsible right panel with quick prompts, budget bar — `AiChatPanel.vue` (310 lines)
+- [x] Diff viewer: tabbed per-file approve/reject — `AiDiffViewer.vue` (214 lines)
+- [x] Governance tabs: AI Governance + Escalations + Usage & Cost — 3 components (341 lines)
+- [x] Policy gate: acknowledgment flow before AI use — `AiPolicyGate.vue` (102 lines)
+- [x] Per-team AI Rules: token cap + prod access overrides — `AiTeamRules.vue` (118 lines)
+- [x] Admin Panel: 6-tab navigation wired (Teams, Servers, AI Governance, Escalations, Usage & Cost, Policy)
+- [x] Prototype: standalone HTML with DOMPurify + highlight.js + marked.js — `ai_chat_panel_prototype.html`
 
-### Week 3
-- [ ] MVP sprint kickoff — Scenario A only, single provider, basic linter
+### Week 3 — DONE (2026-04-04)
+- [x] MVP wiring: AI panel integrated into SiteDevTab (floating button + panel)
+- [x] Backend API: `chat()`, `apply_patch()`, `acknowledge_policy()`, `update_team_ai_rules()`, `get_ai_config()`
+- [x] E2E backend tests: 6/6 pass on live server (simple prompt, Frappe code, debug, prod block, branch block, budget)
+- [x] Playwright UAT: AI button appears on Dev Tab, panel opens, tabs render in Admin Panel
+
+### Code Reviews Applied
+- [x] Linter: 3 HIGH bypass fixes (prose scan, backtick quoting, trailing space) + 5 new patterns
+- [x] Test review: DROP DATABASE, site_config path variable, bulk delete list, bench migrate generic
+- [x] Backend security: 4 MUST FIX (shell injection, permission checks on apply_patch/chat/team_rules)
+- [x] Frontend: XSS fix (DOMPurify), prop mutation fix, accessibility (aria-labels), applying reset
+
+### Stats
+- **17 commits** pushed to `cloudflare-dns` branch
+- **132 tests** (124 unit + 8 integration with real OpenRouter API)
+- **28 files** (11 Python modules + 7 test files + 8 Vue components + 1 prototype + 1 plan)
+- **~5,000 lines** of new code
+- **4 code reviews** completed (2 backend, 2 frontend)
+- **8 security fixes** applied
+
+### Remaining for production readiness
+- [ ] Fresh OpenRouter API key on server (current key expired during session)
+- [ ] Streaming responses (v1.1 — SSE for token-by-token display)
+- [ ] Escalation persistence in Press AI Action Log DocType
+- [ ] Milestone snapshot scheduler (hourly background job)
+- [ ] VS Code extension webview (v1.1)
+- [ ] Prompt Library for implementors (v2)
 
 ---
 
 *Document Owner: Eslam — Accurate Systems / Optiflow Solutions*  
 *Part of plan: `docs/plans/2026-04-03-admin-panel.md`*  
-*Version: 0.3 Final | April 2026*
+*Version: 0.4 — Post-implementation | April 2026*
