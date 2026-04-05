@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Dev Assistant — UI/UX Reference Gallery</title>
+<style>
+:root { --gray-50: #f9fafb; --gray-200: #e5e7eb; --gray-500: #6b7280; --gray-800: #1f2937; --blue-600: #2563eb; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--gray-50); color: var(--gray-800); }
+.banner { background: #dc2626; color: #fff; text-align: center; padding: 8px; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+.container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+h1 { font-size: 22px; margin-bottom: 8px; }
+.subtitle { font-size: 14px; color: var(--gray-500); margin-bottom: 24px; }
+.category { margin-bottom: 32px; }
+.category h2 { font-size: 16px; font-weight: 600; padding-bottom: 8px; border-bottom: 2px solid var(--blue-600); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.category h2 .count { font-size: 11px; background: var(--blue-600); color: #fff; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.card { background: #fff; border: 1px solid var(--gray-200); border-radius: 8px; overflow: hidden; cursor: pointer; transition: box-shadow 0.15s; }
+.card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.card img { width: 100%; height: 200px; object-fit: cover; object-position: top; border-bottom: 1px solid var(--gray-200); }
+.card .info { padding: 10px 12px; }
+.card .info .name { font-size: 12px; font-weight: 600; word-break: break-all; }
+.card .info .size { font-size: 11px; color: var(--gray-500); margin-top: 2px; }
+/* Lightbox */
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1000; display: none; align-items: center; justify-content: center; cursor: zoom-out; }
+.lightbox.active { display: flex; }
+.lightbox img { max-width: 95vw; max-height: 95vh; object-fit: contain; border-radius: 4px; }
+.lightbox .close { position: absolute; top: 16px; right: 24px; color: #fff; font-size: 28px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="banner">UI/UX REFERENCE GALLERY — Press AI Developer Assistant</div>
+<div class="container">
+<h1>Reference Screenshots</h1>
+<p class="subtitle">25 images collected from Odoo.sh, ERPNext, Frappe, GitHub Copilot, and Cursor AI. Click any image to zoom.</p>
+<div class="category"><h2>Odoo.sh — Branch & Deployment <span class="count">7</span></h2><div class="grid">
+<div class="card" onclick="openLightbox('references/01_odoosh_branch_view.png')"><img src="references/01_odoosh_branch_view.png" loading="lazy" alt="01 Odoosh Branch View"><div class="info"><div class="name">01 Odoosh Branch View</div><div class="size">227 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/03_odoosh_project.png')"><img src="references/03_odoosh_project.png" loading="lazy" alt="03 Odoosh Project"><div class="info"><div class="name">03 Odoosh Project</div><div class="size">73 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/04_odoosh_branches_mails.png')"><img src="references/04_odoosh_branches_mails.png" loading="lazy" alt="04 Odoosh Branches Mails"><div class="info"><div class="name">04 Odoosh Branches Mails</div><div class="size">27 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/09_odoosh_branch_concept.png')"><img src="references/09_odoosh_branch_concept.png" loading="lazy" alt="09 Odoosh Branch Concept"><div class="info"><div class="name">09 Odoosh Branch Concept</div><div class="size">133 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/10_odoosh_branch_staging.png')"><img src="references/10_odoosh_branch_staging.png" loading="lazy" alt="10 Odoosh Branch Staging"><div class="info"><div class="name">10 Odoosh Branch Staging</div><div class="size">117 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/18_odoosh_deploy_module.png')"><img src="references/18_odoosh_deploy_module.png" loading="lazy" alt="18 Odoosh Deploy Module"><div class="info"><div class="name">18 Odoosh Deploy Module</div><div class="size">38 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/19_odoosh_deploy_github.png')"><img src="references/19_odoosh_deploy_github.png" loading="lazy" alt="19 Odoosh Deploy Github"><div class="info"><div class="name">19 Odoosh Deploy Github</div><div class="size">25 KB</div></div></div>
+</div></div>
+<div class="category"><h2>Odoo.sh — Builds & CI/CD <span class="count">3</span></h2><div class="grid">
+<div class="card" onclick="openLightbox('references/02_odoosh_build_view.png')"><img src="references/02_odoosh_build_view.png" loading="lazy" alt="02 Odoosh Build View"><div class="info"><div class="name">02 Odoosh Build View</div><div class="size">83 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/07_odoosh_builds_page.png')"><img src="references/07_odoosh_builds_page.png" loading="lazy" alt="07 Odoosh Builds Page"><div class="info"><div class="name">07 Odoosh Builds Page</div><div class="size">154 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/08_odoosh_builds_detail.png')"><img src="references/08_odoosh_builds_detail.png" loading="lazy" alt="08 Odoosh Builds Detail"><div class="info"><div class="name">08 Odoosh Builds Detail</div><div class="size">97 KB</div></div></div>
+</div></div>
+<div class="category"><h2>Odoo.sh — Pages (Full Screenshots) <span class="count">5</span></h2><div class="grid">
+<div class="card" onclick="openLightbox('references/30_odoosh_features_full.png')"><img src="references/30_odoosh_features_full.png" loading="lazy" alt="30 Odoosh Features Full"><div class="info"><div class="name">30 Odoosh Features Full</div><div class="size">253 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/30_odoosh_features_page.png')"><img src="references/30_odoosh_features_page.png" loading="lazy" alt="30 Odoosh Features Page"><div class="info"><div class="name">30 Odoosh Features Page</div><div class="size">111 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/31_odoosh_home.png')"><img src="references/31_odoosh_home.png" loading="lazy" alt="31 Odoosh Home"><div class="info"><div class="name">31 Odoosh Home</div><div class="size">1033 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/32_odoosh_pricing.png')"><img src="references/32_odoosh_pricing.png" loading="lazy" alt="32 Odoosh Pricing"><div class="info"><div class="name">32 Odoosh Pricing</div><div class="size">733 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/33_odoosh_faq.png')"><img src="references/33_odoosh_faq.png" loading="lazy" alt="33 Odoosh Faq"><div class="info"><div class="name">33 Odoosh Faq</div><div class="size">255 KB</div></div></div>
+</div></div>
+<div class="category"><h2>Odoo.sh — Dashboard & Monitoring <span class="count">5</span></h2><div class="grid">
+<div class="card" onclick="openLightbox('references/05_odoosh_revisions.png')"><img src="references/05_odoosh_revisions.png" loading="lazy" alt="05 Odoosh Revisions"><div class="info"><div class="name">05 Odoosh Revisions</div><div class="size">46 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/06_odoosh_dashboard.png')"><img src="references/06_odoosh_dashboard.png" loading="lazy" alt="06 Odoosh Dashboard"><div class="info"><div class="name">06 Odoosh Dashboard</div><div class="size">73 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/14_odoo_leads_dashboard.png')"><img src="references/14_odoo_leads_dashboard.png" loading="lazy" alt="14 Odoo Leads Dashboard"><div class="info"><div class="name">14 Odoo Leads Dashboard</div><div class="size">82 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/15_odoo_purchase_dashboard.png')"><img src="references/15_odoo_purchase_dashboard.png" loading="lazy" alt="15 Odoo Purchase Dashboard"><div class="info"><div class="name">15 Odoo Purchase Dashboard</div><div class="size">59 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/16_odoosh_video_thumb.jpg')"><img src="references/16_odoosh_video_thumb.jpg" loading="lazy" alt="16 Odoosh Video Thumb"><div class="info"><div class="name">16 Odoosh Video Thumb</div><div class="size">111 KB</div></div></div>
+</div></div>
+<div class="category"><h2>ERPNext & Frappe UI <span class="count">2</span></h2><div class="grid">
+<div class="card" onclick="openLightbox('references/11_erpnext_hero.png')"><img src="references/11_erpnext_hero.png" loading="lazy" alt="11 Erpnext Hero"><div class="info"><div class="name">11 Erpnext Hero</div><div class="size">977 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/12_frappe_framework.webp')"><img src="references/12_frappe_framework.webp" loading="lazy" alt="12 Frappe Framework"><div class="info"><div class="name">12 Frappe Framework</div><div class="size">75 KB</div></div></div>
+</div></div>
+<div class="category"><h2>Odoo IDE & Code Tools <span class="count">4</span></h2><div class="grid">
+<div class="card" onclick="openLightbox('references/13_odoo_ide_vscode.png')"><img src="references/13_odoo_ide_vscode.png" loading="lazy" alt="13 Odoo Ide Vscode"><div class="info"><div class="name">13 Odoo Ide Vscode</div><div class="size">865 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/14_odoo_leads_dashboard.png')"><img src="references/14_odoo_leads_dashboard.png" loading="lazy" alt="14 Odoo Leads Dashboard"><div class="info"><div class="name">14 Odoo Leads Dashboard</div><div class="size">82 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/15_odoo_purchase_dashboard.png')"><img src="references/15_odoo_purchase_dashboard.png" loading="lazy" alt="15 Odoo Purchase Dashboard"><div class="info"><div class="name">15 Odoo Purchase Dashboard</div><div class="size">59 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/16_odoosh_video_thumb.jpg')"><img src="references/16_odoosh_video_thumb.jpg" loading="lazy" alt="16 Odoosh Video Thumb"><div class="info"><div class="name">16 Odoosh Video Thumb</div><div class="size">111 KB</div></div></div>
+</div></div>
+<div class="category"><h2>AI IDE References (Copilot, Cursor) <span class="count">2</span></h2><div class="grid">
+<div class="card" onclick="openLightbox('references/39_github_copilot_page.png')"><img src="references/39_github_copilot_page.png" loading="lazy" alt="39 Github Copilot Page"><div class="info"><div class="name">39 Github Copilot Page</div><div class="size">1524 KB</div></div></div>
+<div class="card" onclick="openLightbox('references/40_cursor_ai_page.png')"><img src="references/40_cursor_ai_page.png" loading="lazy" alt="40 Cursor Ai Page"><div class="info"><div class="name">40 Cursor Ai Page</div><div class="size">1609 KB</div></div></div>
+</div></div>
+
+</div>
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+<span class="close">&times;</span>
+<img id="lbImg" src="" alt="">
+</div>
+<script>
+function openLightbox(src) { document.getElementById('lbImg').src = src; document.getElementById('lightbox').classList.add('active'); }
+function closeLightbox() { document.getElementById('lightbox').classList.remove('active'); }
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeLightbox(); });
+</script>
+</body></html>
