@@ -50,6 +50,8 @@ class Escalation:
         return self.violation_category == 1
 
     def submit(self, reason: str):
+        if self.reason and self.status != "pending_tl":
+            raise EscalationError(f"Cannot resubmit in status '{self.status}'.")
         if not reason or not reason.strip():
             raise EscalationError("Escalation reason is required.")
         self.reason = reason
