@@ -150,8 +150,8 @@
 						Force Retry
 					</Button>
 					<Button
-						@click="$resources.deploy.reload()"
-						:loading="$resources.deploy.get.loading"
+						@click="fetchDeploy()"
+						:loading="deployLoading"
 					>
 						<template #icon>
 							<lucide-refresh-ccw class="h-4 w-4" />
@@ -252,18 +252,10 @@ export default {
 		AlertAddressableError,
 	},
 	resources: {
-		deploy() {
-			return {
-				type: 'document',
-				doctype: 'Deploy Candidate Build',
-				name: this.id,
-				transform: this.transformDeploy,
-			};
-		},
 		estimate() {
 			return {
 				url: 'press.press.doctype.deploy_candidate_build.deploy_candidate_build.get_build_estimate',
-				params: { group: this.$resources.deploy?.doc?.group },
+				params: { group: this.deploy?.group },
 				auto: false,
 			};
 		},
@@ -318,6 +310,8 @@ export default {
 	},
 	data() {
 		return {
+			deployDoc: null,
+			deployLoading: true,
 			elapsedSeconds: 0,
 			elapsedTimer: null,
 			autoRefreshTimer: null,
@@ -329,7 +323,7 @@ export default {
 	watch: {
 		'deploy.group'(group) {
 			if (group && this.isBuilding) {
-				this.$resources.estimate.submit({ group });
+				this.$resources.estimate?.submit({ group });
 			}
 		},
 		'deploy.status': {
@@ -345,7 +339,7 @@ export default {
 					this.$resources.failureDiag.submit({ dn: this.id });
 				}
 				if (status === 'Success') {
-					this.$resources.estimate.submit({ group: this.deploy?.group });
+					this.$resources.estimate?.submit({ group: this.deploy?.group });
 				}
 			},
 			immediate: true,
@@ -353,23 +347,28 @@ export default {
 	},
 	mounted() {
 		this.previousBuildId = this.$route?.query?.previous || null;
+		this.fetchDeploy();
 		this.$socket.emit('doc_subscribe', 'Deploy Candidate Build', this.id);
 		this.$socket.on(`bench_deploy:${this.id}:steps`, (data) => {
-			if (data.name === this.id && this.$resources.deploy.doc) {
-				this.$resources.deploy.doc.build_steps = this.transformDeploy({
-					build_steps: data.steps,
-				})?.build_steps;
+			if (data.name === this.id && this.deployDoc && data.steps) {
+				for (const newStep of data.steps) {
+					const existing = this.deployDoc.build_steps?.find(
+						s => s.step === newStep.step && s.stage === newStep.stage
+					);
+					if (existing) {
+						existing.status = newStep.status;
+						existing.duration = newStep.duration;
+						if (newStep.output) existing.output = newStep.output;
+					}
+				}
 			}
 		});
 		this.$socket.on(`bench_deploy:${this.id}:finished`, () => {
-			const rgDoc = getCachedDocumentResource(
-				'Release Group',
-				this.$resources.deploy.doc?.group,
-			);
+			const rgDoc = getCachedDocumentResource('Release Group', this.deploy?.group);
 			if (rgDoc) rgDoc.reload();
-			this.$resources.deploy.reload();
-			this.$resources.errors.reload();
-			this.$resources.warnings.reload();
+			this.fetchDeploy();
+			this.$resources.errors?.reload();
+			this.$resources.warnings?.reload();
 		});
 	},
 	beforeUnmount() {
@@ -381,10 +380,10 @@ export default {
 	},
 	computed: {
 		deploy() {
-			return this.$resources.deploy?.doc;
+			return this.deployDoc;
 		},
 		isLoading() {
-			return this.$resources.deploy?.get?.loading && !this.$resources.deploy?.get?.fetched;
+			return this.deployLoading;
 		},
 		isBuilding() {
 			return this.deploy && ['Running', 'Pending', 'Preparing', 'Scheduled'].includes(this.deploy.status);
@@ -502,6 +501,29 @@ export default {
 		},
 	},
 	methods: {
+		async fetchDeploy() {
+			this.deployLoading = true;
+			try {
+				const team = localStorage.getItem('current_team') || window.default_team || '';
+				const res = await fetch('/api/method/press.api.client.get', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'X-Frappe-CSRF-Token': window.csrf_token || '',
+						'X-Press-Team': team,
+					},
+					body: JSON.stringify({ doctype: 'Deploy Candidate Build', name: this.id }),
+				});
+				const data = await res.json();
+				if (data.message) {
+					this.deployDoc = this.transformDeploy ? this.transformDeploy(data.message) : data.message;
+				}
+			} catch (e) {
+				console.error('Deploy fetch failed:', e);
+			} finally {
+				this.deployLoading = false;
+			}
+		},
 		formatDuration(secs) {
 			const m = Math.floor(secs / 60), s = secs % 60;
 			return m > 0 ? `${m}m ${s}s` : `${s}s`;
@@ -520,7 +542,7 @@ export default {
 		},
 		startAutoRefresh() {
 			if (this.autoRefreshTimer) return;
-			this.autoRefreshTimer = setInterval(() => { this.$resources.deploy.reload(); }, 5000);
+			// Auto-refresh disabled — using socket realtime events instead
 		},
 		stopAutoRefresh() {
 			if (this.autoRefreshTimer) { clearInterval(this.autoRefreshTimer); this.autoRefreshTimer = null; }
@@ -533,7 +555,7 @@ export default {
 				if (step.status === 'Running') {
 					step.isOpen = true;
 				} else {
-					step.isOpen = this.$resources.deploy?.doc?.build_steps?.find(
+					step.isOpen = this.deploy?.build_steps?.find(
 						(s) => s.name === step.name,
 					)?.isOpen;
 				}

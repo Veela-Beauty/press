@@ -58,6 +58,8 @@
 </template>
 
 <script>
+import { call } from 'frappe-ui';
+
 export default {
 	name: 'AiPolicyGate',
 	emits: ['acknowledged'],
@@ -87,12 +89,11 @@ export default {
 		async acknowledge() {
 			this.submitting = true;
 			try {
-				// Record acknowledgment in Press DB
-				if (window.call) {
-					await window.call('press.press.ai.api.acknowledge_policy', {});
-				}
+				await call('press.press.ai.api.acknowledge_policy', {});
 				this.acknowledged = true;
 				this.$emit('acknowledged');
+			} catch (e) {
+				console.error('Policy acknowledge failed:', e);
 			} finally {
 				this.submitting = false;
 			}
