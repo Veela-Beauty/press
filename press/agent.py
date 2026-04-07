@@ -648,6 +648,17 @@ class Agent:
 	def new_server(self, server):
 		_server = frappe.get_doc("Server", server)
 		ip = _server.ip if (_server.is_self_hosted or not _server.private_ip) else _server.private_ip
+
+		# Validate proxy can reach the chosen IP (prevents 504 when proxy is on a different network)
+		if ip != _server.ip:
+			proxy = frappe.get_doc("Proxy Server", self.server)
+			if proxy.provider == "Generic" or proxy.private_ip == proxy.ip:
+				frappe.logger().warning(
+					f"Proxy {proxy.name} cannot reach private IP {ip} of server {server} "
+					f"(different network/provider). Falling back to public IP {_server.ip}"
+				)
+				ip = _server.ip
+
 		data = {"name": ip}
 		return self.create_agent_job("Add Upstream to Proxy", "proxy/upstreams", data, upstream=server)
 
