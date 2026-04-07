@@ -56,14 +56,14 @@ def check_scope(site_type: str, action: str) -> ScopeResult:
 
     is_write = action in WRITE_ACTIONS
 
-    if site_type in ("Dev", "Demo"):
+    if site_type == "Dev":
         return ScopeResult(
             allowed=True,
             needs_confirm=False,
-            message="Dev/Demo site — AI actions allowed.",
+            message="Dev site — AI actions allowed.",
         )
 
-    if site_type == "Staging":
+    if site_type in ("Demo", "Staging"):
         if is_write:
             return ScopeResult(
                 allowed=True,
