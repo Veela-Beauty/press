@@ -1998,6 +1998,32 @@ def restore(name, files, skip_failing_patches=False, skip_tables=None):
 
 @frappe.whitelist()
 @protected("Site")
+def get_analyze_result(name, job_name):
+	"""
+	Return the analysis result from a completed Analyze Backup agent job.
+	The agent stores the result in the Agent Job's `data` field as JSON.
+	"""
+	job = frappe.db.get_value(
+		"Agent Job",
+		{"name": job_name, "site": name, "job_type": "Analyze Backup"},
+		["status", "data", "traceback"],
+		as_dict=True,
+	)
+	if not job:
+		frappe.throw(f"Analyze Backup job {job_name} not found for site {name}.")
+
+	if job.status == "Failure":
+		frappe.throw(f"Analysis failed: {job.traceback or 'Unknown error'}")
+
+	if job.status != "Success":
+		return {"status": job.status, "data": None}
+
+	data = json.loads(job.data) if isinstance(job.data, str) else (job.data or {})
+	return {"status": "Success", "data": data}
+
+
+@frappe.whitelist()
+@protected("Site")
 def analyze_restore_backup(name, files):
 	"""
 	Dispatch an Analyze Backup job for the uploaded backup file.
