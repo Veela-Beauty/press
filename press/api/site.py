@@ -1975,7 +1975,7 @@ def clear_cache(name):
 
 @frappe.whitelist()
 @protected("Site")
-def restore(name, files, skip_failing_patches=False):
+def restore(name, files, skip_failing_patches=False, skip_tables=None):
 	if not files.get("database") and not files.get("public") and not files.get("private"):
 		frappe.throw("At least one file must be provided for restoration.")
 
@@ -1990,7 +1990,29 @@ def restore(name, files, skip_failing_patches=False):
 		},
 	)
 	site: Site = frappe.get_doc("Site", name)
-	return site.restore_site(skip_failing_patches=skip_failing_patches)
+	return site.restore_site(
+		skip_failing_patches=skip_failing_patches,
+		skip_tables=skip_tables or [],
+	)
+
+
+@frappe.whitelist()
+@protected("Site")
+def analyze_restore_backup(name, files):
+	"""
+	Dispatch an Analyze Backup job for the uploaded backup file.
+	Returns the agent job name — caller polls for completion.
+	"""
+	if not files.get("database"):
+		frappe.throw("Database file is required for backup analysis.")
+
+	frappe.db.set_value(
+		"Site",
+		name,
+		{"remote_database_file": files.get("database", "")},
+	)
+	site: Site = frappe.get_doc("Site", name)
+	return site.analyze_backup()
 
 
 @frappe.whitelist()

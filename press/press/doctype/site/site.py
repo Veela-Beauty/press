@@ -1126,7 +1126,7 @@ class Site(Document, TagHelpers):
 
 	@dashboard_whitelist()
 	@site_action(["Active", "Broken"])
-	def restore_site(self, skip_failing_patches=False):
+	def restore_site(self, skip_failing_patches=False, skip_tables=None):
 		if (
 			self.remote_database_file
 			and not frappe.get_doc("Remote File", self.remote_database_file).exists()
@@ -1134,10 +1134,24 @@ class Site(Document, TagHelpers):
 			raise Exception(f"Remote File {self.remote_database_file} is unavailable on S3")
 
 		agent = Agent(self.server)
-		job = agent.restore_site(self, skip_failing_patches=skip_failing_patches)
+		job = agent.restore_site(
+			self,
+			skip_failing_patches=skip_failing_patches,
+			skip_tables=skip_tables,
+		)
 		log_site_activity(self.name, "Restore", job=job.name)
 		self.status = "Pending"
 		self.save()
+		return job.name
+
+	def analyze_backup(self):
+		"""Dispatch an Analyze Backup agent job and return the job name."""
+		if not self.remote_database_file:
+			frappe.throw("No database file selected for analysis.")
+		if not frappe.get_doc("Remote File", self.remote_database_file).exists():
+			frappe.throw(f"Remote File {self.remote_database_file} is unavailable.")
+		agent = Agent(self.server)
+		job = agent.analyze_backup(self)
 		return job.name
 
 	@dashboard_whitelist()

@@ -166,7 +166,7 @@ class Agent:
 			site=site.name,
 		)
 
-	def restore_site(self, site: "Site", skip_failing_patches=False):
+	def restore_site(self, site: "Site", skip_failing_patches=False, skip_tables=None):
 		site.check_space_on_server_for_restore()
 		apps = [app.app for app in site.apps]
 		public_link, private_link, database_link = None, None, None
@@ -187,10 +187,26 @@ class Agent:
 			"skip_failing_patches": skip_failing_patches,
 			"managed_database_config": self._get_managed_db_config(site),
 		}
+		if skip_tables:
+			data["skip_tables"] = skip_tables
 
 		return self.create_agent_job(
 			"Restore Site",
 			f"benches/{site.bench}/sites/{site.name}/restore",
+			data,
+			bench=site.bench,
+			site=site.name,
+		)
+
+	def analyze_backup(self, site: "Site"):
+		"""Dispatch an Analyze Backup agent job for a site's remote_database_file."""
+		database_link = None
+		if site.remote_database_file:
+			database_link = frappe.get_doc("Remote File", site.remote_database_file).download_link
+		data = {"database": database_link}
+		return self.create_agent_job(
+			"Analyze Backup",
+			f"benches/{site.bench}/sites/{site.name}/analyze_backup",
 			data,
 			bench=site.bench,
 			site=site.name,
