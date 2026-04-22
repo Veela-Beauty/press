@@ -334,8 +334,7 @@ def setup_code_server(bench_name, subdomain):
 	"""Create and setup a Code Server for a bench."""
 	frappe.only_for("System Manager")
 	bench = frappe.get_doc("Bench", bench_name)
-	if not bench.is_code_server_enabled and not bench.is_development_bench:
-		return {"error": "Code Server not enabled on this bench"}
+	# Code Server is available for all benches in this Press instance
 	existing = frappe.db.exists("Code Server", {"bench": bench_name, "status": ["!=", "Archived"]})
 	if existing:
 		return {"error": f"Code Server already exists: {existing}"}

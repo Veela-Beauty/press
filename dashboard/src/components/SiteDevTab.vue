@@ -63,7 +63,7 @@
 					<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
 				</svg>
 			</a>
-			<button v-else-if="codeServer.enabled && !codeServer.exists" @click="launchCodeServer"
+			<button v-else-if="!codeServer.exists && codeServer.status !== 'Pending'" @click="launchCodeServer"
 				:disabled="codeServerLaunching"
 				class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 shadow-sm transition-colors hover:border-blue-400 disabled:opacity-50">
 				<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
@@ -82,15 +82,6 @@
 				<span>
 					<span class="block text-sm font-semibold">Code Server Starting…</span>
 					<span class="block text-xs text-yellow-500">{{ codeServer.name }}</span>
-				</span>
-			</div>
-			<div v-else class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-400">
-				<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-					<path d="M16.5 3L21 7.5 9 19.5 3 15l13.5-12z"/><path d="M12 7.5L16.5 12"/><path d="M3 15l4.5-4.5"/>
-				</svg>
-				<span>
-					<span class="block text-sm font-semibold">Web VS Code</span>
-					<span class="block text-xs">Enable Code Server in bench settings</span>
 				</span>
 			</div>
 			<!-- Local VS Code (SSH Remote) -->
@@ -492,7 +483,7 @@ export default {
 			return `vscode://vscode-remote/ssh-remote+frappe@${server_ip}:${ssh_port}${bench_path}/apps`;
 		},
 		sshKeySetupUrl() {
-			return '/dashboard/profile#ssh-keys';
+			return '/dashboard/settings/developer';
 		},
 		consolePlaceholder() {
 			return this.consoleTab === 'SQL' ? 'SELECT name FROM tabUser LIMIT 5' : 'import frappe\nprint(frappe.get_all("User", limit=5))';
