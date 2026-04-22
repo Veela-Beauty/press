@@ -38,7 +38,7 @@ On failure (user hasn't connected, revoked, etc.):
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+
 
 import frappe
 from frappe.rate_limiter import rate_limit
@@ -155,9 +155,7 @@ def get_for_session():
 	log_credential_request(user_email, bench_name, True, None)
 
 	expires_at = frappe.utils.get_datetime(auth.expires_at)
-	expires_in = int(
-		(expires_at - datetime.now(timezone.utc).replace(tzinfo=None)).total_seconds()
-	)
+	expires_in = int((expires_at - frappe.utils.now_datetime()).total_seconds())
 	return {
 		"success": True,
 		"github.com": token,

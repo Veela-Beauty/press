@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 import frappe
@@ -121,12 +121,12 @@ class UserGitHubAuth(Document):
 			return False
 
 		self.access_token = data["access_token"]
-		self.expires_at = datetime.now(timezone.utc) + timedelta(
+		self.expires_at = frappe.utils.now_datetime() + timedelta(
 			seconds=int(data.get("expires_in", 28800))
 		)
 		if "refresh_token" in data:
 			self.refresh_token = data["refresh_token"]
-			self.refresh_expires_at = datetime.now(timezone.utc) + timedelta(
+			self.refresh_expires_at = frappe.utils.now_datetime() + timedelta(
 				seconds=int(data.get("refresh_token_expires_in", 15897600))
 			)
 		if "scope" in data:
@@ -193,7 +193,7 @@ def get_or_create_for_user(
 	scopes: str,
 ) -> "UserGitHubAuth":
 	"""Called from the OAuth callback to persist tokens for a user."""
-	now = datetime.now(timezone.utc)
+	now = frappe.utils.now_datetime()
 	existing = frappe.db.exists("User GitHub Auth", {"user": user})
 	if existing:
 		doc: UserGitHubAuth = frappe.get_doc("User GitHub Auth", existing)
