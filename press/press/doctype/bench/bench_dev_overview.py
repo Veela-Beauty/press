@@ -289,17 +289,22 @@ def get_app_git_status(bench_name, site_name=None):
 
 @frappe.whitelist()
 def get_bench_dev_info(bench_name):
-	"""Return server IP and SSH port for a bench (used by VS Code links)."""
+	"""Return server IP, SSH port, and SSH access state for a bench (used by VS Code links)."""
 	frappe.only_for("System Manager")
 	bench = frappe.get_doc("Bench", bench_name)
 	server_ip = frappe.db.get_value("Server", bench.server, "ip") or ""
 	ssh_port = 22000 + (bench.port_offset or 0)
+	has_ssh_key = bool(frappe.db.get_all(
+		"User SSH Key", {"user": frappe.session.user, "is_default": 1}, limit=1
+	))
 	return {
 		"server_ip": server_ip,
 		"ssh_port": ssh_port,
 		"bench_name": bench.name,
 		"bench_path": "/home/frappe/frappe-bench",
 		"is_development_bench": bench.is_development_bench,
+		"release_group": bench.group,
+		"has_ssh_key": has_ssh_key,
 	}
 
 
@@ -315,7 +320,7 @@ def get_code_server_status(bench_name):
 		as_dict=True,
 	)
 	return {
-		"enabled": bool(bench.is_code_server_enabled),
+		"enabled": bool(bench.is_code_server_enabled) or bool(bench.is_development_bench),
 		"exists": bool(cs),
 		"name": cs.name if cs else None,
 		"status": cs.status if cs else None,
@@ -329,7 +334,7 @@ def setup_code_server(bench_name, subdomain):
 	"""Create and setup a Code Server for a bench."""
 	frappe.only_for("System Manager")
 	bench = frappe.get_doc("Bench", bench_name)
-	if not bench.is_code_server_enabled:
+	if not bench.is_code_server_enabled and not bench.is_development_bench:
 		return {"error": "Code Server not enabled on this bench"}
 	existing = frappe.db.exists("Code Server", {"bench": bench_name, "status": ["!=", "Archived"]})
 	if existing:

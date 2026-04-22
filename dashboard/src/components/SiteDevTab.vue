@@ -84,18 +84,17 @@
 					<span class="block text-xs text-yellow-500">{{ codeServer.name }}</span>
 				</span>
 			</div>
-			<a v-else :href="webVscodeUrl" target="_blank"
-				class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-blue-400 hover:text-blue-600">
+			<div v-else class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-400">
 				<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
 					<path d="M16.5 3L21 7.5 9 19.5 3 15l13.5-12z"/><path d="M12 7.5L16.5 12"/><path d="M3 15l4.5-4.5"/>
 				</svg>
 				<span>
 					<span class="block text-sm font-semibold">Web VS Code</span>
-					<span class="block text-xs text-gray-400">Fallback · code.sandbox.mvpstorm.com</span>
+					<span class="block text-xs">Enable Code Server in bench settings</span>
 				</span>
-			</a>
+			</div>
 			<!-- Local VS Code (SSH Remote) -->
-			<a v-if="devInfo" :href="localVscodeUrl"
+			<a v-if="devInfo && devInfo.has_ssh_key" :href="localVscodeUrl"
 				class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-purple-400 hover:text-purple-600">
 				<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
 					<rect x="2" y="3" width="20" height="18" rx="2"/><path d="M8 10l3 3-3 3"/><line x1="14" y1="16" x2="18" y2="16"/>
@@ -103,6 +102,16 @@
 				<span>
 					<span class="block text-sm font-semibold">Local VS Code</span>
 					<span class="block text-xs text-gray-400">SSH Remote → {{ devInfo.server_ip }}:{{ devInfo.ssh_port }}</span>
+				</span>
+			</a>
+			<a v-else-if="devInfo && !devInfo.has_ssh_key" :href="sshKeySetupUrl"
+				class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm font-medium text-yellow-700 shadow-sm transition-colors hover:border-yellow-400">
+				<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+					<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+				</svg>
+				<span>
+					<span class="block text-sm font-semibold">Setup SSH Key</span>
+					<span class="block text-xs text-yellow-600">Required for Local VS Code</span>
 				</span>
 			</a>
 			<!-- Restart Bench -->
@@ -481,6 +490,9 @@ export default {
 			if (!this.devInfo) return '#';
 			const { server_ip, ssh_port, bench_path } = this.devInfo;
 			return `vscode://vscode-remote/ssh-remote+frappe@${server_ip}:${ssh_port}${bench_path}/apps`;
+		},
+		sshKeySetupUrl() {
+			return '/dashboard/profile#ssh-keys';
 		},
 		consolePlaceholder() {
 			return this.consoleTab === 'SQL' ? 'SELECT name FROM tabUser LIMIT 5' : 'import frappe\nprint(frappe.get_all("User", limit=5))';
