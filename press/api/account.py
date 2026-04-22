@@ -1146,9 +1146,90 @@ def get_user_ssh_keys():
 	return frappe.db.get_list(
 		"User SSH Key",
 		{"is_removed": 0, "user": frappe.session.user},
-		["name", "ssh_fingerprint", "creation", "is_default"],
+		["name", "ssh_fingerprint", "creation", "is_default", "label", "is_disabled"],
 		order_by="creation desc",
 	)
+
+def _require_team_owner():
+	team = get_current_team(get_doc=True)
+	if frappe.session.user != team.user:
+		frappe.throw("Only the team owner can manage team SSH keys", frappe.PermissionError)
+	return team
+
+
+@frappe.whitelist()
+def get_team_ssh_keys():
+	"""Return all SSH keys registered by team members. Team owner only."""
+	team = _require_team_owner()
+	member_emails = [m.user for m in team.team_members]
+	if not member_emails:
+		return []
+	keys = frappe.db.get_list(
+		"User SSH Key",
+		{"is_removed": 0, "user": ["in", member_emails]},
+		["name", "user", "label", "ssh_fingerprint", "is_default", "is_disabled",
+		 "disabled_by", "disabled_on", "creation"],
+		order_by="user asc, creation desc",
+	)
+	# Attach user full_name for display
+	user_info = {
+		u.name: u.full_name
+		for u in frappe.db.get_all("User", {"name": ["in", member_emails]}, ["name", "full_name"])
+	}
+	for k in keys:
+		k["user_full_name"] = user_info.get(k["user"], k["user"])
+	return keys
+
+
+@frappe.whitelist()
+def set_team_ssh_key_disabled(key_name: str, disabled: bool):
+	"""Team owner enables/disables a team member's SSH key."""
+	team = _require_team_owner()
+	member_emails = [m.user for m in team.team_members]
+	key = frappe.db.get_value(
+		"User SSH Key", {"name": key_name, "is_removed": 0},
+		["name", "user"], as_dict=True,
+	)
+	if not key or key.user not in member_emails:
+		frappe.throw("SSH key not found or not owned by a team member", frappe.PermissionError)
+	disabled = bool(disabled) if not isinstance(disabled, str) else disabled.lower() in ("1", "true", "yes")
+	updates = {
+		"is_disabled": 1 if disabled else 0,
+		"disabled_by": frappe.session.user if disabled else None,
+		"disabled_on": frappe.utils.now() if disabled else None,
+	}
+	frappe.db.set_value("User SSH Key", key_name, updates)
+	return {"name": key_name, "is_disabled": updates["is_disabled"]}
+
+
+@frappe.whitelist()
+def remove_team_ssh_key(key_name: str):
+	"""Team owner permanently removes a team member's SSH key."""
+	team = _require_team_owner()
+	member_emails = [m.user for m in team.team_members]
+	key = frappe.db.get_value(
+		"User SSH Key", {"name": key_name},
+		["name", "user"], as_dict=True,
+	)
+	if not key or key.user not in member_emails:
+		frappe.throw("SSH key not found or not owned by a team member", frappe.PermissionError)
+	frappe.db.set_value("User SSH Key", key_name, "is_removed", 1)
+	return {"name": key_name, "is_removed": 1}
+
+
+@frappe.whitelist()
+def set_ssh_key_label(key_name: str, label: str):
+	"""Owner of key (or team admin) updates the key label."""
+	key = frappe.db.get_value("User SSH Key", {"name": key_name, "is_removed": 0}, ["name", "user"], as_dict=True)
+	if not key:
+		frappe.throw("SSH key not found")
+	if key.user != frappe.session.user:
+		# fallback: allow team owner
+		team = get_current_team(get_doc=True)
+		if frappe.session.user != team.user or key.user not in [m.user for m in team.team_members]:
+			frappe.throw("Not allowed", frappe.PermissionError)
+	frappe.db.set_value("User SSH Key", key_name, "label", label)
+	return {"name": key_name, "label": label}
 
 
 @frappe.whitelist(allow_guest=True)

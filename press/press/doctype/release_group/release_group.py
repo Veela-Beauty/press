@@ -1051,7 +1051,7 @@ class ReleaseGroup(Document, TagHelpers):
 
 	@dashboard_whitelist()
 	@action_guard(ReleaseGroupActions.SSHAccess)
-	def generate_certificate(self):
+	def generate_certificate(self, ssh_key_name=None):
 		# Check if team has access to SSH
 		team = get_current_team(get_doc=True)
 		if team and not team.ssh_access_enabled:
@@ -1064,12 +1064,26 @@ class ReleaseGroup(Document, TagHelpers):
 					"SSH access is not enabled for your team.\nTo request access, please open a ticket at accuratesystems.com.sa/support using your team email ID."
 				)
 
-		ssh_key = frappe.get_all(
-			"User SSH Key",
-			{"user": frappe.session.user, "is_default": True},
-			pluck="name",
-			limit=1,
-		)
+		if ssh_key_name:
+			# User explicitly chose a key — validate ownership and not disabled
+			key_row = frappe.db.get_value(
+				"User SSH Key",
+				{"name": ssh_key_name, "user": frappe.session.user, "is_removed": 0},
+				["name", "is_disabled"],
+				as_dict=True,
+			)
+			if not key_row:
+				frappe.throw(_("Selected SSH key not found or not owned by you"))
+			if key_row.is_disabled:
+				frappe.throw(_("This SSH key has been disabled by your team admin. Contact them to re-enable it."))
+			ssh_key = [ssh_key_name]
+		else:
+			ssh_key = frappe.get_all(
+				"User SSH Key",
+				{"user": frappe.session.user, "is_default": True, "is_disabled": 0, "is_removed": 0},
+				pluck="name",
+				limit=1,
+			)
 
 		if not ssh_key:
 			frappe.throw(_("Please set a SSH key to generate certificate"))
@@ -1089,10 +1103,15 @@ class ReleaseGroup(Document, TagHelpers):
 		).insert()
 
 	@dashboard_whitelist()
-	def get_certificate(self):
-		user_ssh_key = frappe.db.get_all(
-			"User SSH Key", {"user": frappe.session.user, "is_default": True}, pluck="name"
-		)
+	def get_certificate(self, ssh_key_name=None):
+		if ssh_key_name:
+			if not frappe.db.exists("User SSH Key", {"name": ssh_key_name, "user": frappe.session.user, "is_removed": 0}):
+				return False
+			user_ssh_key = [ssh_key_name]
+		else:
+			user_ssh_key = frappe.db.get_all(
+				"User SSH Key", {"user": frappe.session.user, "is_default": True}, pluck="name"
+			)
 		if not len(user_ssh_key):
 			return False
 		certificates = frappe.db.get_all(

@@ -222,6 +222,12 @@ let router = createRouter({
 						import('./components/settings/DeveloperSettings.vue'),
 				},
 				{
+					name: 'SettingsTeamSSH',
+					path: 'team-ssh',
+					component: () =>
+						import('./components/settings/TeamSSHAccess.vue'),
+				},
+				{
 					name: 'SettingsPermission',
 					path: 'permissions',
 					component: () =>

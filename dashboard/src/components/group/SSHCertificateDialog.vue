@@ -46,6 +46,10 @@
 						<ClickToCopyField :textContent="sshCommand" />
 					</div>
 				</div>
+				<div v-if="sshKeys.length > 1" class="flex items-center justify-between rounded bg-blue-50 p-3 text-sm">
+					<span class="text-gray-700">Certificate issued for key: <strong>{{ selectedKeyLabel || selectedKeyFingerprint }}</strong></span>
+					<button class="font-medium text-blue-600 hover:underline" @click="reissueForDifferentKey">Reissue for a different key</button>
+				</div>
 				<div class="flex items-center gap-2 rounded bg-gray-100 p-3">
 					<FeatherIcon name="alert-triangle" class="h-4 w-4" />
 					<div class="space-y-1 text-base">
@@ -66,7 +70,7 @@
 					</div>
 				</div>
 			</div>
-			<div class="space-y-2 text-p-base text-gray-700" v-else>
+			<div class="space-y-3 text-p-base text-gray-700" v-else>
 				<p v-if="!$bench.doc.user_ssh_key">
 					It looks like you haven't added your SSH public key. Go to
 					<router-link
@@ -82,11 +86,31 @@
 					SSH access is not enabled for this bench. Please contact support to
 					enable access.
 				</p>
-				<p v-else>
-					You will need an SSH certificate to get SSH access to your bench. This
-					certificate will work only with your public-private key pair and will
-					be valid for 6 hours.
-				</p>
+				<template v-else>
+					<p>
+						You will need an SSH certificate to get SSH access to your bench. This
+						certificate will work only with your public-private key pair and will
+						be valid for 6 hours.
+					</p>
+					<div v-if="sshKeys.length > 1" class="space-y-2">
+						<label class="block text-sm font-semibold text-gray-700">Which SSH key should this certificate sign?</label>
+						<div class="space-y-1.5">
+							<label v-for="key in sshKeys" :key="key.name" class="flex items-center gap-2 rounded border p-2" :class="keyRowClasses(key)">
+								<input type="radio" :value="key.name" v-model="selectedSshKey" class="accent-blue-600" :disabled="key.is_disabled" />
+								<div class="flex-1 truncate">
+									<div class="text-sm font-medium text-gray-900">{{ key.label || '(no label)' }}</div>
+									<code class="block truncate text-xs text-gray-500">{{ key.ssh_fingerprint }}</code>
+								</div>
+								<span v-if="key.is_default" class="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700">Default</span>
+								<span v-if="key.is_disabled" class="rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">Disabled</span>
+							</label>
+						</div>
+					</div>
+					<div v-else-if="sshKeys.length === 1" class="text-xs text-gray-500">
+						Using your only registered key: <strong>{{ sshKeys[0].label || sshKeys[0].ssh_fingerprint }}</strong>
+						<span v-if="sshKeys[0].is_disabled" class="ml-2 rounded bg-red-100 px-1.5 py-0.5 font-medium text-red-700">Disabled</span>
+					</div>
+				</template>
 				<p>
 					Please refer to the
 					<a href="/docs/benches/ssh" class="underline" target="_blank"
@@ -110,28 +134,27 @@
 		>
 			<Button
 				:loading="$releaseGroup.generateCertificate.loading"
-				@click="
-					async () => {
-						await $releaseGroup.generateCertificate.fetch();
-						await $releaseGroup.getCertificate.reload();
-					}
-				"
+				:disabled="!selectedSshKey || selectedKeyDisabled"
+				@click="handleGenerate"
 				variant="solid"
 				class="w-full"
-				>Generate SSH Certificate</Button
+				>{{ selectedKeyDisabled ? 'Selected key is disabled by admin' : 'Generate SSH Certificate' }}</Button
 			>
 		</template>
 	</Dialog>
 </template>
 
 <script>
-import { getCachedDocumentResource } from 'frappe-ui';
+import { getCachedDocumentResource, call } from 'frappe-ui';
 
 export default {
 	props: ['bench', 'releaseGroup'],
 	data() {
 		return {
 			show: true,
+			sshKeys: [],
+			selectedSshKey: null,
+			forceKeySelection: false,
 		};
 	},
 	resources: {
@@ -142,7 +165,7 @@ export default {
 				name: this.bench,
 				onSuccess(doc) {
 					if (doc.is_ssh_proxy_setup && doc.user_ssh_key) {
-						this.$releaseGroup.getCertificate.reload();
+						this.loadSshKeys();
 					}
 				},
 			};
@@ -156,7 +179,20 @@ export default {
 			return getCachedDocumentResource('Release Group', this.releaseGroup);
 		},
 		certificate() {
+			if (this.forceKeySelection) return null;
 			return this.$releaseGroup.getCertificate.data;
+		},
+		selectedKeyFingerprint() {
+			const key = this.sshKeys.find((k) => k.name === this.selectedSshKey);
+			return key ? key.ssh_fingerprint : '';
+		},
+		selectedKeyLabel() {
+			const key = this.sshKeys.find((k) => k.name === this.selectedSshKey);
+			return key && key.label ? key.label : '';
+		},
+		selectedKeyDisabled() {
+			const key = this.sshKeys.find((k) => k.name === this.selectedSshKey);
+			return key ? !!key.is_disabled : false;
 		},
 		sshCommand() {
 			if (!this.$bench.doc) return;
@@ -172,6 +208,36 @@ export default {
 		},
 		isWindows() {
 			return navigator.userAgent.includes('Windows');
+		},
+	},
+	methods: {
+		keyRowClasses(key) {
+			const base = ' cursor-pointer hover:bg-gray-50';
+			if (key.is_disabled) return 'border-red-200 bg-red-50 cursor-not-allowed opacity-70';
+			if (this.selectedSshKey === key.name) return 'border-blue-400 bg-blue-50' + base;
+			return 'border-gray-200' + base;
+		},
+		async loadSshKeys() {
+			try {
+				this.sshKeys = await call('press.api.account.get_user_ssh_keys');
+				// Prefer default key if active; else first non-disabled; else first
+				const activeDefault = this.sshKeys.find((k) => k.is_default && !k.is_disabled);
+				const firstActive = this.sshKeys.find((k) => !k.is_disabled);
+				this.selectedSshKey = (activeDefault || firstActive || this.sshKeys[0])?.name;
+				if (this.selectedSshKey) {
+					await this.$releaseGroup.getCertificate.submit({ ssh_key_name: this.selectedSshKey });
+				}
+			} catch (e) {
+				this.sshKeys = [];
+			}
+		},
+		async handleGenerate() {
+			await this.$releaseGroup.generateCertificate.submit({ ssh_key_name: this.selectedSshKey });
+			await this.$releaseGroup.getCertificate.submit({ ssh_key_name: this.selectedSshKey });
+			this.forceKeySelection = false;
+		},
+		reissueForDifferentKey() {
+			this.forceKeySelection = true;
 		},
 	},
 };

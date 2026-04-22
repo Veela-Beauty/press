@@ -67,5 +67,13 @@ const tabs = [
 		icon: icon('code'),
 		routeName: 'SettingsDeveloper',
 	},
+	{
+		label: 'Team SSH',
+		icon: icon('key'),
+		routeName: 'SettingsTeamSSH',
+		condition: () =>
+			$team.doc?.user === $session.user ||
+			$session.isSystemUser,
+	},
 ];
 </script>
