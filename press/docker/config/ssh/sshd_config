@@ -37,7 +37,7 @@ HostCertificate /home/frappe/frappe-bench/config/ssh/ssh_host_rsa_key-cert.pub
 
 
 # Capability Limits
-AllowAgentForwarding no
+AllowAgentForwarding yes
 AllowStreamLocalForwarding no
 AllowTcpForwarding no
 
