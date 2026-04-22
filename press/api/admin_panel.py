@@ -353,7 +353,7 @@ def get_servers_admin():
             servers = []
         for s in servers:
             override, is_decom, notes = _server_admin_overrides(s["name"]) if kind == "app" else (0, 0, "")
-            baseline_info = SERVER_COSTS.get(s["name"], {})
+            baseline_info = SERVER_COSTS.get(s["name"], {}) if kind == "app" else {}
             baseline_cost = baseline_info.get("cost", 0)
             plan = baseline_info.get("plan", "")
             sites = frappe.db.count("Site", {"server": s["name"], "status": ("not in", ("Archived",))}) if kind == "app" else 0
