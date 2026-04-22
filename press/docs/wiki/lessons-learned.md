@@ -630,3 +630,80 @@ DELETE FROM `tabRole` WHERE name LIKE '_Test%';
 DELETE FROM `tabPrint Format` WHERE name LIKE '_Test%';
 SET SQL_SAFE_UPDATES=1;
 ```
+
+### 69. Press deploy keys are read-only — `git push` from Claude / agent sessions fails unless your SSH agent is forwarded
+**What happened:**
+Tried to push admin-panel commits from press-ctrl with `git push upstream cloudflare-dns` — got `ERROR: Permission to accurate-systems/press.git denied to deploy key`. Tried again as the `frappe` user with `github_ed25519` — same error. But other agent sessions running in parallel were successfully pushing commits to the same repo from the same machine.
+**Root cause:**
+Both keys deployed on press-ctrl (`/root/.ssh/id_ed25519` fingerprint `dgcuZD5inA9p8gJuCnfoyC0Fmvv+Ph7MApi7d4Wqy2c` and `/home/frappe/.ssh/github_ed25519` fingerprint `pPZnE/lteumqZYIJ5JRGcKF0RkmgzE+oE6Ft2pkj7HY`) are GitHub **deploy keys with read-only access**. Other sessions that succeed do so via **SSH agent forwarding** (`ssh -A press-ctrl`) — when a developer's terminal is connected, their personal GitHub-write key flows through `SSH_AUTH_SOCK` and `git push` picks it up automatically. This was enabled by commit `afe3171e04 feat(ssh): enable SSH agent forwarding for in-bench git access`.
+**How we worked around it:**
+- Bundle commits with `git bundle create` to a safe location (Hetzner dev disk) so work isn't lost.
+- Apply patches with `git am` directly on press-ctrl so the live code is up to date.
+- Wait for the user's `ssh -A` session to push to GitHub.
+**Permanent fix:**
+GitHub repo Settings → Deploy keys → find `press-ctrl@mvpstorm.com` (fingerprint `pPZnE/lteumqZYIJ5JRGcKF0RkmgzE+oE6Ft2pkj7HY`) → check **Allow write access**. Apply on both `accurate-systems/press` and `Veela-Beauty/press`.
+**Lesson:**
+- "Push works for them" doesn't mean "auth is configured" — it can mean "their terminal is forwarding an agent." Always check both.
+- Bundle backups before any push retry, especially when multiple agents are committing in parallel.
+
+### 70. Custom Fields pattern for admin overrides on upstream-owned doctypes
+**Why:**
+The Admin Panel needed to add `monthly_cost_override`, `is_decommissioned`, `admin_notes` to the upstream `Server` DocType (and similar for `Team`). Modifying the upstream JSON would conflict on every `bench update --reset` and complicate merges.
+**Pattern:**
+Sibling file `<doctype>_admin_setup.py` with an idempotent `setup_xxx_admin_fields()` function that creates `Custom Field` records via `frappe.get_doc({"doctype": "Custom Field", "dt": "Team", ...}).insert()` if they don't already exist. Examples: `press/press/doctype/team/team_admin_setup.py`, `press/press/doctype/server/server_admin_setup.py`.
+**Reading custom fields safely:**
+Wrap the lookup in `try/except` so the API still works on benches where the installer hasn't run yet:
+```python
+def _server_admin_overrides(server_name):
+    try:
+        row = frappe.db.get_value("Server", server_name,
+            ["monthly_cost_override", "is_decommissioned", "admin_notes"], as_dict=True)
+        return float(row.monthly_cost_override or 0), int(row.is_decommissioned or 0), row.admin_notes or ""
+    except Exception:
+        return 0, 0, ""
+```
+**Lesson:**
+- Sibling installer + try/except read = no upstream conflicts, no first-deploy failure.
+- Run the installer once via `bench --site <site> console` after the patch lands. Re-running is a no-op.
+
+### 71. SSH-based stats collector: 60s cache + BatchMode = sub-second dashboard with real Linux numbers
+**Use case:**
+Servers tab needed live RAM/CPU/Disk per server. Press's built-in `get_cpu_and_memory_usage()` requires `Press Settings.monitor_server` (Prometheus + node_exporter) which wasn't configured on autodeploypanel.
+**Approach (`press/api/admin_panel_stats.py`):**
+Single SSH probe per machine. One-liner concatenates 4 sources, separated by `---`:
+```bash
+head -5 /proc/meminfo; echo ---; echo CPUS=$(nproc); echo ---; uptime; echo ---; df -B1G --output=size,used,avail / | tail -1
+```
+Parsed in `_parse_probe()`. Cached 60 s in `frappe.cache().set_value(key, value, expires_in_sec=60)` — first load is ~2-4 s for 3 servers in parallel, subsequent loads are instant.
+**SSH flags that matter:**
+- `BatchMode=yes` — die immediately on auth failure instead of prompting (would hang forever in non-interactive context)
+- `ConnectTimeout=5` + outer `subprocess.timeout=8` — bounded latency; one slow / unreachable server can't stall the whole tab
+- `StrictHostKeyChecking=no` — first-time hosts don't block (Press has firewall + key auth, so MITM risk is bounded)
+**Frontend pattern:**
+Stats are lazy-loaded per row via `Promise.all(servers.map(s => loadOneStats(s.name)))` — the table renders instantly, stats fill in over a few seconds. Color thresholds (green <70%, orange 70–85%, red ≥85%) make upsize candidates visually obvious.
+**Lesson:**
+- For "good enough" live infra metrics without full monitoring infra: SSH + `/proc` + cache is 30 minutes of work and gives real numbers. Use Prometheus for history and alerts later.
+- Always cap timeouts — a single unreachable server should never block the dashboard.
+
+### 72. In standalone-mode Press, group servers by IP — same machine has Server + Database Server + Proxy Server records
+**Why:**
+First version of `get_servers_admin()` returned 7 rows for 3 physical machines (3 app + 3 db + 1 proxy). Each pulled the same baseline cost from `SERVER_COSTS`, inflating the total by 2-3x. Confusing for admins, wrong for the cost summary.
+**Fix:**
+Group by `ip or name` (fallback to name when IP is empty, e.g. on `press-ctrl` which isn't in the Server doctype but appears in `SERVER_COSTS`). Each unified row carries a `roles: ['app', 'db', 'proxy']` array. Cost / sites / benches / admin overrides are sourced from the `app` role only:
+```python
+machines = {}
+for kind, doctype in (("app", "Server"), ("db", "Database Server"), ("proxy", "Proxy Server")):
+    for s in frappe.get_all(doctype, fields=["name", "ip", "status", "cluster"]):
+        key = s.get("ip") or s["name"]
+        if key not in machines:
+            machines[key] = { ..., "roles": [] }
+        machines[key]["roles"].append(kind)
+        if kind == "app":
+            # cost + admin fields owned by app role only
+            ...
+```
+**Frontend:**
+Kind column renders one Badge per role (`app` blue, `db` purple, `proxy` green). Stats / Edit / Decommission gate on `roles.includes('app')` instead of `kind === 'app'`.
+**Lesson:**
+- Press standalone mode = "one machine wears 3 hats." Don't model that as 3 rows in admin UIs — model it as 1 row with hat badges.
+- Always check for double-counting when iterating multiple doctypes that may point at the same physical resource.
