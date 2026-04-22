@@ -108,7 +108,7 @@ def get_admin_data():
         "total_teams": len(teams),
         "total_sites": frappe.db.count("Site", {"status": ("not in", ("Archived",))}),
         "total_benches": frappe.db.count("Release Group", {"enabled": 1}),
-        "total_cost": sum(c["cost"] for c in SERVER_COSTS.values()),
+        "total_cost": sum(s["cost"] for s in _get_server_costs()),
     }
 
     return {"teams": teams, "stats": stats, "server_costs": _get_server_costs()}
@@ -274,10 +274,35 @@ def create_team_from_admin(email, full_name, max_sites=0, max_benches=0, max_dis
     return {"team": team.name, "user": email}
 
 
+def _server_admin_overrides(server_name):
+    """Return (monthly_cost_override, is_decommissioned, admin_notes) for a server.
+    Falls back to (0, 0, '') if Custom Fields not yet installed."""
+    try:
+        row = frappe.db.get_value(
+            "Server", server_name,
+            ["monthly_cost_override", "is_decommissioned", "admin_notes"],
+            as_dict=True,
+        )
+        if not row:
+            return 0, 0, ""
+        return float(row.get("monthly_cost_override") or 0), int(row.get("is_decommissioned") or 0), row.get("admin_notes") or ""
+    except Exception:
+        return 0, 0, ""
+
+
+def _effective_cost(server_name, baseline_cost):
+    """Effective monthly cost: override if non-zero, else baseline."""
+    override, _decom, _notes = _server_admin_overrides(server_name)
+    return override if override > 0 else baseline_cost
+
+
 def _calc_team_cost(team):
-    """Calculate proportional infrastructure cost for a team."""
+    """Calculate proportional infrastructure cost for a team. Skips decommissioned servers."""
     total = 0
     for server_name, info in SERVER_COSTS.items():
+        _override, is_decom, _notes = _server_admin_overrides(server_name)
+        if is_decom:
+            continue
         server_sites = frappe.db.count("Site", {
             "server": server_name, "status": ("not in", ("Archived",)),
         })
@@ -287,14 +312,18 @@ def _calc_team_cost(team):
             "team": team, "server": server_name, "status": ("not in", ("Archived",)),
         })
         if team_sites > 0:
-            total += round(info["cost"] * team_sites / server_sites, 2)
+            cost = _effective_cost(server_name, info["cost"])
+            total += round(cost * team_sites / server_sites, 2)
     return round(total, 2)
 
 
 def _get_server_costs():
-    """Return server cost data with live site counts."""
+    """Return server cost data with live site counts. Excludes decommissioned servers."""
     result = []
     for server_name, info in SERVER_COSTS.items():
+        override, is_decom, _notes = _server_admin_overrides(server_name)
+        if is_decom:
+            continue
         sites = frappe.db.count("Site", {"server": server_name, "status": ("not in", ("Archived",))})
         teams = len(set(frappe.get_all("Site", {
             "server": server_name, "status": ("not in", ("Archived",)),
@@ -304,8 +333,73 @@ def _get_server_costs():
             "name": server_name,
             "ip": ip,
             "plan": info["plan"],
-            "cost": info["cost"],
+            "cost": override if override > 0 else info["cost"],
             "sites": sites,
             "teams": teams,
         })
     return result
+
+
+@frappe.whitelist()
+def get_servers_admin():
+    """Return all servers (Server / Database Server / Proxy Server) with admin fields.
+    Includes decommissioned servers — UI is responsible for visual treatment."""
+    _require_admin()
+    rows = []
+    for kind, doctype in (("app", "Server"), ("db", "Database Server"), ("proxy", "Proxy Server")):
+        try:
+            servers = frappe.get_all(doctype, fields=["name", "ip", "status", "cluster", "creation"])
+        except Exception:
+            servers = []
+        for s in servers:
+            override, is_decom, notes = _server_admin_overrides(s["name"]) if kind == "app" else (0, 0, "")
+            baseline_info = SERVER_COSTS.get(s["name"], {})
+            baseline_cost = baseline_info.get("cost", 0)
+            plan = baseline_info.get("plan", "")
+            sites = frappe.db.count("Site", {"server": s["name"], "status": ("not in", ("Archived",))}) if kind == "app" else 0
+            benches = frappe.db.count("Bench", {"server": s["name"], "status": "Active"}) if kind == "app" else 0
+            rows.append({
+                "name": s["name"],
+                "kind": kind,
+                "ip": s.get("ip") or "",
+                "status": s.get("status") or "",
+                "cluster": s.get("cluster") or "",
+                "plan": plan,
+                "baseline_cost": baseline_cost,
+                "monthly_cost_override": override,
+                "effective_cost": override if override > 0 else baseline_cost,
+                "is_decommissioned": is_decom,
+                "admin_notes": notes,
+                "sites": sites,
+                "benches": benches,
+            })
+    return rows
+
+
+@frappe.whitelist()
+def update_server_admin(server, monthly_cost_override=None, admin_notes=None):
+    """Edit admin-controlled fields on a Server. Custom fields only — no impact on Press lifecycle."""
+    _require_admin()
+    if not frappe.db.exists("Server", server):
+        frappe.throw(f"Server {server} does not exist.")
+    updates = {}
+    if monthly_cost_override is not None:
+        updates["monthly_cost_override"] = float(monthly_cost_override or 0)
+    if admin_notes is not None:
+        updates["admin_notes"] = admin_notes
+    for field, value in updates.items():
+        frappe.db.set_value("Server", server, field, value)
+    frappe.db.commit()
+    return {"ok": True, "updates": updates}
+
+
+@frappe.whitelist()
+def set_server_decommissioned(server, decommissioned):
+    """Toggle the soft-decommission flag on a Server. Excluded from cost rollups when true."""
+    _require_admin()
+    if not frappe.db.exists("Server", server):
+        frappe.throw(f"Server {server} does not exist.")
+    flag = 1 if str(decommissioned).lower() in ("1", "true", "yes") else 0
+    frappe.db.set_value("Server", server, "is_decommissioned", flag)
+    frappe.db.commit()
+    return {"ok": True, "is_decommissioned": flag}
