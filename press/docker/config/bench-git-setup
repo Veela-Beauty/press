@@ -1,0 +1,152 @@
+#!/bin/bash
+# /usr/local/bin/bench-git-setup
+#
+# MVP: prompts for the user's Press email on first git use per session,
+# fetches a short-lived GitHub access token, and configures git so
+# `git pull`/`git push` work with that token.
+#
+# Runs idempotently — safe to re-run; just re-uses the cached session
+# identity and refreshes the token if expired.
+
+set -o nounset
+
+: "${PRESS_API_URL:=}"
+: "${PRESS_INTERNAL_TOKEN:=}"
+
+# Fall back to /etc/press/bench-env if env vars not set
+if [[ -f /etc/press/bench-env ]]; then
+	# shellcheck disable=SC1091
+	source /etc/press/bench-env
+fi
+
+if [[ -z "${PRESS_API_URL}" || -z "${PRESS_INTERNAL_TOKEN}" ]]; then
+	echo "[bench-git-setup] Press API config missing. Admin must set PRESS_API_URL + PRESS_INTERNAL_TOKEN in /etc/press/bench-env" >&2
+	exit 0
+fi
+
+# Detect the bench name from the path
+BENCH_NAME=$(hostname)
+
+# Session-scoped files live in tmpfs, keyed by SSH session (SSH_TTY) or PID
+SESSION_ID=${SSH_TTY:-$$}
+SESSION_ID=${SESSION_ID//\//_}
+IDENTITY_FILE="/dev/shm/press-identity-${SESSION_ID}"
+CREDS_FILE="/dev/shm/git-creds-${SESSION_ID}"
+
+prompt_for_email() {
+	local email
+	printf '\n[bench-git-setup] To enable git pull/push inside this bench, enter your Press email:\n  > '
+	read -r email
+	if [[ -z "$email" || "$email" != *@* ]]; then
+		echo "[bench-git-setup] Invalid email. Skipping git setup. Run 'bench-git-setup' again later." >&2
+		return 1
+	fi
+	echo "PRESS_USER=${email}" > "${IDENTITY_FILE}"
+	chmod 0600 "${IDENTITY_FILE}"
+	return 0
+}
+
+# Load cached identity or prompt
+if [[ -f "${IDENTITY_FILE}" ]]; then
+	# shellcheck disable=SC1090
+	source "${IDENTITY_FILE}"
+else
+	prompt_for_email || exit 0
+	# shellcheck disable=SC1090
+	source "${IDENTITY_FILE}"
+fi
+
+if [[ -z "${PRESS_USER:-}" ]]; then
+	echo "[bench-git-setup] No Press email configured. Git will not auto-auth." >&2
+	exit 0
+fi
+
+# Call Press for a fresh token
+response=$(
+	curl -fsSL --max-time 8 -X POST \
+		"${PRESS_API_URL}/api/method/press.api.git_credentials.get_for_session" \
+		-H "X-Press-Internal-Token: ${PRESS_INTERNAL_TOKEN}" \
+		-H "X-Press-User: ${PRESS_USER}" \
+		-H "X-Press-Bench: ${BENCH_NAME}" \
+		2>&1
+) || {
+	echo "[bench-git-setup] Could not reach Press API. You can still use the shell; git won't auto-auth." >&2
+	exit 0
+}
+
+# Parse + configure
+python3 - "$response" "$CREDS_FILE" <<'PYEOF'
+import json
+import os
+import stat
+import subprocess
+import sys
+
+raw = sys.argv[1]
+creds_path = sys.argv[2]
+
+try:
+    data = json.loads(raw)
+except Exception as e:
+    print(f"[bench-git-setup] Malformed response: {e}", file=sys.stderr)
+    sys.exit(0)
+
+msg = data.get("message", data)
+if not isinstance(msg, dict):
+    print("[bench-git-setup] Unexpected response shape", file=sys.stderr)
+    sys.exit(0)
+
+if not msg.get("success"):
+    reason = msg.get("reason", "unknown")
+    authorize_url = msg.get("authorize_url", "")
+    if reason == "needs_connect":
+        sys.stderr.write(f"""
+╭──────────────────────────────────────────────────────────────────╮
+│  GitHub not connected for your Press account.                    │
+│                                                                  │
+│  Open in your browser:                                           │
+│    {authorize_url}
+│                                                                  │
+│  Click "Connect GitHub" (one-time), then re-run 'bench-git-setup'│
+│  in this shell.                                                  │
+╰──────────────────────────────────────────────────────────────────╯
+""")
+    else:
+        sys.stderr.write(f"[bench-git-setup] Git auth unavailable ({reason})\n")
+    sys.exit(0)
+
+token = msg["github.com"]
+email = msg.get("user_email", "")
+name = msg.get("user_full_name", "")
+github_username = msg.get("github_username", "?")
+expires_s = int(msg.get("expires_in_seconds", 0))
+
+with open(creds_path, "w") as f:
+    f.write(f"https://oauth2:{token}@github.com\n")
+os.chmod(creds_path, stat.S_IRUSR | stat.S_IWUSR)
+
+subprocess.run(
+    ["git", "config", "--global", "credential.helper", f"store --file={creds_path}"],
+    check=False,
+)
+if email:
+    subprocess.run(["git", "config", "--global", "user.email", email], check=False)
+if name:
+    subprocess.run(["git", "config", "--global", "user.name", name], check=False)
+
+minutes = expires_s // 60
+sys.stdout.write(
+    f"[bench-git-setup] ✓ Git configured as {github_username} ({email}) — token valid ~{minutes} min\n"
+    f"[bench-git-setup] Tip: for a different app, 'git remote set-url origin git@github.com:<org>/<repo>.git' OR use https://github.com/...\n"
+)
+PYEOF
+
+# Ensure session cleanup on logout
+if [[ -w "$HOME/.bash_logout" ]] && ! grep -qF 'bench-git-setup cleanup' "$HOME/.bash_logout" 2>/dev/null; then
+	cat >> "$HOME/.bash_logout" <<'LOGOUT'
+# bench-git-setup cleanup — wipe session credentials on logout
+rm -f /dev/shm/git-creds-${SSH_TTY//\//_}* /dev/shm/press-identity-${SSH_TTY//\//_}* 2>/dev/null || true
+LOGOUT
+fi
+
+exit 0

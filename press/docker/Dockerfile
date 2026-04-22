@@ -307,6 +307,9 @@ RUN --mount=type=bind,source=app_updates/{{ app.app }},target=/home/frappe/conte
 COPY --chown=frappe:frappe config /home/frappe/frappe-bench/config
 COPY --chown=frappe:frappe apps.txt /home/frappe/frappe-bench/sites/apps.txt
 
+# Install bench-git-setup helper for Option C (user-level GitHub OAuth for git in bench)
+COPY --chown=root:root --chmod=0755 config/bench-git-setup /usr/local/bin/bench-git-setup
+
 # Create custom mounts
 {% for m in doc.container_mounts %}
 RUN mkdir -p {{ m.destination }} && \
