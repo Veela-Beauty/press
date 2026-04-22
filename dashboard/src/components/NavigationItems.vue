@@ -24,6 +24,7 @@ import Code from '~icons/lucide/code';
 import Archive from '~icons/lucide/archive';
 import Camera from '~icons/lucide/camera';
 import FileSearch from '~icons/lucide/file-search';
+import ShieldCheck from '~icons/lucide/shield-check';
 import HeartPulse from '~icons/lucide/heart-pulse';
 import HardDrive from '~icons/lucide/hard-drive';
 import Bell from '~icons/lucide/bell';
@@ -300,6 +301,13 @@ export default {
 					route: '/partner-admin',
 					isActive: routeName === 'Partner Admin',
 					condition: Boolean(this.$team.doc.is_desk_user) && this.hasFeature('partner_admin'),
+				},
+				{
+					name: 'Admin Panel',
+					icon: () => h(ShieldCheck),
+					route: '/admin',
+					isActive: routeName === 'Admin Panel',
+					condition: Boolean(this.$team.doc.is_desk_user),
 				},
 			].filter((item) => item.condition ?? true);
 		},
