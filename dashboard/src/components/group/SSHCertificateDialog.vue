@@ -44,6 +44,10 @@
 							Execute the following shell command to SSH into your bench
 						</p>
 						<ClickToCopyField :textContent="sshCommand" />
+						<p class="mt-1 text-xs text-gray-500">
+							<strong>-A</strong> forwards your local SSH agent so <code>git pull</code> / <code>git push</code> uses your own GitHub key inside the bench. No credentials stored on the server.<br/>
+							Make sure your key is loaded locally: <code>ssh-add ~/.ssh/id_ed25519</code>, verify with <code>ssh-add -L</code>.
+						</p>
 					</div>
 				</div>
 				<div v-if="sshKeys.length > 1" class="flex items-center justify-between rounded bg-blue-50 p-3 text-sm">
@@ -196,7 +200,8 @@ export default {
 		},
 		sshCommand() {
 			if (!this.$bench.doc) return;
-			return `ssh ${this.$bench.doc.name}@${this.$bench.doc.proxy_server} -p 2222`;
+			// -A forwards your local SSH agent so git/GitHub works inside the bench
+			return `ssh -A ${this.$bench.doc.name}@${this.$bench.doc.proxy_server} -p 2222`;
 		},
 		certificateCommand() {
 			if (this.certificate) {
