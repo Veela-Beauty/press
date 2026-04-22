@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Press AI Developer Assistant — Interactive Prototype</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<style>
+/* ═══ TOKENS ═══ */
+:root {
+  --g50:#f9fafb;--g100:#f3f4f6;--g200:#e5e7eb;--g300:#d1d5db;--g400:#9ca3af;
+  --g500:#6b7280;--g600:#4b5563;--g700:#374151;--g800:#1f2937;--g900:#111827;
+  --b50:#eff6ff;--b100:#dbeafe;--b200:#bfdbfe;--b500:#3b82f6;--b600:#2563eb;--b700:#1d4ed8;
+  --gn50:#f0fdf4;--gn100:#dcfce7;--gn500:#22c55e;--gn600:#16a34a;--gn700:#15803d;
+  --y50:#fefce8;--y100:#fef9c3;--y500:#eab308;--y600:#ca8a04;--y700:#a16207;
+  --o50:#fff7ed;--o100:#ffedd5;--o500:#f97316;--o600:#ea580c;
+  --r50:#fef2f2;--r100:#fee2e2;--r500:#ef4444;--r600:#dc2626;--r700:#b91c1c;
+  --p50:#faf5ff;--p100:#f3e8ff;--p500:#a855f7;--p600:#9333ea;
+  --rad:8px;--rad-s:6px;--rad-l:12px;
+  --sh:0 1px 3px 0 rgb(0 0 0/.10),0 1px 2px -1px rgb(0 0 0/.10);
+  --sh-lg:0 10px 15px -3px rgb(0 0 0/.10),0 4px 6px -4px rgb(0 0 0/.10);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--g50);color:var(--g900);font-size:14px;line-height:1.5}
+
+/* ═══ PROTO BANNER ═══ */
+.proto-bar{background:var(--r600);color:#fff;text-align:center;padding:6px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:16px}
+.proto-bar .step-dots{display:flex;gap:4px}
+.proto-bar .dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.3);transition:.2s}
+.proto-bar .dot.active{background:#fff;transform:scale(1.3)}
+.proto-bar .dot.done{background:var(--gn500)}
+
+/* ═══ SHELL ═══ */
+.shell{display:flex;height:calc(100vh - 32px);overflow:hidden}
+
+/* Sidebar — Odoo.sh style */
+.sidebar{width:230px;background:#fff;border-right:1px solid var(--g200);display:flex;flex-direction:column;flex-shrink:0}
+.sidebar-hdr{padding:14px 16px;border-bottom:1px solid var(--g200);display:flex;align-items:center;gap:8px}
+.sidebar-hdr .logo{font-weight:700;font-size:15px;color:var(--g900)}
+.sidebar-hdr .logo span{color:var(--b600)}
+.sidebar-search{padding:8px 12px;border-bottom:1px solid var(--g200)}
+.sidebar-search input{width:100%;padding:6px 10px 6px 30px;border:1px solid var(--g200);border-radius:var(--rad-s);font-size:12px;outline:none;background:var(--g50) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%239ca3af' viewBox='0 0 24 24'%3E%3Cpath d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' stroke='%239ca3af' stroke-width='2' fill='none'/%3E%3C/svg%3E") 8px center no-repeat}
+.sidebar-search input:focus{border-color:var(--b500)}
+
+/* Branch groups — Odoo.sh pattern */
+.branch-group{padding:8px 0}
+.branch-group-label{padding:4px 16px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--g400);display:flex;align-items:center;justify-content:space-between}
+.branch-group-label button{background:none;border:none;color:var(--g400);cursor:pointer;font-size:12px}
+.branch-group-label button:hover{color:var(--b600)}
+.branch-item{padding:7px 16px;font-size:13px;color:var(--g600);cursor:pointer;display:flex;align-items:center;gap:8px;border-left:3px solid transparent}
+.branch-item:hover{background:var(--g50)}
+.branch-item.active{background:var(--b50);color:var(--b600);font-weight:500;border-left-color:var(--b500)}
+.branch-item .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.branch-item .dot.prod{background:var(--gn500)}
+.branch-item .dot.stg{background:var(--y500)}
+.branch-item .dot.dev{background:var(--b500)}
+.branch-item .dot.fail{background:var(--r500)}
+.branch-item .ver{font-size:10px;color:var(--g400);margin-left:auto}
+
+/* ═══ MAIN AREA ═══ */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+
+/* Top bar — Odoo.sh style tabs */
+.topbar{background:#fff;border-bottom:1px solid var(--g200);display:flex;align-items:center;padding:0 20px;height:44px;gap:0}
+.topbar-tab{padding:10px 14px;font-size:12px;font-weight:500;color:var(--g500);cursor:pointer;border-bottom:2px solid transparent;height:44px;display:flex;align-items:center;gap:6px}
+.topbar-tab:hover{color:var(--g700);background:var(--g50)}
+.topbar-tab.active{color:var(--b600);border-bottom-color:var(--b600);font-weight:600}
+.topbar-tab i{font-size:11px}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:6px}
+.topbar-action{padding:5px 12px;border-radius:var(--rad-s);font-size:11px;font-weight:500;cursor:pointer;border:1px solid var(--g200);background:#fff;color:var(--g600);display:flex;align-items:center;gap:5px}
+.topbar-action:hover{background:var(--g50)}
+.topbar-action i{font-size:10px}
+
+/* Content + AI panel side by side */
+.content-area{flex:1;display:flex;overflow:hidden}
+.page-content{flex:1;overflow-y:auto;padding:20px 24px;background:var(--g50)}
+
+/* ═══ AI PANEL (right side) ═══ */
+.ai-panel{width:0;overflow:hidden;border-left:1px solid var(--g200);background:#fff;display:flex;flex-direction:column;transition:width .3s ease}
+.ai-panel.open{width:420px}
+
+.ai-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--g200);min-height:46px}
+.ai-hdr-left{display:flex;align-items:center;gap:8px}
+.ai-logo{width:28px;height:28px;border-radius:var(--rad);background:linear-gradient(135deg,var(--b500),var(--p500));display:flex;align-items:center;justify-content:center}
+.ai-logo i{color:#fff;font-size:12px}
+.ai-hdr-title{font-size:13px;font-weight:600}
+.ai-status{width:6px;height:6px;border-radius:50%;background:var(--g400)}
+.ai-status.thinking{background:var(--gn500);animation:pulse-d 1.5s infinite}
+@keyframes pulse-d{0%,100%{opacity:1}50%{opacity:.3}}
+.ai-hdr-actions{display:flex;gap:2px}
+.ai-btn{background:none;border:none;color:var(--g400);cursor:pointer;width:28px;height:28px;border-radius:var(--rad-s);display:flex;align-items:center;justify-content:center;font-size:12px}
+.ai-btn:hover{background:var(--g100);color:var(--g700)}
+
+/* Budget bar */
+.ai-budget{padding:8px 14px;border-bottom:1px solid var(--g200)}
+.ai-budget-info{display:flex;justify-content:space-between;font-size:10px;color:var(--g500);margin-bottom:3px}
+.ai-budget-track{height:3px;border-radius:2px;background:var(--g200)}
+.ai-budget-fill{height:100%;border-radius:2px;background:var(--b500);transition:width .5s}
+.ai-budget-fill.warn{background:var(--o500)}
+.ai-budget-fill.danger{background:var(--r500)}
+
+/* Context */
+.ai-ctx{padding:8px 14px;border-bottom:1px solid var(--g200);display:flex;gap:5px;flex-wrap:wrap}
+.ctx-p{font-size:10px;padding:2px 7px;border-radius:10px;background:var(--g100);color:var(--g600);display:flex;align-items:center;gap:4px}
+.ctx-p i{font-size:8px}
+.ctx-p.on{background:var(--b50);color:var(--b600);border:1px solid var(--b200)}
+
+/* Chat */
+.ai-chat{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+
+/* Quick prompts */
+.qp-wrap{display:flex;flex-direction:column;gap:6px;padding:4px 0}
+.qp-label{font-size:11px;color:var(--g400);font-weight:500}
+.qp-btn{background:#fff;border:1px solid var(--g200);border-radius:var(--rad-l);padding:10px 12px;cursor:pointer;text-align:left;font-size:12px;display:flex;align-items:center;gap:10px;transition:.15s}
+.qp-btn:hover{border-color:var(--b500);background:var(--b50)}
+.qp-ic{width:30px;height:30px;border-radius:var(--rad);background:var(--g100);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--g500);font-size:12px}
+.qp-btn:hover .qp-ic{background:var(--b100);color:var(--b600)}
+.qp-t{font-weight:500}
+.qp-d{font-size:11px;color:var(--g400);margin-top:1px}
+
+/* Messages */
+.msg-u{margin-left:40px;background:var(--b50);border:1px solid var(--b200);border-radius:var(--rad-l) var(--rad-l) 4px var(--rad-l);padding:10px 14px;font-size:13px;line-height:1.5}
+.msg-a{display:flex;flex-direction:column;gap:4px}
+.msg-a-body{background:var(--g50);border:1px solid var(--g200);border-radius:4px var(--rad-l) var(--rad-l) var(--rad-l);padding:12px 14px;font-size:13px;line-height:1.6}
+.msg-a-body p{margin-bottom:6px}.msg-a-body p:last-child{margin-bottom:0}
+.msg-a-body strong{color:var(--g900)}
+.msg-a-body code{background:var(--g100);padding:1px 5px;border-radius:3px;font-size:12px;font-family:'JetBrains Mono',monospace}
+.msg-a-body pre{margin:6px 0;border-radius:var(--rad);border:1px solid var(--g200);background:#fff!important;overflow-x:auto;position:relative}
+.msg-a-body pre code{font-family:'JetBrains Mono','Fira Code',monospace;font-size:11.5px;line-height:1.5;background:none;padding:0}
+.code-lang{position:absolute;top:4px;right:8px;font-size:9px;color:var(--g400);font-family:sans-serif}
+.msg-meta{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--g400);padding-left:4px}
+.msg-actions{display:flex;gap:4px;margin-top:2px}
+
+/* Streaming */
+.stream{display:flex;align-items:center;gap:8px;padding:6px 0}
+.stream-dots{display:flex;gap:3px}
+.stream-dots span{width:5px;height:5px;border-radius:50%;background:var(--b500);animation:pulse-s 1.4s infinite}
+.stream-dots span:nth-child(2){animation-delay:.2s}
+.stream-dots span:nth-child(3){animation-delay:.4s}
+@keyframes pulse-s{0%,80%,100%{opacity:.3;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+.stream-text{font-size:12px;color:var(--g500)}
+
+/* Violation */
+.viol{border-radius:var(--rad);padding:10px 12px;font-size:12px;line-height:1.5;display:flex;gap:8px;align-items:flex-start;margin-top:4px}
+.viol.c1{background:var(--r50);border:1px solid var(--r500);color:var(--r700)}
+.viol.c3{background:var(--b50);border:1px solid var(--b500);color:var(--b700)}
+.viol i{margin-top:2px;flex-shrink:0}
+
+/* Input */
+.ai-input{padding:10px 14px;border-top:1px solid var(--g200);background:#fff}
+.ai-input-row{display:flex;gap:8px;align-items:flex-end}
+.ai-input-row textarea{flex:1;resize:none;border:1px solid var(--g200);border-radius:var(--rad-l);background:var(--g50);color:var(--g900);padding:9px 12px;font-size:13px;font-family:inherit;outline:none;line-height:1.4}
+.ai-input-row textarea:focus{border-color:var(--b500);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
+.ai-input-row textarea::placeholder{color:var(--g400)}
+.send-btn{width:34px;height:34px;border-radius:var(--rad-l);border:none;background:var(--b600);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px}
+.send-btn:hover{background:var(--b700)}
+.send-btn:disabled{background:var(--g200);color:var(--g400);cursor:default}
+.ai-input-hint{font-size:10px;color:var(--g400);margin-top:5px;display:flex;justify-content:space-between}
+.ai-input-hint kbd{background:var(--g100);padding:1px 4px;border-radius:3px;font-size:9px;border:1px solid var(--g200)}
+
+/* ═══ BUTTONS ═══ */
+.btn{padding:7px 14px;border-radius:var(--rad-s);font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--g200);display:inline-flex;align-items:center;gap:5px;background:#fff;color:var(--g700);transition:.15s}
+.btn:hover{background:var(--g50)}
+.btn-p{background:var(--b600);color:#fff;border-color:var(--b600)}.btn-p:hover{background:var(--b700)}
+.btn-g{background:var(--gn600);color:#fff;border-color:var(--gn600)}.btn-g:hover{background:var(--gn700)}
+.btn-d{background:#fff;color:var(--r600);border-color:var(--r100)}.btn-d:hover{background:var(--r50)}
+.btn-w{background:var(--y100);color:var(--y700);border-color:var(--y500)}.btn-w:hover{background:var(--y50)}
+.btn-sm{padding:5px 10px;font-size:11px}
+
+/* ═══ BADGE ═══ */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:500}
+.badge-gn{background:var(--gn100);color:var(--gn700)}.badge-b{background:var(--b100);color:var(--b700)}
+.badge-y{background:var(--y100);color:var(--y700)}.badge-r{background:var(--r100);color:var(--r700)}
+.badge-g{background:var(--g100);color:var(--g600)}.badge-p{background:var(--p100);color:var(--p600)}
+.badge-o{background:var(--o100);color:var(--o600)}
+
+/* ═══ CARDS ═══ */
+.card{background:#fff;border:1px solid var(--g200);border-radius:var(--rad)}
+.card-h{padding:12px 14px;border-bottom:1px solid var(--g200);font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between}
+.card-b{padding:14px}
+
+/* ═══ TABLE ═══ */
+.tbl{width:100%;border-collapse:collapse}
+.tbl thead th{padding:8px 14px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--g500);background:var(--g50);border-bottom:1px solid var(--g200)}
+.tbl tbody td{padding:8px 14px;font-size:12px;border-bottom:1px solid var(--g100)}
+.tbl tbody tr:hover{background:var(--g50)}
+.tbl tbody tr:last-child td{border-bottom:none}
+
+/* ═══ STAT CARDS ═══ */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:16px}
+.stat{background:#fff;border:1px solid var(--g200);border-radius:var(--rad);padding:14px}
+.stat-l{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--g500)}
+.stat-v{font-size:24px;font-weight:700;margin-top:3px}
+.stat-s{font-size:11px;color:var(--g400);margin-top:2px}
+
+/* ═══ MODALS/OVERLAYS ═══ */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:none;align-items:center;justify-content:center}
+.overlay.show{display:flex}
+.modal{background:#fff;border-radius:var(--rad-l);width:90vw;box-shadow:var(--sh-lg)}
+.modal-h{padding:18px 22px 0}
+.modal-h h3{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+.modal-b{padding:14px 22px}
+.modal-f{padding:14px 22px;border-top:1px solid var(--g200);display:flex;justify-content:flex-end;gap:8px}
+
+/* ═══ DIFF VIEWER ═══ */
+.diff-modal{max-width:900px;max-height:85vh;display:flex;flex-direction:column}
+.diff-tabs{display:flex;gap:0;border-bottom:1px solid var(--g200);padding:0 22px;overflow-x:auto}
+.diff-tab{padding:8px 14px;font-size:12px;font-weight:500;color:var(--g500);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.diff-tab:hover{color:var(--g700);background:var(--g50)}
+.diff-tab.active{color:var(--b600);border-bottom-color:var(--b600)}
+.diff-tab .b-sm{font-size:9px;padding:1px 5px;border-radius:6px;font-weight:600}
+.diff-tab .b-sm.mod{background:var(--y100);color:var(--y700)}
+.diff-tab .b-sm.add{background:var(--gn100);color:var(--gn700)}
+.diff-body{flex:1;overflow-y:auto}
+.diff-ln{display:flex;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6}
+.diff-ln:hover{background:var(--g50)}
+.diff-ln .ln-no{width:48px;text-align:right;color:var(--g400);padding-right:10px;user-select:none;flex-shrink:0;border-right:1px solid var(--g200)}
+.diff-ln .ln-code{flex:1;padding-left:10px;white-space:pre-wrap}
+.diff-ln.add{background:var(--gn50)}.diff-ln.add .ln-code{color:var(--gn700)}
+.diff-ln.rem{background:var(--r50)}.diff-ln.rem .ln-code{color:var(--r700)}
+.diff-foot{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;border-top:1px solid var(--g200);gap:10px}
+
+/* ═══ POLICY MODAL ═══ */
+.policy-modal{max-width:500px}
+.pol-list{list-style:none;padding:0}
+.pol-list li{padding:7px 0;border-bottom:1px solid var(--g100);font-size:13px;display:flex;align-items:flex-start;gap:8px}
+.pol-list li:last-child{border-bottom:none}
+.pol-list li i{margin-top:3px;font-size:11px;flex-shrink:0}
+.chk-row{display:flex;align-items:center;gap:8px;padding:10px 0;font-size:13px;font-weight:500}
+.chk-row input{width:16px;height:16px;accent-color:var(--b600)}
+
+/* ═══ STAGING MODAL ═══ */
+.stg-modal{max-width:480px}
+.warn-icon{width:48px;height:48px;border-radius:50%;background:var(--y100);display:flex;align-items:center;justify-content:center;margin:0 auto 12px}
+.warn-icon i{font-size:20px;color:var(--y600)}
+.site-box{background:var(--y50);border:1px solid var(--y500);border-radius:var(--rad-s);padding:8px 12px;text-align:center;font-family:monospace;font-size:13px;font-weight:600;color:var(--y700);margin:10px 0}
+
+/* ═══ ESCALATION MODAL ═══ */
+.esc-modal{max-width:540px}
+.esc-det{background:var(--r50);border:1px solid var(--r200,#fecaca);border-radius:var(--rad-s);padding:12px;margin-bottom:10px}
+.esc-cat{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--r600);margin-bottom:3px}
+.esc-chain{display:flex;align-items:center;gap:6px;font-size:11px;flex-wrap:wrap}
+.esc-chain .arrow{color:var(--g300);font-size:10px}
+
+/* ═══ COMMIT MODAL ═══ */
+.commit-modal{max-width:460px}
+.commit-pre{background:var(--g50);border:1px solid var(--g200);border-radius:var(--rad-s);padding:12px;font-family:monospace;font-size:11.5px;line-height:1.6;white-space:pre-wrap}
+.commit-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--g100);font-size:12px}
+.commit-row:last-child{border-bottom:none}
+
+/* ═══ TOAST ═══ */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--g900);color:#fff;padding:12px 20px;border-radius:var(--rad);font-size:13px;display:none;align-items:center;gap:8px;z-index:600;box-shadow:var(--sh-lg);animation:toast-in .3s ease}
+.toast.show{display:flex}
+.toast i{font-size:14px}
+@keyframes toast-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ═══ AI FAB ═══ */
+.ai-fab{position:absolute;bottom:20px;right:20px;width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--b500),var(--p500));color:#fff;border:none;cursor:pointer;box-shadow:var(--sh-lg);display:flex;align-items:center;justify-content:center;font-size:16px;z-index:10;transition:.2s}
+.ai-fab:hover{transform:scale(1.08)}
+.ai-fab.hidden{display:none}
+
+/* ═══ TIMELINE ═══ */
+.tl{position:relative;padding-left:24px}
+.tl::before{content:'';position:absolute;left:8px;top:0;bottom:0;width:2px;background:var(--g200)}
+.tl-item{position:relative;padding:10px 0}
+.tl-item::before{content:'';position:absolute;left:-18px;top:14px;width:8px;height:8px;border-radius:50%;border:2px solid var(--b500);background:#fff;z-index:1}
+.tl-item.ok::before{border-color:var(--gn500);background:var(--gn100)}
+.tl-item.warn::before{border-color:var(--y500);background:var(--y100)}
+.tl-item.err::before{border-color:var(--r500);background:var(--r100)}
+.tl-time{font-size:10px;color:var(--g400);font-weight:500}
+.tl-title{font-size:13px;font-weight:500;margin-top:1px}
+.tl-det{font-size:12px;color:var(--g500);margin-top:1px}
+.tl-files{font-size:11px;color:var(--g400);font-family:monospace;margin-top:3px}
+.tl-acts{margin-top:5px;display:flex;gap:5px}
+
+/* ═══ FORM ═══ */
+.fg{margin-bottom:12px}
+.fg label{display:block;font-size:12px;font-weight:600;color:var(--g700);margin-bottom:3px}
+.fg .help{font-size:10px;color:var(--g400);margin-top:2px}
+.fc{width:100%;padding:8px 10px;border:1px solid var(--g200);border-radius:var(--rad-s);font-size:13px;outline:none;background:#fff;font-family:inherit}
+.fc:focus{border-color:var(--b500);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
+select.fc{appearance:auto}
+textarea.fc{resize:vertical;min-height:70px}
+.conn-ok{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:var(--rad-s);font-size:11px;font-weight:500;background:var(--gn50);color:var(--gn700);border:1px solid var(--gn100,#bbf7d0);margin-top:6px}
+
+/* ═══ ALERT CARDS ═══ */
+.alrt{border-radius:var(--rad);padding:10px 14px;margin-bottom:6px;display:flex;align-items:flex-start;gap:8px}
+.alrt.crit{background:var(--r50);border:1px solid var(--r100,#fecaca)}
+.alrt.crit i{color:var(--r500)}
+.alrt.wrn{background:var(--y50);border:1px solid var(--y100)}
+.alrt.wrn i{color:var(--y600)}
+.alrt-t{font-size:12px;font-weight:600}
+.alrt-d{font-size:11px;color:var(--g600);margin-top:1px}
+.alrt-time{font-size:10px;color:var(--g400);margin-top:3px}
+
+/* ═══ NAV PAGES (hidden by default) ═══ */
+.page{display:none}.page.active{display:block}
+
+/* ═══ INFO BAR ═══ */
+.info-bar{background:var(--b50);border:1px solid var(--b200);border-radius:var(--rad-s);padding:8px 12px;font-size:12px;color:var(--b700);display:flex;align-items:flex-start;gap:6px;margin:8px 0}
+.info-bar i{margin-top:2px}
+</style>
+</head>
+<body>
+
+<!-- Proto Banner with Step Indicator -->
+<div class="proto-bar" id="protoBar">
+  <span>INTERACTIVE PROTOTYPE</span>
+  <div class="step-dots" id="stepDots">
+    <div class="dot active" title="1. Policy Gate"></div>
+    <div class="dot" title="2. Dev Tab"></div>
+    <div class="dot" title="3. AI Chat"></div>
+    <div class="dot" title="4. Diff Review"></div>
+    <div class="dot" title="5. Commit"></div>
+    <div class="dot" title="6. Governance"></div>
+  </div>
+  <span id="stepLabel">Step 1: First-time Policy Gate</span>
+</div>
+
+<div class="shell">
+  <!-- ═══ SIDEBAR ═══ -->
+  <div class="sidebar">
+    <div class="sidebar-hdr">
+      <div class="logo"><span>Press</span> Dashboard</div>
+    </div>
+    <div class="sidebar-search"><input type="text" placeholder="Filter branches..."></div>
+
+    <div class="branch-group">
+      <div class="branch-group-label">Production</div>
+      <div class="branch-item" onclick="showPage('dev')">
+        <span class="dot prod"></span> main <span class="ver">15.1.0</span>
+      </div>
+    </div>
+    <div class="branch-group">
+      <div class="branch-group-label">Staging <button>+</button></div>
+      <div class="branch-item" onclick="showPage('dev')">
+        <span class="dot stg"></span> staging-v2 <span class="ver">15.1.0</span>
+      </div>
+    </div>
+    <div class="branch-group">
+      <div class="branch-group-label">Development <button>+</button></div>
+      <div class="branch-item active" onclick="showPage('dev')">
+        <span class="dot dev"></span> dev-payment-fix <span class="ver">15.1.0</span>
+      </div>
+      <div class="branch-item" onclick="showPage('dev')">
+        <span class="dot dev"></span> dev-hrms-fields <span class="ver">15.1.0</span>
+      </div>
+      <div class="branch-item" onclick="showPage('dev')">
+        <span class="dot fail"></span> dev-api-refactor <span class="ver">15.1.0</span>
+      </div>
+    </div>
+
+    <!-- Sidebar nav -->
+    <div style="margin-top:auto;border-top:1px solid var(--g200);padding:8px 0">
+      <div class="branch-item" onclick="showPage('governance')"><i class="fa-solid fa-gavel" style="width:16px;font-size:11px;text-align:center"></i> AI Governance</div>
+      <div class="branch-item" onclick="showPage('usage')"><i class="fa-solid fa-chart-bar" style="width:16px;font-size:11px;text-align:center"></i> Usage & Cost</div>
+      <div class="branch-item" onclick="showPage('rollback')"><i class="fa-solid fa-clock-rotate-left" style="width:16px;font-size:11px;text-align:center"></i> Rollback</div>
+      <div class="branch-item" onclick="showPage('provider')"><i class="fa-solid fa-key" style="width:16px;font-size:11px;text-align:center"></i> Provider Settings</div>
+    </div>
+  </div>
+
+  <!-- ═══ MAIN ═══ -->
+  <div class="main">
+    <!-- Top bar tabs (Odoo.sh style) -->
+    <div class="topbar" id="topbar">
+      <div class="topbar-tab active" onclick="showPage('dev')"><i class="fa-solid fa-code-branch"></i> History</div>
+      <div class="topbar-tab"><i class="fa-solid fa-envelope"></i> Mails</div>
+      <div class="topbar-tab"><i class="fa-solid fa-terminal"></i> Shell</div>
+      <div class="topbar-tab"><i class="fa-solid fa-scroll"></i> Logs</div>
+      <div class="topbar-tab"><i class="fa-solid fa-chart-line"></i> Monitor</div>
+      <div class="topbar-tab"><i class="fa-solid fa-gear"></i> Settings</div>
+      <div class="topbar-right">
+        <div class="topbar-action"><i class="fa-solid fa-code-fork"></i> Fork</div>
+        <div class="topbar-action"><i class="fa-solid fa-code-merge"></i> Merge</div>
+        <div class="topbar-action" onclick="openAiPanel()" style="background:linear-gradient(135deg,var(--b500),var(--p500));color:#fff;border:none;font-weight:600"><i class="fa-solid fa-wand-magic-sparkles"></i> AI Dev</div>
+      </div>
+    </div>
+
+    <div class="content-area">
+      <!-- ═══ PAGE: DEV TAB (History / Branch View) ═══ -->
+      <div class="page-content" id="pageWrap" style="position:relative">
+
+        <!-- Page: Dev (Branch History) -->
+        <div class="page active" id="page-dev">
+          <!-- Site header -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <div>
+              <div style="font-size:11px;color:var(--g400)">bench-0014 / accubuild-stg</div>
+              <h2 style="font-size:17px;font-weight:600;display:flex;align-items:center;gap:8px">
+                dev-payment-fix
+                <span class="badge badge-gn"><i class="fa-solid fa-circle" style="font-size:5px"></i> Active</span>
+              </h2>
+            </div>
+          </div>
+
+          <!-- Commit history cards — Odoo.sh style -->
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-h">Recent Commits <span class="badge badge-g">dev-payment-fix</span></div>
+            <div class="card-b" style="padding:0">
+              <table class="tbl">
+                <thead><tr><th style="width:100px">Status</th><th>Commit</th><th>Author</th><th>Time</th><th style="width:110px"></th></tr></thead>
+                <tbody>
+                  <tr style="background:var(--r50)">
+                    <td><span class="badge badge-r"><i class="fa-solid fa-xmark"></i> Failed</span></td>
+                    <td><strong style="font-size:12px">[FIX] handle missing approval_status</strong><br><span style="font-size:11px;color:var(--g400)">ValidationError in payment.py:142</span></td>
+                    <td style="font-size:12px">Ahmed K.</td>
+                    <td style="font-size:12px;color:var(--g500)">2 min ago</td>
+                    <td><button class="btn btn-sm" onclick="openAiPanel();simulateDebug()"><i class="fa-solid fa-wand-magic-sparkles"></i> AI Fix</button></td>
+                  </tr>
+                  <tr>
+                    <td><span class="badge badge-gn"><i class="fa-solid fa-check"></i> Success</span></td>
+                    <td><strong style="font-size:12px">[ADD] payment approval workflow</strong></td>
+                    <td style="font-size:12px">Eslam</td>
+                    <td style="font-size:12px;color:var(--g500)">1 hr ago</td>
+                    <td><button class="btn btn-sm"><i class="fa-solid fa-plug"></i> Connect</button></td>
+                  </tr>
+                  <tr>
+                    <td><span class="badge badge-gn"><i class="fa-solid fa-check"></i> Success</span></td>
+                    <td><strong style="font-size:12px">[ADD] initial payment module</strong></td>
+                    <td style="font-size:12px">Eslam</td>
+                    <td style="font-size:12px;color:var(--g500)">3 hrs ago</td>
+                    <td><button class="btn btn-sm"><i class="fa-solid fa-plug"></i> Connect</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Apps list -->
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-h">Installed Apps <span class="badge badge-g">5 apps</span></div>
+            <div class="card-b" style="padding:0">
+              <table class="tbl">
+                <thead><tr><th>App</th><th>Branch</th><th>Version</th><th>Status</th></tr></thead>
+                <tbody>
+                  <tr><td><strong>frappe</strong></td><td><code style="font-size:11px">version-15</code></td><td>15.103.0</td><td><span class="badge badge-gn">Clean</span></td></tr>
+                  <tr><td><strong>erpnext</strong></td><td><code style="font-size:11px">version-15</code></td><td>15.102.0</td><td><span class="badge badge-gn">Clean</span></td></tr>
+                  <tr><td><strong>accubuild_core</strong></td><td><code style="font-size:11px">dev-payment-fix</code></td><td>15.1.0</td><td><span class="badge badge-y">3 ahead</span></td></tr>
+                  <tr><td><strong>hrms</strong></td><td><code style="font-size:11px">version-15</code></td><td>15.58.4</td><td><span class="badge badge-gn">Clean</span></td></tr>
+                  <tr><td><strong>sanad_bi_ai</strong></td><td><code style="font-size:11px">main</code></td><td>0.2.0</td><td><span class="badge badge-gn">Clean</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Recent errors -->
+          <div class="card">
+            <div class="card-h">Recent Errors <span class="badge badge-r">3 today</span></div>
+            <div class="card-b" style="padding:0">
+              <table class="tbl">
+                <thead><tr><th>Time</th><th>Type</th><th>Message</th><th>File</th></tr></thead>
+                <tbody>
+                  <tr style="cursor:pointer" onclick="openAiPanel();simulateDebug()">
+                    <td style="color:var(--g500)">2 min ago</td>
+                    <td><span class="badge badge-r">ValidationError</span></td>
+                    <td>Missing custom_approval_status field</td>
+                    <td style="font-family:monospace;font-size:11px">payment.py:142</td>
+                  </tr>
+                  <tr>
+                    <td style="color:var(--g500)">18 min ago</td>
+                    <td><span class="badge badge-y">Warning</span></td>
+                    <td>Deprecated frappe.whitelist usage</td>
+                    <td style="font-family:monospace;font-size:11px">api.py:28</td>
+                  </tr>
+                  <tr>
+                    <td style="color:var(--g500)">1 hr ago</td>
+                    <td><span class="badge badge-r">ImportError</span></td>
+                    <td>No module named 'accubuild.utils.payments'</td>
+                    <td style="font-family:monospace;font-size:11px">hooks.py:45</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page: Governance -->
+        <div class="page" id="page-governance">
+          <h2 style="font-size:17px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px"><i class="fa-solid fa-gavel" style="color:var(--b600)"></i> AI Governance</h2>
+          <div class="stats">
+            <div class="stat"><div class="stat-l">Sessions Today</div><div class="stat-v">47</div><div class="stat-s">+12% vs yesterday</div></div>
+            <div class="stat"><div class="stat-l">Tokens Used</div><div class="stat-v">1.2M</div><div class="stat-s">42% of pool</div></div>
+            <div class="stat"><div class="stat-l">Open Escalations</div><div class="stat-v" style="color:var(--r600)">3</div><div class="stat-s">2 pending TL</div></div>
+            <div class="stat"><div class="stat-l">Violations Blocked</div><div class="stat-v">8</div><div class="stat-s">5 Cat 1, 3 Cat 2</div></div>
+          </div>
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-h">Anomaly Alerts <span class="badge badge-r">2</span></div>
+            <div class="card-b" style="padding:10px 14px">
+              <div class="alrt crit"><i class="fa-solid fa-triangle-exclamation"></i><div><div class="alrt-t">Token spike — ahmed.k@accuratesystems.com</div><div class="alrt-d">85K tokens in 1 hour (3x average)</div><div class="alrt-time">10 min ago</div></div></div>
+              <div class="alrt wrn"><i class="fa-solid fa-rotate"></i><div><div class="alrt-t">Repetition — junior.dev3</div><div class="alrt-d">Same prompt 7 times in 15 min</div><div class="alrt-time">25 min ago</div></div></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h">Team AI Rules</div>
+            <div class="card-b" style="padding:0">
+              <table class="tbl">
+                <thead><tr><th>Team</th><th>AI</th><th>Pool</th><th>Cap</th><th>Provider</th><th>Policy</th></tr></thead>
+                <tbody>
+                  <tr><td><strong>AccuBuild Core</strong></td><td><span class="badge badge-gn">On</span></td><td>500K</td><td>100K</td><td>Company</td><td><span class="badge badge-gn">28/28</span></td></tr>
+                  <tr><td><strong>HRMS Module</strong></td><td><span class="badge badge-gn">On</span></td><td>300K</td><td>80K</td><td>Personal</td><td><span class="badge badge-y">5/6</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page: Usage -->
+        <div class="page" id="page-usage">
+          <h2 style="font-size:17px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px"><i class="fa-solid fa-chart-bar" style="color:var(--b600)"></i> Usage & Cost</h2>
+          <div class="stats">
+            <div class="stat"><div class="stat-l">Total Tokens</div><div class="stat-v">8.4M</div><div class="stat-s">April 2026</div></div>
+            <div class="stat"><div class="stat-l">Est. Cost</div><div class="stat-v">$12.60</div><div class="stat-s">OpenRouter</div></div>
+            <div class="stat"><div class="stat-l">Sessions</div><div class="stat-v">342</div><div class="stat-s">14 users</div></div>
+            <div class="stat"><div class="stat-l">Avg/User/Day</div><div class="stat-v">28K</div><div class="stat-s">tokens</div></div>
+          </div>
+          <div class="card">
+            <div class="card-h">Per-User Breakdown</div>
+            <div class="card-b" style="padding:0">
+              <table class="tbl">
+                <thead><tr><th>User</th><th>Sessions</th><th>Tokens</th><th>Budget</th><th>Cost</th><th>Top Action</th></tr></thead>
+                <tbody>
+                  <tr><td><strong>eslam@</strong></td><td>68</td><td>1.42M</td><td><div style="display:flex;align-items:center;gap:4px"><div style="width:50px;height:3px;border-radius:2px;background:var(--g200)"><div style="width:72%;height:100%;border-radius:2px;background:var(--o500)"></div></div><span style="font-size:10px;color:var(--g400)">72%</span></div></td><td>$2.13</td><td><span class="badge badge-b">Debug</span></td></tr>
+                  <tr><td><strong>ahmed.k@</strong></td><td>52</td><td>1.18M</td><td><div style="display:flex;align-items:center;gap:4px"><div style="width:50px;height:3px;border-radius:2px;background:var(--g200)"><div style="width:85%;height:100%;border-radius:2px;background:var(--r500)"></div></div><span style="font-size:10px;color:var(--g400)">85%</span></div></td><td>$1.77</td><td><span class="badge badge-p">Scaffold</span></td></tr>
+                  <tr><td><strong>junior.dev1@</strong></td><td>41</td><td>820K</td><td><div style="display:flex;align-items:center;gap:4px"><div style="width:50px;height:3px;border-radius:2px;background:var(--g200)"><div style="width:45%;height:100%;border-radius:2px;background:var(--b500)"></div></div><span style="font-size:10px;color:var(--g400)">45%</span></div></td><td>$1.23</td><td><span class="badge badge-gn">Field</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page: Rollback -->
+        <div class="page" id="page-rollback">
+          <h2 style="font-size:17px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px"><i class="fa-solid fa-clock-rotate-left" style="color:var(--b600)"></i> Milestone Rollback</h2>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="card">
+              <div class="card-h">AI Actions (last 60 min) <span class="badge badge-b">5</span></div>
+              <div class="card-b">
+                <div class="tl">
+                  <div class="tl-item ok"><div class="tl-time">3 min ago</div><div class="tl-title">Applied fix — custom_approval_status</div><div class="tl-det">3 files modified</div><div class="tl-files">payment.py, payment.json, hooks.py</div><div class="tl-acts"><button class="btn btn-sm" onclick="openDiff()"><i class="fa-solid fa-eye"></i> Diff</button><button class="btn btn-d btn-sm"><i class="fa-solid fa-rotate-left"></i> Rollback</button></div></div>
+                  <div class="tl-item ok"><div class="tl-time">18 min ago</div><div class="tl-title">Demo data — 5 Payment Entry records</div><div class="tl-det">PE-TEST-001 to PE-TEST-005</div><div class="tl-acts"><button class="btn btn-sm"><i class="fa-solid fa-eye"></i> Data</button><button class="btn btn-d btn-sm"><i class="fa-solid fa-rotate-left"></i> Rollback</button></div></div>
+                  <div class="tl-item warn"><div class="tl-time">32 min ago</div><div class="tl-title">Config — auto_payment_approval: 0 → 1</div><div class="tl-acts"><button class="btn btn-d btn-sm"><i class="fa-solid fa-rotate-left"></i> Rollback</button></div></div>
+                  <div class="tl-item err"><div class="tl-time">58 min ago</div><div class="tl-title">Escalation — DROP TABLE blocked</div><div class="tl-det">Cat 1, escalated to TL</div></div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="card" style="margin-bottom:14px">
+                <div class="card-h">Snapshot Info</div>
+                <div class="card-b">
+                  <div class="fg"><label>Snapshot</label><div style="font-family:monospace;font-size:13px;color:var(--g600)">ms_20260405_1042</div></div>
+                  <div class="fg"><label>Expires</label><div style="font-size:13px;color:var(--o600)">34 min remaining</div></div>
+                  <div class="fg" style="margin-bottom:0"><label>Size</label><div style="font-size:13px;color:var(--g600)">1.8 MB · 5 actions</div></div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-h">Rollback Options</div>
+                <div class="card-b">
+                  <div class="info-bar"><i class="fa-solid fa-info-circle"></i>Rolling back reverts ALL actions from the selected point forward.</div>
+                  <button class="btn btn-d" style="width:100%;justify-content:center"><i class="fa-solid fa-rotate-left"></i> Rollback to ms_20260405_1042</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page: Provider -->
+        <div class="page" id="page-provider">
+          <h2 style="font-size:17px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px"><i class="fa-solid fa-key" style="color:var(--b600)"></i> Provider Settings</h2>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="card">
+              <div class="card-h"><i class="fa-solid fa-user" style="color:var(--b500);margin-right:4px"></i> Personal Key</div>
+              <div class="card-b">
+                <div class="fg"><label>Provider</label><select class="fc"><option selected>OpenRouter</option><option>Anthropic</option><option>Z.AI</option><option>OpenAI</option></select></div>
+                <div class="fg"><label>API Key</label><input type="password" class="fc" value="sk-or-v1-****78f2"><div class="help">AES-256-GCM encrypted</div></div>
+                <div class="fg"><label>Model</label><select class="fc"><option selected>z-ai/glm-4.5-air</option><option>anthropic/claude-sonnet-4-20250514</option></select></div>
+                <button class="btn btn-p btn-sm"><i class="fa-solid fa-plug"></i> Test</button>
+                <div class="conn-ok"><i class="fa-solid fa-check-circle"></i> Connected — GLM-4.5 Air (142ms)</div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-h"><i class="fa-solid fa-building" style="color:var(--p500);margin-right:4px"></i> Company Key <span class="badge badge-g" style="margin-left:6px">Fallback</span></div>
+              <div class="card-b">
+                <div class="fg"><label>Provider</label><select class="fc" disabled><option>OpenRouter</option></select></div>
+                <div class="fg"><label>API Key</label><input type="password" class="fc" value="sk-or-v1-****a4ba" disabled><div class="help">Set by Admin</div></div>
+                <div class="conn-ok"><i class="fa-solid fa-check-circle"></i> Company key active — 14 users</div>
+              </div>
+            </div>
+          </div>
+          <!-- Resolution chain -->
+          <div class="card" style="margin-top:14px">
+            <div class="card-h">Resolution Chain</div>
+            <div class="card-b" style="display:flex;align-items:center;gap:10px;justify-content:center;padding:14px">
+              <div style="text-align:center"><div style="width:40px;height:40px;border-radius:50%;background:var(--b100);display:flex;align-items:center;justify-content:center;margin:0 auto 4px"><i class="fa-solid fa-user" style="color:var(--b600);font-size:14px"></i></div><div style="font-size:11px;font-weight:600">Personal</div></div>
+              <i class="fa-solid fa-arrow-right" style="color:var(--g300)"></i>
+              <div style="text-align:center"><div style="width:40px;height:40px;border-radius:50%;background:var(--p100);display:flex;align-items:center;justify-content:center;margin:0 auto 4px"><i class="fa-solid fa-building" style="color:var(--p600);font-size:14px"></i></div><div style="font-size:11px;font-weight:600">Company</div></div>
+              <i class="fa-solid fa-arrow-right" style="color:var(--g300)"></i>
+              <div style="text-align:center"><div style="width:40px;height:40px;border-radius:50%;background:var(--r100);display:flex;align-items:center;justify-content:center;margin:0 auto 4px"><i class="fa-solid fa-circle-exclamation" style="color:var(--r600);font-size:14px"></i></div><div style="font-size:11px;font-weight:600">Setup Prompt</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI FAB button -->
+        <button class="ai-fab" id="aiFab" onclick="openAiPanel()" title="Open AI Assistant"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+      </div>
+
+      <!-- ═══ AI PANEL ═══ -->
+      <div class="ai-panel" id="aiPanel">
+        <div class="ai-hdr">
+          <div class="ai-hdr-left">
+            <div class="ai-logo"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+            <span class="ai-hdr-title">AI Assistant</span>
+            <div class="ai-status" id="aiStatus"></div>
+          </div>
+          <div class="ai-hdr-actions">
+            <button class="ai-btn" title="New session" onclick="resetChat()"><i class="fa-solid fa-plus"></i></button>
+            <button class="ai-btn" title="Settings" onclick="showPage('provider')"><i class="fa-solid fa-gear"></i></button>
+            <button class="ai-btn" title="Close" onclick="closeAiPanel()"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+        </div>
+        <div class="ai-budget">
+          <div class="ai-budget-info"><span id="budgetText">12,400 / 100,000 tokens</span><span id="budgetPct">12%</span></div>
+          <div class="ai-budget-track"><div class="ai-budget-fill" id="budgetFill" style="width:12%"></div></div>
+        </div>
+        <div class="ai-ctx">
+          <span class="ctx-p on"><i class="fa-solid fa-server"></i> Dev site</span>
+          <span class="ctx-p on"><i class="fa-solid fa-code-branch"></i> dev-payment-fix</span>
+          <span class="ctx-p"><i class="fa-solid fa-cube"></i> Frappe 15</span>
+          <span class="ctx-p"><i class="fa-solid fa-cubes"></i> 5 apps</span>
+        </div>
+        <div class="ai-chat" id="aiChat">
+          <div class="qp-wrap" id="qpWrap">
+            <div class="qp-label">Quick actions</div>
+            <button class="qp-btn" onclick="simulateDebug()"><div class="qp-ic"><i class="fa-solid fa-bug"></i></div><div><div class="qp-t">Debug last error</div><div class="qp-d">Load traceback, explain, fix</div></div></button>
+            <button class="qp-btn" onclick="simulateScaffold()"><div class="qp-ic"><i class="fa-solid fa-cube"></i></div><div><div class="qp-t">Scaffold DocType</div><div class="qp-d">JSON + controller from description</div></div></button>
+            <button class="qp-btn" onclick="simulateViolation()"><div class="qp-ic"><i class="fa-solid fa-shield-halved"></i></div><div><div class="qp-t">Test: destructive command</div><div class="qp-d">See linter block + escalation flow</div></div></button>
+            <button class="qp-btn"><div class="qp-ic"><i class="fa-solid fa-file-code"></i></div><div><div class="qp-t">Server script</div><div class="qp-d">Validation logic</div></div></button>
+          </div>
+        </div>
+        <div class="ai-input">
+          <div class="ai-input-row">
+            <textarea rows="2" placeholder="Ask AI to debug, scaffold, or extend..." id="aiInput" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();handleSend()}"></textarea>
+            <button class="send-btn" id="sendBtn" onclick="handleSend()"><i class="fa-solid fa-arrow-up"></i></button>
+          </div>
+          <div class="ai-input-hint"><span><kbd>Enter</kbd> send · <kbd>Shift+Enter</kbd> newline</span><span>GLM-4.5 Air</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ POLICY GATE MODAL ═══ -->
+<div class="overlay show" id="policyOverlay">
+  <div class="modal policy-modal">
+    <div class="modal-h"><h3><i class="fa-solid fa-shield-halved" style="color:var(--b600)"></i> AI Usage Policy</h3></div>
+    <div class="modal-b">
+      <p style="font-size:13px;color:var(--g600);margin-bottom:10px">Before using the AI Developer Assistant, review and acknowledge:</p>
+      <ul class="pol-list">
+        <li><i class="fa-solid fa-ban" style="color:var(--r600)"></i><span><strong>No destructive SQL</strong> — DELETE, DROP, TRUNCATE blocked automatically</span></li>
+        <li><i class="fa-solid fa-ban" style="color:var(--r600)"></i><span><strong>No production writes</strong> — AI read-only on production</span></li>
+        <li><i class="fa-solid fa-check" style="color:var(--gn600)"></i><span><strong>Review all output</strong> — diffs mandatory before apply</span></li>
+        <li><i class="fa-solid fa-check" style="color:var(--gn600)"></i><span><strong>Staging confirm</strong> — explicit approval for staging</span></li>
+        <li><i class="fa-solid fa-shield" style="color:var(--b600)"></i><span><strong>Company keys for client code</strong> — not personal</span></li>
+        <li><i class="fa-solid fa-shield" style="color:var(--b600)"></i><span><strong>Token limits enforced</strong> — per-user and per-project daily caps</span></li>
+      </ul>
+      <div class="chk-row" style="border-top:1px solid var(--g200);margin-top:8px;padding-top:10px">
+        <input type="checkbox" id="policyChk" onchange="document.getElementById('policyBtn').disabled=!this.checked">
+        <label for="policyChk">I have read and agree to the AI Usage Policy</label>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closePolicySkip()">Cancel</button>
+      <button class="btn btn-p" id="policyBtn" disabled onclick="acceptPolicy()"><i class="fa-solid fa-check"></i> Acknowledge</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DIFF VIEWER MODAL ═══ -->
+<div class="overlay" id="diffOverlay">
+  <div class="modal diff-modal" onclick="event.stopPropagation()">
+    <div style="padding:14px 22px;border-bottom:1px solid var(--g200);display:flex;align-items:center;justify-content:space-between">
+      <h3 style="font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px"><i class="fa-solid fa-code-compare" style="color:var(--b500)"></i> Review AI Changes</h3>
+      <div style="display:flex;gap:6px"><span class="badge badge-b">sess_a7f3b2</span><span class="badge badge-gn">3 files</span></div>
+    </div>
+    <div class="diff-tabs">
+      <div class="diff-tab active" onclick="showDiffTab(0)"><i class="fa-solid fa-file-code" style="font-size:10px"></i> payment.py <span class="b-sm mod">M</span></div>
+      <div class="diff-tab" onclick="showDiffTab(1)"><i class="fa-solid fa-file-code" style="font-size:10px"></i> payment.json <span class="b-sm mod">M</span></div>
+      <div class="diff-tab" onclick="showDiffTab(2)"><i class="fa-solid fa-file-code" style="font-size:10px"></i> hooks.py <span class="b-sm add">+</span></div>
+    </div>
+    <div class="diff-body">
+      <div id="diffPane0">
+        <div class="diff-ln"><span class="ln-no">138</span><span class="ln-code">    def validate(self):</span></div>
+        <div class="diff-ln"><span class="ln-no">139</span><span class="ln-code">        self.validate_amounts()</span></div>
+        <div class="diff-ln"><span class="ln-no">140</span><span class="ln-code">        self.validate_dates()</span></div>
+        <div class="diff-ln rem"><span class="ln-no">141</span><span class="ln-code">-       if self.custom_approval_status == "Approved":</span></div>
+        <div class="diff-ln rem"><span class="ln-no">142</span><span class="ln-code">-           self.status = "Ready"</span></div>
+        <div class="diff-ln add"><span class="ln-no">141</span><span class="ln-code">+       approval_status = getattr(self, 'custom_approval_status', None)</span></div>
+        <div class="diff-ln add"><span class="ln-no">142</span><span class="ln-code">+       if approval_status == "Approved":</span></div>
+        <div class="diff-ln add"><span class="ln-no">143</span><span class="ln-code">+           self.status = "Ready"</span></div>
+        <div class="diff-ln add"><span class="ln-no">144</span><span class="ln-code">+       elif approval_status is None:</span></div>
+        <div class="diff-ln add"><span class="ln-no">145</span><span class="ln-code">+           frappe.logger().warning(f"Payment {self.name}: missing field")</span></div>
+        <div class="diff-ln"><span class="ln-no">146</span><span class="ln-code"></span></div>
+        <div class="diff-ln"><span class="ln-no">147</span><span class="ln-code">    def validate_amounts(self):</span></div>
+      </div>
+      <div id="diffPane1" style="display:none">
+        <div class="diff-ln"><span class="ln-no">245</span><span class="ln-code">    {</span></div>
+        <div class="diff-ln add"><span class="ln-no">246</span><span class="ln-code">+       "fieldname": "custom_approval_status",</span></div>
+        <div class="diff-ln add"><span class="ln-no">247</span><span class="ln-code">+       "fieldtype": "Select",</span></div>
+        <div class="diff-ln add"><span class="ln-no">248</span><span class="ln-code">+       "options": "Pending\nApproved\nRejected",</span></div>
+        <div class="diff-ln add"><span class="ln-no">249</span><span class="ln-code">+       "default": "Pending"</span></div>
+        <div class="diff-ln"><span class="ln-no">250</span><span class="ln-code">    }</span></div>
+      </div>
+      <div id="diffPane2" style="display:none">
+        <div class="diff-ln"><span class="ln-no">42</span><span class="ln-code">doc_events = {</span></div>
+        <div class="diff-ln"><span class="ln-no">43</span><span class="ln-code">    "Payment Entry": {</span></div>
+        <div class="diff-ln"><span class="ln-no">44</span><span class="ln-code">        "validate": "accubuild_core.models.payment.validate",</span></div>
+        <div class="diff-ln add"><span class="ln-no">45</span><span class="ln-code">+       "on_update": "accubuild_core.models.payment.on_update",</span></div>
+        <div class="diff-ln"><span class="ln-no">46</span><span class="ln-code">    }</span></div>
+      </div>
+    </div>
+    <div class="diff-foot">
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn btn-g btn-sm" id="approveBtn" onclick="approveFile()"><i class="fa-solid fa-check"></i> Approve File</button>
+        <button class="btn btn-d btn-sm"><i class="fa-solid fa-xmark"></i> Reject</button>
+        <span style="font-size:11px;color:var(--g500)" id="approveCount">0 of 3 approved</span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm" onclick="closeDiff()">Cancel</button>
+        <button class="btn btn-p btn-sm" onclick="openCommit()"><i class="fa-solid fa-code-commit"></i> Apply & Commit</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ COMMIT PREVIEW ═══ -->
+<div class="overlay" id="commitOverlay">
+  <div class="modal commit-modal" onclick="event.stopPropagation()">
+    <div class="modal-h"><h3><i class="fa-solid fa-code-commit" style="color:var(--gn600)"></i> Commit Preview</h3></div>
+    <div class="modal-b">
+      <div class="commit-pre">[Press AI] fix: handle missing custom_approval_status
+
+Provider : OpenRouter (z-ai/glm-4.5-air)
+Session  : sess_a7f3b2
+Branch   : dev-payment-fix
+User     : eslam@accuratesystems.com
+Files    : payment.py, payment.json, hooks.py</div>
+      <div style="margin-top:10px">
+        <div class="commit-row"><span>Author</span><span style="font-weight:500">Press AI &lt;ai@press.mvpstorm.com&gt;</span></div>
+        <div class="commit-row"><span>Branch</span><span style="font-weight:500">dev-payment-fix</span></div>
+        <div class="commit-row"><span>Files</span><span style="font-weight:500">3 changed</span></div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeCommit()">Cancel</button>
+      <button class="btn btn-g" onclick="doCommit()"><i class="fa-solid fa-check"></i> Confirm Commit</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STAGING CONFIRM ═══ -->
+<div class="overlay" id="stagingOverlay">
+  <div class="modal stg-modal" style="max-width:460px" onclick="event.stopPropagation()">
+    <div class="modal-b" style="padding:22px">
+      <div class="warn-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+      <h3 style="text-align:center;font-size:15px;font-weight:600;margin-bottom:6px">Staging — Real Data</h3>
+      <p style="text-align:center;font-size:13px;color:var(--g600)">You are about to apply AI changes to a <strong>staging</strong> site with <strong>production data</strong>.</p>
+      <div class="site-box">accubuild-stg-qimma.sandbox.mvpstorm.com</div>
+      <div class="info-bar"><i class="fa-solid fa-info-circle"></i><span>Emails are captured in the mail catcher. DB changes can be rolled back within 60 min.</span></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeStaging()">Cancel</button>
+      <button class="btn btn-w" onclick="closeStaging();toast('Applied to staging')"><i class="fa-solid fa-check"></i> Confirm — Apply to Staging</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ESCALATION MODAL ═══ -->
+<div class="overlay" id="escOverlay">
+  <div class="modal esc-modal" onclick="event.stopPropagation()">
+    <div class="modal-h"><h3><i class="fa-solid fa-flag" style="color:var(--r600)"></i> Escalation Required</h3></div>
+    <div class="modal-b">
+      <div class="esc-det">
+        <div class="esc-cat">Category 1 — Hard Block</div>
+        <div style="font-size:13px;font-weight:500"><i class="fa-solid fa-ban" style="color:var(--r500);margin-right:4px"></i> DROP TABLE detected</div>
+        <div style="font-size:12px;color:var(--g600);margin-top:2px">The AI response contained <code style="background:var(--r100);padding:1px 4px;border-radius:3px;font-size:11px">DROP TABLE</code> which was removed. This would permanently delete data.</div>
+      </div>
+      <div class="fg">
+        <label>Reason for escalation <span style="color:var(--r500)">*</span></label>
+        <textarea class="fc" placeholder="Explain why you need this action..."></textarea>
+        <div class="help">Required — cannot submit without reason</div>
+      </div>
+      <div style="background:var(--g50);border:1px solid var(--g200);border-radius:var(--rad-s);padding:10px 12px">
+        <div style="font-size:10px;font-weight:600;color:var(--g500);text-transform:uppercase;margin-bottom:6px">Escalation Chain</div>
+        <div class="esc-chain">
+          <span class="badge badge-b"><i class="fa-solid fa-user"></i> You</span>
+          <i class="fa-solid fa-arrow-right arrow"></i>
+          <span class="badge badge-p"><i class="fa-solid fa-user-tie"></i> Team Leader</span>
+          <i class="fa-solid fa-arrow-right arrow"></i>
+          <span class="badge badge-r"><i class="fa-solid fa-user-shield"></i> Admin</span>
+          <i class="fa-solid fa-arrow-right arrow"></i>
+          <span class="badge badge-g">Manual only</span>
+        </div>
+        <p style="font-size:10px;color:var(--g500);margin-top:4px">Cat 1 actions are never executed by AI — even if approved.</p>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeEsc()">Dismiss</button>
+      <button class="btn btn-d" onclick="closeEsc();toast('Escalation submitted to Team Leader');setStep(6)"><i class="fa-solid fa-flag"></i> Submit Escalation</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TOAST ═══ -->
+<div class="toast" id="toast"><i class="fa-solid fa-check-circle" style="color:var(--gn500)"></i><span id="toastText"></span></div>
+
+<script>
+// ═══ STATE ═══
+let approvedFiles = 0;
+
+// ═══ PAGE NAV ═══
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  // Update sidebar active
+  document.querySelectorAll('.branch-item').forEach(b => b.classList.remove('active'));
+  if (name === 'dev') {
+    document.querySelectorAll('.branch-item')[3].classList.add('active'); // dev-payment-fix
+  }
+  // Update topbar
+  document.querySelectorAll('.topbar-tab').forEach(t => t.classList.remove('active'));
+  if (name === 'dev') document.querySelectorAll('.topbar-tab')[0].classList.add('active');
+}
+
+// ═══ STEP TRACKING ═══
+function setStep(n) {
+  const dots = document.querySelectorAll('#stepDots .dot');
+  const labels = ['1: Policy Gate','2: Dev Tab — Branch View','3: AI Chat — Debug Flow','4: Diff Review','5: Commit & Apply','6: Governance (Admin)'];
+  dots.forEach((d, i) => {
+    d.classList.remove('active','done');
+    if (i < n - 1) d.classList.add('done');
+    if (i === n - 1) d.classList.add('active');
+  });
+  document.getElementById('stepLabel').textContent = 'Step ' + labels[n-1];
+}
+
+// ═══ POLICY GATE ═══
+function acceptPolicy() {
+  document.getElementById('policyOverlay').classList.remove('show');
+  setStep(2);
+  toast('Policy acknowledged — AI Dev Tab enabled');
+}
+function closePolicySkip() {
+  document.getElementById('policyOverlay').classList.remove('show');
+  setStep(2);
+}
+
+// ═══ AI PANEL ═══
+function openAiPanel() {
+  document.getElementById('aiPanel').classList.add('open');
+  document.getElementById('aiFab').classList.add('hidden');
+  if (document.querySelector('#stepDots .dot:nth-child(3):not(.done):not(.active)')) setStep(3);
+}
+function closeAiPanel() {
+  document.getElementById('aiPanel').classList.remove('open');
+  document.getElementById('aiFab').classList.remove('hidden');
+}
+function resetChat() {
+  document.getElementById('aiChat').innerHTML = '';
+  const qp = document.createElement('div');
+  qp.id = 'qpWrap';
+  qp.className = 'qp-wrap';
+  qp.innerHTML = document.getElementById('qpWrap')?.outerHTML || '<div class="qp-label">Session reset</div>';
+  // Simple reset — just reload
+  location.reload();
+}
+
+// ═══ CHAT HELPERS ═══
+function addUserMsg(text) {
+  const qp = document.getElementById('qpWrap');
+  if (qp) qp.style.display = 'none';
+  const chat = document.getElementById('aiChat');
+  const d = document.createElement('div');
+  d.className = 'msg-u';
+  d.textContent = text;
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+}
+function addStream(label) {
+  const chat = document.getElementById('aiChat');
+  const d = document.createElement('div');
+  d.className = 'stream';
+  d.id = 'streamInd';
+  d.innerHTML = '<div class="stream-dots"><span></span><span></span><span></span></div><span class="stream-text">' + label + '</span>';
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+  document.getElementById('aiStatus').classList.add('thinking');
+}
+function removeStream() {
+  const s = document.getElementById('streamInd');
+  if (s) s.remove();
+  document.getElementById('aiStatus').classList.remove('thinking');
+}
+function addAiMsg(html, meta, actions) {
+  const chat = document.getElementById('aiChat');
+  const w = document.createElement('div');
+  w.className = 'msg-a';
+  let inner = '<div class="msg-a-body">' + html + '</div>';
+  if (actions) inner += '<div class="msg-actions">' + actions + '</div>';
+  if (meta) inner += '<div class="msg-meta">' + meta + '</div>';
+  w.innerHTML = inner;
+  chat.appendChild(w);
+  chat.scrollTop = chat.scrollHeight;
+}
+function addViolation(cat, text) {
+  const chat = document.getElementById('aiChat');
+  const d = document.createElement('div');
+  d.className = 'viol c' + cat;
+  d.innerHTML = '<i class="fa-solid fa-' + (cat === 1 ? 'triangle-exclamation' : 'info-circle') + '"></i><div>' + text + '</div>';
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function handleSend() {
+  const inp = document.getElementById('aiInput');
+  const text = inp.value.trim();
+  if (!text) return;
+  addUserMsg(text);
+  inp.value = '';
+  addStream('Thinking...');
+  setTimeout(() => {
+    removeStream();
+    addAiMsg('<p>I can help with that. Could you share more details about what you need?</p>', '320 tokens · glm-4.5-air · 1.1s');
+  }, 1500);
+}
+
+// ═══ SIMULATE: DEBUG FLOW ═══
+function simulateDebug() {
+  setStep(3);
+  addUserMsg('Load the latest error and fix it.');
+  addStream('Analyzing error log...');
+  setTimeout(() => {
+    removeStream();
+    addAiMsg(
+      '<p><strong>Found: <code>ValidationError</code> in <code>payment.py:142</code></strong></p>' +
+      '<p>The field <code>custom_approval_status</code> is accessed directly but doesn\'t exist on all documents — it\'s a Custom Field that may not be installed.</p>' +
+      '<p><strong>Fix:</strong> Use <code>getattr()</code> with fallback:</p>' +
+      '<pre style="position:relative"><span class="code-lang">python</span><code>approval_status = getattr(self, \'custom_approval_status\', None)\nif approval_status == "Approved":\n    self.status = "Ready"</code></pre>' +
+      '<p>Patch ready for <strong>3 files</strong>.</p>',
+      '1,240 tokens · glm-4.5-air · 2.1s',
+      '<button class="btn btn-p btn-sm" onclick="openDiff();setStep(4)"><i class="fa-solid fa-code-compare"></i> Review Diff (3 files)</button>'
+    );
+    // Update budget
+    document.getElementById('budgetText').textContent = '13,640 / 100,000 tokens';
+    document.getElementById('budgetPct').textContent = '14%';
+    document.getElementById('budgetFill').style.width = '14%';
+  }, 2000);
+}
+
+// ═══ SIMULATE: SCAFFOLD ═══
+function simulateScaffold() {
+  setStep(3);
+  addUserMsg('Create a Payment Approval DocType with approver, status, amount fields.');
+  addStream('Generating scaffold...');
+  setTimeout(() => {
+    removeStream();
+    addAiMsg(
+      '<p><strong>Generated: Payment Approval DocType</strong></p>' +
+      '<ul><li><code>payment_approval.json</code> — 6 fields</li><li><code>payment_approval.py</code> — validate + on_submit</li><li><code>hooks.py</code> — doc_events entry</li><li><code>payment_approval.csv</code> — permissions</li></ul>',
+      '2,860 tokens · glm-4.5-air · 3.4s',
+      '<button class="btn btn-p btn-sm" onclick="openDiff();setStep(4)"><i class="fa-solid fa-code-compare"></i> Review Diff (4 files)</button>'
+    );
+  }, 2500);
+}
+
+// ═══ SIMULATE: VIOLATION (Cat 1 — DROP TABLE) ═══
+function simulateViolation() {
+  setStep(3);
+  addUserMsg('Drop the Payment Entry table and recreate it.');
+  addStream('Processing...');
+  setTimeout(() => {
+    removeStream();
+    addAiMsg(
+      '<p>I understand you want to reset the Payment Entry table. However, I can suggest safer alternatives:</p>' +
+      '<ul><li>Use <code>frappe.db.truncate()</code> on a dev site</li><li>Or delete records with <code>frappe.delete_doc()</code></li></ul>',
+      '680 tokens · glm-4.5-air · 1.5s'
+    );
+    addViolation(1, '<strong>1 violation blocked</strong> — <code>DROP TABLE</code> was detected and removed from the response. This is a Category 1 hard block.<br><button class="btn btn-d btn-sm" style="margin-top:6px" onclick="openEsc()"><i class="fa-solid fa-flag"></i> Submit Escalation</button>');
+  }, 1800);
+}
+
+// ═══ DIFF VIEWER ═══
+function openDiff() { document.getElementById('diffOverlay').classList.add('show'); approvedFiles = 0; updateApproveCount(); }
+function closeDiff() { document.getElementById('diffOverlay').classList.remove('show'); }
+function showDiffTab(n) {
+  [0,1,2].forEach(i => {
+    document.getElementById('diffPane' + i).style.display = i === n ? '' : 'none';
+    document.querySelectorAll('.diff-tab')[i].classList.toggle('active', i === n);
+  });
+}
+function approveFile() {
+  approvedFiles = Math.min(3, approvedFiles + 1);
+  updateApproveCount();
+  const active = document.querySelector('.diff-tab.active');
+  if (active && !active.querySelector('.fa-check-circle')) {
+    active.innerHTML += ' <i class="fa-solid fa-check-circle" style="color:var(--gn500);font-size:10px"></i>';
+  }
+  // Auto-advance to next tab
+  if (approvedFiles < 3) showDiffTab(approvedFiles);
+}
+function updateApproveCount() {
+  document.getElementById('approveCount').textContent = approvedFiles + ' of 3 approved';
+}
+
+// ═══ COMMIT ═══
+function openCommit() { closeDiff(); document.getElementById('commitOverlay').classList.add('show'); setStep(5); }
+function closeCommit() { document.getElementById('commitOverlay').classList.remove('show'); }
+function doCommit() {
+  closeCommit();
+  toast('Committed: [Press AI] fix: handle missing custom_approval_status');
+  setStep(5);
+  // Add success message to chat
+  setTimeout(() => {
+    addAiMsg('<p><i class="fa-solid fa-check-circle" style="color:var(--gn500)"></i> <strong>Committed successfully</strong> to <code>dev-payment-fix</code></p><p style="font-family:monospace;font-size:11px;color:var(--g500)">abc1234 · 3 files · [Press AI] fix: handle missing custom_approval_status</p>', '', '<button class="btn btn-sm" onclick="showPage(\'rollback\')"><i class="fa-solid fa-clock-rotate-left"></i> View in Rollback</button>');
+  }, 500);
+}
+
+// ═══ STAGING ═══
+function openStaging() { document.getElementById('stagingOverlay').classList.add('show'); }
+function closeStaging() { document.getElementById('stagingOverlay').classList.remove('show'); }
+
+// ═══ ESCALATION ═══
+function openEsc() { document.getElementById('escOverlay').classList.add('show'); }
+function closeEsc() { document.getElementById('escOverlay').classList.remove('show'); }
+
+// ═══ TOAST ═══
+function toast(msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastText').textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ═══ INIT ═══
+setStep(1);
+</script>
+</body>
+</html>

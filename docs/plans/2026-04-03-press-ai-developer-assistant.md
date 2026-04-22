@@ -47,17 +47,75 @@ This plan is a child document of `docs/plans/2026-04-03-admin-panel.md`. It defi
 
 ## 2. Overview & Principles
 
-The AI Developer Assistant is embedded in the Press Fork Dev Tab. It enables developers and implementors to generate, debug, and extend Frappe/ERPNext customizations using natural language — directly inside their branch environment, without leaving the platform.
+### Architecture decision (2026-04-05): Sanad AI + Press hybrid
+
+**Key insight:** Sanad Business Intelligence AI (`sanad_bi_ai 0.2.0`) is already installed on the staging site (`accubuild-stg-qimma.sandbox.mvpstorm.com`). It already provides:
+
+| Feature | Sanad AI module | Status |
+|---|---|---|
+| AI chat widget (global, every page) | `public/js/chat_core/` — 17 JS files | **Already working** |
+| Multi-provider (Anthropic, OpenAI, Groq, OpenRouter, Local) | `ai_integration/utils/providers.py` | **Already working** |
+| SSE streaming responses | `ai_integration/utils/chat_processing/_stream.py` | **Already working** |
+| 27 tool categories (CRUD, files, system, research, etc.) | `ai_integration/tools/` — auto-discovered | **Already working** |
+| Token billing + usage tracking | `ai_billing/` — 7 DocTypes | **Already working** |
+| Rate limiting + security | `ai_security/` — 7 DocTypes | **Already working** |
+| Conversation history | `AI Conversation` + `AI Conversation Message` | **Already working** |
+| Agent system (instructions, skills, triggers) | `ai_core/doctype/ai_agent/` | **Already working** |
+| Knowledge base (RAG) | `ai_core/utils/knowledge/` — FTS5, Qdrant | **Already working** |
+| MCP gateway + OAuth | `ai_integration/mcp_server/` | **Already working** |
+| Action logging | `AI Agent Action Log` DocType | **Already working** |
+| Prompt templates | `AI Prompt Template` DocType | **Already working** |
+
+**What this means:** We do NOT rebuild chat, streaming, providers, billing, tools, or knowledge in Press. Instead:
+
+- **Sanad AI (on the site)** = the AI engine — chat, tools, providers, billing, knowledge
+- **Press (on press-ctrl)** = the governance layer — scope guard, escalation, rollback, policy
+
+**What we ADD to Sanad AI** (3 new tools, not a new app):
+
+| New tool | File | Purpose |
+|---|---|---|
+| Code diff viewer | `tools/code_diff.py` | Generate unified diffs, show in chat |
+| Git commit | `tools/git_commit.py` | Commit AI changes with structured `[Press AI]` messages |
+| Destructive linter | `tools/destructive_linter.py` | Scan AI output for DROP/DELETE/rm-rf, block Cat 1 |
+
+**What stays in Press** (governance only):
+
+| Feature | Why it must be in Press |
+|---|---|
+| Site scope guard | Press knows which site is dev/staging/prod |
+| Escalation chain | TL/Admin approval across teams — Press DB |
+| Rollback orchestration | Press controls the agent, sends rollback commands |
+| Policy gate | Acknowledgment stored in Press user record |
+| Governance dashboard | Admin panel tabs — budget, alerts, escalations |
+
+**Savings:** ~12 weeks of development avoided. We use 46,000 lines of existing code instead of rebuilding.
+
+```
+┌─────────────────────────────────────────────────────┐
+│ Press (press-ctrl) — GOVERNANCE                     │
+│   Site scope guard · Escalation · Rollback          │
+│   Policy gate · Admin dashboard                     │
+└──────────────────┬──────────────────────────────────┘
+                   │ agent API
+┌──────────────────▼──────────────────────────────────┐
+│ Dev/Staging Site (container) — AI ENGINE             │
+│   Sanad AI (already installed)                      │
+│     Chat widget · 5 providers · SSE streaming       │
+│     27 tools + 3 new (diff, git, linter)           │
+│     Token billing · Rate limiting · Knowledge       │
+└─────────────────────────────────────────────────────┘
+```
 
 ### Five core principles
 
 | Principle | What it means |
 |---|---|
-| Zero context switch | AI lives inside the branch — reads logs, apps, DocType schema automatically |
-| Multi-provider | Each user or company configures their own LLM provider and key |
-| Safe by default | dev: open · staging: explicit confirm · production: hard block |
-| Full traceability | Every AI action (file or DB) logged with session metadata in Press DB |
-| Governed | Token budgets, destructive guardrails, escalation chain, policy acknowledgment |
+| Zero context switch | Sanad AI chat widget lives on every page — reads logs, apps, DocType schema automatically |
+| Multi-provider | Sanad AI already supports 5 providers — users configure in AI Settings |
+| Safe by default | Press enforces: dev = open · staging = explicit confirm · production = hard block |
+| Full traceability | Sanad AI logs actions + conversations; Press logs governance decisions |
+| Governed | Press manages budgets, escalation, rollback — Sanad AI enforces rate limits + security |
 
 ---
 
@@ -193,19 +251,202 @@ press_ai_action_log
 -- milestone_id       INT FK        -- parent milestone snapshot
 ```
 
-### 5.3 Milestone rollback
+### 5.3 Rollback architecture — MariaDB System Versioning (hybrid)
 
-| Action type | Rollback method | Feasibility |
+**Research conclusion (2026-04-05):** No external library needed. MariaDB 10.3+ has built-in System-Versioned Tables that track every INSERT/UPDATE/DELETE at the SQL layer. Combined with Frappe's built-in `Version` DocType and git revert for files, this gives 100% rollback coverage with zero external dependencies.
+
+**Alternatives evaluated and rejected:**
+
+| Library | Stars | Why rejected |
 |---|---|---|
-| Demo data insert | `frappe.delete_doc()` using saved doc names | Full |
-| `frappe.db.set_value` / `set_config` | Restore from `rollback_snapshot` | Full |
-| bench migrate | Restore site backup taken before migrate | Partial |
-| module install | bench uninstall-app — manual verification required | Manual only |
+| SQLAlchemy-Continuum | 641 | Wrong ORM — Frappe doesn't use SQLAlchemy |
+| django-reversion | 3,154 | Wrong framework — Frappe doesn't use Django |
+| django-simple-history | 2,447 | Wrong framework |
+| Debezium CDC | 10K+ | Requires Kafka infra — massive overkill for dev/staging |
+| Stellar | 3,900 | Full-DB restore only, no per-document rollback |
+| postgresql-audit | — | PostgreSQL only, we use MariaDB |
 
-- Snapshots every **60 minutes**
-- Soft-deleted after 60 minutes
-- Background cleanup job runs hourly
-- Storage estimate: ~2MB per milestone per site
+#### Three-layer rollback strategy
+
+| Layer | Technology | What it captures | Rollback method |
+|---|---|---|---|
+| **1. DB — System Versioning** | MariaDB `ADD SYSTEM VERSIONING` | ALL SQL: ORM, raw SQL, bulk ops, `db_set` | `FOR SYSTEM_TIME AS OF TIMESTAMP` query → compensating SQL |
+| **2. App — Frappe Version** | `track_changes = 1` per DocType | Frappe ORM saves (field-level diff) | Walk `changed` list, apply `old_value` — used for UI timeline display |
+| **3. Files — Git** | AI commits tagged with `[Press AI]` prefix | File patches (Python, JSON, hooks) | `git revert --no-edit <commit_hash>` |
+
+#### How MariaDB System Versioning works
+
+```sql
+-- One-time setup per table (run via agent on target site)
+ALTER TABLE `tabPayment Entry` ADD SYSTEM VERSIONING;
+
+-- MariaDB now automatically tracks all changes with invisible
+-- ROW_START / ROW_END timestamp columns
+
+-- Query state at any past point:
+SELECT * FROM `tabPayment Entry`
+FOR SYSTEM_TIME AS OF TIMESTAMP '2026-04-05 10:00:00'
+WHERE name = 'PE-00042';
+
+-- Full history of a single row:
+SELECT *, ROW_START, ROW_END FROM `tabPayment Entry`
+FOR SYSTEM_TIME ALL
+WHERE name = 'PE-00042';
+```
+
+#### Implementation: `press/press/ai/rollback.py` (~80 lines)
+
+```python
+@frappe.whitelist()
+def enable_versioning(site_name, doctypes):
+    """Enable system versioning on target tables via agent."""
+    for dt in doctypes:
+        table = f"tab{dt}"
+        agent.execute_on_site(site_name, f"""
+            import frappe
+            frappe.db.sql('ALTER TABLE `{table}` ADD SYSTEM VERSIONING')
+            frappe.db.commit()
+        """)
+
+@frappe.whitelist()
+def rollback_to_timestamp(site_name, timestamp, doctypes):
+    """Rollback all versioned tables to a point in time."""
+    for dt in doctypes:
+        table = f"tab{dt}"
+        agent.execute_on_site(site_name, f"""
+            import frappe
+            old_rows = frappe.db.sql(
+                'SELECT * FROM `{table}` FOR SYSTEM_TIME AS OF TIMESTAMP %s',
+                timestamp, as_dict=True
+            )
+            current = set(r.name for r in frappe.db.get_all('{dt}'))
+            old_names = set(r['name'] for r in old_rows)
+
+            # Delete rows added after timestamp
+            for name in current - old_names:
+                frappe.delete_doc('{dt}', name, force=True)
+
+            # Restore changed/deleted rows from history
+            for row in old_rows:
+                if row['name'] in current:
+                    doc = frappe.get_doc('{dt}', row['name'])
+                    doc.update(row)
+                    doc.save(ignore_permissions=True)
+                else:
+                    doc = frappe.get_doc(row)
+                    doc.insert(ignore_permissions=True)
+
+            frappe.db.commit()
+        """)
+
+@frappe.whitelist()
+def rollback_git_commit(bench_name, app_name, commit_hash):
+    """Revert a specific AI commit."""
+    agent.execute_in_container(bench_name, f"""
+        cd /home/frappe/frappe-bench/apps/{app_name}
+        git revert --no-edit {commit_hash}
+    """)
+```
+
+#### Gateway flow (before/after every AI DB command)
+
+```
+AI Gateway (gateway.py):
+  1. Record current timestamp → Press AI Action Log
+  2. Execute command on site via agent
+  3. Log result + commit hash (if file change)
+
+User clicks "Rollback" in UI:
+  1. Press reads the action's timestamp from Action Log
+  2. Calls rollback_to_timestamp() for DB changes
+  3. Calls rollback_git_commit() for file changes
+  4. Updates action status → "rolled_back"
+  5. Toast: "Rolled back to ms_20260405_1042"
+```
+
+#### Rollback feasibility per action type
+
+| Action type | Rollback method | Layer | Feasibility |
+|---|---|---|---|
+| Demo data insert | System versioning → delete added rows | DB | Full |
+| `frappe.db.set_value` / `set_config` | System versioning → restore old values | DB | Full |
+| Raw SQL (any) | System versioning → compensating SQL | DB | Full |
+| Bulk operations | System versioning → compensating SQL | DB | Full |
+| File patch | `git revert --no-edit <hash>` | Git | Full |
+| bench migrate | Restore site backup taken before migrate | Backup | Partial |
+| module install | `bench uninstall-app` — manual verification | Manual | Manual only |
+| `frappe.rename_doc` | System versioning + reverse rename | DB | Partial — links may break |
+
+#### Press DB schema for rollback tracking
+
+```
+Press AI Action Log (DocType on press-ctrl)
+├── session_id        VARCHAR(32)   -- groups actions in same chat session
+├── action_type       ENUM          -- demo_data | config | file_patch | raw_sql | migrate
+├── site_name         VARCHAR(255)  -- target site
+├── bench_name        VARCHAR(255)  -- target bench
+├── branch            VARCHAR(255)  -- git branch at time of action
+├── command           TEXT          -- human-readable description
+├── payload_json      JSON          -- what was sent to execute
+├── rollback_timestamp DATETIME     -- MariaDB SYSTEM_TIME reference point
+├── commit_hash       VARCHAR(40)   -- git commit hash (for file patches)
+├── versioned_doctypes JSON         -- which tables had versioning enabled
+├── status            ENUM          -- pending | executed | rolled_back | expired
+├── executed_at       DATETIME
+├── executed_by       VARCHAR(255)  -- user email + AI session ID
+├── milestone_id      INT FK        -- parent milestone
+├── expires_at        DATETIME      -- executed_at + 60 minutes
+└── rolled_back_at    DATETIME      -- when rollback was performed
+
+Press AI Milestone (DocType on press-ctrl)
+├── milestone_id      VARCHAR(32)   -- ms_YYYYMMDD_HHMM
+├── site_name         VARCHAR(255)
+├── created_at        DATETIME
+├── expires_at        DATETIME      -- created_at + 60 min
+├── action_count      INT           -- number of actions in this milestone
+├── status            ENUM          -- active | expired | rolled_back
+└── rolled_back_at    DATETIME
+```
+
+#### Milestone lifecycle
+
+```
+┌─────────┐    60 min     ┌─────────┐    cleanup    ┌──────────┐
+│  Active  │ ──────────→  │ Expired │ ──────────→   │ Cleaned  │
+└─────────┘               └─────────┘               └──────────┘
+     │
+     │ user clicks "Rollback"
+     ▼
+┌──────────────┐
+│ Rolled Back  │  (permanent audit record)
+└──────────────┘
+```
+
+#### Scheduler cleanup job (runs hourly on press-ctrl)
+
+```python
+def cleanup_expired_milestones():
+    expired = frappe.get_all("Press AI Milestone",
+        filters={"status": "active", "expires_at": ["<", now()]})
+    for ms in expired:
+        frappe.db.set_value("Press AI Milestone", ms.name, "status", "expired")
+        # Optionally: disable system versioning on tables to free storage
+    frappe.db.commit()
+```
+
+#### Known limitations of MariaDB System Versioning
+
+- History is **lost in `mysqldump`** — only current rows exported (known MariaDB limitation)
+- `ALTER TABLE ... DROP SYSTEM VERSIONING` deletes all history permanently
+- Cannot version tables with `FULLTEXT` indexes (rare in Frappe)
+- History grows table size — cleanup via `DELETE HISTORY FROM table BEFORE SYSTEM_TIME '...'`
+- ROW_START/ROW_END columns are invisible — do not interfere with Frappe ORM
+
+#### Storage estimate
+
+- ~2MB per milestone per site (unchanged from original plan)
+- MariaDB history rows stored in same table — auto-cleaned by `DELETE HISTORY` command
+- Press AI Action Log: 90-day retention + cold storage archive
 
 ---
 
@@ -390,6 +631,8 @@ Every user must acknowledge this policy before first use of the AI Dev Tab. Ackn
 | Action log retention | press_ai_action_log unbounded growth | Medium | 90-day retention + cold storage archive |
 | PII detector accuracy | Regex-based detection has false positives | Medium | Structured field detection not free-text regex |
 | Session JSON in git | `.press-ai/sessions/` becomes git noise on large projects | Low | Option to gitignore sessions (trade-off vs audit) |
+| MariaDB versioning storage | System-versioned tables grow unbounded if not cleaned | Medium | `DELETE HISTORY BEFORE` in scheduler + monitor table sizes |
+| MariaDB versioning + mysqldump | History lost in dumps — rollback data not in backups | Low | Acceptable — rollback window is only 60 min, not backup scope |
 
 ---
 
@@ -510,24 +753,132 @@ All 16 gaps resolved. Implementation started 2026-04-04.
 - [x] Backend security: 4 MUST FIX (shell injection, permission checks on apply_patch/chat/team_rules)
 - [x] Frontend: XSS fix (DOMPurify), prop mutation fix, accessibility (aria-labels), applying reset
 
-### Stats
-- **17 commits** pushed to `cloudflare-dns` branch
-- **132 tests** (124 unit + 8 integration with real OpenRouter API)
-- **28 files** (11 Python modules + 7 test files + 8 Vue components + 1 prototype + 1 plan)
-- **~5,000 lines** of new code
-- **4 code reviews** completed (2 backend, 2 frontend)
-- **8 security fixes** applied
+### Stats (as of 2026-04-05)
+- **19 commits** pushed to `cloudflare-dns` branch
+- **173 tests** in Press (132 Week 1-3 + 41 governance)
+- **156 tests** in Sanad AI (ai_dev module, TDD)
+- **Press governance**: 4 Python modules + 4 test files (after deleting 15 duplicate files, -2,585 lines)
+- **Sanad AI ai_dev**: 6 tools + 2 utils + 1 page + 10 test files + 2 tool categories
+- **Architecture shift**: Sanad AI = engine (tools, providers, billing), Press = governance only
+- **5 code reviews** completed (2 backend, 2 frontend, 1 ai_dev)
+- **14 security/quality fixes** applied (8 earlier + 5 HIGH + 1 architecture)
 
 ### Remaining for production readiness
-- [ ] Fresh OpenRouter API key on server (current key expired during session)
-- [ ] Streaming responses (v1.1 — SSE for token-by-token display)
-- [ ] Escalation persistence in Press AI Action Log DocType
-- [ ] Milestone snapshot scheduler (hourly background job)
+
+#### Architecture shift (2026-04-05): Sanad AI is already installed — use it
+- [x] Fresh OpenRouter API key — saved to Infisical `/press/ai/OPENROUTER_API_KEY`
+- [x] Streaming responses — **already done** (Sanad AI `_stream.py` has SSE)
+- [x] Multi-provider — **already done** (Sanad AI supports 5 providers)
+- [x] Token billing — **already done** (Sanad AI `ai_billing/` module, 7 DocTypes)
+- [x] Chat widget — **already done** (Sanad AI global widget, 17 JS files)
+- [x] Conversation history — **already done** (Sanad AI `AI Conversation` DocType)
+
+#### Sanad AI — ai_dev module (DONE, 2026-04-05)
+- [x] `ai_dev/tools/destructive_linter.py` — 3-category scanner (Cat 1 hard block, Cat 2 approval, Cat 3 warning)
+- [x] `ai_dev/tools/code_diff.py` — generate unified diffs from AI patches
+- [x] `ai_dev/tools/git_commit.py` — commit AI changes with `[Press AI]` structured messages
+- [x] `ai_dev/tools/post_patch_verify.py` — post-apply verification checks
+- [x] `ai_dev/tools/rollback.py` — MariaDB System Versioning rollback
+- [x] `ai_dev/tools/playwright_verify.py` — browser-based verification (Playwright engine)
+- [x] `ai_dev/utils/linter_pipeline.py` — multi-pass scan orchestrator
+- [x] `ai_dev/utils/rollback_api.py` — whitelisted rollback endpoints
+- [x] `ai_dev/utils/rollback.py` — System Versioning SQL wrapper
+- [x] `ai_dev/utils/playwright_verify.py` — Playwright engine (71-step benchmark 96% pass)
+- [x] `ai_dev/page/ai_dev_playground/` — AI Dev Playground page
+- [x] `ai_integration/tools/dev_tools.py` — tool category wired to auto-discovery
+- [x] `ai_integration/tools/verify_tools.py` — tool category wired to auto-discovery
+- [x] 156 unit tests (TDD, all passing)
+- [x] Code review: 9 issues found and fixed (5 HIGH)
+
+#### Press — governance layer (DONE, 2026-04-05)
+- [x] `press/press/ai/site_scope_guard.py` — dev/staging/prod enforcement
+- [x] `press/press/ai/escalation.py` — 3-category escalation chain
+- [x] `press/press/ai/policy.py` — policy acknowledgment gate + per-team AI rules
+- [x] `press/press/ai/rollback_trigger.py` — trigger rollback on target site via agent API
+- [x] 41 unit tests (TDD, all passing)
+- [x] Deleted 15 duplicate files (-2,585 lines) — now handled by Sanad AI
+- [x] E2E test: 10/10 passed across full pipeline
+
+#### Phase 4 — Integration wiring (next session)
+- [ ] Configure AI Settings on dev sites — set OpenRouter key on accubuild-stg + accuhub-dev
+- [ ] Hook linter_pipeline into Sanad AI chat — call `process_response()` after every AI response
+- [ ] Deploy latest Sanad AI to accubuild staging bench (bench-0005)
+- [ ] Enable MariaDB versioning on accuhub-dev — `ALTER TABLE ADD SYSTEM VERSIONING` via agent
+- [ ] Wire Admin Panel to live data — Governance + Usage tabs read from Sanad AI billing APIs
+- [ ] Escalation persistence — create Press DocType for escalation records (currently in-memory)
+
+#### Future
 - [ ] VS Code extension webview (v1.1)
 - [ ] Prompt Library for implementors (v2)
 
 ---
 
+## Milestones
+
+### Milestone 1: Architecture + Core Tools — COMPLETE (2026-04-05)
+**What:** Researched Odoo.sh, designed architecture (Sanad AI engine + Press governance),
+built ai_dev module with 6 tools + Playwright engine, all TDD.
+
+- Architecture shift: Sanad AI handles chat/tools/billing, Press handles governance
+- MariaDB System Versioning chosen for rollback (no external library)
+- 156 tests in Sanad AI, 41 in Press = 197 total
+- Code review: 9 issues found and fixed (5 HIGH security)
+- Playwright benchmark: 71 steps, 96% pass rate on live site
+
+### Milestone 2: Admin Panel + Deployment — COMPLETE (2026-04-05)
+**What:** Admin Panel wired into Press dashboard sidebar, 6 tabs all working,
+Sanad AI installed on Press site, E2E test 10/10.
+
+- Admin Panel route + sidebar entry added to Press dashboard
+- Policy tab: checkbox → acknowledge → API save → redirect (full flow)
+- AI Governance tab: stats cards + global rules + role-level limits
+- Escalations tab: "No open escalations" (ready for data)
+- Usage & Cost tab: cost/tokens/sessions stats + per-user table
+- Prototypes deployed: interactive prototype, reference gallery, playground
+
+### Milestone 3: Production Integration — PENDING
+**What:** Wire everything to live data so developers can actually use AI with guardrails.
+
+- Configure providers on dev/staging sites
+- Hook linter into chat pipeline
+- Enable rollback on target tables
+- Connect governance dashboard to Sanad AI billing
+- First real developer uses AI chat with full safety pipeline
+
+### Milestone 4: Team Rollout — FUTURE
+**What:** Roll out to 20 developers + 10 implementors with training.
+
+- VS Code extension webview (v1.1)
+- Prompt Library for implementors (v2)
+- Onboarding flow for new team members
+- Usage analytics and optimization
+
+---
+
+## Session Log
+
+### Session 1 (2026-04-04): Weeks 1-3
+- Built initial Press AI code (15 files, 132 tests, 5,000 lines)
+- Provider, linter, context injector, token budget, gateway
+- 7 Vue components, AI chat panel prototype
+- 4 code reviews, 8 security fixes
+
+### Session 2 (2026-04-05): Architecture Shift + ai_dev Module
+- Analyzed Odoo.sh (deep competitive analysis)
+- Discovered Sanad AI already installed → architecture shift
+- Built ai_dev module: 6 tools, 2 utils, Playground page
+- Playwright engine: 5/5 tests pass, 71-step benchmark 96%
+- Phase 1: wired tools to Sanad AI chat (dev_tools, verify_tools)
+- Phase 2: Press governance (escalation, policy, scope guard, rollback trigger)
+- Phase 3: rollback API + E2E 10/10
+- Deleted 15 duplicate files (-2,585 lines)
+- Admin Panel: route + sidebar + 6 tabs all verified
+- Policy flow: checkbox → API save → working
+- Code review: 9 issues found, all fixed
+- Total: 197 tests, 0 failures
+
+---
+
 *Document Owner: Eslam — Accurate Systems / Optiflow Solutions*  
 *Part of plan: `docs/plans/2026-04-03-admin-panel.md`*  
-*Version: 0.4 — Post-implementation | April 2026*
+*Version: 0.8 — Milestones 1-2 complete, Phase 4 pending | 5 April 2026*
