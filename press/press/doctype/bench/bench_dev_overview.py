@@ -8,9 +8,29 @@ import frappe
 from frappe import _
 
 
+
+def _ensure_team_access(bench_name=None, site_name=None):
+	"""Allow System Managers, or team members/owner of the bench/site team."""
+	if frappe.session.data and frappe.session.data.user_type == "System User":
+		return
+	if "System Manager" in frappe.get_roles(frappe.session.user):
+		return
+	from press.utils import get_current_team
+	current_team = get_current_team()
+	target_team = None
+	if bench_name:
+		target_team = frappe.db.get_value("Bench", bench_name, "team") or \
+			frappe.db.get_value("Release Group", frappe.db.get_value("Bench", bench_name, "group"), "team")
+	elif site_name:
+		target_team = frappe.db.get_value("Site", site_name, "team")
+	if not target_team or target_team != current_team:
+		frappe.throw("Not allowed", frappe.PermissionError)
+
+
 @frappe.whitelist()
 def get_dev_overview_benches():
 	"""Return all non-archived benches enriched with commit, build, sites, and gap data."""
+	# _ensure_team_access: no bench/site context; keep System Manager check
 	frappe.only_for("System Manager")
 
 	benches = frappe.get_all(
@@ -132,7 +152,7 @@ def get_dev_panel_data(bench_name):
 	Return data for the expanded DevOverview panel for a specific bench.
 	Called directly (not as a doc method) to avoid touching bench.py.
 	"""
-	frappe.only_for("System Manager")
+	_ensure_team_access(bench_name=bench_name)
 	bench_doc = frappe.get_doc("Bench", bench_name)
 	# ── sites ─────────────────────────────────────────────────────────────────
 	sites = frappe.get_all(
@@ -230,7 +250,7 @@ def get_dev_panel_data(bench_name):
 @frappe.whitelist()
 def get_bench_app_names(bench_name):
 	"""Return the list of app names installed on a bench (for the Push dialog dropdown)."""
-	frappe.only_for("System Manager")
+	_ensure_team_access(bench_name=bench_name)
 	rows = frappe.get_all(
 		"Bench App",
 		filters={"parent": bench_name},
@@ -247,7 +267,7 @@ def get_app_git_status(bench_name, site_name=None):
 	dirty file count, and last commit message.
 	If site_name is provided, only shows apps installed on that site.
 	"""
-	frappe.only_for("System Manager")
+	_ensure_team_access(bench_name=bench_name)
 	bench = frappe.get_doc("Bench", bench_name)
 	if site_name:
 		# Get apps installed on the specific site
@@ -290,7 +310,7 @@ def get_app_git_status(bench_name, site_name=None):
 @frappe.whitelist()
 def get_bench_dev_info(bench_name):
 	"""Return server IP, SSH port, and SSH access state for a bench (used by VS Code links)."""
-	frappe.only_for("System Manager")
+	_ensure_team_access(bench_name=bench_name)
 	bench = frappe.get_doc("Bench", bench_name)
 	server_ip = frappe.db.get_value("Server", bench.server, "ip") or ""
 	ssh_port = 22000 + (bench.port_offset or 0)
@@ -311,7 +331,7 @@ def get_bench_dev_info(bench_name):
 @frappe.whitelist()
 def get_code_server_status(bench_name):
 	"""Return code-server status and URL for a bench (if one exists)."""
-	frappe.only_for("System Manager")
+	_ensure_team_access(bench_name=bench_name)
 	bench = frappe.get_doc("Bench", bench_name)
 	cs = frappe.db.get_value(
 		"Code Server",
@@ -332,7 +352,7 @@ def get_code_server_status(bench_name):
 @frappe.whitelist()
 def setup_code_server(bench_name, subdomain):
 	"""Create and setup a Code Server for a bench."""
-	frappe.only_for("System Manager")
+	_ensure_team_access(bench_name=bench_name)
 	bench = frappe.get_doc("Bench", bench_name)
 	# Code Server is available for all benches in this Press instance
 	existing = frappe.db.exists("Code Server", {"bench": bench_name, "status": ["!=", "Archived"]})
@@ -354,7 +374,7 @@ def setup_code_server(bench_name, subdomain):
 @frappe.whitelist()
 def restart_bench_for_site(bench_name):
 	"""Restart bench supervisor processes via the Bench doc method."""
-	frappe.only_for("System Manager")
+	_ensure_team_access(bench_name=bench_name)
 	bench = frappe.get_doc("Bench", bench_name)
 	bench.restart_bench()
 
@@ -366,7 +386,7 @@ def push_app_to_github(bench_name, app, message):
 	container for the given app. Uses bench.docker_execute() — requires the
 	bench to be Active and the container to have SSH keys for GitHub.
 	"""
-	frappe.only_for("System Manager")
+	_ensure_team_access(bench_name=bench_name)
 	bench = frappe.get_doc("Bench", bench_name)
 	# Escape single quotes to prevent shell injection
 	safe_message = message.replace("'", "'\\''")
@@ -395,7 +415,7 @@ _SQL_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
 def run_sql_on_site(site_name, query, commit=False):
 	"""Run a SQL query on a site via bench mariadb (base64 pipe, injection-safe)."""
 	import base64
-	frappe.only_for("System Manager")
+	_ensure_team_access(site_name=site_name)
 	# Strip SQL comments before checking first keyword
 	stripped = _SQL_COMMENT_RE.sub("", query).strip()
 	first_word = (stripped.split()[0] if stripped else "").upper()
@@ -415,7 +435,7 @@ def run_sql_on_site(site_name, query, commit=False):
 def run_python_on_site(site_name, code):
 	"""Run Python code on a site via bench console (base64 pipe, injection-safe)."""
 	import base64
-	frappe.only_for("System Manager")
+	_ensure_team_access(site_name=site_name)
 	site, bench = _get_site_bench(site_name)
 	b64 = base64.b64encode(code.encode()).decode()
 	# b64 is [A-Za-z0-9+/=] — completely shell-safe in single quotes
@@ -447,7 +467,7 @@ _LOG_FILES = [
 @frappe.whitelist()
 def get_recent_logs(bench_name, log_type=None, limit=50):
 	"""Read recent log lines from bench container (frappe.log, scheduler.log, web.error.log, bench.log)."""
-	frappe.only_for("System Manager")
+	_ensure_team_access(bench_name=bench_name)
 	bench = frappe.get_doc("Bench", bench_name)
 	# cat all log files, grep timestamped lines, sort reverse, take top N.
 	# Avoids shell for-loops which break in docker_execute escaping.
@@ -489,7 +509,7 @@ def get_recent_logs(bench_name, log_type=None, limit=50):
 @frappe.whitelist()
 def get_db_processlist(site_name):
 	"""Return active MariaDB processes for a site via SHOW PROCESSLIST."""
-	frappe.only_for("System Manager")
+	_ensure_team_access(site_name=site_name)
 	site, bench = _get_site_bench(site_name)
 	# Sanitize site name for SQL LIKE — allow only alphanumeric, dash, dot, underscore
 	safe_db_name = re.sub(r"[^a-zA-Z0-9._-]", "", site.name).replace("-", "_")
@@ -534,7 +554,7 @@ def get_db_processlist(site_name):
 @frappe.whitelist()
 def kill_db_process(site_name, process_id):
 	"""Kill a MariaDB process by ID for a site."""
-	frappe.only_for("System Manager")
+	_ensure_team_access(site_name=site_name)
 	process_id = int(process_id)  # Raises ValueError/TypeError for non-int
 	site, bench = _get_site_bench(site_name)
 	cmd = f"bench --site {site.name} mariadb -e 'KILL {process_id}'"

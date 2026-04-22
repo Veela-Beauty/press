@@ -56,6 +56,9 @@ ALLOWED_WILDCARD_PATHS = [
 	"/api/method/wiki.",
 	"/api/method/frappe.integrations.oauth2_logins.",
 	"/api/method/press.www.marketplace.index.",
+	"/api/method/press.press.doctype.bench.bench_dev_overview.",
+	"/api/method/press.press.doctype.bench.bench_app_management.",
+	"/api/method/press.press.doctype.bench.health_analysis.",
 ]
 
 DENIED_PATHS = [
