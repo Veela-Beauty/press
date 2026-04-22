@@ -63,14 +63,17 @@
 							<span v-if="s.is_decommissioned" class="ml-1 rounded bg-orange-100 px-1.5 py-0.5 text-xs text-orange-700">DECOM</span>
 						</td>
 						<td class="px-3 py-2">
-							<Badge :label="s.kind" :theme="{ app: 'blue', db: 'purple', proxy: 'green' }[s.kind] || 'gray'" />
+							<div class="flex flex-wrap gap-1">
+								<Badge v-for="r in (s.roles || [s.kind])" :key="r" :label="r"
+									:theme="{ app: 'blue', db: 'purple', proxy: 'green' }[r] || 'gray'" />
+							</div>
 						</td>
 						<td class="px-3 py-2 font-mono text-xs">{{ s.ip || '—' }}</td>
 						<td class="px-3 py-2">{{ s.plan || '—' }}</td>
 						<td class="px-3 py-2 text-right">{{ s.sites }}</td>
 						<td class="px-3 py-2 text-right">{{ s.benches }}</td>
 						<td class="px-3 py-2 text-right">
-							<template v-if="s.kind !== 'app'"><span class="text-gray-300">—</span></template>
+							<template v-if="!(s.roles && s.roles.includes('app'))"><span class="text-gray-300">—</span></template>
 							<template v-else-if="!stats[s.name]"><span class="text-gray-300">…</span></template>
 							<template v-else-if="stats[s.name].error"><span class="text-xs text-red-400" :title="stats[s.name].error">err</span></template>
 							<template v-else>
@@ -79,7 +82,7 @@
 							</template>
 						</td>
 						<td class="px-3 py-2 text-right">
-							<template v-if="s.kind !== 'app'"><span class="text-gray-300">—</span></template>
+							<template v-if="!(s.roles && s.roles.includes('app'))"><span class="text-gray-300">—</span></template>
 							<template v-else-if="!stats[s.name]"><span class="text-gray-300">…</span></template>
 							<template v-else-if="stats[s.name].error"><span class="text-xs text-red-400">err</span></template>
 							<template v-else>
@@ -88,7 +91,7 @@
 							</template>
 						</td>
 						<td class="px-3 py-2 text-right">
-							<template v-if="s.kind !== 'app'"><span class="text-gray-300">—</span></template>
+							<template v-if="!(s.roles && s.roles.includes('app'))"><span class="text-gray-300">—</span></template>
 							<template v-else-if="!stats[s.name]"><span class="text-gray-300">…</span></template>
 							<template v-else-if="stats[s.name].error"><span class="text-xs text-red-400">err</span></template>
 							<template v-else>
@@ -103,9 +106,9 @@
 						<td class="px-3 py-2 text-xs text-gray-500 max-w-[200px] truncate" :title="s.admin_notes">{{ s.admin_notes || '—' }}</td>
 						<td class="px-3 py-2 text-right">
 							<div class="flex justify-end gap-2">
-								<Button size="sm" variant="subtle" @click="openEdit(s)" :disabled="s.kind !== 'app'">Edit</Button>
+								<Button size="sm" variant="subtle" @click="openEdit(s)" :disabled="!(s.roles && s.roles.includes('app'))">Edit</Button>
 								<Button v-if="!s.is_decommissioned" size="sm" variant="subtle" theme="orange"
-									@click="confirmDecommission(s, true)" :disabled="s.kind !== 'app'">Decommission</Button>
+									@click="confirmDecommission(s, true)" :disabled="!(s.roles && s.roles.includes('app'))">Decommission</Button>
 								<Button v-else size="sm" variant="subtle" theme="green"
 									@click="confirmDecommission(s, false)">Reactivate</Button>
 							</div>
@@ -226,7 +229,7 @@ export default {
 		},
 		async loadAllStats() {
 			// Lazy-load stats per app server in parallel. Don't block the table.
-			const appServers = this.servers.filter(s => s.kind === 'app' && !s.is_decommissioned);
+			const appServers = this.servers.filter(s => s.roles && s.roles.includes('app') && !s.is_decommissioned);
 			await Promise.all(appServers.map(s => this.loadOneStats(s.name)));
 		},
 		async loadOneStats(name) {

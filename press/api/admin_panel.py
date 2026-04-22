@@ -342,38 +342,58 @@ def _get_server_costs():
 
 @frappe.whitelist()
 def get_servers_admin():
-    """Return all servers (Server / Database Server / Proxy Server) with admin fields.
-    Includes decommissioned servers — UI is responsible for visual treatment."""
+    """Return one row per physical machine (grouped by IP, fallback to name).
+    A machine in standalone mode runs Server + Database Server + Proxy Server
+    on the same IP — these collapse into a single row with roles=['app','db','proxy'].
+    Cost / sites / benches / admin overrides are owned by the 'app' role."""
     _require_admin()
-    rows = []
+    machines = {}  # group_key (ip or name) → row dict
+
     for kind, doctype in (("app", "Server"), ("db", "Database Server"), ("proxy", "Proxy Server")):
         try:
-            servers = frappe.get_all(doctype, fields=["name", "ip", "status", "cluster", "creation"])
+            servers = frappe.get_all(doctype, fields=["name", "ip", "status", "cluster"])
         except Exception:
             servers = []
+
         for s in servers:
-            override, is_decom, notes = _server_admin_overrides(s["name"]) if kind == "app" else (0, 0, "")
-            baseline_info = SERVER_COSTS.get(s["name"], {}) if kind == "app" else {}
-            baseline_cost = baseline_info.get("cost", 0)
-            plan = baseline_info.get("plan", "")
-            sites = frappe.db.count("Site", {"server": s["name"], "status": ("not in", ("Archived",))}) if kind == "app" else 0
-            benches = frappe.db.count("Bench", {"server": s["name"], "status": "Active"}) if kind == "app" else 0
-            rows.append({
-                "name": s["name"],
-                "kind": kind,
-                "ip": s.get("ip") or "",
-                "status": s.get("status") or "",
-                "cluster": s.get("cluster") or "",
-                "plan": plan,
-                "baseline_cost": baseline_cost,
-                "monthly_cost_override": override,
-                "effective_cost": override if override > 0 else baseline_cost,
-                "is_decommissioned": is_decom,
-                "admin_notes": notes,
-                "sites": sites,
-                "benches": benches,
-            })
-    return rows
+            key = s.get("ip") or s["name"]
+            if key not in machines:
+                machines[key] = {
+                    "name": s["name"],          # primary name (first role wins; usually app)
+                    "ip": s.get("ip") or "",
+                    "status": s.get("status") or "",
+                    "cluster": s.get("cluster") or "",
+                    "roles": [],
+                    "role_names": {},           # role → DocType record name (for per-role lookups)
+                    "plan": "",
+                    "baseline_cost": 0,
+                    "monthly_cost_override": 0,
+                    "effective_cost": 0,
+                    "is_decommissioned": 0,
+                    "admin_notes": "",
+                    "sites": 0,
+                    "benches": 0,
+                }
+
+            m = machines[key]
+            m["roles"].append(kind)
+            m["role_names"][kind] = s["name"]
+
+            if kind == "app":
+                # Cost + admin fields + activity counts come from the app role only.
+                m["name"] = s["name"]  # prefer app-role name as primary
+                override, is_decom, notes = _server_admin_overrides(s["name"])
+                baseline_info = SERVER_COSTS.get(s["name"], {})
+                m["plan"] = baseline_info.get("plan", "")
+                m["baseline_cost"] = baseline_info.get("cost", 0)
+                m["monthly_cost_override"] = override
+                m["effective_cost"] = override if override > 0 else m["baseline_cost"]
+                m["is_decommissioned"] = is_decom
+                m["admin_notes"] = notes
+                m["sites"] = frappe.db.count("Site", {"server": s["name"], "status": ("not in", ("Archived",))})
+                m["benches"] = frappe.db.count("Bench", {"server": s["name"], "status": "Active"})
+
+    return list(machines.values())
 
 
 @frappe.whitelist()
