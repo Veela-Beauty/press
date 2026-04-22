@@ -47,6 +47,9 @@
 						<th class="px-3 py-2 text-left">Plan</th>
 						<th class="px-3 py-2 text-right">Sites</th>
 						<th class="px-3 py-2 text-right">Benches</th>
+						<th class="px-3 py-2 text-right">RAM</th>
+						<th class="px-3 py-2 text-right">CPU Load</th>
+						<th class="px-3 py-2 text-right">Disk</th>
 						<th class="px-3 py-2 text-right">Cost / mo</th>
 						<th class="px-3 py-2 text-left">Notes</th>
 						<th class="px-3 py-2 text-right">Actions</th>
@@ -66,6 +69,33 @@
 						<td class="px-3 py-2">{{ s.plan || '—' }}</td>
 						<td class="px-3 py-2 text-right">{{ s.sites }}</td>
 						<td class="px-3 py-2 text-right">{{ s.benches }}</td>
+						<td class="px-3 py-2 text-right">
+							<template v-if="s.kind !== 'app'"><span class="text-gray-300">—</span></template>
+							<template v-else-if="!stats[s.name]"><span class="text-gray-300">…</span></template>
+							<template v-else-if="stats[s.name].error"><span class="text-xs text-red-400" :title="stats[s.name].error">err</span></template>
+							<template v-else>
+								<span :class="pctClass(stats[s.name].ram_pct)">{{ stats[s.name].ram_pct }}%</span>
+								<span class="block text-xs text-gray-400">{{ mb2gb(stats[s.name].ram_used_mb) }}/{{ mb2gb(stats[s.name].ram_total_mb) }}G</span>
+							</template>
+						</td>
+						<td class="px-3 py-2 text-right">
+							<template v-if="s.kind !== 'app'"><span class="text-gray-300">—</span></template>
+							<template v-else-if="!stats[s.name]"><span class="text-gray-300">…</span></template>
+							<template v-else-if="stats[s.name].error"><span class="text-xs text-red-400">err</span></template>
+							<template v-else>
+								<span :class="pctClass(stats[s.name].load_pct)">{{ stats[s.name].load_pct }}%</span>
+								<span class="block text-xs text-gray-400">{{ stats[s.name].load1 }} / {{ stats[s.name].cpus }}c</span>
+							</template>
+						</td>
+						<td class="px-3 py-2 text-right">
+							<template v-if="s.kind !== 'app'"><span class="text-gray-300">—</span></template>
+							<template v-else-if="!stats[s.name]"><span class="text-gray-300">…</span></template>
+							<template v-else-if="stats[s.name].error"><span class="text-xs text-red-400">err</span></template>
+							<template v-else>
+								<span :class="pctClass(stats[s.name].disk_pct)">{{ stats[s.name].disk_pct }}%</span>
+								<span class="block text-xs text-gray-400">{{ stats[s.name].disk_used_gb }}/{{ stats[s.name].disk_size_gb }}G</span>
+							</template>
+						</td>
 						<td class="px-3 py-2 text-right">
 							<span :class="s.is_decommissioned ? 'line-through' : ''">€{{ s.effective_cost }}</span>
 							<span v-if="s.monthly_cost_override > 0" class="ml-1 text-xs text-blue-500" title="Override active">★</span>
@@ -150,6 +180,7 @@ export default {
 	data() {
 		return {
 			servers: [],
+			stats: {}, // server.name → { ram_pct, load_pct, disk_pct, ... } | { error }
 			loading: false,
 			saving: false,
 			showEdit: false,
@@ -172,15 +203,38 @@ export default {
 	},
 	mounted() { this.loadServers(); },
 	methods: {
+		pctClass(pct) {
+			if (pct == null) return 'text-gray-400';
+			if (pct >= 85) return 'font-semibold text-red-600';
+			if (pct >= 70) return 'font-semibold text-orange-500';
+			return 'text-green-600';
+		},
+		mb2gb(mb) {
+			if (!mb) return 0;
+			return (mb / 1024).toFixed(1);
+		},
 		async loadServers() {
 			this.loading = true;
 			try {
 				this.servers = await call(`${API}.get_servers_admin`);
+				this.loadAllStats();
 			} catch (e) {
 				toast.error('Failed to load servers');
 				this.servers = [];
 			}
 			this.loading = false;
+		},
+		async loadAllStats() {
+			// Lazy-load stats per app server in parallel. Don't block the table.
+			const appServers = this.servers.filter(s => s.kind === 'app' && !s.is_decommissioned);
+			await Promise.all(appServers.map(s => this.loadOneStats(s.name)));
+		},
+		async loadOneStats(name) {
+			try {
+				this.stats[name] = await call(`${API}.get_server_stats`, { server: name });
+			} catch (e) {
+				this.stats[name] = { error: 'fetch_failed' };
+			}
 		},
 		openEdit(s) {
 			this.editing = s;

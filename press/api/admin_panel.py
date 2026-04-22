@@ -394,6 +394,18 @@ def update_server_admin(server, monthly_cost_override=None, admin_notes=None):
 
 
 @frappe.whitelist()
+def get_server_stats(server):
+    """Return live RAM/CPU/disk stats for a server (cached 60s).
+    Uses SSH from press-ctrl. Returns {error: 'ssh_failed'} on connectivity issues."""
+    _require_admin()
+    if not frappe.db.exists("Server", server):
+        frappe.throw(f"Server {server} does not exist.")
+    ip = frappe.db.get_value("Server", server, "ip") or ""
+    from press.api.admin_panel_stats import collect_stats
+    return collect_stats(server, ip)
+
+
+@frappe.whitelist()
 def set_server_decommissioned(server, decommissioned):
     """Toggle the soft-decommission flag on a Server. Excluded from cost rollups when true."""
     _require_admin()
