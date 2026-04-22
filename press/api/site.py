@@ -2218,8 +2218,6 @@ def get_trial_plan():
 	return frappe.db.get_value("Press Settings", None, "press_trial_plan")
 
 
-@frappe.whitelist()
-
 def _get_uploads_s3_client():
 	"""Get S3 client for uploads bucket, supporting custom endpoints (e.g. MinIO)."""
 	endpoint_url = frappe.db.get_single_value("Press Settings", "remote_uploads_endpoint_url")
@@ -2234,6 +2232,8 @@ def _get_uploads_s3_client():
 		kwargs["endpoint_url"] = endpoint_url
 	return client("s3", **kwargs)
 
+
+@frappe.whitelist()
 def get_upload_link(file, parts=1):
 	bucket_name = frappe.db.get_single_value("Press Settings", "remote_uploads_bucket")
 	expiration = frappe.db.get_single_value("Press Settings", "remote_link_expiry") or 3600
@@ -2263,7 +2263,12 @@ def get_upload_link(file, parts=1):
 			payload["signed_urls"] = signed_urls
 			return payload
 
-		return s3_client.generate_presigned_post(bucket_name, object_name, ExpiresIn=expiration)
+		result = s3_client.generate_presigned_post(bucket_name, object_name, ExpiresIn=expiration)
+		# Rewrite HTTP MinIO URL to HTTPS proxy so browsers can upload from the HTTPS dashboard
+		endpoint_url = frappe.db.get_single_value('Press Settings', 'remote_uploads_endpoint_url') or ''
+		if endpoint_url.startswith('http://'):
+			result['url'] = result['url'].replace(endpoint_url, frappe.utils.get_url(), 1)
+		return result
 
 	except ClientError as e:
 		log_error("Failed to Generate Presigned URL", content=e)
@@ -2314,10 +2319,6 @@ def is_s3_configured():
 	path will handle copying to MinIO automatically.
 	"""
 	try:
-		# Custom endpoint = internal MinIO, browser can't reach it
-		endpoint_url = frappe.db.get_single_value("Press Settings", "remote_uploads_endpoint_url")
-		if endpoint_url:
-			return False
 		from frappe.utils.password import get_decrypted_password
 		access_key = frappe.db.get_single_value("Press Settings", "remote_access_key_id")
 		secret_key = get_decrypted_password("Press Settings", "Press Settings", "remote_secret_access_key")
