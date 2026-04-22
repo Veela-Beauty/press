@@ -78,6 +78,29 @@
 				<ObjectList :options="sshKeyListOptions" />
 			</div>
 			<div
+				class="mx-auto min-w-[48rem] max-w-3xl space-y-6 rounded-md border p-4"
+			>
+				<div class="flex items-center justify-between">
+					<div>
+						<div class="text-xl font-semibold">GitHub Connection</div>
+						<p class="mt-1 text-sm text-gray-500">Connect your GitHub account so <code>git pull</code> / <code>git push</code> work inside your benches with your own identity. Uses the mvpstorm-deploy GitHub App — no long-lived tokens stored anywhere.</p>
+					</div>
+				</div>
+				<div v-if="githubStatus === null" class="py-4 text-center text-sm text-gray-400">Loading…</div>
+				<div v-else-if="githubStatus.connected" class="flex items-center justify-between rounded bg-green-50 p-3">
+					<div class="text-sm">
+						<div class="font-medium text-green-800">✓ Connected as <code>{{ githubStatus.github_username }}</code></div>
+						<div v-if="githubStatus.connected_on" class="text-xs text-green-600">Since {{ new Date(githubStatus.connected_on).toLocaleDateString() }}</div>
+					</div>
+					<Button variant="outline" theme="red" :loading="disconnectLoading" @click="disconnectGithub">Disconnect</Button>
+				</div>
+				<div v-else class="flex items-center justify-between rounded bg-yellow-50 p-3">
+					<div class="text-sm text-yellow-800">Not connected. Click to authorize the mvpstorm-deploy App.</div>
+					<Button variant="solid" :loading="connectLoading" @click="connectGithub">Connect GitHub</Button>
+				</div>
+				<div v-if="oauthErrorMessage" class="rounded bg-red-50 p-3 text-sm text-red-700">{{ oauthErrorMessage }}</div>
+			</div>
+			<div
 				v-if="$session.hasWebhookConfigurationAccess"
 				class="mx-auto min-w-[48rem] max-w-3xl space-y-6 rounded-md border p-4"
 			>
@@ -127,9 +150,68 @@ import EditWebhookDialog from './EditWebhookDialog.vue';
 import { useRouter } from 'vue-router';
 import WebhookAttemptsDialog from './WebhookAttemptsDialog.vue';
 import { session } from '../../data/session';
+import { call } from 'frappe-ui';
 
 const $team = getTeam();
 const router = useRouter();
+
+// --- GitHub Connection state ---
+const githubStatus = ref(null);
+const connectLoading = ref(false);
+const disconnectLoading = ref(false);
+const oauthErrorMessage = ref('');
+
+async function loadGithubStatus() {
+	try {
+		githubStatus.value = await call('press.api.github_auth.get_status');
+	} catch (e) {
+		githubStatus.value = { connected: false };
+	}
+}
+
+async function connectGithub() {
+	connectLoading.value = true;
+	try {
+		const res = await call('press.api.github_auth.start_connect');
+		if (res?.authorize_url) {
+			window.location.href = res.authorize_url;
+		} else {
+			oauthErrorMessage.value = 'Failed to start OAuth flow';
+		}
+	} catch (e) {
+		oauthErrorMessage.value = e?.messages?.join(', ') || 'Could not start OAuth';
+	} finally {
+		connectLoading.value = false;
+	}
+}
+
+async function disconnectGithub() {
+	if (!confirm('Disconnect your GitHub account? Bench git operations will stop working until you reconnect.')) return;
+	disconnectLoading.value = true;
+	try {
+		await call('press.api.github_auth.disconnect');
+		toast.success('GitHub disconnected');
+		await loadGithubStatus();
+	} catch (e) {
+		toast.error(e?.messages?.join(', ') || 'Disconnect failed');
+	} finally {
+		disconnectLoading.value = false;
+	}
+}
+
+onMounted(() => {
+	loadGithubStatus();
+	// Show OAuth callback result if present in URL
+	const params = new URLSearchParams(window.location.search);
+	const connected = params.get('github_connected');
+	const err = params.get('github_error');
+	if (connected) toast.success(`GitHub connected as ${connected}`);
+	if (err) oauthErrorMessage.value = `GitHub connection failed: ${err}`;
+	if (connected || err) {
+		// Clean the URL
+		window.history.replaceState({}, '', window.location.pathname);
+	}
+});
 let showCreateSecretDialog = ref(false);
 const showAddWebhookDialog = ref(false);
 const showActivateWebhookDialog = ref(false);
