@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 
+import binascii
 import json
 from base64 import b64decode
 
@@ -18,7 +19,11 @@ def get_context(context):
 	if code and state:
 		try:
 			decoded_state = json.loads(b64decode(state).decode())
-		except Exception:
+		except (ValueError, binascii.Error, json.JSONDecodeError, UnicodeDecodeError) as exc:
+			frappe.log_error(
+				title="Malformed GitHub OAuth state",
+				message=f"state={state[:100]!r} err={exc!r}",
+			)
 			frappe.flags.redirect_location = frappe.utils.get_url("/dashboard")
 			raise frappe.Redirect
 		flow = decoded_state.get("flow")

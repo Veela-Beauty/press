@@ -31,6 +31,10 @@ class GitCredentialSessionLog(Document):
 	pass
 
 
+# Rows older than this are deleted by prune_old_git_credential_logs (daily job).
+LOG_RETENTION_DAYS = 90
+
+
 def log_credential_request(user: str, bench: str, success: bool, error_message: str | None = None):
 	"""Fire-and-forget audit event. Swallows errors to avoid blocking git-setup."""
 	try:
@@ -45,3 +49,16 @@ def log_credential_request(user: str, bench: str, success: bool, error_message: 
 		frappe.db.commit()
 	except Exception:
 		frappe.log_error(title="GitCredentialSessionLog insert failed")
+
+
+def prune_old_git_credential_logs():
+	"""Daily scheduled cleanup — keep only LOG_RETENTION_DAYS days of audit rows.
+
+	Registered in hooks.py under scheduler_events.daily.
+	"""
+	cutoff = frappe.utils.add_days(frappe.utils.now(), -LOG_RETENTION_DAYS)
+	frappe.db.sql(
+		"DELETE FROM `tabGit Credential Session Log` WHERE timestamp < %s",
+		cutoff,
+	)
+	frappe.db.commit()

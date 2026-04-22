@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
@@ -17,8 +18,28 @@ if TYPE_CHECKING:
 GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
 GITHUB_USER_URL = "https://api.github.com/user"
 GITHUB_REVOKE_URL_FMT = "https://api.github.com/applications/{client_id}/grant"
-# Refresh tokens from a minute before actual expiry to avoid edge races
-REFRESH_LEAD_SECONDS = 60
+GITHUB_HTTP_TIMEOUT = 5  # seconds
+REFRESH_LEAD_SECONDS = 60  # start refresh this many seconds before expiry
+# GitHub user-to-server defaults; see https://docs.github.com/en/apps/…
+DEFAULT_ACCESS_TTL_SECONDS = 8 * 3600  # 8 hours
+DEFAULT_REFRESH_TTL_SECONDS = 184 * 24 * 3600  # ~6 months
+
+
+@dataclass(frozen=True)
+class GitHubAppCredentials:
+	client_id: str
+	client_secret: str
+
+	@classmethod
+	def load(cls) -> "GitHubAppCredentials":
+		client_id = frappe.db.get_single_value("Press Settings", "github_app_client_id")
+		client_secret = frappe.db.get_single_value("Press Settings", "github_app_client_secret")
+		if not client_id or not client_secret:
+			frappe.throw(
+				"GitHub App credentials not configured in Press Settings",
+				frappe.ValidationError,
+			)
+		return cls(client_id=client_id, client_secret=client_secret)
 
 
 class UserGitHubAuth(Document):
@@ -47,19 +68,6 @@ class UserGitHubAuth(Document):
 		if self.is_revoked and not self.revoked_on:
 			self.revoked_on = frappe.utils.now_datetime()
 
-	@staticmethod
-	def _get_client_credentials() -> tuple[str, str]:
-		client_id = frappe.db.get_single_value("Press Settings", "github_app_client_id")
-		client_secret = frappe.db.get_single_value(
-			"Press Settings", "github_app_client_secret"
-		)
-		if not client_id or not client_secret:
-			frappe.throw(
-				"GitHub App credentials not configured in Press Settings",
-				frappe.ValidationError,
-			)
-		return client_id, client_secret
-
 	def needs_refresh(self) -> bool:
 		"""Return True if access_token is expired or within the refresh lead window."""
 		if not self.expires_at:
@@ -77,11 +85,43 @@ class UserGitHubAuth(Document):
 		return frappe.utils.get_datetime(self.refresh_expires_at) > frappe.utils.now_datetime()
 
 	def refresh_access_token(self) -> bool:
-		"""Exchange the refresh_token for a fresh access_token. Returns True on success."""
+		"""Exchange the refresh_token for a fresh access_token. Returns True on success.
+
+		Coalesced across concurrent callers via a Frappe cache lock keyed on the
+		user — first caller refreshes, others wait up to 30s then reload and
+		reuse the new token instead of hammering GitHub's refresh endpoint.
+		"""
 		if not self.is_refresh_valid():
 			return False
 
-		client_id, client_secret = self._get_client_credentials()
+		lock_key = f"github-refresh-lock:{self.user}"
+		cache = frappe.cache()
+		# Acquire a short-lived lock; if another process holds it, wait up to
+		# 30s then proceed (the other process's save will already be visible
+		# via doc.reload() on the caller side).
+		acquired = False
+		try:
+			acquired = cache.set_value(
+				lock_key, frappe.utils.now(), expires_in_sec=30, nx=True
+			)
+			if not acquired:
+				# Another caller is refreshing; wait briefly then treat as success
+				# (our caller will reload() and pick up the new token).
+				import time
+
+				for _ in range(30):
+					time.sleep(1)
+					if not cache.get_value(lock_key):
+						return True
+				# If still locked after 30s, fall through and try ourselves
+			return self._do_refresh()
+		finally:
+			if acquired:
+				cache.delete_value(lock_key)
+
+	def _do_refresh(self) -> bool:
+		"""Actual refresh HTTP call — caller holds the lock (or decided to go ahead anyway)."""
+		creds = GitHubAppCredentials.load()
 		refresh = self.get_password("refresh_token", raise_exception=False)
 		if not refresh:
 			return False
@@ -90,17 +130,20 @@ class UserGitHubAuth(Document):
 			response = requests.post(
 				GITHUB_TOKEN_URL,
 				data={
-					"client_id": client_id,
-					"client_secret": client_secret,
+					"client_id": creds.client_id,
+					"client_secret": creds.client_secret,
 					"grant_type": "refresh_token",
 					"refresh_token": refresh,
 				},
 				headers={"Accept": "application/json"},
-				timeout=10,
+				timeout=GITHUB_HTTP_TIMEOUT,
 			)
+		except requests.Timeout:
+			frappe.log_error(title="GitHub token refresh timed out", message=f"User: {self.user}")
+			return False
 		except requests.RequestException as exc:
 			frappe.log_error(
-				title="GitHub token refresh failed",
+				title="GitHub token refresh network error",
 				message=f"User: {self.user}\n{exc}",
 			)
 			return False
@@ -116,18 +159,21 @@ class UserGitHubAuth(Document):
 			else:
 				frappe.log_error(
 					title="GitHub token refresh non-200",
-					message=f"User: {self.user}\nStatus: {response.status_code}\nBody: {response.text[:500]}",
+					message=(
+						f"User: {self.user}\nStatus: {response.status_code}\n"
+						f"Body: {response.text[:500]}"
+					),
 				)
 			return False
 
 		self.access_token = data["access_token"]
 		self.expires_at = frappe.utils.now_datetime() + timedelta(
-			seconds=int(data.get("expires_in", 28800))
+			seconds=int(data.get("expires_in") or DEFAULT_ACCESS_TTL_SECONDS)
 		)
 		if "refresh_token" in data:
 			self.refresh_token = data["refresh_token"]
 			self.refresh_expires_at = frappe.utils.now_datetime() + timedelta(
-				seconds=int(data.get("refresh_token_expires_in", 15897600))
+				seconds=int(data.get("refresh_token_expires_in") or DEFAULT_REFRESH_TTL_SECONDS)
 			)
 		if "scope" in data:
 			self.scopes = data["scope"]
@@ -138,7 +184,11 @@ class UserGitHubAuth(Document):
 	def mark_used(self):
 		"""Stamp last_used_on without blowing up on concurrent writes."""
 		frappe.db.set_value(
-			"User GitHub Auth", self.name, "last_used_on", frappe.utils.now(), update_modified=False
+			"User GitHub Auth",
+			self.name,
+			"last_used_on",
+			frappe.utils.now(),
+			update_modified=False,
 		)
 
 	def mark_revoked(self, reason: str = "User requested disconnect"):
@@ -152,22 +202,25 @@ class UserGitHubAuth(Document):
 
 	def revoke_on_github(self) -> bool:
 		"""Call GitHub to revoke the App grant for this user."""
-		client_id, client_secret = self._get_client_credentials()
+		creds = GitHubAppCredentials.load()
 		access = self.get_password("access_token", raise_exception=False)
 		if not access:
 			return False
 		try:
 			response = requests.delete(
-				GITHUB_REVOKE_URL_FMT.format(client_id=client_id),
-				auth=(client_id, client_secret),
+				GITHUB_REVOKE_URL_FMT.format(client_id=creds.client_id),
+				auth=(creds.client_id, creds.client_secret),
 				json={"access_token": access},
 				headers={"Accept": "application/vnd.github.v3+json"},
-				timeout=10,
+				timeout=GITHUB_HTTP_TIMEOUT,
 			)
 			return response.status_code in (204, 404)
+		except requests.Timeout:
+			frappe.log_error(title="GitHub grant revoke timed out", message=f"User: {self.user}")
+			return False
 		except requests.RequestException as exc:
 			frappe.log_error(
-				title="GitHub grant revoke failed",
+				title="GitHub grant revoke network error",
 				message=f"User: {self.user}\n{exc}",
 			)
 			return False
@@ -205,9 +258,11 @@ def get_or_create_for_user(
 	doc.github_username = github_username
 	doc.access_token = access_token
 	doc.refresh_token = refresh_token
-	doc.expires_at = now + timedelta(seconds=expires_in)
-	if refresh_token and refresh_token_expires_in:
-		doc.refresh_expires_at = now + timedelta(seconds=refresh_token_expires_in)
+	doc.expires_at = now + timedelta(seconds=int(expires_in) or DEFAULT_ACCESS_TTL_SECONDS)
+	if refresh_token:
+		doc.refresh_expires_at = now + timedelta(
+			seconds=int(refresh_token_expires_in) or DEFAULT_REFRESH_TTL_SECONDS
+		)
 	doc.scopes = scopes or ""
 	doc.is_revoked = 0
 	doc.revoked_on = None
