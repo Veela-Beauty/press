@@ -16,11 +16,28 @@ def get_context(context):
 	state = frappe.form_dict.state
 	redirect_url = frappe.utils.get_url("/dashboard")
 	if code and state:
-		decoded_state = json.loads(b64decode(state).decode())
-		team = decoded_state["team"]
-		redirect_url = frappe.utils.get_url(decoded_state["url"])
-		obtain_access_token(code, team)
-		frappe.db.commit()
+		try:
+			decoded_state = json.loads(b64decode(state).decode())
+		except Exception:
+			frappe.flags.redirect_location = frappe.utils.get_url("/dashboard")
+			raise frappe.Redirect
+		flow = decoded_state.get("flow")
+		if flow == "user_auth":
+			# Per-user GitHub OAuth (Option C) — handle via the github_auth module
+			from press.api.github_auth import handle_user_auth_callback
+			success, info = handle_user_auth_callback(code, decoded_state)
+			frappe.db.commit()
+			base = frappe.utils.get_url()
+			if success:
+				redirect_url = f"{base}/dashboard/settings/developer?github_connected={info}"
+			else:
+				redirect_url = f"{base}/dashboard/settings/developer?github_error={info}"
+		else:
+			# Legacy flow — team-level app installation tokens
+			team = decoded_state["team"]
+			redirect_url = frappe.utils.get_url(decoded_state["url"])
+			obtain_access_token(code, team)
+			frappe.db.commit()
 	frappe.flags.redirect_location = redirect_url
 	raise frappe.Redirect
 
