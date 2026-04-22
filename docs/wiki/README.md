@@ -11,6 +11,7 @@ Enhanced fork of Frappe Press by Accurate Systems — enterprise capabilities, C
 
 ### 01 — Backend Development
 - [File Reference Matrix](01-backend-development/file-reference-matrix.md) — Complete map of all ~67 files (dashboard, patches, backup, ops)
+- [Team SSH Access Management](01-backend-development/team-ssh-management.md) — Full feature: doctype fields, admin APIs, cert generation, agent forwarding patch, UI flow
 
 ### 02 — Frontend Development
 - [Dashboard Customization Guide](02-frontend-development/rebrand-guide.md) — All customized files, design tokens, how to modify
