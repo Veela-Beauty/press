@@ -152,12 +152,9 @@
 			</div>
 		</template>
 
-		<!-- TAB: Servers (placeholder) -->
+		<!-- TAB: Servers (admin) -->
 		<template v-if="activeMainTab === 'servers'">
-			<div class="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-400">
-				<i class="fa fa-server mb-2 text-2xl"></i>
-				<p>Servers tab — existing panel from Press dashboard</p>
-			</div>
+			<ServerAdmin @updated="$refs.adminData?.fetch?.()" />
 		</template>
 
 		<!-- TAB: AI Governance -->
@@ -204,6 +201,7 @@
 import { call } from 'frappe-ui';
 import { toast } from 'vue-sonner';
 import TeamDetail from '../components/admin/TeamDetail.vue';
+import ServerAdmin from '../components/admin/ServerAdmin.vue';
 import AiGovernance from '../components/admin/AiGovernance.vue';
 import AiEscalations from '../components/admin/AiEscalations.vue';
 import AiUsageCost from '../components/admin/AiUsageCost.vue';
@@ -213,7 +211,7 @@ const API = 'press.api.admin_panel';
 
 export default {
 	name: 'AdminPanel',
-	components: { TeamDetail, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate },
+	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate },
 	data() {
 		return {
 			loading: false,
