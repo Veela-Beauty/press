@@ -356,10 +356,15 @@ def setup_code_server(bench_name, subdomain):
 	bench = frappe.get_doc("Bench", bench_name)
 	# Code Server is available for all benches in this Press instance.
 	# The Code Server doctype validate() requires Bench.is_code_server_enabled,
-	# so flip it on here. Keeping the flag honest — it is true because we are
-	# about to use it.
+	# AND the bench container's supervisor.conf needs a [program:code-server]
+	# block which is only rendered when is_code_server_enabled is in the bench
+	# config JSON. save() triggers Bench.on_update → update_bench_config job
+	# which regenerates supervisor.conf + reread + update inside the container.
+	# Without this, "Setup Code Server" fails with "supervisorctl start code-server:"
+	# exit 2 (program not found).
 	if not bench.is_code_server_enabled:
-		frappe.db.set_value("Bench", bench_name, "is_code_server_enabled", 1)
+		bench.is_code_server_enabled = 1
+		bench.save(ignore_permissions=True)
 		frappe.db.commit()
 	existing = frappe.db.exists("Code Server", {"bench": bench_name, "status": ["!=", "Archived"]})
 	if existing:

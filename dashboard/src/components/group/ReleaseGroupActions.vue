@@ -23,12 +23,22 @@
 						</p>
 					</div>
 					<div class="flex items-center gap-2">
-						<a
+						<div
 							v-if="codeServerStatus[bench.name]?.status === 'Running' && codeServerStatus[bench.name]?.url"
-							:href="codeServerStatus[bench.name].url"
-							target="_blank"
-							class="inline-flex items-center gap-1 rounded border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-100 whitespace-nowrap"
-						>✓ Open Code Server ↗</a>
+							class="flex flex-col items-end gap-1"
+						>
+							<a
+								:href="codeServerStatus[bench.name].url"
+								target="_blank"
+								class="inline-flex items-center gap-1 rounded border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-100 whitespace-nowrap"
+							>✓ Open Code Server ↗</a>
+							<button
+								v-if="codeServerStatus[bench.name]?.password"
+								@click="copyCodeServerPassword(bench)"
+								class="text-xs text-gray-500 hover:text-gray-900 font-mono whitespace-nowrap"
+								title="Click to copy password"
+							>{{ revealedPasswords[bench.name] ? codeServerStatus[bench.name].password : '••••••••••  copy password' }}</button>
+						</div>
 						<Button
 							v-else-if="codeServerStatus[bench.name]?.status === 'Pending'"
 							class="whitespace-nowrap"
@@ -93,6 +103,7 @@ export default {
 			devLoading: {},
 			codeServerLoading: {},
 			codeServerStatus: {},
+			revealedPasswords: {},
 			benches: createListResource({
 				doctype: 'Bench',
 				fields: ['name', 'status', 'is_development_bench'],
@@ -189,6 +200,22 @@ export default {
 				this.codeServerStatus = { ...this.codeServerStatus, [bench.name]: s };
 			} catch (e) {
 				// ignore
+			}
+		},
+		async copyCodeServerPassword(bench) {
+			const pwd = this.codeServerStatus[bench.name]?.password;
+			if (!pwd) return;
+			try {
+				await navigator.clipboard.writeText(pwd);
+				this.revealedPasswords = { ...this.revealedPasswords, [bench.name]: true };
+				toast.success('Code Server password copied to clipboard');
+				// Hide again after 15 s
+				setTimeout(() => {
+					this.revealedPasswords = { ...this.revealedPasswords, [bench.name]: false };
+				}, 15000);
+			} catch (e) {
+				toast.error('Could not copy — select and copy manually');
+				this.revealedPasswords = { ...this.revealedPasswords, [bench.name]: true };
 			}
 		},
 	},
