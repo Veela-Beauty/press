@@ -135,9 +135,10 @@ ENV {{ doc.get_dependency_version("wkhtmltopdf", True) }}
   {% endif %}
 {% endif %}
 
-{% if doc.is_code_server_enabled %}
+# Always install code-server — gating on is_code_server_enabled at build time
+# stranded old images without the binary (fix: Path A of 2026-04-22 rollout).
+# Runtime flag still controls whether the program is launched via supervisor.
 RUN curl -fsSL https://code-server.dev/install.sh | sh `#stage-pre-code-server`
-{% endif %}
 
 # Install Fonts
 RUN git clone --progress --depth 1 https://github.com/frappe/fonts.git /tmp/fonts \
