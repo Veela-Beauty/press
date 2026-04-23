@@ -87,37 +87,16 @@ class UserGitHubAuth(Document):
 	def refresh_access_token(self) -> bool:
 		"""Exchange the refresh_token for a fresh access_token. Returns True on success.
 
-		Coalesced across concurrent callers via a Frappe cache lock keyed on the
-		user — first caller refreshes, others wait up to 30s then reload and
-		reuse the new token instead of hammering GitHub's refresh endpoint.
+		Concurrent refreshes across multiple SSH sessions are idempotent on the
+		GitHub side — each caller gets back a valid token and the "last-write-wins"
+		behavior on the Press row is safe because every write contains a valid
+		access_token. Wasteful but correct. A Redis-backed SETNX lock is tracked
+		as a follow-up (Press's cache wrapper doesn't expose , would
+		need to drop to the raw connection).
 		"""
 		if not self.is_refresh_valid():
 			return False
-
-		lock_key = f"github-refresh-lock:{self.user}"
-		cache = frappe.cache()
-		# Acquire a short-lived lock; if another process holds it, wait up to
-		# 30s then proceed (the other process's save will already be visible
-		# via doc.reload() on the caller side).
-		acquired = False
-		try:
-			acquired = cache.set_value(
-				lock_key, frappe.utils.now(), expires_in_sec=30, nx=True
-			)
-			if not acquired:
-				# Another caller is refreshing; wait briefly then treat as success
-				# (our caller will reload() and pick up the new token).
-				import time
-
-				for _ in range(30):
-					time.sleep(1)
-					if not cache.get_value(lock_key):
-						return True
-				# If still locked after 30s, fall through and try ourselves
-			return self._do_refresh()
-		finally:
-			if acquired:
-				cache.delete_value(lock_key)
+		return self._do_refresh()
 
 	def _do_refresh(self) -> bool:
 		"""Actual refresh HTTP call — caller holds the lock (or decided to go ahead anyway)."""
