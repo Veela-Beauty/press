@@ -24,7 +24,7 @@
 					</div>
 					<div class="flex items-center gap-2">
 						<div
-							v-if="codeServerStatus[bench.name]?.status === 'Running' && codeServerStatus[bench.name]?.url"
+							v-if="codeServerStatus[bench.name]?.can_use && codeServerStatus[bench.name]?.status === 'Running' && codeServerStatus[bench.name]?.url"
 							class="flex flex-col items-end gap-1"
 						>
 							<a
@@ -71,7 +71,7 @@
 							</div>
 						</div>
 						<div
-							v-else-if="codeServerStatus[bench.name]?.exists && codeServerStatus[bench.name]?.status !== 'Running'"
+							v-else-if="codeServerStatus[bench.name]?.can_use && codeServerStatus[bench.name]?.exists && codeServerStatus[bench.name]?.status !== 'Running'"
 							class="flex flex-col items-end gap-1"
 						>
 							<span class="text-sm text-gray-500 italic whitespace-nowrap">Code Server {{ codeServerStatus[bench.name].status === 'Pending' ? 'starting…' : codeServerStatus[bench.name].status }}</span>
@@ -82,7 +82,7 @@
 							>{{ restartLoading[bench.name] ? 'Restarting…' : 'Restart Code Server' }}</button>
 						</div>
 						<Button
-							v-else
+							v-else-if="codeServerStatus[bench.name]?.can_use"
 							class="whitespace-nowrap"
 							:loading="codeServerLoading[bench.name]"
 							@click="launchCodeServer(bench)"
@@ -209,7 +209,11 @@ export default {
 						durations[b.name] = statuses[b.name].password_expiry_days;
 					}
 				} catch (e) {
-					statuses[b.name] = { enabled: false, exists: false, status: null };
+					// On fetch error: fail-open for the UI so the Launch button is still visible.
+					// The backend mutation endpoints will still deny unauthorized access via
+					// _ensure_code_server_role_access. This prevents a transient network blip
+					// from making the Code Server controls disappear with no recourse.
+					statuses[b.name] = { enabled: false, exists: false, status: null, can_use: true };
 				}
 			}
 			this.codeServerStatus = statuses;

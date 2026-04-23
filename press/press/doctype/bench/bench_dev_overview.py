@@ -328,6 +328,23 @@ def get_bench_dev_info(bench_name):
 	}
 
 
+def _can_use_code_server(bench_name, team):
+	"""Non-raising variant of the role check — returns bool for UI rendering.
+
+	Logs unexpected exceptions via frappe.log_error so silent denial doesn't
+	mask bugs (e.g. schema changes, import failures, cross-team probes).
+	"""
+	from press.api.feature_access import has_feature
+	try:
+		return bool(has_feature(team=team, feature_id="code_server"))
+	except Exception:
+		frappe.log_error(
+			title="Code Server can_use probe failed",
+			message=f"bench={bench_name} team={team}\n{frappe.get_traceback()}",
+		)
+		return False
+
+
 @frappe.whitelist()
 def get_code_server_status(bench_name):
 	"""Return code-server status and URL for a bench (if one exists)."""
@@ -341,6 +358,7 @@ def get_code_server_status(bench_name):
 	)
 	result = {
 		"enabled": bool(bench.is_code_server_enabled) or bool(bench.is_development_bench),
+		"can_use": _can_use_code_server(bench_name, bench.team),
 		"exists": bool(cs_row),
 		"name": cs_row.name if cs_row else None,
 		"status": cs_row.status if cs_row else None,
@@ -357,10 +375,28 @@ def get_code_server_status(bench_name):
 	return result
 
 
+def _ensure_code_server_role_access(bench_name):
+	"""Team-member check + role-level Code Server feature-access check.
+
+	Use at every Code Server mutation endpoint. Returns the team name on success
+	so callers don't re-query. Raises PermissionError when the caller's role has
+	Code Server disabled — the role/team config is enforced by has_feature.
+	"""
+	_ensure_team_access(bench_name=bench_name)
+	team = frappe.db.get_value("Bench", bench_name, "team")
+	from press.api.feature_access import has_feature
+	if not has_feature(team=team, feature_id="code_server"):
+		frappe.throw(
+			"Code Server is not enabled for your role. Ask an admin to grant the Code Server feature on your role.",
+			frappe.PermissionError,
+		)
+	return team
+
+
 @frappe.whitelist()
 def setup_code_server(bench_name, subdomain):
 	"""Create and setup a Code Server for a bench."""
-	_ensure_team_access(bench_name=bench_name)
+	_ensure_code_server_role_access(bench_name)
 	bench = frappe.get_doc("Bench", bench_name)
 	# Code Server is available for all benches in this Press instance.
 	# The Code Server doctype validate() requires Bench.is_code_server_enabled,
@@ -625,7 +661,7 @@ def kill_db_process(site_name, process_id):
 @frappe.whitelist()
 def rotate_code_server_password(bench_name):
 	"""Rotate the Code Server password for this bench. Team-member access only."""
-	_ensure_team_access(bench_name=bench_name)
+	_ensure_code_server_role_access(bench_name)
 	name = frappe.db.exists(
 		"Code Server", {"bench": bench_name, "status": ["!=", "Archived"]}
 	)
@@ -644,7 +680,7 @@ def restart_code_server(bench_name):
 	code-server block), then starts the process with the current password.
 	Team-member access only.
 	"""
-	_ensure_team_access(bench_name=bench_name)
+	_ensure_code_server_role_access(bench_name)
 	import json as _json
 	from press.agent import Agent
 	from frappe.utils.password import get_decrypted_password
@@ -702,7 +738,7 @@ def set_code_server_password_expiry_days(bench_name, days):
 	Pass 0 (or empty) to clear the override — the global Press Settings default applies.
 	Team-member access only.
 	"""
-	_ensure_team_access(bench_name=bench_name)
+	_ensure_code_server_role_access(bench_name)
 	try:
 		days_int = int(days or 0)
 	except (TypeError, ValueError):
