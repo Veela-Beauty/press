@@ -152,3 +152,41 @@ d4dd899ef4  docs(team-ssh): full SRS + wiki + test plan + CLAUDE-INDEX
 ---
 
 **Last updated:** 2026-04-22 — Option C shipped with 14 unit tests; code-review fixes applied; wiki + SRS + onboarding docs in place.
+
+
+---
+
+## Feature 3 — Code Server on bench Actions tab
+
+**Entry point:** Bench group `/dashboard/groups/<bench>/actions` → Dev Actions section → per-bench "Launch Code Server" button.
+
+### Commits
+
+
+
+### Files
+
+| File | Purpose |
+|---|---|
+| `dashboard/src/components/group/ReleaseGroupActions.vue` | UI — per-bench Launch/Starting/Open button + password copy |
+| `press/press/doctype/bench/bench_dev_overview.py` (`setup_code_server`) | Backend — direct DB write of flag + bench_config JSON, manual Agent.update_bench_config call, archive-stale-docs cleanup |
+
+### Known limitation (unfixed)
+
+Benches built with `is_code_server_enabled=False` on the Deploy Candidate have NO code-server binary in their Docker image — the Dockerfile at line 138-140 gates the install on that flag. Manual runtime install via `docker exec -u root <bench> bash -c "curl -fsSL https://code-server.dev/install.sh | sh"`. See lesson 116.
+
+### Diagnostic decision tree (Code Server)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Launch Code Server → "Code Server not enabled for the selected Bench" (validate error) | bench.save() silently reset `is_code_server_enabled` back to 0 | Use `frappe.db.set_value` + manual agent job; see lesson 115 |
+| "supervisorctl start code-server: exit 2" (program not found) | supervisor.conf not regenerated; `is_code_server_enabled` not in bench_config JSON | Queue Update Bench Configuration agent job first |
+| "supervisorctl start code-server: exit 1" (program found, fails on start) | code-server binary not installed in container | Install via `docker exec curl` or rebuild image; see lesson 116 |
+| "Code Server xxx already exists" | Archived doc with same deterministic name blocks new create | `frappe.delete_doc("Code Server", name, force=True)` before insert; see lesson 117 |
+| "TypeError: RedisWrapper.set_value() got an unexpected keyword argument 'nx'" | Cache lock using unsupported kwarg | Use raw Redis connection `frappe.cache()._conn.set(nx=True)`; see lesson 118 |
+| "Incorrect datetime value: ...+00:00" on DB write | Timezone-aware datetime rejected by MariaDB | Use `frappe.utils.now_datetime()`; see lesson 119 |
+| Password field reads back as None after write | Wrote via `db.set_single_value` (skips encryption) | Write via `doc.save()`; see lesson 120 |
+
+### Lessons in memory (this feature)
+
+- memory://frappe-press-lessons.md lessons **115-120** (bench.save reset, Dockerfile gate, autoname collisions, RedisWrapper limits, timezone, Password field encryption)
