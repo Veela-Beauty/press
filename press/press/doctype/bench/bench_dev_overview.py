@@ -362,14 +362,52 @@ def setup_code_server(bench_name, subdomain):
 	# which regenerates supervisor.conf + reread + update inside the container.
 	# Without this, "Setup Code Server" fails with "supervisorctl start code-server:"
 	# exit 2 (program not found).
-	if not bench.is_code_server_enabled:
-		bench.is_code_server_enabled = 1
-		bench.save(ignore_permissions=True)
+	# Flag lives in TWO places: the Bench DB column (Code Server validate gate)
+	# and the bench_config JSON (agent's supervisor.conf template reads this).
+	#
+	# bench.save() unfortunately resets this field back to 0 somewhere in
+	# Press's validate chain (the rebuild of bench_config reads self.
+	# is_code_server_enabled at line 345 of bench.py but something earlier
+	# clears it — even direct assignment before save() fails). So we bypass
+	# the doctype save entirely: write both column and JSON directly, then
+	# manually queue the Update Bench Configuration agent job to regenerate
+	# supervisor.conf inside the container.
+	import json as _json
+	from press.agent import Agent
+	config_json = _json.loads(bench.bench_config or "{}")
+	if not bench.is_code_server_enabled or not config_json.get("is_code_server_enabled"):
+		config_json["is_code_server_enabled"] = True
+		frappe.db.set_value(
+			"Bench",
+			bench_name,
+			{
+				"is_code_server_enabled": 1,
+				"bench_config": _json.dumps(config_json, indent=4),
+			},
+			update_modified=False,
+		)
 		frappe.db.commit()
+		# Reload bench so Agent.update_bench_config sees the new JSON
+		bench = frappe.get_doc("Bench", bench_name)
+		Agent(bench.server).update_bench_config(bench)
+	# Block retry if there's a non-archived Code Server already
 	existing = frappe.db.exists("Code Server", {"bench": bench_name, "status": ["!=", "Archived"]})
 	if existing:
 		return {"error": f"Code Server already exists: {existing}"}
+
+	# Clean up orphan Archived rows with the same target name — the Code Server
+	# doctype name is subdomain+domain, so archived failed attempts collide with
+	# new creates. Delete them to free the name for a clean retry.
 	domain = frappe.db.get_value("Press Settings", None, "domain") or "sandbox.mvpstorm.com"
+	candidate_name = f"{subdomain}.{domain}"
+	for stale in frappe.db.get_all(
+		"Code Server",
+		filters={"name": candidate_name, "status": "Archived"},
+		pluck="name",
+	):
+		frappe.delete_doc("Code Server", stale, force=True, ignore_permissions=True)
+	frappe.db.commit()
+
 	cs = frappe.get_doc({
 		"doctype": "Code Server",
 		"bench": bench_name,
