@@ -636,6 +636,66 @@ def rotate_code_server_password(bench_name):
 
 
 @frappe.whitelist()
+def restart_code_server(bench_name):
+	"""Restart the Code Server process for this bench.
+
+	Idempotent recovery path: re-asserts is_code_server_enabled on the bench,
+	queues an agent config update (so supervisor.conf regenerates with the
+	code-server block), then starts the process with the current password.
+	Team-member access only.
+	"""
+	_ensure_team_access(bench_name=bench_name)
+	import json as _json
+	from press.agent import Agent
+	from frappe.utils.password import get_decrypted_password
+
+	cs_name = frappe.db.exists(
+		"Code Server", {"bench": bench_name, "status": ["!=", "Archived"]}
+	)
+	if not cs_name:
+		return {"error": "No active Code Server for this bench — click Launch Code Server first."}
+
+	bench = frappe.get_doc("Bench", bench_name)
+	# Always re-assert the flag in BOTH places (column + bench_config JSON) even
+	# if they look set — the canonical cause of a broken CS is that one of them
+	# drifted. Writing both then queueing update_bench_config guarantees the
+	# agent regenerates supervisor.conf with the code-server block before we try
+	# to start the process.
+	config_json = _json.loads(bench.bench_config or "{}")
+	config_json["is_code_server_enabled"] = True
+	frappe.db.set_value(
+		"Bench",
+		bench_name,
+		{"is_code_server_enabled": 1, "bench_config": _json.dumps(config_json, indent=4)},
+		update_modified=False,
+	)
+	frappe.db.commit()
+	bench = frappe.get_doc("Bench", bench_name)
+
+	agent = Agent(bench.server, server_type="Server")
+	# Always queue update_bench_config — this regenerates supervisor.conf with the
+	# code-server block (required before start_code_server can find the program).
+	# Agent Jobs on the same bench run sequentially, so start_code_server will see
+	# the fresh supervisor when it runs.
+	try:
+		agent.update_bench_config(bench)
+	except Exception as e:
+		log_error(title="Restart Code Server: update_bench_config failed", data=e)
+		return {"error": "Failed to queue config update — check Error Log"}
+
+	password = get_decrypted_password("Code Server", cs_name, "password")
+	try:
+		agent.start_code_server(bench_name, cs_name, password)
+		frappe.db.set_value("Code Server", cs_name, "status", "Pending", update_modified=False)
+		frappe.db.commit()
+	except Exception as e:
+		log_error(title="Restart Code Server: start_code_server failed", data=e)
+		return {"error": "Failed to queue start job — check Error Log"}
+
+	return {"restarted": True, "status": "Pending"}
+
+
+@frappe.whitelist()
 def set_code_server_password_expiry_days(bench_name, days):
 	"""Set the per-CS override for how many days the password stays valid.
 

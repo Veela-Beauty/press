@@ -50,6 +50,12 @@
 									@click="rotateCodeServerPassword(bench)"
 									class="text-blue-600 hover:text-blue-800 underline"
 								>{{ rotateLoading[bench.name] ? 'Rotating…' : 'Rotate Now' }}</button>
+								<span class="text-gray-300">|</span>
+								<button
+									:disabled="restartLoading[bench.name]"
+									@click="restartCodeServer(bench)"
+									class="text-blue-600 hover:text-blue-800 underline"
+								>{{ restartLoading[bench.name] ? 'Restarting…' : 'Restart' }}</button>
 							</div>
 							<div class="flex items-center gap-1 text-xs text-gray-400">
 								<span>auto-rotate every</span>
@@ -64,12 +70,17 @@
 								<span>days</span>
 							</div>
 						</div>
-						<Button
-							v-else-if="codeServerStatus[bench.name]?.status === 'Pending'"
-							class="whitespace-nowrap"
-							:loading="true"
-							disabled
-						>Code Server starting…</Button>
+						<div
+							v-else-if="codeServerStatus[bench.name]?.exists && codeServerStatus[bench.name]?.status !== 'Running'"
+							class="flex flex-col items-end gap-1"
+						>
+							<span class="text-sm text-gray-500 italic whitespace-nowrap">Code Server {{ codeServerStatus[bench.name].status === 'Pending' ? 'starting…' : codeServerStatus[bench.name].status }}</span>
+							<button
+								:disabled="restartLoading[bench.name]"
+								@click="restartCodeServer(bench)"
+								class="text-xs text-blue-600 hover:text-blue-800 underline"
+							>{{ restartLoading[bench.name] ? 'Restarting…' : 'Restart Code Server' }}</button>
+						</div>
 						<Button
 							v-else
 							class="whitespace-nowrap"
@@ -130,6 +141,7 @@ export default {
 			codeServerStatus: {},
 			revealedPasswords: {},
 			rotateLoading: {},
+			restartLoading: {},
 			durationEdits: {},
 			benches: createListResource({
 				doctype: 'Bench',
@@ -291,6 +303,22 @@ export default {
 				await this.loadCodeServerStatuses(this.benches.data || []);
 			} catch (e) {
 				toast.error(e?.messages?.join(', ') || 'Failed to update duration');
+			}
+		},
+		async restartCodeServer(bench) {
+			this.restartLoading = { ...this.restartLoading, [bench.name]: true };
+			try {
+				await call(
+					'press.press.doctype.bench.bench_dev_overview.restart_code_server',
+					{ bench_name: bench.name },
+				);
+				toast.success('Code Server restart queued — should be back in 10–30 s');
+				// Re-poll after 8 s so the UI picks up the new state
+				setTimeout(() => this.loadCodeServerStatuses(this.benches.data || []), 8000);
+			} catch (e) {
+				toast.error(e?.messages?.join(', ') || 'Failed to restart Code Server');
+			} finally {
+				this.restartLoading = { ...this.restartLoading, [bench.name]: false };
 			}
 		},
 	},
