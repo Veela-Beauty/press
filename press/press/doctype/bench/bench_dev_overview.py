@@ -354,7 +354,13 @@ def setup_code_server(bench_name, subdomain):
 	"""Create and setup a Code Server for a bench."""
 	_ensure_team_access(bench_name=bench_name)
 	bench = frappe.get_doc("Bench", bench_name)
-	# Code Server is available for all benches in this Press instance
+	# Code Server is available for all benches in this Press instance.
+	# The Code Server doctype validate() requires Bench.is_code_server_enabled,
+	# so flip it on here. Keeping the flag honest — it is true because we are
+	# about to use it.
+	if not bench.is_code_server_enabled:
+		frappe.db.set_value("Bench", bench_name, "is_code_server_enabled", 1)
+		frappe.db.commit()
 	existing = frappe.db.exists("Code Server", {"bench": bench_name, "status": ["!=", "Archived"]})
 	if existing:
 		return {"error": f"Code Server already exists: {existing}"}
