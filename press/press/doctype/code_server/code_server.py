@@ -63,6 +63,7 @@ class CodeServer(Document):
 			agent.new_upstream_file(server=self.server, code_server=self.name)
 
 			self.password = frappe.generate_hash(length=40)
+			self.password_set_at = frappe.utils.now_datetime()
 			agent = Agent(self.server, server_type="Server")
 			agent.setup_code_server(self.bench, self.name, self.password)
 			self.save(ignore_permissions=True)
@@ -84,6 +85,7 @@ class CodeServer(Document):
 			self.status = "Pending"
 			agent = Agent(self.server, server_type="Server")
 			self.password = frappe.generate_hash(length=40)
+			self.password_set_at = frappe.utils.now_datetime()
 			agent.start_code_server(self.bench, self.name, self.password)
 			self.save(ignore_permissions=True)
 		except Exception as e:
@@ -107,6 +109,62 @@ class CodeServer(Document):
 			self.save(ignore_permissions=True)
 		except Exception as e:
 			log_error(title="Archive Code Server Failed", data=e)
+
+	def get_password_expiry_days(self) -> int:
+		"""Effective expiry window for this Code Server's password (in days).
+
+		Per-CS override wins over the Press Settings global default. 0 = never expire.
+		"""
+		override = int(self.password_expiry_days or 0)
+		if override > 0:
+			return override
+		return int(frappe.db.get_single_value("Press Settings", "code_server_password_expiry_days") or 0)
+
+	def get_password_expires_at(self):
+		"""Returns the datetime when this Code Server's password expires, or None if never."""
+		from datetime import timedelta
+		days = self.get_password_expiry_days()
+		if not days or not self.password_set_at:
+			return None
+		return frappe.utils.get_datetime(self.password_set_at) + timedelta(days=days)
+
+	def is_password_expired(self) -> bool:
+		expires_at = self.get_password_expires_at()
+		if not expires_at:
+			return False
+		return expires_at <= frappe.utils.now_datetime()
+
+	@frappe.whitelist()
+	def rotate_password(self):
+		"""Regenerate the password and restart code-server with it.
+
+		Password is a Password-type field — it must be written through
+		doc.save() so Frappe's encryption hook routes the value to __Auth.
+		To avoid Code Server.validate() blocking the save when
+		Bench.is_code_server_enabled has flapped (lesson 115), set
+		flags.ignore_validate = True for this one save. All other on_update
+		hooks still fire normally.
+		"""
+		if self.status == "Archived":
+			frappe.throw("Cannot rotate password on an archived Code Server")
+		new_password = frappe.generate_hash(length=40)
+		self.password = new_password
+		self.password_set_at = frappe.utils.now_datetime()
+		self.flags.ignore_validate = True
+		try:
+			self.save(ignore_permissions=True)
+		finally:
+			self.flags.ignore_validate = False
+		frappe.db.commit()
+		if self.status == "Running":
+			try:
+				agent = Agent(self.server, server_type="Server")
+				agent.start_code_server(self.bench, self.name, new_password)
+				frappe.db.set_value("Code Server", self.name, "status", "Pending", update_modified=False)
+				frappe.db.commit()
+			except Exception as e:
+				log_error(title="Rotate Code Server Password Failed", data=e)
+		return {"rotated": True, "password_set_at": str(self.password_set_at)}
 
 
 def process_new_code_server_job_update(job):
@@ -179,3 +237,28 @@ def release_name(name):
 	new_name = f"{name}.archived"
 	new_name = append_number_if_name_exists("Code Server", new_name, separator=".")
 	frappe.rename_doc("Code Server", name, new_name)
+
+
+
+def rotate_expired_code_server_passwords():
+	"""Scheduled job — rotate passwords on all Running Code Servers whose
+	expiry has passed. Global default comes from
+	Press Settings.code_server_password_expiry_days; per-server overrides via
+	Code Server.password_expiry_days.
+
+	Registered in hooks.py under scheduler_events.hourly.
+	"""
+	for name in frappe.db.get_all(
+		"Code Server",
+		filters={"status": "Running"},
+		pluck="name",
+	):
+		try:
+			doc = frappe.get_doc("Code Server", name)
+			if doc.is_password_expired():
+				doc.rotate_password()
+				frappe.logger("press").info(
+					f"Rotated expired Code Server password: {name}"
+				)
+		except Exception:
+			log_error(title="Rotate Expired Code Server Password Job Failed", code_server=name)

@@ -16,7 +16,9 @@
   "server",
   "cluster",
   "domain",
-  "password"
+  "password",
+  "password_set_at",
+  "password_expiry_days"
  ],
  "fields": [
   {
@@ -92,6 +94,19 @@
    "fieldtype": "Link",
    "label": "Cluster",
    "options": "Cluster"
+  },
+  {
+   "fieldname": "password_set_at",
+   "fieldtype": "Datetime",
+   "label": "Password Set At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "password_expiry_days",
+   "fieldtype": "Int",
+   "label": "Password Expiry Override (days)",
+   "description": "If set, overrides the global Press Settings default for THIS Code Server. Leave empty to use the global.",
+   "non_negative": 1
   }
  ],
  "index_web_pages_for_search": 1,

@@ -256,6 +256,8 @@ scheduler_events = {
 		"press.press.doctype.database_server.database_server.sync_binlogs_info",
 		"press.press.doctype.team.team.auto_enable_ssh_access_for_7_days_older_teams",
 		"press.press.doctype.database_server.database_server.update_database_schema_sizes",
+	
+		"press.press.doctype.code_server.code_server.rotate_expired_code_server_passwords",
 	],
 	"hourly_long": [
 		"press.press.doctype.release_group.release_group.prune_servers_without_sites",

@@ -157,6 +157,7 @@
   "github_app_public_link",
   "github_webhook_secret",
   "bench_internal_auth_secret",
+  "code_server_password_expiry_days",
   "github_access_token",
   "deploy_marker",
   "section_break_41",
@@ -879,6 +880,14 @@
    "fieldtype": "Password",
    "label": "Bench Internal Auth Secret (shared secret for bench-git-setup)",
    "description": "Shared between press-ctrl and press-f1 for in-bench git credential fetch. Rotate monthly."
+  },
+  {
+   "default": "3",
+   "description": "Code Server passwords auto-rotate this many days after they were set. 0 = never rotate. Individual Code Servers can override via their own password_expiry_days field.",
+   "fieldname": "code_server_password_expiry_days",
+   "fieldtype": "Int",
+   "label": "Code Server Password Expiry (days)",
+   "non_negative": 1
   },
   {
    "fieldname": "github_access_token",

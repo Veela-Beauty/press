@@ -333,20 +333,28 @@ def get_code_server_status(bench_name):
 	"""Return code-server status and URL for a bench (if one exists)."""
 	_ensure_team_access(bench_name=bench_name)
 	bench = frappe.get_doc("Bench", bench_name)
-	cs = frappe.db.get_value(
+	cs_row = frappe.db.get_value(
 		"Code Server",
 		{"bench": bench_name, "status": ["!=", "Archived"]},
-		["name", "status", "password"],
+		["name", "status", "password", "password_set_at", "password_expiry_days"],
 		as_dict=True,
 	)
-	return {
+	result = {
 		"enabled": bool(bench.is_code_server_enabled) or bool(bench.is_development_bench),
-		"exists": bool(cs),
-		"name": cs.name if cs else None,
-		"status": cs.status if cs else None,
-		"url": f"https://{cs.name}" if cs and cs.status == "Running" else None,
-		"password": cs.password if cs and cs.status == "Running" else None,
+		"exists": bool(cs_row),
+		"name": cs_row.name if cs_row else None,
+		"status": cs_row.status if cs_row else None,
+		"url": f"https://{cs_row.name}" if cs_row and cs_row.status == "Running" else None,
+		"password": cs_row.password if cs_row and cs_row.status == "Running" else None,
 	}
+	if cs_row:
+		# Always attach expiry info (even while Pending) so UI can render countdown
+		cs_doc = frappe.get_doc("Code Server", cs_row.name)
+		result["password_set_at"] = cs_row.password_set_at
+		result["password_expires_at"] = cs_doc.get_password_expires_at()
+		result["password_expiry_days"] = cs_doc.get_password_expiry_days()
+		result["password_is_expired"] = cs_doc.is_password_expired()
+	return result
 
 
 @frappe.whitelist()
@@ -611,3 +619,41 @@ def kill_db_process(site_name, process_id):
 		return bench.docker_execute(cmd)
 	except Exception as e:
 		return {"error": str(e)}
+
+
+
+@frappe.whitelist()
+def rotate_code_server_password(bench_name):
+	"""Rotate the Code Server password for this bench. Team-member access only."""
+	_ensure_team_access(bench_name=bench_name)
+	name = frappe.db.exists(
+		"Code Server", {"bench": bench_name, "status": ["!=", "Archived"]}
+	)
+	if not name:
+		return {"error": "No active Code Server for this bench"}
+	doc = frappe.get_doc("Code Server", name)
+	return doc.rotate_password()
+
+
+@frappe.whitelist()
+def set_code_server_password_expiry_days(bench_name, days):
+	"""Set the per-CS override for how many days the password stays valid.
+
+	Pass 0 (or empty) to clear the override — the global Press Settings default applies.
+	Team-member access only.
+	"""
+	_ensure_team_access(bench_name=bench_name)
+	try:
+		days_int = int(days or 0)
+	except (TypeError, ValueError):
+		frappe.throw("days must be an integer")
+	if days_int < 0:
+		frappe.throw("days must be zero or positive")
+	name = frappe.db.exists(
+		"Code Server", {"bench": bench_name, "status": ["!=", "Archived"]}
+	)
+	if not name:
+		return {"error": "No active Code Server for this bench"}
+	frappe.db.set_value("Code Server", name, "password_expiry_days", days_int)
+	frappe.db.commit()
+	return {"updated": True, "password_expiry_days": days_int}

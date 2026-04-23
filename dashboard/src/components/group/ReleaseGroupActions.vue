@@ -38,6 +38,31 @@
 								class="text-xs text-gray-500 hover:text-gray-900 font-mono whitespace-nowrap"
 								title="Click to copy password"
 							>{{ revealedPasswords[bench.name] ? codeServerStatus[bench.name].password : '••••••••••  copy password' }}</button>
+							<div
+								v-if="codeServerStatus[bench.name]?.password_expires_at"
+								class="flex items-center gap-2 text-xs whitespace-nowrap"
+							>
+								<span :class="codeServerStatus[bench.name]?.password_is_expired ? 'text-red-600 font-medium' : 'text-gray-500'">
+									⏲ {{ formatExpiry(codeServerStatus[bench.name].password_expires_at) }}
+								</span>
+								<button
+									:disabled="rotateLoading[bench.name]"
+									@click="rotateCodeServerPassword(bench)"
+									class="text-blue-600 hover:text-blue-800 underline"
+								>{{ rotateLoading[bench.name] ? 'Rotating…' : 'Rotate Now' }}</button>
+							</div>
+							<div class="flex items-center gap-1 text-xs text-gray-400">
+								<span>auto-rotate every</span>
+								<input
+									type="number"
+									min="0"
+									class="w-12 rounded border border-gray-200 px-1 py-0 text-right focus:border-blue-500 focus:outline-none"
+									v-model.number="durationEdits[bench.name]"
+									@blur="saveDuration(bench)"
+									@keyup.enter="saveDuration(bench)"
+								/>
+								<span>days</span>
+							</div>
 						</div>
 						<Button
 							v-else-if="codeServerStatus[bench.name]?.status === 'Pending'"
@@ -104,6 +129,8 @@ export default {
 			codeServerLoading: {},
 			codeServerStatus: {},
 			revealedPasswords: {},
+			rotateLoading: {},
+			durationEdits: {},
 			benches: createListResource({
 				doctype: 'Bench',
 				fields: ['name', 'status', 'is_development_bench'],
@@ -159,17 +186,22 @@ export default {
 		},
 		async loadCodeServerStatuses(benches) {
 			const statuses = {};
+			const durations = { ...this.durationEdits };
 			for (const b of benches) {
 				try {
 					statuses[b.name] = await call(
 						'press.press.doctype.bench.bench_dev_overview.get_code_server_status',
 						{ bench_name: b.name },
 					);
+					if (statuses[b.name]?.password_expiry_days != null) {
+						durations[b.name] = statuses[b.name].password_expiry_days;
+					}
 				} catch (e) {
 					statuses[b.name] = { enabled: false, exists: false, status: null };
 				}
 			}
 			this.codeServerStatus = statuses;
+			this.durationEdits = durations;
 		},
 		async launchCodeServer(bench) {
 			this.codeServerLoading = { ...this.codeServerLoading, [bench.name]: true };
@@ -216,6 +248,49 @@ export default {
 			} catch (e) {
 				toast.error('Could not copy — select and copy manually');
 				this.revealedPasswords = { ...this.revealedPasswords, [bench.name]: true };
+			}
+		},
+		formatExpiry(ts) {
+			if (!ts) return '';
+			const target = new Date(ts);
+			const diff = target - new Date();
+			if (diff <= 0) return 'expired — rotating on next check';
+			const days = Math.floor(diff / 86400000);
+			const hours = Math.floor((diff % 86400000) / 3600000);
+			const minutes = Math.floor((diff % 3600000) / 60000);
+			if (days > 0) return `expires in ${days}d ${hours}h`;
+			if (hours > 0) return `expires in ${hours}h ${minutes}m`;
+			return `expires in ${minutes}m`;
+		},
+		async rotateCodeServerPassword(bench) {
+			if (!confirm('Rotate the Code Server password now?\\nAny active browser session will be disconnected.')) return;
+			this.rotateLoading = { ...this.rotateLoading, [bench.name]: true };
+			try {
+				await call(
+					'press.press.doctype.bench.bench_dev_overview.rotate_code_server_password',
+					{ bench_name: bench.name },
+				);
+				toast.success('Password rotated');
+				await this.loadCodeServerStatuses(this.benches.data || []);
+			} catch (e) {
+				toast.error(e?.messages?.join(', ') || 'Failed to rotate password');
+			} finally {
+				this.rotateLoading = { ...this.rotateLoading, [bench.name]: false };
+			}
+		},
+		async saveDuration(bench) {
+			const cur = this.codeServerStatus[bench.name]?.password_expiry_days;
+			const newVal = Number(this.durationEdits[bench.name]);
+			if (Number.isNaN(newVal) || newVal < 0 || newVal === cur) return;
+			try {
+				await call(
+					'press.press.doctype.bench.bench_dev_overview.set_code_server_password_expiry_days',
+					{ bench_name: bench.name, days: newVal },
+				);
+				toast.success(`Auto-rotate set to ${newVal} day${newVal === 1 ? '' : 's'}`);
+				await this.loadCodeServerStatuses(this.benches.data || []);
+			} catch (e) {
+				toast.error(e?.messages?.join(', ') || 'Failed to update duration');
 			}
 		},
 	},
