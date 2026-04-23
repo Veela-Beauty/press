@@ -22,13 +22,33 @@
 							}}
 						</p>
 					</div>
-					<Button
-						class="whitespace-nowrap"
-						:loading="devLoading[bench.name]"
-						@click="toggleDevBench(bench)"
-					>
-						<p>{{ bench.is_development_bench ? 'Unset Dev Bench' : 'Mark Dev Bench' }}</p>
-					</Button>
+					<div class="flex items-center gap-2">
+						<a
+							v-if="codeServerStatus[bench.name]?.status === 'Running' && codeServerStatus[bench.name]?.url"
+							:href="codeServerStatus[bench.name].url"
+							target="_blank"
+							class="inline-flex items-center gap-1 rounded border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-100 whitespace-nowrap"
+						>✓ Open Code Server ↗</a>
+						<Button
+							v-else-if="codeServerStatus[bench.name]?.status === 'Pending'"
+							class="whitespace-nowrap"
+							:loading="true"
+							disabled
+						>Code Server starting…</Button>
+						<Button
+							v-else
+							class="whitespace-nowrap"
+							:loading="codeServerLoading[bench.name]"
+							@click="launchCodeServer(bench)"
+						>Launch Code Server</Button>
+						<Button
+							class="whitespace-nowrap"
+							:loading="devLoading[bench.name]"
+							@click="toggleDevBench(bench)"
+						>
+							<p>{{ bench.is_development_bench ? 'Unset Dev Bench' : 'Mark Dev Bench' }}</p>
+						</Button>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -71,12 +91,15 @@ export default {
 	data() {
 		return {
 			devLoading: {},
+			codeServerLoading: {},
+			codeServerStatus: {},
 			benches: createListResource({
 				doctype: 'Bench',
 				fields: ['name', 'status', 'is_development_bench'],
 				filters: { group: this.releaseGroup, status: ['not in', ['Archived']] },
 				orderBy: 'creation desc',
 				auto: true,
+				onSuccess: (data) => this.loadCodeServerStatuses(data),
 			}),
 		};
 	},
@@ -121,6 +144,51 @@ export default {
 				toast.error(e?.messages?.join(', ') || 'Failed to update bench');
 			} finally {
 				this.devLoading = { ...this.devLoading, [bench.name]: false };
+			}
+		},
+		async loadCodeServerStatuses(benches) {
+			const statuses = {};
+			for (const b of benches) {
+				try {
+					statuses[b.name] = await call(
+						'press.press.doctype.bench.bench_dev_overview.get_code_server_status',
+						{ bench_name: b.name },
+					);
+				} catch (e) {
+					statuses[b.name] = { enabled: false, exists: false, status: null };
+				}
+			}
+			this.codeServerStatus = statuses;
+		},
+		async launchCodeServer(bench) {
+			this.codeServerLoading = { ...this.codeServerLoading, [bench.name]: true };
+			const subdomain = `code-${bench.name.replace(/[^a-z0-9]/g, '-').slice(0, 30)}`;
+			try {
+				const res = await call(
+					'press.press.doctype.bench.bench_dev_overview.setup_code_server',
+					{ bench_name: bench.name, subdomain },
+				);
+				if (res?.error) {
+					toast.error(res.error);
+				} else {
+					toast.success('Code Server setup started');
+					this.loadCodeServerStatuses(this.benches.data || []);
+				}
+			} catch (e) {
+				toast.error(e?.messages?.join(', ') || 'Failed to launch Code Server');
+			} finally {
+				this.codeServerLoading = { ...this.codeServerLoading, [bench.name]: false };
+			}
+		},
+		async refreshCodeServerStatus(bench) {
+			try {
+				const s = await call(
+					'press.press.doctype.bench.bench_dev_overview.get_code_server_status',
+					{ bench_name: bench.name },
+				);
+				this.codeServerStatus = { ...this.codeServerStatus, [bench.name]: s };
+			} catch (e) {
+				// ignore
 			}
 		},
 	},
