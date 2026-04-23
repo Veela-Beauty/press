@@ -283,6 +283,17 @@ class Bench(Document):
 
 		self.set_apps(candidate)
 
+		# Lesson 115 invariant: if an active Code Server depends on this bench,
+		# is_code_server_enabled MUST remain 1. Without this, stray bench.save()
+		# calls from schedulers/API paths quietly revert the flag — the agent then
+		# regenerates supervisor.conf without the [program:code-server] block and
+		# the running code-server process dies on next bench update.
+		if not self.is_new() and not self.is_code_server_enabled:
+			if frappe.db.exists(
+				"Code Server", {"bench": self.name, "status": ["!=", "Archived"]}
+			):
+				self.is_code_server_enabled = 1
+
 		if self.is_new():
 			self.port_offset = self.get_unused_port_offset()
 
