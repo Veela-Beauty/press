@@ -96,6 +96,81 @@
 						</Button>
 					</div>
 				</div>
+
+				<!-- Bench Quick Actions (matches SiteDevTab styling) -->
+				<div class="mt-4 flex flex-wrap gap-3">
+					<!-- Code Server: Open (Running) / Launch (none) / Starting (Pending) -->
+					<a v-if="codeServerStatus[bench.name]?.can_use && codeServerStatus[bench.name]?.status === 'Running' && codeServerStatus[bench.name]?.url"
+						:href="codeServerStatus[bench.name].url" target="_blank"
+						class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700 shadow-sm transition-colors hover:border-green-400">
+						<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+							<path d="M16.5 3L21 7.5 9 19.5 3 15l13.5-12z"/><path d="M12 7.5L16.5 12"/><path d="M3 15l4.5-4.5"/>
+						</svg>
+						<span>
+							<span class="block text-sm font-semibold">Open Code Server</span>
+							<span class="block text-xs text-green-500">{{ codeServerStatus[bench.name].name }} · Running</span>
+						</span>
+						<svg class="ml-auto h-3.5 w-3.5 text-green-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+							<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+						</svg>
+					</a>
+					<button v-else-if="codeServerStatus[bench.name]?.can_use && !codeServerStatus[bench.name]?.exists && codeServerStatus[bench.name]?.status !== 'Pending'"
+						@click="launchCodeServer(bench)" :disabled="codeServerLoading[bench.name]"
+						class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 shadow-sm transition-colors hover:border-blue-400 disabled:opacity-50">
+						<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+							<path d="M16.5 3L21 7.5 9 19.5 3 15l13.5-12z"/><path d="M12 7.5L16.5 12"/><path d="M3 15l4.5-4.5"/>
+						</svg>
+						<span>
+							<span class="block text-sm font-semibold">{{ codeServerLoading[bench.name] ? 'Setting up…' : 'Launch Code Server' }}</span>
+							<span class="block text-xs text-blue-400">Per-user web VS Code for this bench</span>
+						</span>
+					</button>
+					<div v-else-if="codeServerStatus[bench.name]?.can_use && codeServerStatus[bench.name]?.exists && codeServerStatus[bench.name]?.status === 'Pending'"
+						class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm font-medium text-yellow-700">
+						<svg class="h-5 w-5 flex-shrink-0 animate-spin" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+							<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+						</svg>
+						<span>
+							<span class="block text-sm font-semibold">Code Server Starting…</span>
+							<span class="block text-xs text-yellow-500">{{ codeServerStatus[bench.name].name }}</span>
+						</span>
+					</div>
+
+					<!-- Local VS Code (SSH Remote) -->
+					<a v-if="devInfos[bench.name]?.has_ssh_key" :href="localVscodeUrl(bench)"
+						class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-purple-400 hover:text-purple-600">
+						<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+							<rect x="2" y="3" width="20" height="18" rx="2"/><path d="M8 10l3 3-3 3"/><line x1="14" y1="16" x2="18" y2="16"/>
+						</svg>
+						<span>
+							<span class="block text-sm font-semibold">Local VS Code</span>
+							<span class="block text-xs text-gray-400">SSH Remote → {{ devInfos[bench.name].server_ip }}:{{ devInfos[bench.name].ssh_port }}</span>
+						</span>
+					</a>
+					<a v-else-if="devInfos[bench.name] && !devInfos[bench.name].has_ssh_key" href="/dashboard/settings/developer"
+						class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm font-medium text-yellow-700 shadow-sm transition-colors hover:border-yellow-400">
+						<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+							<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+						</svg>
+						<span>
+							<span class="block text-sm font-semibold">Setup SSH Key</span>
+							<span class="block text-xs text-yellow-600">Required for Local VS Code</span>
+						</span>
+					</a>
+
+					<!-- Restart Bench -->
+					<button @click="restartBench(bench)" :disabled="benchRestartLoading[bench.name]"
+						class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-orange-400 hover:text-orange-600"
+						:class="{ 'cursor-not-allowed opacity-60': benchRestartLoading[bench.name] }">
+						<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+							<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+						</svg>
+						<span>
+							<span class="block text-sm font-semibold">{{ benchRestartLoading[bench.name] ? 'Restarting…' : 'Restart Bench' }}</span>
+							<span class="block text-xs text-gray-400">Restart all bench workers</span>
+						</span>
+					</button>
+				</div>
 			</div>
 		</div>
 
@@ -139,9 +214,11 @@ export default {
 			devLoading: {},
 			codeServerLoading: {},
 			codeServerStatus: {},
+			devInfos: {},
 			revealedPasswords: {},
 			rotateLoading: {},
 			restartLoading: {},
+			benchRestartLoading: {},
 			durationEdits: {},
 			benches: createListResource({
 				doctype: 'Bench',
@@ -149,7 +226,10 @@ export default {
 				filters: { group: this.releaseGroup, status: ['not in', ['Archived']] },
 				orderBy: 'creation desc',
 				auto: true,
-				onSuccess: (data) => this.loadCodeServerStatuses(data),
+				onSuccess: (data) => {
+					this.loadCodeServerStatuses(data);
+					this.loadBenchDevInfos(data);
+				},
 			}),
 		};
 	},
@@ -219,6 +299,42 @@ export default {
 			this.codeServerStatus = statuses;
 			this.durationEdits = durations;
 		},
+		async loadBenchDevInfos(benches) {
+			const infos = {};
+			for (const b of benches) {
+				try {
+					infos[b.name] = await call(
+						'press.press.doctype.bench.bench_dev_overview.get_bench_dev_info',
+						{ bench_name: b.name },
+					);
+				} catch (e) {
+					// Fail-open: leave devInfos[b.name] null so the SSH Key warning card hides.
+					infos[b.name] = null;
+				}
+			}
+			this.devInfos = infos;
+		},
+		localVscodeUrl(bench) {
+			const info = this.devInfos[bench.name];
+			if (!info) return '#';
+			return `vscode://vscode-remote/ssh-remote+frappe@${info.server_ip}:${info.ssh_port}${info.bench_path}/apps`;
+		},
+		async restartBench(bench) {
+			if (!confirm(`Restart ALL workers on ${bench.name}?\\nAny in-flight jobs on sites hosted by this bench will be interrupted.`)) return;
+			this.benchRestartLoading = { ...this.benchRestartLoading, [bench.name]: true };
+			try {
+				await call(
+					'press.press.doctype.bench.bench_dev_overview.restart_bench_for_site',
+					{ bench_name: bench.name },
+				);
+				toast.success('Bench restarted');
+			} catch (e) {
+				toast.error(e?.messages?.join(', ') || 'Failed to restart bench');
+			} finally {
+				this.benchRestartLoading = { ...this.benchRestartLoading, [bench.name]: false };
+			}
+		},
+
 		async launchCodeServer(bench) {
 			this.codeServerLoading = { ...this.codeServerLoading, [bench.name]: true };
 			const subdomain = `code-${bench.name.replace(/[^a-z0-9]/g, '-').slice(0, 30)}`;
@@ -232,6 +348,7 @@ export default {
 				} else {
 					toast.success('Code Server setup started');
 					this.loadCodeServerStatuses(this.benches.data || []);
+				this.loadBenchDevInfos(this.benches.data || []);
 				}
 			} catch (e) {
 				toast.error(e?.messages?.join(', ') || 'Failed to launch Code Server');
