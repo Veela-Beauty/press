@@ -308,6 +308,76 @@ def get_app_git_status(bench_name, site_name=None):
 
 
 @frappe.whitelist()
+def get_ssh_certificate(bench_name):
+	"""Return the user's current SSH certificate status for this bench's release group.
+
+	Shape:
+	  {
+	    "has_ssh_key": bool,              # user has a User SSH Key registered
+	    "has_valid_cert": bool,           # user has an unexpired cert for this RG
+	    "cert_name": str | None,          # CERT-NNNNNNNN
+	    "valid_until": str | None,        # ISO datetime, UTC
+	    "expires_in_seconds": int,        # 0 if expired / no cert
+	    "certificate": str | None,        # full cert content (for download)
+	    "principal": str,                 # the release group name (= SSH principal)
+	  }
+	Used by the Bench Actions page to decide Local VS Code card state.
+	"""
+	_ensure_team_access(bench_name=bench_name)
+	bench = frappe.get_doc("Bench", bench_name)
+	rg = frappe.get_doc("Release Group", bench.group)
+
+	has_ssh_key = bool(frappe.db.get_all(
+		"User SSH Key",
+		{"user": frappe.session.user, "is_default": 1, "is_disabled": 0, "is_removed": 0},
+		limit=1,
+	))
+	result = {
+		"has_ssh_key": has_ssh_key,
+		"has_valid_cert": False,
+		"cert_name": None,
+		"valid_until": None,
+		"expires_in_seconds": 0,
+		"certificate": None,
+		"principal": rg.name,
+	}
+	if not has_ssh_key:
+		return result
+
+	cert = rg.get_certificate()
+	if not cert:
+		return result
+
+	valid_until = frappe.utils.get_datetime(cert.valid_until)
+	now = frappe.utils.now_datetime()
+	expires_in = max(0, int((valid_until - now).total_seconds()))
+	result.update({
+		"has_valid_cert": expires_in > 0,
+		"cert_name": cert.name,
+		"valid_until": str(cert.valid_until),
+		"expires_in_seconds": expires_in,
+		"certificate": cert.ssh_certificate,
+	})
+	return result
+
+
+@frappe.whitelist()
+def generate_ssh_certificate(bench_name):
+	"""Mint a new SSH certificate for the caller + this bench's release group.
+
+	Delegates to ReleaseGroup.generate_certificate which enforces team.ssh_access_enabled
+	and the ReleaseGroupActions.SSHAccess role guard. Returns the same shape as
+	get_ssh_certificate so the UI can unify its handling.
+	"""
+	_ensure_team_access(bench_name=bench_name)
+	bench = frappe.get_doc("Bench", bench_name)
+	rg = frappe.get_doc("Release Group", bench.group)
+	rg.generate_certificate()
+	frappe.db.commit()
+	return get_ssh_certificate(bench_name)
+
+
+@frappe.whitelist()
 def get_bench_dev_info(bench_name):
 	"""Return server IP, SSH port, and SSH access state for a bench (used by VS Code links)."""
 	_ensure_team_access(bench_name=bench_name)

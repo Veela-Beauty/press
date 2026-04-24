@@ -136,18 +136,36 @@
 						</span>
 					</div>
 
-					<!-- Local VS Code (SSH Remote) -->
-					<a v-if="devInfos[bench.name]?.has_ssh_key" :href="localVscodeUrl(bench)"
+					<!-- Local VS Code (SSH Remote) — 3 states: no key / no cert / valid cert -->
+					<a v-if="sshCerts[bench.name]?.has_valid_cert" :href="localVscodeUrl(bench)"
 						class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-purple-400 hover:text-purple-600">
 						<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
 							<rect x="2" y="3" width="20" height="18" rx="2"/><path d="M8 10l3 3-3 3"/><line x1="14" y1="16" x2="18" y2="16"/>
 						</svg>
 						<span>
 							<span class="block text-sm font-semibold">Local VS Code</span>
-							<span class="block text-xs text-gray-400">SSH Remote → {{ devInfos[bench.name].server_ip }}:{{ devInfos[bench.name].ssh_port }}</span>
+							<span class="block text-xs text-gray-400">SSH Remote → {{ devInfos[bench.name]?.server_ip }}:{{ devInfos[bench.name]?.ssh_port }}</span>
+							<span class="block text-xs" :class="sshCerts[bench.name].expires_in_seconds < 1800 ? 'text-orange-600' : 'text-gray-400'">
+								⏲ cert {{ formatCertExpiry(sshCerts[bench.name].expires_in_seconds) }}
+								<button v-if="sshCerts[bench.name].expires_in_seconds < 1800"
+									@click.prevent="generateCert(bench)" :disabled="certGenLoading[bench.name]"
+									class="ml-2 text-orange-700 underline">Renew</button>
+							</span>
 						</span>
 					</a>
-					<a v-else-if="devInfos[bench.name] && !devInfos[bench.name].has_ssh_key" href="/dashboard/settings/developer"
+					<button v-else-if="sshCerts[bench.name]?.has_ssh_key && !sshCerts[bench.name]?.has_valid_cert"
+						@click="generateCert(bench)" :disabled="certGenLoading[bench.name]"
+						class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-medium text-orange-700 shadow-sm transition-colors hover:border-orange-400 disabled:opacity-50">
+						<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+							<path d="M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2z"/>
+							<path d="M8 11V7a4 4 0 1 1 8 0v4"/>
+						</svg>
+						<span>
+							<span class="block text-sm font-semibold">{{ certGenLoading[bench.name] ? 'Generating…' : 'Generate SSH Certificate' }}</span>
+							<span class="block text-xs text-orange-500">One-click mint + download for {{ sshCerts[bench.name]?.principal }}</span>
+						</span>
+					</button>
+					<a v-else-if="sshCerts[bench.name] && !sshCerts[bench.name]?.has_ssh_key" href="/dashboard/settings/developer"
 						class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm font-medium text-yellow-700 shadow-sm transition-colors hover:border-yellow-400">
 						<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
 							<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -215,6 +233,8 @@ export default {
 			codeServerLoading: {},
 			codeServerStatus: {},
 			devInfos: {},
+			sshCerts: {},
+			certGenLoading: {},
 			revealedPasswords: {},
 			rotateLoading: {},
 			restartLoading: {},
@@ -229,6 +249,7 @@ export default {
 				onSuccess: (data) => {
 					this.loadCodeServerStatuses(data);
 					this.loadBenchDevInfos(data);
+					this.loadSshCerts(data);
 				},
 			}),
 		};
@@ -314,6 +335,56 @@ export default {
 			}
 			this.devInfos = infos;
 		},
+		async loadSshCerts(benches) {
+			const certs = {};
+			for (const b of benches) {
+				try {
+					certs[b.name] = await call(
+						'press.press.doctype.bench.bench_dev_overview.get_ssh_certificate',
+						{ bench_name: b.name },
+					);
+				} catch (e) {
+					certs[b.name] = null;
+				}
+			}
+			this.sshCerts = certs;
+		},
+		formatCertExpiry(secs) {
+			if (!secs || secs <= 0) return 'expired';
+			const h = Math.floor(secs / 3600);
+			const m = Math.floor((secs % 3600) / 60);
+			if (h > 0) return `expires in ${h}h ${m}m`;
+			return `expires in ${m}m`;
+		},
+		async generateCert(bench) {
+			if (this.certGenLoading[bench.name]) return;
+			this.certGenLoading = { ...this.certGenLoading, [bench.name]: true };
+			try {
+				const result = await call(
+					'press.press.doctype.bench.bench_dev_overview.generate_ssh_certificate',
+					{ bench_name: bench.name },
+				);
+				this.sshCerts = { ...this.sshCerts, [bench.name]: result };
+				// Trigger browser download of the cert as id_ed25519-cert.pub
+				if (result?.certificate) {
+					const blob = new Blob([result.certificate], { type: 'text/plain' });
+					const url = URL.createObjectURL(blob);
+					const a = document.createElement('a');
+					a.href = url;
+					a.download = 'id_ed25519-cert.pub';
+					document.body.appendChild(a);
+					a.click();
+					document.body.removeChild(a);
+					URL.revokeObjectURL(url);
+				}
+				toast.success(`Certificate minted for ${result.principal}. Save id_ed25519-cert.pub next to your private key.`);
+			} catch (e) {
+				toast.error(e?.messages?.join(', ') || 'Failed to generate SSH certificate');
+			} finally {
+				this.certGenLoading = { ...this.certGenLoading, [bench.name]: false };
+			}
+		},
+
 		localVscodeUrl(bench) {
 			const info = this.devInfos[bench.name];
 			if (!info) return '#';
@@ -349,6 +420,7 @@ export default {
 					toast.success('Code Server setup started');
 					this.loadCodeServerStatuses(this.benches.data || []);
 				this.loadBenchDevInfos(this.benches.data || []);
+				this.loadSshCerts(this.benches.data || []);
 				}
 			} catch (e) {
 				toast.error(e?.messages?.join(', ') || 'Failed to launch Code Server');
