@@ -227,3 +227,28 @@ def user_has_roles() -> bool:
 		.pop()
 		.get("role_count", 0)
 	) > 0
+
+
+def has_role_flag_on_team(user: str, team: str, flag: str) -> bool:
+	"""True if `user` belongs to any Press Role on `team` with `flag = 1`.
+
+	`flag` is a column name — callers must pass a value from the allow_*
+	allowlist. Parameterising a column name is not supported by the DB
+	driver; we interpolate via f-string after strict allowlist validation.
+	"""
+	allowed = {
+		"allow_manage_team_roles",
+		"allow_manage_team_members",
+		"allow_invite_team_members",
+	}
+	if flag not in allowed:
+		raise ValueError(f"has_role_flag_on_team: flag {flag!r} not in allowlist")
+
+	import frappe
+	return bool(frappe.db.sql(f"""
+		SELECT 1
+		  FROM `tabPress Role` pr
+		  JOIN `tabPress Role User` pru ON pru.parent = pr.name
+		 WHERE pr.team = %s AND pru.user = %s AND pr.`{flag}` = 1
+		 LIMIT 1
+	""", (team, user)))

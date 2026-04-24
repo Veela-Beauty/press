@@ -412,8 +412,93 @@ class Team(Document):
 				skip_validations=skip_validations,
 			)
 
+	def can_manage_team(self, action: str, target_user: str | None = None) -> bool:
+		"""Permission gate for team-admin actions.
+
+		action in {'invite', 'remove', 'change_role'}.
+		Team owner always passes. Otherwise session.user must have a Press Role
+		on this team with the matching allow_* flag. target_user must not be
+		the team owner for 'remove' or 'change_role' (owner protection).
+		"""
+		user = frappe.session.user
+		# Owner-protection first: nobody (not even the owner) can remove the
+		# owner or change the owner's role via this path.
+		if action in ("remove", "change_role") and target_user == self.user:
+			return False
+		if user == self.user:
+			return True
+		flag_by_action = {
+			"invite":      "allow_invite_team_members",
+			"remove":      "allow_manage_team_members",
+			"change_role": "allow_manage_team_roles",
+		}
+		flag = flag_by_action.get(action)
+		if not flag:
+			raise ValueError(f"can_manage_team: unknown action {action!r}")
+		from press.press.doctype.press_role.press_role import has_role_flag_on_team
+		return has_role_flag_on_team(user=user, team=self.name, flag=flag)
+
+	@dashboard_whitelist()
+	def get_team_manage_permissions(self):
+		"""Return action permissions + caller's role level for UI conditional rendering."""
+		from press.press.doctype.team.team_roles import get_role_level, get_user_role
+		user = frappe.session.user
+		caller_role = "Platform Admin" if user == self.user else get_user_role(team=self.name)
+		return {
+			"invite":        self.can_manage_team("invite"),
+			"remove":        self.can_manage_team("remove"),
+			"change_role":   self.can_manage_team("change_role"),
+			"my_role":       caller_role,
+			"my_role_level": get_role_level(caller_role),
+		}
+
+	@dashboard_whitelist()
+	def set_team_member_role(self, member: str, new_role: str):
+		"""Change a team member's press_role. Owner-protected + ceiling-enforced."""
+		from frappe import _
+		from press.press.doctype.team.team_roles import PRESS_ROLES, get_role_level, get_user_role
+
+		if not self.can_manage_team("change_role", target_user=member):
+			frappe.throw(
+				_("You do not have permission to change member roles, "
+				  "or this member is the team owner (owner's role is protected)."),
+				frappe.PermissionError,
+			)
+
+		if new_role not in PRESS_ROLES:
+			frappe.throw(_("Invalid role: {0}").format(new_role), frappe.ValidationError)
+
+		if frappe.session.user != self.user:
+			caller_role = get_user_role(team=self.name)
+			if get_role_level(new_role) > get_role_level(caller_role):
+				frappe.throw(
+					_("You cannot assign a role higher than your own ({0}).").format(caller_role),
+					frappe.PermissionError,
+				)
+
+		member_row = frappe.db.get_value(
+			"Team Member", {"parent": self.name, "user": member}, "name",
+		)
+		if not member_row:
+			frappe.throw(_("User {0} is not a member of this team.").format(member), frappe.ValidationError)
+
+		# Save via the child doc (not db.set_value) so track_changes generates a
+		# Version record — that's our audit trail for role changes.
+		member_doc = frappe.get_doc("Team Member", member_row)
+		member_doc.press_role = new_role
+		member_doc.save(ignore_permissions=True)
+		frappe.db.commit()
+		return {"ok": True, "role": new_role}
+
+
 	@dashboard_whitelist()
 	def remove_team_member(self, member):
+		if not self.can_manage_team("remove", target_user=member):
+			frappe.throw(
+				_("You do not have permission to remove this member, "
+				  "or this member is the team owner (owner cannot be removed)."),
+				frappe.PermissionError,
+			)
 		member_to_remove = find(self.team_members, lambda x: x.user == member)
 		if member_to_remove:
 			self.remove(member_to_remove)
@@ -922,8 +1007,13 @@ class Team(Document):
 			.where(PressRole.admin_access == 1)
 		)
 
-		if not is_system_user() and frappe.session.user != self.user and not has_admin_access.run():
-			frappe.throw(_("Only team owner or admins can invite team members"))
+		if not (
+			is_system_user()
+			or frappe.session.user == self.user
+			or has_admin_access.run()
+			or self.can_manage_team("invite")
+		):
+			frappe.throw(_("You do not have permission to invite team members."))
 
 		frappe.utils.validate_email_address(email, True)
 

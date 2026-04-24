@@ -88,6 +88,9 @@ const props = withDefaults(
 		allow_apps?: number;
 		allow_billing?: number;
 		allow_partner?: number;
+		allow_invite_team_members?: number;
+		allow_manage_team_members?: number;
+		allow_manage_team_roles?: number;
 		allow_server_creation?: number;
 		allow_site_creation?: number;
 		allow_webhook_configuration?: number;
@@ -106,6 +109,9 @@ const props = withDefaults(
 		allow_apps: 0,
 		allow_billing: 0,
 		allow_partner: 0,
+		allow_invite_team_members: 0,
+		allow_manage_team_members: 0,
+		allow_manage_team_roles: 0,
 		allow_server_creation: 0,
 		allow_site_creation: 0,
 		allow_webhook_configuration: 0,
@@ -158,6 +164,18 @@ const permissionsGeneral = [
 	{
 		key: 'allow_partner',
 		label: 'Partner Management',
+	},
+	{
+		key: 'allow_invite_team_members',
+		label: 'Invite Team Members',
+	},
+	{
+		key: 'allow_manage_team_members',
+		label: 'Remove Team Members',
+	},
+	{
+		key: 'allow_manage_team_roles',
+		label: 'Change Member Roles',
 	},
 ];
 

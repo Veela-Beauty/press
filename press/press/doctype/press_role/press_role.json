@@ -128,6 +128,32 @@
    "search_index": 1
   },
   {
+   "fieldname": "team_management_section",
+   "fieldtype": "Section Break",
+   "label": "Team Management"
+  },
+  {
+   "fieldname": "allow_manage_team_roles",
+   "fieldtype": "Check",
+   "label": "Allow changing member roles",
+   "default": 0,
+   "description": "Members with this role can change other members' press_role up to their own ceiling."
+  },
+  {
+   "fieldname": "allow_manage_team_members",
+   "fieldtype": "Check",
+   "label": "Allow removing members",
+   "default": 0,
+   "description": "Members with this role can remove other members (never the team owner)."
+  },
+  {
+   "fieldname": "allow_invite_team_members",
+   "fieldtype": "Check",
+   "label": "Allow inviting new members",
+   "default": 0,
+   "description": "Members with this role can send invite emails and choose the invitee's starting role."
+  },
+  {
    "depends_on": "allow_partner",
    "fieldname": "partner_permissions_section",
    "fieldtype": "Section Break",

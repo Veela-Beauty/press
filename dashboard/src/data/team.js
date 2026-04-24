@@ -11,6 +11,8 @@ export function getTeam() {
 			whitelistedMethods: {
 				getTeamMembers: 'get_team_members',
 				inviteTeamMember: 'invite_team_member',
+				setTeamMemberRole: 'set_team_member_role',
+				getTeamManagePermissions: 'get_team_manage_permissions',
 				removeTeamMember: 'remove_team_member',
 			},
 		});
