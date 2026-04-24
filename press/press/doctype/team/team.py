@@ -1401,8 +1401,15 @@ def get_team_members(team):
 	if not frappe.db.exists("Team", team):
 		return []
 
-	r = frappe.db.get_all("Team Member", filters={"parent": team}, fields=["user"])
-	member_emails = [d.user for d in r]
+	# Fetch Team Member rows with their press_role — keyed by user email so we
+	# can splice it back into the User-profile SQL result below.
+	tm_rows = frappe.db.get_all(
+		"Team Member",
+		filters={"parent": team},
+		fields=["user", "press_role"],
+	)
+	member_emails = [d.user for d in tm_rows]
+	press_role_by_email = {d.user: (d.press_role or "") for d in tm_rows}
 
 	users = []
 	if member_emails:
@@ -1427,6 +1434,7 @@ def get_team_members(team):
 		)
 		for user in users:
 			user.roles = (user.roles or "").split(",")
+			user.press_role = press_role_by_email.get(user.name, "")
 
 	return users
 
