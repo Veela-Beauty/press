@@ -311,53 +311,44 @@ def get_app_git_status(bench_name, site_name=None):
 def get_ssh_certificate(bench_name):
 	"""Return the user's current SSH certificate status for this bench's release group.
 
+	Iterates ALL the user's enabled keys (not just default) and returns data for the
+	first key with a non-expired cert. Default key wins on ties. If no key has a
+	valid cert, returns has_valid_cert=False with the default key's label as a hint.
+
 	Shape:
-	  {
-	    "has_ssh_key": bool,              # user has a User SSH Key registered
-	    "has_valid_cert": bool,           # user has an unexpired cert for this RG
-	    "cert_name": str | None,          # CERT-NNNNNNNN
-	    "valid_until": str | None,        # ISO datetime, UTC
-	    "expires_in_seconds": int,        # 0 if expired / no cert
-	    "certificate": str | None,        # full cert content (for download)
-	    "principal": str,                 # the release group name (= SSH principal)
-	  }
+	  {has_ssh_key, has_valid_cert, cert_name, valid_until, expires_in_seconds,
+	   certificate, principal, key_label}
 	Used by the Bench Actions page to decide Local VS Code card state.
 	"""
 	_ensure_team_access(bench_name=bench_name)
 	bench = frappe.get_doc("Bench", bench_name)
 	rg = frappe.get_doc("Release Group", bench.group)
-
-	has_ssh_key = bool(frappe.db.get_all(
+	# Default key first — wins ties, and surfaces the right label when no cert is valid.
+	keys = frappe.db.get_all(
 		"User SSH Key",
-		{"user": frappe.session.user, "is_default": 1, "is_disabled": 0, "is_removed": 0},
-		limit=1,
-	))
+		{"user": frappe.session.user, "is_disabled": 0, "is_removed": 0},
+		fields=["name", "label"],
+		order_by="is_default desc, creation asc",
+	)
 	result = {
-		"has_ssh_key": has_ssh_key,
-		"has_valid_cert": False,
-		"cert_name": None,
-		"valid_until": None,
-		"expires_in_seconds": 0,
-		"certificate": None,
-		"principal": rg.name,
+		"has_ssh_key": bool(keys), "has_valid_cert": False, "cert_name": None,
+		"valid_until": None, "expires_in_seconds": 0, "certificate": None,
+		"principal": rg.name, "key_label": keys[0].label if keys else None,
 	}
-	if not has_ssh_key:
-		return result
-
-	cert = rg.get_certificate()
-	if not cert:
-		return result
-
-	valid_until = frappe.utils.get_datetime(cert.valid_until)
 	now = frappe.utils.now_datetime()
-	expires_in = max(0, int((valid_until - now).total_seconds()))
-	result.update({
-		"has_valid_cert": expires_in > 0,
-		"cert_name": cert.name,
-		"valid_until": str(cert.valid_until),
-		"expires_in_seconds": expires_in,
-		"certificate": cert.ssh_certificate,
-	})
+	for key in keys:
+		cert = rg.get_certificate(ssh_key_name=key.name)
+		if not cert:
+			continue
+		expires_in = max(0, int((frappe.utils.get_datetime(cert.valid_until) - now).total_seconds()))
+		if expires_in <= 0:
+			continue
+		result.update({
+			"has_valid_cert": True, "cert_name": cert.name,
+			"valid_until": str(cert.valid_until), "expires_in_seconds": expires_in,
+			"certificate": cert.ssh_certificate, "key_label": key.label,
+		})
+		break
 	return result
 
 

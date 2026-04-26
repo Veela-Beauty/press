@@ -219,6 +219,96 @@ class TestGetDevOverviewBenches(unittest.TestCase):
             _bdo.get_dev_overview_benches()
 
 
+# ─── get_ssh_certificate — multi-key cert lookup ──────────────────────────────
+
+def _ssh_key(name, label, is_default=0):
+    """User SSH Key row — accessed via .name / .label."""
+    return _FDict(name=name, label=label, is_default=is_default)
+
+
+def _cert(name, valid_until, ssh_certificate="ssh-cert..."):
+    c = MagicMock(); c.name = name; c.valid_until = valid_until
+    c.ssh_certificate = ssh_certificate
+    return c
+
+
+@patch("press.press.doctype.bench.bench_dev_overview._ensure_team_access", lambda **kw: None)
+class TestGetSshCertificate(unittest.TestCase):
+    PATCH = "press.press.doctype.bench.bench_dev_overview.frappe"
+
+    def _setup(self, mf, keys, certs_per_key):
+        """Wire mocks: bench_doc, rg with get_certificate stub, key list, datetime."""
+        import datetime
+        bench = MagicMock(); bench.group = "rg-001"
+        rg = MagicMock(); rg.name = "rg-001"
+        rg.get_certificate.side_effect = lambda ssh_key_name=None: certs_per_key.get(ssh_key_name)
+        mf.get_doc.side_effect = lambda dt, _name=None: bench if dt == "Bench" else rg
+        mf.db.get_all.return_value = keys
+        mf.session.user = "alice@x.com"
+        mf.utils.now_datetime.return_value = datetime.datetime(2026, 1, 1)
+        mf.utils.get_datetime.side_effect = lambda v: (
+            v if hasattr(v, "year") else datetime.datetime.fromisoformat(str(v))
+        )
+
+    @patch(PATCH)
+    def test_no_keys_returns_has_ssh_key_false(self, mf):
+        self._setup(mf, keys=[], certs_per_key={})
+        r = _bdo.get_ssh_certificate("b1")
+        self.assertFalse(r["has_ssh_key"])
+        self.assertFalse(r["has_valid_cert"])
+        self.assertIsNone(r["key_label"])
+
+    @patch(PATCH)
+    def test_default_key_with_valid_cert_wins(self, mf):
+        import datetime
+        keys = [_ssh_key("k1", "default-laptop", 1), _ssh_key("k2", "old-desktop", 0)]
+        self._setup(mf, keys=keys, certs_per_key={
+            "k1": _cert("CERT-1", datetime.datetime(2026, 1, 2)),
+            "k2": _cert("CERT-2", datetime.datetime(2026, 1, 3)),
+        })
+        r = _bdo.get_ssh_certificate("b1")
+        self.assertTrue(r["has_valid_cert"])
+        self.assertEqual(r["cert_name"], "CERT-1")
+        self.assertEqual(r["key_label"], "default-laptop")
+
+    @patch(PATCH)
+    def test_non_default_key_returned_when_default_has_no_cert(self, mf):
+        """Default key has no cert → fall through to non-default key with valid cert."""
+        import datetime
+        keys = [_ssh_key("k1", "default-laptop", 1), _ssh_key("k2", "work-key", 0)]
+        self._setup(mf, keys=keys, certs_per_key={
+            "k1": None,
+            "k2": _cert("CERT-2", datetime.datetime(2026, 1, 3)),
+        })
+        r = _bdo.get_ssh_certificate("b1")
+        self.assertTrue(r["has_valid_cert"])
+        self.assertEqual(r["cert_name"], "CERT-2")
+        self.assertEqual(r["key_label"], "work-key")
+
+    @patch(PATCH)
+    def test_expired_cert_skipped(self, mf):
+        """Default has expired cert → next key with valid cert wins."""
+        import datetime
+        keys = [_ssh_key("k1", "expired-key", 1), _ssh_key("k2", "fresh-key", 0)]
+        self._setup(mf, keys=keys, certs_per_key={
+            "k1": _cert("CERT-OLD", datetime.datetime(2025, 12, 31)),
+            "k2": _cert("CERT-NEW", datetime.datetime(2026, 1, 5)),
+        })
+        r = _bdo.get_ssh_certificate("b1")
+        self.assertTrue(r["has_valid_cert"])
+        self.assertEqual(r["cert_name"], "CERT-NEW")
+        self.assertEqual(r["key_label"], "fresh-key")
+
+    @patch(PATCH)
+    def test_no_valid_cert_returns_default_key_label(self, mf):
+        keys = [_ssh_key("k1", "default-laptop", 1), _ssh_key("k2", "other-key", 0)]
+        self._setup(mf, keys=keys, certs_per_key={"k1": None, "k2": None})
+        r = _bdo.get_ssh_certificate("b1")
+        self.assertTrue(r["has_ssh_key"])
+        self.assertFalse(r["has_valid_cert"])
+        self.assertEqual(r["key_label"], "default-laptop")
+        self.assertEqual(r["principal"], "rg-001")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
