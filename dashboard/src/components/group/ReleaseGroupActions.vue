@@ -76,15 +76,28 @@
 					<div>
 						<div class="font-medium text-gray-900">4. Push changes back to GitHub</div>
 						<p class="mt-0.5 text-xs leading-relaxed">
-							Open the <strong>Apps</strong> tab → click an app → <strong>Push to GitHub</strong>.
-							The dashboard configures the remote, checks out the working branch, and pushes via
-							your team's GitHub token.
+							Open any site in this bench →
+							<strong>Dev</strong> tab (URL:
+							<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">/dashboard/sites/&lt;site&gt;/dev</code>).
+							The <strong>App Status</strong> table shows each app as
+							<span class="rounded bg-green-100 px-1 text-[11px] text-green-700">Clean</span>
+							or
+							<span class="rounded bg-orange-100 px-1 text-[11px] text-orange-700">N dirty</span>.
+							Click <strong>Push&nbsp;↓</strong> on a dirty row → edit the commit message → click
+							<strong>Push to GitHub</strong>. The dashboard configures the remote, checks out the
+							working branch, and pushes via your team's GitHub token.
 							<br />
 							<span class="text-gray-500">
 								Don't run
 								<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">git remote add origin</code>
 								manually inside the container — the deploy keys are read-only and auth will fail.
 								The dashboard handles this for you.
+							</span>
+							<br />
+							<span class="text-gray-500">
+								The bench-level <strong>Apps</strong> tab only shows
+								<em>Update Available</em> (pulling upstream). The push direction lives on the
+								Site Dev tab.
 							</span>
 						</p>
 					</div>
