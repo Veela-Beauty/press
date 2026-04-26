@@ -541,11 +541,11 @@ def restart_bench_for_site(bench_name):
 
 
 @frappe.whitelist()
-def push_app_to_github(bench_name, app, message):
+def push_app_to_github(bench_name, app, message, branch_name=None):
 	"""Thin shim — real implementation lives in bench_app_push.py to keep
 	bench_dev_overview.py under its file-size budget."""
 	from press.press.doctype.bench.bench_app_push import push_app_to_github as _impl
-	return _impl(bench_name, app, message)
+	return _impl(bench_name, app, message, branch_name=branch_name)
 
 
 
