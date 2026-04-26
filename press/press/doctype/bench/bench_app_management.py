@@ -103,21 +103,28 @@ def init_github_for_app(bench_name, app_name, github_owner, repo_name=""):
 	push_url = f"https://{token}@github.com/{github_owner}/{repo_name}.git"
 	subdir = f"apps/{app_name}"
 
+	# Push and register against the app's actual tracked branch — NOT a hardcoded
+	# `main`. Press benches install upstream apps on their release branch
+	# (e.g. version-15 for frappe / erpnext / hrms). For freshly-scaffolded apps
+	# without an App Source registered yet, fall back to `main` since
+	# create_app_locally does `git checkout -b main`.
+	target_branch = _get_app_branch_for_bench(bench_name, app_name) or "main"
+
 	# 2. Replace any existing origin remote (ignore returncode if origin didn't exist)
 	bench.docker_execute("git remote remove origin", subdir=subdir)
 	add_remote = bench.docker_execute(f"git remote add origin {push_url}", subdir=subdir)
 	if add_remote.get("returncode") != 0:
 		return {"step": "remote_add", "push_result": add_remote}
 
-	# 3. Ensure a `main` branch points at the current commit. On a fresh
-	# Press build, HEAD is detached — `git symbolic-ref HEAD` fails,
-	# we create main from HEAD so the explicit refspec push below works.
-	head_check = bench.docker_execute("git symbolic-ref HEAD", subdir=subdir)
-	if head_check.get("returncode") != 0:
-		bench.docker_execute("git branch -f main HEAD", subdir=subdir)
+	# 3. Ensure a local branch named `target_branch` points at the current commit.
+	# On a fresh Press build, HEAD is detached — checkout -B both creates the
+	# branch (or resets it) and switches to it, so the upstream-tracking push works.
+	checkout = bench.docker_execute(f"git checkout -B {target_branch} HEAD", subdir=subdir)
+	if checkout.get("returncode") != 0:
+		return {"step": "checkout", "push_result": checkout}
 
-	# 4. Push HEAD as `main` on origin — explicit refspec is detached-HEAD safe
-	push_result = bench.docker_execute("git push -u origin HEAD:refs/heads/main", subdir=subdir)
+	# 4. Push the branch and set upstream
+	push_result = bench.docker_execute(f"git push -u origin {target_branch}", subdir=subdir)
 	if push_result.get("returncode") != 0:
 		out = (push_result.get("output") or "").lower()
 		hint = None
@@ -127,11 +134,20 @@ def init_github_for_app(bench_name, app_name, github_owner, repo_name=""):
 			hint = "No matching commit on local branch — bench's git state may be unexpected. Try opening the app in VS Code to inspect."
 		return {"step": "push", "hint": hint, "push_result": push_result}
 
-	# 5. Register in Press (creates App + App Source for this team)
+	# 5. Register in Press (creates App + App Source for this team) on the same branch
 	repo_url = f"https://github.com/{github_owner}/{repo_name}"
-	_register_app_in_press(app_name, repo_url, token, headers)
+	_register_app_in_press(app_name, repo_url, token, headers, branch=target_branch)
 
-	return {"repository_url": repo_url, "push_result": push_result}
+	return {"repository_url": repo_url, "push_result": push_result, "branch": target_branch}
+
+
+def _get_app_branch_for_bench(bench_name: str, app_name: str) -> str | None:
+	"""Return the App Source's `branch` for an app on a bench (e.g. 'version-15').
+	None if no source is registered (newly-scaffolded app without push history)."""
+	source = frappe.db.get_value("Bench App", {"parent": bench_name, "app": app_name}, "source")
+	if not source:
+		return None
+	return frappe.db.get_value("App Source", source, "branch")
 
 
 @frappe.whitelist()
@@ -169,7 +185,7 @@ def _get_github_user(headers: dict) -> str:
 	return resp.json().get("login", "") if resp.ok else ""
 
 
-def _register_app_in_press(app_name: str, repo_url: str, token: str, headers: dict):
+def _register_app_in_press(app_name: str, repo_url: str, token: str, headers: dict, branch: str = "main"):
 	team = get_current_team()
 
 	if not frappe.db.exists("App", app_name):
@@ -180,7 +196,7 @@ def _register_app_in_press(app_name: str, repo_url: str, token: str, headers: di
 	source = app_doc.add_source(
 		frappe_version="Version 15",
 		repository_url=repo_url,
-		branch="main",
+		branch=branch,
 		team=team,
 	)
 	try:
