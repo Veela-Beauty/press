@@ -24,89 +24,58 @@
 					v-if="showWorkflow"
 					class="space-y-3 border-t border-gray-200 bg-gray-50 px-5 py-4 text-sm text-gray-700"
 				>
+					<p class="text-xs leading-relaxed text-gray-600">
+						A <strong>Dev Bench</strong> is your code playground: edit live, see changes immediately, push back to GitHub when ready. This page handles the bench-level setup. The actual <strong>push</strong> happens on a site's <strong>Dev</strong> tab.
+					</p>
 					<div>
-						<div class="font-medium text-gray-900">1. Mark the bench as a Dev Bench</div>
+						<div class="font-medium text-gray-900">1. Mark this bench as a Dev Bench</div>
 						<p class="mt-0.5 text-xs leading-relaxed">
-							Click <strong>Mark as Dev Bench</strong> on the bench tile below. Sets
-							<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">is_development_bench=1</code>
-							and enables developer-mode in
-							<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">site_config.json</code>
-							so Python changes hot-reload.
+							Click <strong>Mark as Dev Bench</strong> below. Turns on developer mode so Python edits hot-reload — no restart needed for most changes.
 						</p>
 					</div>
 					<div>
-						<div class="font-medium text-gray-900">2. Edit the code</div>
+						<div class="font-medium text-gray-900">2. Open the code</div>
 						<ul class="mt-0.5 list-disc space-y-1 pl-5 text-xs leading-relaxed">
 							<li>
-								<strong>Open in VS Code</strong> tile — local VS Code Desktop over Remote-SSH (recommended). One click handles SSH cert + launch.
+								<strong>Open in VS Code</strong> tile — your local VS Code Desktop with all your extensions, connected to the bench over SSH. One click does the cert install + launch.
 							</li>
 							<li>
-								Or SSH directly:
-								<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">
-									ssh -A &lt;bench-name&gt;@&lt;proxy_server&gt; -p 2222
-								</code>
-								<span class="text-gray-500">(generate a cert first via the SSH Certificate tile)</span>
+								<strong>Open Code Server</strong> (in the panel above) — VS Code in the browser. No install, no SSH cert, just open and edit.
 							</li>
 							<li>
-								In container, app code lives at
-								<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">~/frappe-bench/apps/&lt;app_name&gt;/</code>
+								Or SSH:
+								<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">ssh -A &lt;bench&gt;@&lt;proxy&gt; -p 2222</code>
+								(after running <strong>Generate SSH Certificate</strong>).
 							</li>
+						</ul>
+						<p class="mt-1 text-[11px] text-gray-500">
+							Apps live at <code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">~/frappe-bench/apps/&lt;app&gt;/</code>.
+						</p>
+					</div>
+					<div>
+						<div class="font-medium text-gray-900">3. See your edits take effect</div>
+						<ul class="mt-0.5 list-disc space-y-1 pl-5 text-xs leading-relaxed">
+							<li><strong>Python</strong> (controllers, hooks, server scripts): auto-reloads. Force a restart only if needed: <code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">bench --site &lt;site&gt; restart</code></li>
+							<li><strong>JavaScript / DocType JSON:</strong> hard-reload your browser (Ctrl + F5)</li>
+							<li><strong>New DocType / schema change:</strong> <code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">bench --site &lt;site&gt; migrate</code></li>
 						</ul>
 					</div>
 					<div>
-						<div class="font-medium text-gray-900">3. See changes take effect</div>
-						<ul class="mt-0.5 space-y-1 text-xs leading-relaxed">
-							<li>
-								<strong>Python</strong> (controllers, hooks, server scripts):
-								<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">bench --site &lt;site&gt; restart</code>
-							</li>
-							<li>
-								<strong>Client script / DocType JSON / JS:</strong> hard-reload browser (Ctrl+F5)
-							</li>
-							<li>
-								<strong>Schema change / new DocType:</strong>
-								<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">bench --site &lt;site&gt; migrate</code>
-							</li>
-							<li>
-								<strong>CSS rebuild:</strong>
-								<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">bench build --app &lt;app&gt;</code>
-							</li>
-						</ul>
-					</div>
-					<div>
-						<div class="font-medium text-gray-900">4. Push changes back to GitHub</div>
+						<div class="font-medium text-gray-900">4. Push to GitHub from a Site's Dev tab</div>
 						<p class="mt-0.5 text-xs leading-relaxed">
-							Open any site in this bench →
-							<strong>Dev</strong> tab (URL:
-							<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">/dashboard/sites/&lt;site&gt;/dev</code>).
-							The <strong>App Status</strong> table shows each app as
-							<span class="rounded bg-green-100 px-1 text-[11px] text-green-700">Clean</span>
-							or
-							<span class="rounded bg-orange-100 px-1 text-[11px] text-orange-700">N dirty</span>.
-							Click <strong>Push&nbsp;↓</strong> on a dirty row → edit the commit message → click
-							<strong>Push to GitHub</strong>. The dashboard configures the remote, checks out the
-							working branch, and pushes via your team's GitHub token.
-							<br />
-							<span class="text-gray-500">
-								Don't run
-								<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">git remote add origin</code>
-								manually inside the container — the deploy keys are read-only and auth will fail.
-								The dashboard handles this for you.
-							</span>
-							<br />
-							<span class="text-gray-500">
-								The bench-level <strong>Apps</strong> tab only shows
-								<em>Update Available</em> (pulling upstream). The push direction lives on the
-								Site Dev tab.
-							</span>
+							Open any site on this bench → click the <strong>Dev</strong> tab. The
+							<strong>App Status</strong> table shows what's dirty, with a <strong>Push&nbsp;↓</strong> button on each owned app.
+							You can pick a feature branch (or click <strong>✨ new feature</strong> for an auto-suggested one), and the commit is attributed to YOU on GitHub.
+						</p>
+						<p class="mt-1 text-[11px] text-gray-500">
+							The bench's own <strong>Apps</strong> tab only handles upstream updates — pushing your own work lives on the Site Dev tab. Don't try <code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">git remote add origin</code> manually in the container; the dashboard handles all the git config + token auth for you.
 						</p>
 					</div>
 					<div class="flex items-start gap-2 rounded border border-yellow-200 bg-yellow-50 p-2.5 text-xs text-yellow-800">
 						<FeatherIcon name="alert-triangle" class="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
 						<div>
 							<strong>Edits live only in the running container.</strong>
-							If the container restarts before you push to GitHub, your changes are lost.
-							Always push before any deploy / restart action.
+							Push before any deploy or restart, or your work is gone.
 						</div>
 					</div>
 				</div>
