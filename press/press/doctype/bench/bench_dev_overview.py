@@ -326,7 +326,7 @@ def get_ssh_certificate(bench_name):
 	# Default key first — wins ties, and surfaces the right label when no cert is valid.
 	keys = frappe.db.get_all(
 		"User SSH Key",
-		{"user": frappe.session.user, "is_disabled": 0, "is_removed": 0},
+		filters={"user": frappe.session.user, "is_disabled": 0, "is_removed": 0},
 		fields=["name", "label"],
 		order_by="is_default desc, creation asc",
 	)
