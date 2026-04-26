@@ -192,15 +192,34 @@
 						</tr>
 						<tr v-if="openPushApp === item.app" :key="item.app + '-push'">
 							<td colspan="5" class="border-b border-blue-100 bg-blue-50 px-4 py-3">
-								<div class="flex items-end gap-2">
+								<div class="flex flex-col gap-2 md:flex-row md:items-end">
 									<div class="min-w-0 flex-1">
 										<label class="mb-1 block text-xs font-medium text-gray-600">Commit message</label>
 										<input v-model="pushMessages[item.app]" type="text" placeholder="WIP"
 											class="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none" />
 									</div>
-									<Button size="sm" variant="solid" :loading="pushingApp === item.app" @click="doPush(item.app)">Push to GitHub</Button>
+									<div class="min-w-0 w-full md:w-56">
+										<label class="mb-1 flex items-center justify-between text-xs font-medium text-gray-600">
+											<span>Branch</span>
+											<button type="button"
+												class="text-[11px] font-normal text-blue-600 hover:underline"
+												@click="suggestFeatureBranch(item.app)"
+												title="Auto-suggest a feature branch name based on your username">
+												✨ new feature
+											</button>
+										</label>
+										<input v-model="pushBranches[item.app]" type="text" :placeholder="item.branch || 'main'"
+											class="w-full rounded border border-gray-200 bg-white px-2 py-1.5 font-mono text-xs focus:border-blue-500 focus:outline-none" />
+									</div>
+									<Button size="sm" variant="solid" :loading="pushingApp === item.app" @click="doPush(item.app, item.branch)">Push to GitHub</Button>
 								</div>
+								<p class="mt-1 text-[11px] text-gray-500">
+									Defaults to current branch (<code>{{ item.branch || 'main' }}</code>). Type a different branch name to push to a feature branch instead — the dashboard will create it from the current commit.
+								</p>
 								<pre v-if="pushOutputs[item.app]" class="mt-2 whitespace-pre-wrap rounded bg-gray-900 p-2 text-xs leading-relaxed text-green-300">{{ pushOutputs[item.app] }}</pre>
+								<a v-if="pushPrLinks[item.app]" :href="pushPrLinks[item.app]" target="_blank" class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+									→ Open Pull Request on GitHub
+								</a>
 							</td>
 						</tr>
 					</template>
@@ -419,6 +438,7 @@
 <script>
 import { call, getCachedDocumentResource } from 'frappe-ui';
 import { toast } from 'vue-sonner';
+import { session } from '../data/session';
 import BenchCodeHealth from './BenchCodeHealth.vue';
 import AiChatPanel from './AiChatPanel.vue';
 
@@ -435,7 +455,7 @@ export default {
 			consoleRunning: false,
 			schedulerEnabled: true, migrationData: null,
 			errorList: [], appGitStatus: [], gitStatusAge: '',
-			openPushApp: null, pushMessages: {}, pushOutputs: {}, pushingApp: null,
+			openPushApp: null, pushMessages: {}, pushBranches: {}, pushOutputs: {}, pushingApp: null, pushPrLinks: {},
 			// Console
 			consoleTab: 'SQL', consoleInput: '', consoleCommit: false,
 			consoleOutput: null, consoleOutputMeta: '',
@@ -580,7 +600,16 @@ export default {
 			catch (e) { toast.error('Failed to kill process'); }
 			finally { setTimeout(() => { this.killingProcess = null; }, 1500); }
 		},
-		togglePushRow(app) { this.openPushApp = this.openPushApp === app ? null : app; this.pushOutputs = { ...this.pushOutputs, [app]: '' }; },
+		togglePushRow(app) {
+			this.openPushApp = this.openPushApp === app ? null : app;
+			this.pushOutputs = { ...this.pushOutputs, [app]: '' };
+			this.pushPrLinks = { ...this.pushPrLinks, [app]: '' };
+		},
+		suggestFeatureBranch(app) {
+			const user = (session.user || 'me').split('@')[0].toLowerCase().replace(/[^a-z0-9]+/g, '-');
+			const ts = new Date().toISOString().slice(0, 10);
+			this.pushBranches = { ...this.pushBranches, [app]: `dev/${user}/${ts}` };
+		},
 		async toggleDevMode() {
 			const enabling = !this.devModeOn; this.devModeLoading = true;
 			try { await this.$site.setDevelopmentMode.submit({ enable: enabling ? 1 : 0 }); toast.success(enabling ? 'Developer mode enabled' : 'Developer mode disabled'); this.$site.reload(); }
@@ -602,13 +631,30 @@ export default {
 			try { await call(`${API}.restart_bench_for_site`, { bench_name: b }); toast.success('Bench restarted'); }
 			catch (e) { toast.error(e?.messages?.join(', ') || 'Failed to restart bench'); } finally { this.restartLoading = false; }
 		},
-		async doPush(app) {
+		async doPush(app, currentBranch) {
 			const b = this.$site?.doc?.bench; if (!b) return;
-			this.pushingApp = app; this.pushOutputs = { ...this.pushOutputs, [app]: '' };
+			this.pushingApp = app;
+			this.pushOutputs = { ...this.pushOutputs, [app]: '' };
+			this.pushPrLinks = { ...this.pushPrLinks, [app]: '' };
+			const requestedBranch = (this.pushBranches[app] || '').trim();
+			// Only send branch_name if user typed something AND it differs from the current
+			const branchArg = requestedBranch && requestedBranch !== currentBranch ? requestedBranch : null;
 			try {
-				const result = await call(`${API}.push_app_to_github`, { bench_name: b, app, message: this.pushMessages[app] || 'WIP' });
-				this.pushOutputs = { ...this.pushOutputs, [app]: result?.output || 'Done' }; toast.success('Pushed to GitHub'); this.loadGitStatus();
-			} catch (e) { toast.error(e?.messages?.join(', ') || 'Push failed'); } finally { this.pushingApp = null; }
+				const result = await call(`${API}.push_app_to_github`, {
+					bench_name: b,
+					app,
+					message: this.pushMessages[app] || 'WIP',
+					branch_name: branchArg,
+				});
+				this.pushOutputs = { ...this.pushOutputs, [app]: result?.output || 'Done' };
+				if (result?.pr_url) {
+					this.pushPrLinks = { ...this.pushPrLinks, [app]: result.pr_url };
+				}
+				toast.success(branchArg ? `Pushed to ${branchArg}` : 'Pushed to GitHub');
+				this.loadGitStatus();
+			} catch (e) {
+				toast.error(e?.messages?.join(', ') || 'Push failed');
+			} finally { this.pushingApp = null; }
 		},
 		logDotColor(level) { return level === 'ERROR' ? 'bg-red-500' : level === 'WARNING' ? 'bg-yellow-500' : 'bg-blue-500'; },
 		logTextColor(level) { return level === 'ERROR' ? 'text-red-600' : level === 'WARNING' ? 'text-yellow-600' : 'text-blue-600'; },

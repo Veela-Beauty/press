@@ -175,3 +175,8 @@ docs/.vitepress/dist
 .codegraph/codegraph.db
 codegraph-data.json
 press-health-data.json
+
+# Build artifacts and safety bundles
+.tmp/
+*.bundle
+*.tar.gz

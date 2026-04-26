@@ -7,6 +7,8 @@ that broke because && executes on the HOST after only the first command
 runs inside the container (a docker_execute quirk documented in the project's
 CLAUDE.md). This module runs each git command as its own docker_execute call.
 """
+import re
+
 import frappe
 from frappe import _
 
@@ -14,12 +16,23 @@ from press.press.doctype.bench.bench_dev_overview import _ensure_team_access
 from press.press.doctype.bench.bench_app_ownership import is_app_owned_by_current_team
 
 
+_BRANCH_RE = re.compile(r"[a-zA-Z0-9_./-]+")
+
+
 def _docker_run(bench_doc, cmd: str, subdir: str) -> dict:
 	"""Wrap bench.docker_execute and normalize the return shape."""
 	return bench_doc.docker_execute(cmd, subdir=subdir)
 
 
-def push_app_to_github(bench_name: str, app: str, message: str) -> dict:
+def _get_app_repo_url(bench_name: str, app: str) -> str | None:
+	"""Return the App Source's repository_url for (bench, app), or None."""
+	source = frappe.db.get_value("Bench App", {"parent": bench_name, "app": app}, "source")
+	if not source:
+		return None
+	return frappe.db.get_value("App Source", source, "repository_url")
+
+
+def push_app_to_github(bench_name: str, app: str, message: str, branch_name: str = None) -> dict:
 	"""
 	Add → commit → push the working tree of <app> on <bench> to its GitHub repo.
 	Each git command runs as its own docker_execute (no && chains — they break
@@ -28,6 +41,11 @@ def push_app_to_github(bench_name: str, app: str, message: str) -> dict:
 	Refuses to push when the app's App Source is not owned by the current team
 	(e.g. upstream frappe/erpnext/hrms) — those would fail at GitHub auth
 	anyway and the better UX is a clear early error.
+
+	If branch_name is provided, the local branch is created/reset to current HEAD
+	before push (`git checkout -B`). This lets users push to a feature branch
+	without first SSH-ing into the container. Returns a `pr_url` pointing at
+	GitHub's compare-and-create-PR page when pushing to a non-default branch.
 	"""
 	_ensure_team_access(bench_name=bench_name)
 	if not is_app_owned_by_current_team(bench_name, app):
@@ -38,6 +56,17 @@ def push_app_to_github(bench_name: str, app: str, message: str) -> dict:
 	bench = frappe.get_doc("Bench", bench_name)
 	safe_message = message.replace("'", "'\\''")
 	subdir = f"apps/{app}"
+
+	# Optional: switch to (or create) a target feature branch before commit
+	if branch_name:
+		branch_name = branch_name.strip()
+		if not _BRANCH_RE.fullmatch(branch_name):
+			frappe.throw(
+				_("Invalid branch name {0}. Allowed: letters, digits, '_', '.', '/', '-'.").format(branch_name)
+			)
+		checkout = _docker_run(bench, f"git checkout -B {branch_name} HEAD", subdir)
+		if checkout.get("returncode") != 0:
+			return {"step": "checkout", "branch": branch_name, **checkout}
 
 	add_result = _docker_run(bench, "git add -A", subdir)
 	if add_result.get("returncode") != 0:
@@ -53,7 +82,9 @@ def push_app_to_github(bench_name: str, app: str, message: str) -> dict:
 	if commit_result.get("returncode") != 0 and not nothing_to_commit:
 		return {"step": "commit", **commit_result}
 
-	push_result = _docker_run(bench, "git push", subdir)
+	# When pushing a (potentially new) feature branch, set its upstream explicitly.
+	push_cmd = f"git push -u origin {branch_name}" if branch_name else "git push"
+	push_result = _docker_run(bench, push_cmd, subdir)
 	if push_result.get("returncode") != 0:
 		# Surface a more useful diagnosis up front; full output still attached.
 		out = (push_result.get("output") or "").lower()
@@ -73,10 +104,23 @@ def push_app_to_github(bench_name: str, app: str, message: str) -> dict:
 			)
 		return {"step": "push", "hint": hint, **push_result}
 
+	# Build a PR-creation URL when pushing to a non-default branch so users
+	# can open a pull request straight from the dashboard. Repo URL comes from
+	# the App Source so we don't have to parse the (token-bearing) origin URL.
+	pr_url = None
+	if branch_name:
+		repo_url = _get_app_repo_url(bench_name, app)
+		if repo_url:
+			# Strip trailing .git if present, then build compare URL for the new branch
+			repo_url_clean = repo_url[:-4] if repo_url.endswith(".git") else repo_url
+			pr_url = f"{repo_url_clean}/pull/new/{branch_name}"
+
 	return {
 		"step": "done",
 		"status": "Success",
 		"output": (push_result.get("output") or "").strip()
 			or "Pushed (nothing committed — already in sync)",
+		"branch": branch_name,
+		"pr_url": pr_url,
 		"returncode": 0,
 	}
