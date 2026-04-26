@@ -1,20 +1,18 @@
 <template>
 	<div class="mx-auto max-w-3xl space-y-4">
-		<!-- Dev Actions — benches in this release group -->
-		<div
-			v-if="benches.data?.length"
-			class="divide-y rounded border border-gray-200 p-5"
-		>
-			<div class="pb-3 text-lg font-semibold">Dev Actions</div>
+		<div v-if="benches.data?.length" class="rounded border border-gray-200">
+			<div class="border-b border-gray-200 p-5 text-lg font-semibold">Dev Actions</div>
+
 			<div
-				class="py-3 first:pt-0 last:pb-0"
 				v-for="bench in benches.data"
 				:key="bench.name"
+				class="border-b border-gray-200 p-5 last:border-b-0"
 			>
-				<div class="flex items-center justify-between gap-1">
+				<!-- Bench head: name + helper + status pill -->
+				<div class="mb-4 flex items-start justify-between gap-4">
 					<div>
-						<h3 class="text-base font-medium">{{ bench.name }}</h3>
-						<p class="mt-1 text-p-base text-gray-600">
+						<h3 class="font-mono text-base font-semibold text-gray-900">{{ bench.name }}</h3>
+						<p class="mt-0.5 text-sm text-gray-500">
 							{{
 								bench.is_development_bench
 									? 'This bench is marked as a development bench'
@@ -22,47 +20,101 @@
 							}}
 						</p>
 					</div>
-					<div class="flex items-center gap-2">
-						<div
-							v-if="codeServerStatus[bench.name]?.can_use && codeServerStatus[bench.name]?.status === 'Running' && codeServerStatus[bench.name]?.url"
-							class="flex flex-col items-end gap-1"
-						>
-							<a
-								:href="codeServerStatus[bench.name].url"
-								target="_blank"
-								class="inline-flex items-center gap-1 rounded border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-100 whitespace-nowrap"
-							>✓ Open Code Server ↗</a>
-							<button
-								v-if="codeServerStatus[bench.name]?.password"
-								@click="copyCodeServerPassword(bench)"
-								class="text-xs text-gray-500 hover:text-gray-900 font-mono whitespace-nowrap"
-								title="Click to copy password"
-							>{{ revealedPasswords[bench.name] ? codeServerStatus[bench.name].password : '••••••••••  copy password' }}</button>
-							<div
-								v-if="codeServerStatus[bench.name]?.password_expires_at"
-								class="flex items-center gap-2 text-xs whitespace-nowrap"
-							>
-								<span :class="codeServerStatus[bench.name]?.password_is_expired ? 'text-red-600 font-medium' : 'text-gray-500'">
-									⏲ {{ formatExpiry(codeServerStatus[bench.name].password_expires_at) }}
+					<span
+						v-if="codeServerStatus[bench.name]?.can_use !== false"
+						class="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+						:class="codeServerStatusClass(bench)"
+					>
+						<span class="h-1.5 w-1.5 rounded-full" :class="codeServerDotClass(bench)"></span>
+						{{ codeServerStatusLabel(bench) }}
+					</span>
+				</div>
+
+				<!-- Code Server KV panel (gated by can_use — feature must be enabled for the team) -->
+				<div
+					v-if="codeServerStatus[bench.name]?.can_use !== false"
+					class="mb-3 overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
+				>
+					<div class="border-b border-gray-200 bg-white px-4 py-2.5">
+						<span class="text-xs font-semibold text-gray-900">Code Server</span>
+					</div>
+
+					<template v-if="codeServerStatus[bench.name]?.status === 'Running' && codeServerStatus[bench.name]?.url">
+						<div class="grid grid-cols-[90px_1fr] items-center gap-3 px-4 py-2.5">
+							<div class="text-[11px] font-medium uppercase tracking-wider text-gray-500">URL</div>
+							<div class="flex min-w-0 items-center gap-1.5 font-mono text-[12.5px] text-gray-900">
+								<span class="flex-1 truncate">{{ codeServerStatus[bench.name].url }}</span>
+								<button
+									class="inline-flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900"
+									@click="copyToClipboard(codeServerStatus[bench.name].url, 'URL copied')"
+									title="Copy URL"
+								>
+									<FeatherIcon name="copy" class="h-3.5 w-3.5" />
+								</button>
+								<a
+									:href="codeServerStatus[bench.name].url"
+									target="_blank"
+									class="inline-flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900"
+									title="Open in new tab"
+								>
+									<FeatherIcon name="external-link" class="h-3.5 w-3.5" />
+								</a>
+							</div>
+						</div>
+						<div class="grid grid-cols-[90px_1fr] items-center gap-3 border-t border-gray-200 px-4 py-2.5">
+							<div class="text-[11px] font-medium uppercase tracking-wider text-gray-500">Password</div>
+							<div class="flex min-w-0 items-center gap-1.5 font-mono text-[12.5px]">
+								<span
+									class="flex-1 truncate select-none"
+									:class="revealedPasswords[bench.name] ? 'select-text font-medium text-gray-900' : 'tracking-widest text-gray-500'"
+								>
+									{{ revealedPasswords[bench.name] ? codeServerStatus[bench.name].password : '••••••••••••' }}
 								</span>
+								<button
+									class="inline-flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900"
+									:class="revealedPasswords[bench.name] && 'text-blue-600'"
+									@click="togglePasswordReveal(bench)"
+									:title="revealedPasswords[bench.name] ? 'Hide password' : 'Show password'"
+								>
+									<FeatherIcon :name="revealedPasswords[bench.name] ? 'eye-off' : 'eye'" class="h-3.5 w-3.5" />
+								</button>
+								<button
+									class="inline-flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900"
+									@click="copyCodeServerPassword(bench)"
+									title="Copy password"
+								>
+									<FeatherIcon name="copy" class="h-3.5 w-3.5" />
+								</button>
+							</div>
+						</div>
+						<div class="space-y-1.5 border-t border-gray-200 bg-white px-4 py-2.5 text-xs text-gray-500">
+							<div class="flex items-center gap-2">
+								<span :class="codeServerStatus[bench.name]?.password_is_expired ? 'font-medium text-red-600' : ''">
+									{{ formatExpiry(codeServerStatus[bench.name].password_expires_at) }}
+								</span>
+								<span class="text-gray-300">·</span>
 								<button
 									:disabled="rotateLoading[bench.name]"
 									@click="rotateCodeServerPassword(bench)"
-									class="text-blue-600 hover:text-blue-800 underline"
-								>{{ rotateLoading[bench.name] ? 'Rotating…' : 'Rotate Now' }}</button>
-								<span class="text-gray-300">|</span>
+									class="font-medium text-gray-700 hover:text-gray-900 hover:underline"
+								>
+									{{ rotateLoading[bench.name] ? 'Rotating…' : 'Rotate now' }}
+								</button>
+								<span class="text-gray-300">·</span>
 								<button
 									:disabled="restartLoading[bench.name]"
 									@click="restartCodeServer(bench)"
-									class="text-blue-600 hover:text-blue-800 underline"
-								>{{ restartLoading[bench.name] ? 'Restarting…' : 'Restart' }}</button>
+									class="font-medium text-gray-700 hover:text-gray-900 hover:underline"
+								>
+									{{ restartLoading[bench.name] ? 'Restarting…' : 'Restart' }}
+								</button>
 							</div>
-							<div class="flex items-center gap-1 text-xs text-gray-400">
-								<span>auto-rotate every</span>
+							<div class="flex items-center gap-1.5">
+								<span>Auto-rotate every</span>
 								<input
 									type="number"
 									min="0"
-									class="w-12 rounded border border-gray-200 px-1 py-0 text-right focus:border-blue-500 focus:outline-none"
+									class="w-9 rounded border border-gray-200 px-1 py-0 text-right text-xs focus:border-blue-500 focus:outline-none"
 									v-model.number="durationEdits[bench.name]"
 									@blur="saveDuration(bench)"
 									@keyup.enter="saveDuration(bench)"
@@ -70,123 +122,111 @@
 								<span>days</span>
 							</div>
 						</div>
-						<div
-							v-else-if="codeServerStatus[bench.name]?.can_use && codeServerStatus[bench.name]?.exists && codeServerStatus[bench.name]?.status !== 'Running'"
-							class="flex flex-col items-end gap-1"
-						>
-							<span class="text-sm text-gray-500 italic whitespace-nowrap">Code Server {{ codeServerStatus[bench.name].status === 'Pending' ? 'starting…' : codeServerStatus[bench.name].status }}</span>
-							<button
-								:disabled="restartLoading[bench.name]"
+					</template>
+
+					<template v-else-if="codeServerStatus[bench.name]?.exists && codeServerStatus[bench.name]?.status !== 'Running'">
+						<div class="flex flex-col items-center gap-2 px-4 py-6 text-center text-sm text-gray-500">
+							<span>Code Server {{ codeServerStatus[bench.name].status === 'Pending' ? 'starting…' : codeServerStatus[bench.name].status.toLowerCase() }}</span>
+							<Button
+								:loading="restartLoading[bench.name]"
 								@click="restartCodeServer(bench)"
-								class="text-xs text-blue-600 hover:text-blue-800 underline"
-							>{{ restartLoading[bench.name] ? 'Restarting…' : 'Restart Code Server' }}</button>
+								class="mt-1"
+							>
+								Restart Code Server
+							</Button>
 						</div>
-						<Button
-							v-else-if="codeServerStatus[bench.name]?.can_use"
-							class="whitespace-nowrap"
-							:loading="codeServerLoading[bench.name]"
-							@click="launchCodeServer(bench)"
-						>Launch Code Server</Button>
-						<Button
-							class="whitespace-nowrap"
-							:loading="devLoading[bench.name]"
-							@click="toggleDevBench(bench)"
-						>
-							<p>{{ bench.is_development_bench ? 'Unset Dev Bench' : 'Mark Dev Bench' }}</p>
-						</Button>
-					</div>
+					</template>
+
+					<template v-else>
+						<div class="flex flex-col items-center gap-2 px-4 py-6 text-center text-sm text-gray-500">
+							<span>Code Server is not running for this bench.</span>
+							<Button
+								:loading="codeServerLoading[bench.name]"
+								variant="solid"
+								@click="launchCodeServer(bench)"
+								class="mt-1"
+							>
+								Launch Code Server
+							</Button>
+						</div>
+					</template>
 				</div>
 
-				<!-- Bench Quick Actions (matches SiteDevTab styling) -->
-				<div class="mt-4 flex flex-wrap gap-3">
-					<!-- Code Server: Open (Running) / Launch (none) / Starting (Pending) -->
-					<a v-if="codeServerStatus[bench.name]?.can_use && codeServerStatus[bench.name]?.status === 'Running' && codeServerStatus[bench.name]?.url"
-						:href="codeServerStatus[bench.name].url" target="_blank"
-						class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700 shadow-sm transition-colors hover:border-green-400">
-						<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-							<path d="M16.5 3L21 7.5 9 19.5 3 15l13.5-12z"/><path d="M12 7.5L16.5 12"/><path d="M3 15l4.5-4.5"/>
-						</svg>
-						<span>
-							<span class="block text-sm font-semibold">Open Code Server</span>
-							<span class="block text-xs text-green-500">{{ codeServerStatus[bench.name].name }} · Running</span>
-						</span>
-						<svg class="ml-auto h-3.5 w-3.5 text-green-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-							<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-						</svg>
-					</a>
-					<button v-else-if="codeServerStatus[bench.name]?.can_use && !codeServerStatus[bench.name]?.exists && codeServerStatus[bench.name]?.status !== 'Pending'"
-						@click="launchCodeServer(bench)" :disabled="codeServerLoading[bench.name]"
-						class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 shadow-sm transition-colors hover:border-blue-400 disabled:opacity-50">
-						<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-							<path d="M16.5 3L21 7.5 9 19.5 3 15l13.5-12z"/><path d="M12 7.5L16.5 12"/><path d="M3 15l4.5-4.5"/>
-						</svg>
-						<span>
-							<span class="block text-sm font-semibold">{{ codeServerLoading[bench.name] ? 'Setting up…' : 'Launch Code Server' }}</span>
-							<span class="block text-xs text-blue-400">Per-user web VS Code for this bench</span>
-						</span>
-					</button>
-					<div v-else-if="codeServerStatus[bench.name]?.can_use && codeServerStatus[bench.name]?.exists && codeServerStatus[bench.name]?.status === 'Pending'"
-						class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm font-medium text-yellow-700">
-						<svg class="h-5 w-5 flex-shrink-0 animate-spin" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-							<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
-						</svg>
-						<span>
-							<span class="block text-sm font-semibold">Code Server Starting…</span>
-							<span class="block text-xs text-yellow-500">{{ codeServerStatus[bench.name].name }}</span>
-						</span>
-					</div>
+				<!-- Code Server feature gated by team plan -->
+				<div
+					v-else
+					class="mb-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm italic text-gray-500"
+				>
+					Code Server is not enabled on your team plan.
+				</div>
 
-					<!-- Local VS Code (SSH Remote) — 3 states: no key / no cert / valid cert -->
-					<a v-if="sshCerts[bench.name]?.has_valid_cert" :href="localVscodeUrl(bench)"
-						class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-purple-400 hover:text-purple-600">
-						<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-							<rect x="2" y="3" width="20" height="18" rx="2"/><path d="M8 10l3 3-3 3"/><line x1="14" y1="16" x2="18" y2="16"/>
-						</svg>
-						<span>
-							<span class="block text-sm font-semibold">Local VS Code</span>
-							<span class="block text-xs text-gray-400">SSH Remote → {{ devInfos[bench.name]?.server_ip }}:{{ devInfos[bench.name]?.ssh_port }}</span>
-							<span class="block text-xs" :class="sshCerts[bench.name].expires_in_seconds < 1800 ? 'text-orange-600' : 'text-gray-400'">
-								⏲ cert {{ formatCertExpiry(sshCerts[bench.name].expires_in_seconds) }}
-								<button v-if="sshCerts[bench.name].expires_in_seconds < 1800"
-									@click.prevent="generateCert(bench)" :disabled="certGenLoading[bench.name]"
-									class="ml-2 text-orange-700 underline">Renew</button>
-							</span>
-						</span>
-					</a>
-					<button v-else-if="sshCerts[bench.name]?.has_ssh_key && !sshCerts[bench.name]?.has_valid_cert"
-						@click="generateCert(bench)" :disabled="certGenLoading[bench.name]"
-						class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-medium text-orange-700 shadow-sm transition-colors hover:border-orange-400 disabled:opacity-50">
-						<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-							<path d="M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2z"/>
-							<path d="M8 11V7a4 4 0 1 1 8 0v4"/>
-						</svg>
-						<span>
-							<span class="block text-sm font-semibold">{{ certGenLoading[bench.name] ? 'Generating…' : 'Generate SSH Certificate' }}</span>
-							<span class="block text-xs text-orange-500">One-click mint + download for {{ sshCerts[bench.name]?.principal }}</span>
-						</span>
+				<!-- 4-tile action grid -->
+				<div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+					<button
+						type="button"
+						class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3.5 text-left transition hover:border-gray-300 hover:shadow-sm"
+						@click="openVscodeDialog(bench)"
+					>
+						<div class="flex h-7 w-7 items-center justify-center rounded-md bg-blue-50 text-blue-600">
+							<FeatherIcon name="code" class="h-4 w-4" />
+						</div>
+						<div>
+							<h4 class="text-[13px] font-semibold text-gray-900">Open in VS Code</h4>
+							<p class="mt-0.5 text-[11.5px] leading-snug text-gray-500">
+								Local VS Code Desktop via Remote-SSH.
+							</p>
+						</div>
 					</button>
-					<a v-else-if="sshCerts[bench.name] && !sshCerts[bench.name]?.has_ssh_key" href="/dashboard/settings/developer"
-						class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm font-medium text-yellow-700 shadow-sm transition-colors hover:border-yellow-400">
-						<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-							<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-						</svg>
-						<span>
-							<span class="block text-sm font-semibold">Setup SSH Key</span>
-							<span class="block text-xs text-yellow-600">Required for Local VS Code</span>
-						</span>
-					</a>
 
-					<!-- Restart Bench -->
-					<button @click="restartBench(bench)" :disabled="benchRestartLoading[bench.name]"
-						class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-orange-400 hover:text-orange-600"
-						:class="{ 'cursor-not-allowed opacity-60': benchRestartLoading[bench.name] }">
-						<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-							<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
-						</svg>
-						<span>
-							<span class="block text-sm font-semibold">{{ benchRestartLoading[bench.name] ? 'Restarting…' : 'Restart Bench' }}</span>
-							<span class="block text-xs text-gray-400">Restart all bench workers</span>
-						</span>
+					<button
+						type="button"
+						class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3.5 text-left transition hover:border-gray-300 hover:shadow-sm disabled:cursor-wait disabled:opacity-60"
+						:disabled="devLoading[bench.name]"
+						@click="toggleDevBench(bench)"
+					>
+						<div class="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-700">
+							<FeatherIcon name="tag" class="h-4 w-4" />
+						</div>
+						<div>
+							<h4 class="text-[13px] font-semibold text-gray-900">
+								{{ bench.is_development_bench ? 'Unset Dev Bench' : 'Mark as Dev Bench' }}
+							</h4>
+							<p class="mt-0.5 text-[11.5px] leading-snug text-gray-500">
+								Tag this bench for development use only.
+							</p>
+						</div>
+					</button>
+
+					<button
+						type="button"
+						class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3.5 text-left transition hover:border-gray-300 hover:shadow-sm"
+						@click="openSshDialog(bench)"
+					>
+						<div class="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-700">
+							<FeatherIcon name="lock" class="h-4 w-4" />
+						</div>
+						<div>
+							<h4 class="text-[13px] font-semibold text-gray-900">Generate SSH Certificate</h4>
+							<p class="mt-0.5 text-[11.5px] leading-snug text-gray-500">
+								Required for "Open in VS Code". Valid 6 hours.
+							</p>
+						</div>
+					</button>
+
+					<button
+						type="button"
+						class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3.5 text-left transition hover:border-gray-300 hover:shadow-sm"
+						@click="confirmRestartBench(bench)"
+					>
+						<div class="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-700">
+							<FeatherIcon name="refresh-cw" class="h-4 w-4" />
+						</div>
+						<div>
+							<h4 class="text-[13px] font-semibold text-gray-900">Restart Bench</h4>
+							<p class="mt-0.5 text-[11.5px] leading-snug text-gray-500">
+								Restart all bench workers (web, scheduler, queues).
+							</p>
+						</div>
 					</button>
 				</div>
 			</div>
@@ -220,37 +260,42 @@
 </template>
 
 <script>
-import { call, createListResource, getCachedDocumentResource } from 'frappe-ui';
+import {
+	call,
+	createListResource,
+	getCachedDocumentResource,
+	FeatherIcon,
+	Button,
+} from 'frappe-ui';
+import { h, defineAsyncComponent } from 'vue';
 import { toast } from 'vue-sonner';
+import { renderDialog, confirmDialog } from '../../utils/components';
+import SSHCertificateDialog from './SSHCertificateDialog.vue';
 import ReleaseGroupActionCell from './ReleaseGroupActionCell.vue';
+
+const VSCodeLaunchDialog = defineAsyncComponent(
+	() => import('./VSCodeLaunchDialog.vue'),
+);
 
 export default {
 	props: ['releaseGroup'],
-	components: { ReleaseGroupActionCell },
+	components: { FeatherIcon, Button, ReleaseGroupActionCell },
 	data() {
 		return {
 			devLoading: {},
 			codeServerLoading: {},
 			codeServerStatus: {},
-			devInfos: {},
-			sshCerts: {},
-			certGenLoading: {},
 			revealedPasswords: {},
 			rotateLoading: {},
 			restartLoading: {},
-			benchRestartLoading: {},
 			durationEdits: {},
 			benches: createListResource({
 				doctype: 'Bench',
-				fields: ['name', 'status', 'is_development_bench'],
+				fields: ['name', 'status', 'is_development_bench', 'group'],
 				filters: { group: this.releaseGroup, status: ['not in', ['Archived']] },
 				orderBy: 'creation desc',
 				auto: true,
-				onSuccess: (data) => {
-					this.loadCodeServerStatuses(data);
-					this.loadBenchDevInfos(data);
-					this.loadSshCerts(data);
-				},
+				onSuccess: (data) => this.loadCodeServerStatuses(data),
 			}),
 		};
 	},
@@ -259,6 +304,7 @@ export default {
 			return getCachedDocumentResource('Release Group', this.releaseGroup);
 		},
 		actions() {
+			if (!this.$releaseGroup?.doc?.actions) return [];
 			const groupedActions = this.$releaseGroup.doc.actions.reduce(
 				(acc, action) => {
 					const group = action.group || 'General Actions';
@@ -297,113 +343,35 @@ export default {
 				this.devLoading = { ...this.devLoading, [bench.name]: false };
 			}
 		},
+
 		async loadCodeServerStatuses(benches) {
 			const statuses = {};
 			const durations = { ...this.durationEdits };
-			for (const b of benches) {
-				try {
-					statuses[b.name] = await call(
+			const results = await Promise.allSettled(
+				benches.map((b) =>
+					call(
 						'press.press.doctype.bench.bench_dev_overview.get_code_server_status',
 						{ bench_name: b.name },
-					);
-					if (statuses[b.name]?.password_expiry_days != null) {
-						durations[b.name] = statuses[b.name].password_expiry_days;
+					),
+				),
+			);
+			benches.forEach((b, i) => {
+				const r = results[i];
+				if (r.status === 'fulfilled') {
+					statuses[b.name] = r.value;
+					if (r.value?.password_expiry_days != null) {
+						durations[b.name] = r.value.password_expiry_days;
 					}
-				} catch (e) {
+				} else {
 					// On fetch error: fail-open for the UI so the Launch button is still visible.
 					// The backend mutation endpoints will still deny unauthorized access via
 					// _ensure_code_server_role_access. This prevents a transient network blip
 					// from making the Code Server controls disappear with no recourse.
 					statuses[b.name] = { enabled: false, exists: false, status: null, can_use: true };
 				}
-			}
+			});
 			this.codeServerStatus = statuses;
 			this.durationEdits = durations;
-		},
-		async loadBenchDevInfos(benches) {
-			const infos = {};
-			for (const b of benches) {
-				try {
-					infos[b.name] = await call(
-						'press.press.doctype.bench.bench_dev_overview.get_bench_dev_info',
-						{ bench_name: b.name },
-					);
-				} catch (e) {
-					// Fail-open: leave devInfos[b.name] null so the SSH Key warning card hides.
-					infos[b.name] = null;
-				}
-			}
-			this.devInfos = infos;
-		},
-		async loadSshCerts(benches) {
-			const certs = {};
-			for (const b of benches) {
-				try {
-					certs[b.name] = await call(
-						'press.press.doctype.bench.bench_dev_overview.get_ssh_certificate',
-						{ bench_name: b.name },
-					);
-				} catch (e) {
-					certs[b.name] = null;
-				}
-			}
-			this.sshCerts = certs;
-		},
-		formatCertExpiry(secs) {
-			if (!secs || secs <= 0) return 'expired';
-			const h = Math.floor(secs / 3600);
-			const m = Math.floor((secs % 3600) / 60);
-			if (h > 0) return `expires in ${h}h ${m}m`;
-			return `expires in ${m}m`;
-		},
-		async generateCert(bench) {
-			if (this.certGenLoading[bench.name]) return;
-			this.certGenLoading = { ...this.certGenLoading, [bench.name]: true };
-			try {
-				const result = await call(
-					'press.press.doctype.bench.bench_dev_overview.generate_ssh_certificate',
-					{ bench_name: bench.name },
-				);
-				this.sshCerts = { ...this.sshCerts, [bench.name]: result };
-				// Trigger browser download of the cert as id_ed25519-cert.pub
-				if (result?.certificate) {
-					const blob = new Blob([result.certificate], { type: 'text/plain' });
-					const url = URL.createObjectURL(blob);
-					const a = document.createElement('a');
-					a.href = url;
-					a.download = 'id_ed25519-cert.pub';
-					document.body.appendChild(a);
-					a.click();
-					document.body.removeChild(a);
-					URL.revokeObjectURL(url);
-				}
-				toast.success(`Certificate minted for ${result.principal}. Save id_ed25519-cert.pub next to your private key.`);
-			} catch (e) {
-				toast.error(e?.messages?.join(', ') || 'Failed to generate SSH certificate');
-			} finally {
-				this.certGenLoading = { ...this.certGenLoading, [bench.name]: false };
-			}
-		},
-
-		localVscodeUrl(bench) {
-			const info = this.devInfos[bench.name];
-			if (!info) return '#';
-			return `vscode://vscode-remote/ssh-remote+frappe@${info.server_ip}:${info.ssh_port}${info.bench_path}/apps`;
-		},
-		async restartBench(bench) {
-			if (!confirm(`Restart ALL workers on ${bench.name}?\\nAny in-flight jobs on sites hosted by this bench will be interrupted.`)) return;
-			this.benchRestartLoading = { ...this.benchRestartLoading, [bench.name]: true };
-			try {
-				await call(
-					'press.press.doctype.bench.bench_dev_overview.restart_bench_for_site',
-					{ bench_name: bench.name },
-				);
-				toast.success('Bench restarted');
-			} catch (e) {
-				toast.error(e?.messages?.join(', ') || 'Failed to restart bench');
-			} finally {
-				this.benchRestartLoading = { ...this.benchRestartLoading, [bench.name]: false };
-			}
 		},
 
 		async launchCodeServer(bench) {
@@ -419,8 +387,6 @@ export default {
 				} else {
 					toast.success('Code Server setup started');
 					this.loadCodeServerStatuses(this.benches.data || []);
-				this.loadBenchDevInfos(this.benches.data || []);
-				this.loadSshCerts(this.benches.data || []);
 				}
 			} catch (e) {
 				toast.error(e?.messages?.join(', ') || 'Failed to launch Code Server');
@@ -428,61 +394,86 @@ export default {
 				this.codeServerLoading = { ...this.codeServerLoading, [bench.name]: false };
 			}
 		},
-		async refreshCodeServerStatus(bench) {
-			try {
-				const s = await call(
-					'press.press.doctype.bench.bench_dev_overview.get_code_server_status',
-					{ bench_name: bench.name },
-				);
-				this.codeServerStatus = { ...this.codeServerStatus, [bench.name]: s };
-			} catch (e) {
-				// ignore
-			}
+
+		togglePasswordReveal(bench) {
+			this.revealedPasswords = {
+				...this.revealedPasswords,
+				[bench.name]: !this.revealedPasswords[bench.name],
+			};
 		},
+
 		async copyCodeServerPassword(bench) {
 			const pwd = this.codeServerStatus[bench.name]?.password;
 			if (!pwd) return;
+			await this.copyToClipboard(pwd, 'Code Server password copied');
+		},
+
+		async copyToClipboard(text, message = 'Copied') {
 			try {
-				await navigator.clipboard.writeText(pwd);
-				this.revealedPasswords = { ...this.revealedPasswords, [bench.name]: true };
-				toast.success('Code Server password copied to clipboard');
-				// Hide again after 15 s
-				setTimeout(() => {
-					this.revealedPasswords = { ...this.revealedPasswords, [bench.name]: false };
-				}, 15000);
+				await navigator.clipboard.writeText(text);
+				toast.success(message);
 			} catch (e) {
-				toast.error('Could not copy — select and copy manually');
-				this.revealedPasswords = { ...this.revealedPasswords, [bench.name]: true };
+				toast.error('Could not copy — your browser may be blocking clipboard access');
 			}
 		},
+
 		formatExpiry(ts) {
-			if (!ts) return '';
+			if (!ts) return 'no expiry';
 			const target = new Date(ts);
 			const diff = target - new Date();
 			if (diff <= 0) return 'expired — rotating on next check';
 			const days = Math.floor(diff / 86400000);
 			const hours = Math.floor((diff % 86400000) / 3600000);
 			const minutes = Math.floor((diff % 3600000) / 60000);
-			if (days > 0) return `expires in ${days}d ${hours}h`;
-			if (hours > 0) return `expires in ${hours}h ${minutes}m`;
-			return `expires in ${minutes}m`;
+			if (days > 0) return `Expires in ${days}d ${hours}h`;
+			if (hours > 0) return `Expires in ${hours}h ${minutes}m`;
+			return `Expires in ${minutes}m`;
 		},
-		async rotateCodeServerPassword(bench) {
-			if (!confirm('Rotate the Code Server password now?\\nAny active browser session will be disconnected.')) return;
-			this.rotateLoading = { ...this.rotateLoading, [bench.name]: true };
-			try {
-				await call(
-					'press.press.doctype.bench.bench_dev_overview.rotate_code_server_password',
-					{ bench_name: bench.name },
-				);
-				toast.success('Password rotated');
-				await this.loadCodeServerStatuses(this.benches.data || []);
-			} catch (e) {
-				toast.error(e?.messages?.join(', ') || 'Failed to rotate password');
-			} finally {
-				this.rotateLoading = { ...this.rotateLoading, [bench.name]: false };
-			}
+
+		rotateCodeServerPassword(bench) {
+			confirmDialog({
+				title: 'Rotate Code Server Password',
+				message:
+					'Rotate the password now? Any active browser session will be disconnected.',
+				primaryAction: {
+					label: 'Rotate',
+					variant: 'solid',
+					theme: 'red',
+					onClick: ({ hide }) => {
+						this.rotateLoading = {
+							...this.rotateLoading,
+							[bench.name]: true,
+						};
+						return toast.promise(
+							call(
+								'press.press.doctype.bench.bench_dev_overview.rotate_code_server_password',
+								{ bench_name: bench.name },
+							)
+								.then(async () => {
+									await this.loadCodeServerStatuses(
+										this.benches.data || [],
+									);
+									hide();
+								})
+								.finally(() => {
+									this.rotateLoading = {
+										...this.rotateLoading,
+										[bench.name]: false,
+									};
+								}),
+							{
+								loading: 'Rotating password…',
+								success: 'Password rotated',
+								error: (e) =>
+									e?.messages?.join(', ') ||
+									'Failed to rotate password',
+							},
+						);
+					},
+				},
+			});
 		},
+
 		async saveDuration(bench) {
 			const cur = this.codeServerStatus[bench.name]?.password_expiry_days;
 			const newVal = Number(this.durationEdits[bench.name]);
@@ -498,6 +489,7 @@ export default {
 				toast.error(e?.messages?.join(', ') || 'Failed to update duration');
 			}
 		},
+
 		async restartCodeServer(bench) {
 			this.restartLoading = { ...this.restartLoading, [bench.name]: true };
 			try {
@@ -506,13 +498,80 @@ export default {
 					{ bench_name: bench.name },
 				);
 				toast.success('Code Server restart queued — should be back in 10–30 s');
-				// Re-poll after 8 s so the UI picks up the new state
 				setTimeout(() => this.loadCodeServerStatuses(this.benches.data || []), 8000);
 			} catch (e) {
 				toast.error(e?.messages?.join(', ') || 'Failed to restart Code Server');
 			} finally {
 				this.restartLoading = { ...this.restartLoading, [bench.name]: false };
 			}
+		},
+
+		openVscodeDialog(bench) {
+			renderDialog(
+				h(VSCodeLaunchDialog, {
+					bench: bench.name,
+					releaseGroup: this.releaseGroup,
+				}),
+			);
+		},
+
+		openSshDialog(bench) {
+			renderDialog(
+				h(SSHCertificateDialog, {
+					bench: bench.name,
+					releaseGroup: this.releaseGroup,
+				}),
+			);
+		},
+
+		confirmRestartBench(bench) {
+			confirmDialog({
+				title: 'Restart Bench',
+				message: `Are you sure you want to restart the bench <b>${bench.name}</b>?`,
+				primaryAction: {
+					label: 'Restart',
+					variant: 'solid',
+					theme: 'red',
+					onClick: ({ hide }) => {
+						toast.promise(
+							call('press.api.client.run_doc_method', {
+								dt: 'Bench',
+								dn: bench.name,
+								method: 'restart',
+							}),
+							{
+								loading: 'Restarting bench...',
+								success: () => {
+									hide();
+									return 'Bench will restart shortly';
+								},
+								error: (e) =>
+									e?.messages?.join('\n') || 'Failed to restart bench',
+							},
+						);
+					},
+				},
+			});
+		},
+
+		codeServerStatusClass(bench) {
+			const s = this.codeServerStatus[bench.name];
+			if (s?.status === 'Running') return 'bg-green-50 text-green-700';
+			if (s?.exists) return 'bg-yellow-50 text-yellow-700';
+			return 'bg-gray-100 text-gray-600';
+		},
+		codeServerDotClass(bench) {
+			const s = this.codeServerStatus[bench.name];
+			if (s?.status === 'Running') return 'bg-green-500';
+			if (s?.exists) return 'bg-yellow-500';
+			return 'bg-gray-400';
+		},
+		codeServerStatusLabel(bench) {
+			const s = this.codeServerStatus[bench.name];
+			if (s?.status === 'Running') return 'Code Server running';
+			if (s?.status === 'Pending') return 'Code Server starting';
+			if (s?.exists) return `Code Server ${String(s.status || '').toLowerCase()}`;
+			return 'Code Server stopped';
 		},
 	},
 };
