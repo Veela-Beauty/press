@@ -46,6 +46,12 @@ def push_app_to_github(bench_name: str, app: str, message: str, branch_name: str
 	before push (`git checkout -B`). This lets users push to a feature branch
 	without first SSH-ing into the container. Returns a `pr_url` pointing at
 	GitHub's compare-and-create-PR page when pushing to a non-default branch.
+
+	Commit author/committer identity is set from the dashboard session user via
+	per-invocation `git -c user.name=… -c user.email=…` flags. Without this,
+	GitHub blame/PR review attributes every dashboard-driven commit to whoever
+	set git config in the container at build time — fine for one dev, wrong
+	for a team.
 	"""
 	_ensure_team_access(bench_name=bench_name)
 	if not is_app_owned_by_current_team(bench_name, app):
@@ -56,6 +62,15 @@ def push_app_to_github(bench_name: str, app: str, message: str, branch_name: str
 	bench = frappe.get_doc("Bench", bench_name)
 	safe_message = message.replace("'", "'\\''")
 	subdir = f"apps/{app}"
+
+	# Author identity: dashboard session user. Falls back to email when full_name is empty.
+	user_email = frappe.session.user or "press@unknown"
+	user_name = frappe.db.get_value("User", user_email, "full_name") or user_email
+	safe_user_name = user_name.replace("'", "'\\''")
+	safe_user_email = user_email.replace("'", "'\\''")
+	commit_with_id = (
+		f"git -c user.name='{safe_user_name}' -c user.email='{safe_user_email}' commit"
+	)
 
 	# Optional: switch to (or create) a target feature branch before commit
 	if branch_name:
@@ -72,7 +87,7 @@ def push_app_to_github(bench_name: str, app: str, message: str, branch_name: str
 	if add_result.get("returncode") != 0:
 		return {"step": "add", **add_result}
 
-	commit_result = _docker_run(bench, f"git commit -m '{safe_message}'", subdir)
+	commit_result = _docker_run(bench, f"{commit_with_id} -m '{safe_message}'", subdir)
 	# commit can fail benignly with "nothing to commit" — proceed to push so
 	# already-committed-but-not-pushed work still ships.
 	nothing_to_commit = (
