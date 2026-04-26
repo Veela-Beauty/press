@@ -7,6 +7,8 @@ import re
 import frappe
 from frappe import _
 
+from press.press.doctype.bench.bench_app_ownership import is_app_owned_by_current_team
+
 
 
 def _ensure_team_access(bench_name=None, site_name=None):
@@ -281,6 +283,7 @@ def get_app_git_status(bench_name, site_name=None):
 	results = []
 	for app in app_names:
 		d = f"apps/{app}"
+		owned = is_app_owned_by_current_team(bench_name, app)
 		try:
 			r1 = bench.docker_execute(f"git -C {d} log -1 --format=%D:::%s", save_output=False, create_log=False)
 			out = (r1.get("output") or "").strip()
@@ -301,9 +304,9 @@ def get_app_git_status(bench_name, site_name=None):
 				r4 = bench.docker_execute(f"git -C {d} rev-list --count @{{u}}..HEAD", save_output=False, create_log=False)
 				a = (r4.get("output") or "").strip()
 				ahead = int(a) if a.isdigit() else 0
-			results.append({"app": app, "branch": branch, "ahead": ahead, "dirty": dirty, "has_remote": has_remote, "last_msg": msg})
+			results.append({"app": app, "branch": branch, "ahead": ahead, "dirty": dirty, "has_remote": has_remote, "last_msg": msg, "is_owned": owned})
 		except Exception:
-			results.append({"app": app, "branch": "?", "ahead": 0, "dirty": 0, "has_remote": True, "last_msg": ""})
+			results.append({"app": app, "branch": "?", "ahead": 0, "dirty": 0, "has_remote": True, "last_msg": "", "is_owned": owned})
 	return results
 
 
