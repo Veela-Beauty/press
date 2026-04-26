@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dev Actions — Synthesis Decisions</title>
+<style>
+:root {
+  --gray-50:#f9fafb; --gray-100:#f3f4f6; --gray-200:#e5e7eb; --gray-300:#d1d5db;
+  --gray-400:#9ca3af; --gray-500:#6b7280; --gray-600:#4b5563; --gray-700:#374151;
+  --gray-800:#1f2937; --gray-900:#111827;
+  --blue-50:#eff6ff; --blue-100:#dbeafe; --blue-500:#3b82f6; --blue-600:#2563eb; --blue-700:#1d4ed8;
+  --green-50:#f0fdf4; --green-500:#22c55e; --green-600:#16a34a; --green-700:#15803d;
+  --yellow-50:#fefce8; --yellow-600:#ca8a04;
+  --red-50:#fef2f2; --red-500:#ef4444; --red-600:#dc2626;
+  --surface:#ffffff;
+  --border:#e5e7eb;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--gray-50); color:var(--gray-900);
+  font-size:13px; line-height:1.55;
+}
+
+.page { max-width:1200px; margin:0 auto; padding:32px 24px 80px; }
+.page-title { font-size:22px; font-weight:600; letter-spacing:-0.01em; margin-bottom:6px; }
+.page-sub { font-size:13px; color:var(--gray-500); margin-bottom:32px; }
+
+/* Question section */
+.q { margin-bottom:48px; }
+.q-head {
+  display:flex; align-items:flex-start; gap:14px;
+  padding-bottom:14px; margin-bottom:18px;
+  border-bottom:2px solid var(--gray-200);
+}
+.q-num {
+  flex-shrink:0; width:34px; height:34px; border-radius:50%;
+  background:var(--gray-900); color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  font-size:14px; font-weight:600;
+}
+.q-title { font-size:17px; font-weight:600; letter-spacing:-0.005em; }
+.q-desc { font-size:13px; color:var(--gray-600); margin-top:3px; }
+
+.options { display:grid; gap:14px; }
+.options-2 { grid-template-columns:repeat(2, 1fr); }
+.options-3 { grid-template-columns:repeat(3, 1fr); }
+
+.opt {
+  background:var(--surface); border:2px solid var(--border); border-radius:10px;
+  padding:18px; cursor:pointer; transition:all .15s;
+  display:flex; flex-direction:column; gap:12px;
+}
+.opt:hover { border-color:var(--gray-300); transform:translateY(-2px); box-shadow:0 4px 12px rgb(0 0 0 / .04); }
+.opt.selected { border-color:var(--blue-600); background:var(--blue-50); }
+.opt.recommended::after {
+  content:'RECOMMENDED'; position:absolute; top:-9px; right:14px;
+  background:var(--green-600); color:#fff; font-size:9.5px; font-weight:700;
+  padding:2px 8px; border-radius:10px; letter-spacing:0.06em;
+}
+.opt { position:relative; }
+.opt-label-row { display:flex; align-items:center; gap:8px; }
+.opt-letter {
+  flex-shrink:0; width:24px; height:24px; border-radius:50%;
+  background:var(--gray-100); color:var(--gray-700);
+  display:flex; align-items:center; justify-content:center;
+  font-size:11px; font-weight:700; letter-spacing:0.04em;
+}
+.opt.selected .opt-letter { background:var(--blue-600); color:#fff; }
+.opt-title { font-size:14px; font-weight:600; color:var(--gray-900); }
+.opt-summary { font-size:12px; color:var(--gray-600); line-height:1.5; }
+.opt-pros, .opt-cons { display:flex; flex-direction:column; gap:3px; font-size:11.5px; }
+.opt-pros li, .opt-cons li { list-style:none; padding-left:14px; position:relative; }
+.opt-pros li::before {
+  content:'+'; position:absolute; left:0; top:-1px;
+  color:var(--green-600); font-weight:700;
+}
+.opt-cons li::before {
+  content:'−'; position:absolute; left:0; top:-1px;
+  color:var(--red-500); font-weight:700;
+}
+
+/* Mockup boxes for visual comparison */
+.mock {
+  background:var(--gray-50); border:1px solid var(--border); border-radius:8px;
+  padding:12px; font-family:'JetBrains Mono','SF Mono',Consolas,monospace; font-size:11px;
+  color:var(--gray-700); line-height:1.5;
+}
+.mock-good { border-color:#86efac; background:var(--green-50); }
+.mock-warn { border-color:#fde68a; background:var(--yellow-50); }
+.mock-bad { border-color:#fecaca; background:var(--red-50); }
+.mock-title { font-weight:600; color:var(--gray-900); font-family:'Inter',sans-serif; font-size:11px; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.04em; }
+
+/* Decision summary panel */
+.summary-panel {
+  position:fixed; bottom:0; left:0; right:0;
+  background:var(--surface); border-top:1px solid var(--border);
+  padding:14px 24px; box-shadow:0 -4px 12px rgb(0 0 0 / .04);
+  z-index:50;
+}
+.summary-row {
+  max-width:1200px; margin:0 auto;
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+}
+.summary-picks { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+.pick {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:5px 11px; border-radius:6px; font-size:12px; font-weight:500;
+  background:var(--gray-100); color:var(--gray-500); border:1px solid var(--border);
+}
+.pick.set { background:var(--blue-50); color:var(--blue-700); border-color:#93c5fd; }
+.pick-q { font-weight:600; font-size:11px; color:var(--gray-500); }
+.pick.set .pick-q { color:var(--blue-700); }
+.summary-cta {
+  background:var(--gray-900); color:#fff; padding:9px 18px;
+  border:0; border-radius:6px; font-weight:500; font-size:13px;
+  cursor:pointer; opacity:.5;
+}
+.summary-cta.ready { opacity:1; }
+.summary-cta:not([disabled]):hover { background:#000; }
+
+/* Side-by-side preview */
+.preview-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:10px; }
+.preview-grid.three { grid-template-columns:repeat(3, 1fr); }
+
+/* Mock UI elements */
+.mock-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:12px; font-size:11.5px;
+}
+.mock-card-title { font-weight:600; font-size:11px; color:var(--gray-900); margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid var(--border); }
+.mock-tile {
+  display:flex; flex-direction:column; gap:5px;
+  padding:8px 10px; background:var(--gray-50);
+  border:1px solid var(--border); border-radius:6px;
+  font-size:11px;
+}
+.mock-tile-icon { width:18px; height:18px; background:var(--gray-200); border-radius:4px; display:inline-block; }
+.mock-pill {
+  display:inline-flex; align-items:center; gap:5px; padding:3px 9px;
+  border-radius:999px; font-size:10px; font-weight:500;
+  background:var(--green-50); color:var(--green-700);
+}
+.mock-btn {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:5px 10px; border-radius:5px;
+  background:var(--gray-100); border:1px solid var(--border);
+  font-size:11px; font-weight:500; color:var(--gray-700);
+}
+.mock-btn-primary { background:var(--gray-900); color:#fff; border-color:var(--gray-900); }
+.mock-input { display:inline-block; padding:1px 5px; border:1px solid var(--gray-300); border-radius:3px; background:#fff; font-size:11px; }
+
+.legend { display:flex; gap:14px; margin:6px 0 0; flex-wrap:wrap; }
+.legend-item { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--gray-600); }
+.legend-dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+.legend-good { background:var(--green-500); }
+.legend-warn { background:var(--yellow-600); }
+.legend-bad { background:var(--red-500); }
+
+/* Bench section mock — used in Q1 */
+.mock-bench {
+  background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:14px; font-size:12px;
+}
+.mock-bench-name { font-family:'JetBrains Mono',monospace; font-weight:600; font-size:12px; }
+.mock-bench-helper { color:var(--gray-500); font-size:11px; margin-top:2px; }
+.mock-kv-panel {
+  background:var(--gray-50); border:1px solid var(--border); border-radius:6px;
+  padding:8px 12px; margin:10px 0; font-family:'JetBrains Mono',monospace; font-size:11px;
+  color:var(--gray-600);
+}
+.mock-tiles {
+  display:grid; grid-template-columns:repeat(4, 1fr); gap:7px; margin-top:8px;
+}
+.mock-rg-actions {
+  background:var(--surface); border:1px dashed var(--gray-300); border-radius:8px;
+  padding:14px; margin-top:14px;
+}
+.mock-rg-actions.included { border-style:solid; border-color:var(--green-500); background:var(--green-50); }
+.mock-rg-actions.excluded { opacity:.4; }
+
+/* Diff view */
+.diff-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+.diff-col { padding:14px; background:var(--surface); }
+.diff-col + .diff-col { border-left:1px solid var(--border); }
+.diff-col-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--gray-500); margin-bottom:10px; }
+.diff-col.theirs { background:#fef9c3; }
+.diff-col.theirs .diff-col-title { color:#854d0e; }
+.diff-col.ours { background:#dbeafe; }
+.diff-col.ours .diff-col-title { color:#1e40af; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1 class="page-title">Dev Actions — Synthesis Decisions</h1>
+  <p class="page-sub">Two implementations exist. We need to merge them. Click the option you prefer for each question. The fixed bar at the bottom shows your picks. When all 4 are set, the "Apply" button activates.</p>
+
+  <!-- ═════════════════════════════ Q1 ═════════════════════════════ -->
+  <section class="q">
+    <div class="q-head">
+      <div class="q-num">1</div>
+      <div>
+        <div class="q-title">Should the bottom "Bench Actions" card stay?</div>
+        <div class="q-desc">Their version keeps it. Ours removed it. The reviewer found it's NOT a duplicate — it renders Release Group doctype actions like Deploy / Update Apps / Clone Bench (configured in the Release Group's `actions` table), not the same cards as the top panel.</div>
+      </div>
+    </div>
+
+    <div class="preview-grid">
+      <div>
+        <div class="mock-title">Without bottom card (our current design)</div>
+        <div class="mock-bench">
+          <div class="mock-bench-name">bench-0005-000026-press-f1</div>
+          <div class="mock-bench-helper">Mark this bench for development use only</div>
+          <div class="mock-kv-panel">URL: code-bench-0005...sandbox.com [📋][↗]<br>Password: •••••••••••• [👁][📋]<br>Expires in 1d 14h · Rotate · Restart<br>Auto-rotate every <span class="mock-input">3</span> days</div>
+          <div class="mock-tiles">
+            <div class="mock-tile"><span class="mock-tile-icon"></span>Open in VS Code</div>
+            <div class="mock-tile"><span class="mock-tile-icon"></span>Mark Dev Bench</div>
+            <div class="mock-tile"><span class="mock-tile-icon"></span>SSH Cert</div>
+            <div class="mock-tile"><span class="mock-tile-icon"></span>Restart Bench</div>
+          </div>
+        </div>
+        <div class="mock-rg-actions excluded" style="margin-top:14px;">
+          <div class="mock-card-title" style="border:0; padding:0;">Release Group Actions (deploy / update apps / clone)</div>
+          <div style="font-size:11px; color:var(--gray-500); margin-top:4px;">Hidden — users have to navigate elsewhere to deploy/update.</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="mock-title">With bottom card (theirs — recommended)</div>
+        <div class="mock-bench">
+          <div class="mock-bench-name">bench-0005-000026-press-f1</div>
+          <div class="mock-bench-helper">Mark this bench for development use only</div>
+          <div class="mock-kv-panel">URL: code-bench-0005...sandbox.com [📋][↗]<br>Password: •••••••••••• [👁][📋]<br>Expires in 1d 14h · Rotate · Restart<br>Auto-rotate every <span class="mock-input">3</span> days</div>
+          <div class="mock-tiles">
+            <div class="mock-tile"><span class="mock-tile-icon"></span>Open in VS Code</div>
+            <div class="mock-tile"><span class="mock-tile-icon"></span>Mark Dev Bench</div>
+            <div class="mock-tile"><span class="mock-tile-icon"></span>SSH Cert</div>
+            <div class="mock-tile"><span class="mock-tile-icon"></span>Restart Bench</div>
+          </div>
+        </div>
+        <div class="mock-rg-actions included">
+          <div class="mock-card-title" style="border:0; padding:0;">Release Group Actions</div>
+          <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+            <span class="mock-btn">Deploy New Build</span>
+            <span class="mock-btn">Update Apps</span>
+            <span class="mock-btn">Clone Bench</span>
+            <span class="mock-btn">Drop Bench</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="options options-2" style="margin-top:18px;">
+      <div class="opt" data-q="1" data-pick="A">
+        <div class="opt-label-row"><span class="opt-letter">A</span><span class="opt-title">Remove it (our current code)</span></div>
+        <div class="opt-summary">Bottom card stays gone. Users navigate to a different page to deploy/update apps.</div>
+        <ul class="opt-cons"><li>Loses access to deploy/update from the actions page</li><li>Diverges from production behavior</li></ul>
+      </div>
+      <div class="opt recommended" data-q="1" data-pick="B">
+        <div class="opt-label-row"><span class="opt-letter">B</span><span class="opt-title">Keep it (port from theirs)</span></div>
+        <div class="opt-summary">Re-add the `<div v-for="group in actions">` block at the bottom rendering RG doctype actions.</div>
+        <ul class="opt-pros"><li>Real RG actions (deploy/update/clone) accessible</li><li>Matches current production behavior — no regression</li><li>Not actually a duplicate — different concerns</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ Q2 ═════════════════════════════ -->
+  <section class="q">
+    <div class="q-head">
+      <div class="q-num">2</div>
+      <div>
+        <div class="q-title">Which SSH endpoint should "Open in VS Code" use?</div>
+        <div class="q-desc">Two valid SSH paths exist. Their deployed code uses one; ours uses the other.</div>
+      </div>
+    </div>
+
+    <div class="diff-grid">
+      <div class="diff-col theirs">
+        <div class="diff-col-title">Theirs (currently deployed)</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:11px; line-height:1.6;">
+          ssh frappe@<strong>89.167.57.21</strong>:<strong>22008</strong><br>
+          (server IP, port 22000+offset)
+        </div>
+        <div style="margin-top:10px; font-size:11.5px; color:var(--gray-700);">
+          Direct SSH to the bench-server. Authenticates as user `frappe` via your registered SSH public key (no cert).
+        </div>
+        <div class="legend">
+          <div class="legend-item"><span class="legend-dot legend-good"></span>Already works in production</div>
+          <div class="legend-item"><span class="legend-dot legend-warn"></span>Bypasses SSH cert flow</div>
+          <div class="legend-item"><span class="legend-dot legend-warn"></span>Non-canonical (relies on user keys auto-deployed to container)</div>
+        </div>
+      </div>
+      <div class="diff-col ours">
+        <div class="diff-col-title">Ours (matches existing cert flow)</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:11px; line-height:1.6;">
+          ssh -A bench-0005-000026@<strong>press-f1.sandbox.mvpstorm.com</strong>:<strong>2222</strong><br>
+          (proxy server, port 2222 — same port as `Generate SSH Certificate` dialog uses)
+        </div>
+        <div style="margin-top:10px; font-size:11.5px; color:var(--gray-700);">
+          SSH proxy with cert-based auth. Cert signed by Release Group — same flow `SSHCertificateDialog.vue` already documents.
+        </div>
+        <div class="legend">
+          <div class="legend-item"><span class="legend-dot legend-good"></span>Matches the canonical cert flow</div>
+          <div class="legend-item"><span class="legend-dot legend-good"></span>One auth artifact (the cert) — supported & documented</div>
+          <div class="legend-item"><span class="legend-dot legend-bad"></span>Existing direct-SSH users need to re-do cert setup once</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="options options-3" style="margin-top:18px;">
+      <div class="opt" data-q="2" data-pick="A">
+        <div class="opt-label-row"><span class="opt-letter">A</span><span class="opt-title">Direct SSH (theirs)</span></div>
+        <div class="opt-summary">Keep `frappe@server:22000+offset`. No cert needed.</div>
+        <ul class="opt-pros"><li>No friction for current users</li></ul>
+        <ul class="opt-cons"><li>Bypasses the supported cert flow</li><li>Doesn't match SSHCertificateDialog</li></ul>
+      </div>
+      <div class="opt recommended" data-q="2" data-pick="B">
+        <div class="opt-label-row"><span class="opt-letter">B</span><span class="opt-title">Proxy SSH + cert (ours)</span></div>
+        <div class="opt-summary">Use `<bench>@proxy:2222` with the cert. Hard cut.</div>
+        <ul class="opt-pros"><li>Canonical, supported path</li><li>Matches existing SSH cert dialog</li><li>One source of truth for auth</li></ul>
+        <ul class="opt-cons"><li>Existing direct-SSH users need cert once</li></ul>
+      </div>
+      <div class="opt" data-q="2" data-pick="C">
+        <div class="opt-label-row"><span class="opt-letter">C</span><span class="opt-title">Both — primary + fallback link</span></div>
+        <div class="opt-summary">Primary button uses ours's `proxy:2222`. Show "Or use direct SSH" small text-link with theirs's URL.</div>
+        <ul class="opt-pros"><li>No regression for anyone</li><li>One release of overlap</li></ul>
+        <ul class="opt-cons"><li>UI clutter</li><li>Two paths to test/maintain</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ Q3 ═════════════════════════════ -->
+  <section class="q">
+    <div class="q-head">
+      <div class="q-num">3</div>
+      <div>
+        <div class="q-title">Where does cert generation happen for the "Open in VS Code" flow?</div>
+        <div class="q-desc">Theirs has a one-click `generate_ssh_certificate` API + browser-download blob. Ours uses the existing SSH dialog with multi-step UX.</div>
+      </div>
+    </div>
+
+    <div class="preview-grid three">
+      <div class="mock">
+        <div class="mock-title">Option A — Use existing SSH dialog</div>
+        <div style="margin-top:8px;">
+          User clicks "Open in VS Code" tile<br>→ VSCodeLaunchDialog opens<br>→ shows the existing SSH cert flow:<br>&nbsp;&nbsp;Step 1: PowerShell encoding<br>&nbsp;&nbsp;Step 2: echo cert &gt; ~/.ssh/...<br>&nbsp;&nbsp;Step 3: Launch VS Code button<br>→ User clicks Launch
+        </div>
+      </div>
+      <div class="mock">
+        <div class="mock-title">Option B — One-click generate + browser download</div>
+        <div style="margin-top:8px;">
+          User clicks "Open in VS Code" tile<br>→ VSCodeLaunchDialog opens<br>→ if has_valid_cert:<br>&nbsp;&nbsp;Show Launch button only<br>→ if no cert:<br>&nbsp;&nbsp;[Generate Certificate] button<br>&nbsp;&nbsp;Auto-downloads `id_ed25519-cert.pub`<br>&nbsp;&nbsp;Show Launch VS Code<br>→ User clicks Launch
+        </div>
+      </div>
+      <div class="mock">
+        <div class="mock-title">Option C — Hybrid (best UX)</div>
+        <div style="margin-top:8px;">
+          User clicks "Open in VS Code" tile<br>→ VSCodeLaunchDialog opens<br>→ if has_valid_cert: Launch only<br>→ if no cert + 1 key:<br>&nbsp;&nbsp;[Generate &amp; Download] one click<br>→ if no cert + multi-key:<br>&nbsp;&nbsp;Open existing SSHCertificateDialog<br>&nbsp;&nbsp;(key picker)<br>→ User clicks Launch
+        </div>
+      </div>
+    </div>
+
+    <div class="options options-3" style="margin-top:18px;">
+      <div class="opt" data-q="3" data-pick="A">
+        <div class="opt-label-row"><span class="opt-letter">A</span><span class="opt-title">Existing dialog only</span></div>
+        <div class="opt-summary">Simpler code. Multi-step every time.</div>
+        <ul class="opt-pros"><li>Reuses tested dialog</li><li>Single path to maintain</li></ul>
+        <ul class="opt-cons"><li>Friction for repeat users</li></ul>
+      </div>
+      <div class="opt" data-q="3" data-pick="B">
+        <div class="opt-label-row"><span class="opt-letter">B</span><span class="opt-title">One-click generate</span></div>
+        <div class="opt-summary">Minimal clicks. Auto-download cert blob.</div>
+        <ul class="opt-pros"><li>Fast for repeat users</li><li>Browser download familiar</li></ul>
+        <ul class="opt-cons"><li>Skips multi-key picker</li><li>No Windows PowerShell helper</li></ul>
+      </div>
+      <div class="opt recommended" data-q="3" data-pick="C">
+        <div class="opt-label-row"><span class="opt-letter">C</span><span class="opt-title">Hybrid (smart default)</span></div>
+        <div class="opt-summary">One-click if simple case (1 key, valid cert), full dialog if complex.</div>
+        <ul class="opt-pros"><li>Best UX for common case</li><li>Falls back gracefully for edge cases</li></ul>
+        <ul class="opt-cons"><li>Slightly more code to maintain</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ Q4 ═════════════════════════════ -->
+  <section class="q">
+    <div class="q-head">
+      <div class="q-num">4</div>
+      <div>
+        <div class="q-title">How should `has_valid_cert` handle multi-key users?</div>
+        <div class="q-desc">Their `get_ssh_certificate` only checks the user's `is_default=1` SSH key. Users who minted a cert for a non-default key (via the multi-key picker in `SSHCertificateDialog`) will see "no cert" even though one exists.</div>
+      </div>
+    </div>
+
+    <div class="diff-grid">
+      <div class="diff-col" style="background:var(--red-50);">
+        <div class="diff-col-title" style="color:var(--red-600);">Today (theirs) — bug for power users</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:11px;">
+          User has 2 SSH keys:<br>
+          &nbsp;&nbsp;- key-A (is_default=0)<br>
+          &nbsp;&nbsp;- key-B (is_default=1)<br>
+          User minted cert for key-A.<br>
+          <br>
+          <strong>get_ssh_certificate looks up key-B only</strong><br>
+          → returns has_valid_cert=false<br>
+          → UI says "Generate Certificate"<br>
+          → user already has a valid one!
+        </div>
+      </div>
+      <div class="diff-col" style="background:var(--green-50);">
+        <div class="diff-col-title" style="color:var(--green-700);">Fix — check any registered key</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:11px;">
+          User has 2 SSH keys:<br>
+          &nbsp;&nbsp;- key-A (is_default=0) ← cert<br>
+          &nbsp;&nbsp;- key-B (is_default=1)<br>
+          <br>
+          <strong>get_ssh_certificate iterates all enabled keys</strong><br>
+          → finds cert for key-A<br>
+          → returns has_valid_cert=true<br>
+          → UI shows Launch button
+        </div>
+      </div>
+    </div>
+
+    <div class="options options-2" style="margin-top:18px;">
+      <div class="opt" data-q="4" data-pick="A">
+        <div class="opt-label-row"><span class="opt-letter">A</span><span class="opt-title">Document the limitation, ship today</span></div>
+        <div class="opt-summary">Note in wiki that multi-key users should set their preferred key as default.</div>
+        <ul class="opt-pros"><li>Faster to ship</li><li>Affects only multi-key power users</li></ul>
+        <ul class="opt-cons"><li>Power users hit the bug</li><li>Tech debt</li></ul>
+      </div>
+      <div class="opt recommended" data-q="4" data-pick="B">
+        <div class="opt-label-row"><span class="opt-letter">B</span><span class="opt-title">Fix it now — check any registered key</span></div>
+        <div class="opt-summary">Iterate `User SSH Key` records (filter `is_disabled=0`), return first valid cert.</div>
+        <ul class="opt-pros"><li>Correct for all users</li><li>~10 lines of Python change</li></ul>
+        <ul class="opt-cons"><li>Slightly more backend work</li></ul>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- Sticky decision summary -->
+<div class="summary-panel">
+  <div class="summary-row">
+    <div class="summary-picks">
+      <span class="pick" id="pick-1"><span class="pick-q">Q1</span> · <span class="pick-val">—</span></span>
+      <span class="pick" id="pick-2"><span class="pick-q">Q2</span> · <span class="pick-val">—</span></span>
+      <span class="pick" id="pick-3"><span class="pick-q">Q3</span> · <span class="pick-val">—</span></span>
+      <span class="pick" id="pick-4"><span class="pick-q">Q4</span> · <span class="pick-val">—</span></span>
+      <span style="font-size:11.5px; color:var(--gray-500); margin-left:8px;" id="status-text">Pick all 4 to enable Apply</span>
+    </div>
+    <button class="summary-cta" id="apply-btn" disabled>Apply decisions</button>
+  </div>
+</div>
+
+<script>
+const picks = {1: null, 2: null, 3: null, 4: null};
+const recommended = {1: 'B', 2: 'B', 3: 'C', 4: 'B'};
+
+document.querySelectorAll('.opt').forEach(opt => {
+  opt.addEventListener('click', () => {
+    const q = opt.dataset.q;
+    const pick = opt.dataset.pick;
+    document.querySelectorAll(`.opt[data-q="${q}"]`).forEach(o => o.classList.remove('selected'));
+    opt.classList.add('selected');
+    picks[q] = pick;
+    document.querySelector(`#pick-${q} .pick-val`).textContent = pick;
+    document.querySelector(`#pick-${q}`).classList.add('set');
+    updateStatus();
+  });
+});
+
+function updateStatus() {
+  const set = Object.values(picks).filter(p => p !== null).length;
+  const btn = document.getElementById('apply-btn');
+  const status = document.getElementById('status-text');
+  if (set === 4) {
+    btn.disabled = false;
+    btn.classList.add('ready');
+    const summary = `Q1=${picks[1]} · Q2=${picks[2]} · Q3=${picks[3]} · Q4=${picks[4]}`;
+    status.textContent = `Ready: ${summary}`;
+    btn.onclick = () => alert(`Send this to Claude:\n\nQ1=${picks[1]}, Q2=${picks[2]}, Q3=${picks[3]}, Q4=${picks[4]}`);
+  } else {
+    status.textContent = `${set}/4 picked — recommended: Q1=B, Q2=B, Q3=C, Q4=B`;
+  }
+}
+
+// pre-select recommendations as a hint via subtle outline (not committed)
+window.addEventListener('load', () => {
+  Object.entries(recommended).forEach(([q, pick]) => {
+    const el = document.querySelector(`.opt[data-q="${q}"][data-pick="${pick}"]`);
+    if (el) el.style.outline = '1px dashed var(--gray-300)';
+  });
+});
+</script>
+</body>
+</html>
