@@ -542,17 +542,10 @@ def restart_bench_for_site(bench_name):
 
 @frappe.whitelist()
 def push_app_to_github(bench_name, app, message):
-	"""
-	Run git add -A && git commit -m <message> && git push inside the bench
-	container for the given app. Uses bench.docker_execute() — requires the
-	bench to be Active and the container to have SSH keys for GitHub.
-	"""
-	_ensure_team_access(bench_name=bench_name)
-	bench = frappe.get_doc("Bench", bench_name)
-	# Escape single quotes to prevent shell injection
-	safe_message = message.replace("'", "'\\''")
-	cmd = f"git add -A && git commit -m '{safe_message}' && git push"
-	return bench.docker_execute(cmd, subdir=f"apps/{app}")
+	"""Thin shim — real implementation lives in bench_app_push.py to keep
+	bench_dev_overview.py under its file-size budget."""
+	from press.press.doctype.bench.bench_app_push import push_app_to_github as _impl
+	return _impl(bench_name, app, message)
 
 
 
