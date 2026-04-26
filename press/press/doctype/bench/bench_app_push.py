@@ -62,8 +62,15 @@ def push_app_to_github(bench_name: str, app: str, message: str) -> dict:
 			hint = "GitHub auth failed — bench's deploy key may be read-only or missing."
 		elif "no upstream branch" in out or "matching ref" in out:
 			hint = "No upstream branch — checkout/create a branch in the container first."
-		elif "no such remote" in out or "does not appear to be a git repo" in out:
-			hint = "No origin remote configured. Use the 'GitHub' button to register the repo first."
+		elif (
+			"no configured push destination" in out
+			or "no such remote" in out
+			or "does not appear to be a git repo" in out
+		):
+			hint = (
+				"No GitHub remote configured for this app on the bench. Use the "
+				"'GitHub' button next to the app row to register it first, then push."
+			)
 		return {"step": "push", "hint": hint, **push_result}
 
 	return {
