@@ -72,8 +72,13 @@ def create_app_locally(bench_name, app_name, app_title):
 @frappe.whitelist()
 def init_github_for_app(bench_name, app_name, github_owner, repo_name=""):
 	"""
-	Initialize a GitHub repo for a locally-created app and push.
-	Called from Dev tab when developer is ready to push.
+	Initialize a GitHub repo for an app on a bench and push.
+
+	Handles both freshly-scaffolded apps (already on `main`) and
+	existing build-installed apps (detached HEAD with no branch).
+	Each git command runs as its own docker_execute — `bash -c '...&&...'`
+	is broken inside docker_execute because `&&` evaluates on the host shell
+	after only the first command runs in the container.
 	"""
 	_ensure_team_access(bench_name=bench_name)
 
@@ -87,29 +92,46 @@ def init_github_for_app(bench_name, app_name, github_owner, repo_name=""):
 	github_user = _get_github_user(headers)
 	is_org = github_owner != github_user
 
-	# Create GitHub repo
+	# 1. Create GitHub repo (passes through silently if it already exists)
 	url = f"https://api.github.com/orgs/{github_owner}/repos" if is_org else "https://api.github.com/user/repos"
 	resp = requests.post(url, headers=headers, json={"name": repo_name, "private": False}, timeout=30)
 	if resp.status_code == 422 and "already exists" in resp.text:
-		pass  # Repo exists — just push
+		pass
 	elif resp.status_code != 201:
 		frappe.throw(f"Failed to create repo: {resp.json().get('message', resp.text[:200])}")
 
-	# Add remote and push inside container
 	push_url = f"https://{token}@github.com/{github_owner}/{repo_name}.git"
-	cmd = (
-		f"bash -c 'cd apps/{app_name} && "
-		f"git remote remove origin 2>/dev/null; "
-		f"git remote add origin {push_url} "
-		f"&& git push -u origin main'"
-	)
-	result = bench.docker_execute(cmd)
+	subdir = f"apps/{app_name}"
 
-	# Register in Press
+	# 2. Replace any existing origin remote (ignore returncode if origin didn't exist)
+	bench.docker_execute("git remote remove origin", subdir=subdir)
+	add_remote = bench.docker_execute(f"git remote add origin {push_url}", subdir=subdir)
+	if add_remote.get("returncode") != 0:
+		return {"step": "remote_add", "push_result": add_remote}
+
+	# 3. Ensure a `main` branch points at the current commit. On a fresh
+	# Press build, HEAD is detached — `git symbolic-ref HEAD` fails,
+	# we create main from HEAD so the explicit refspec push below works.
+	head_check = bench.docker_execute("git symbolic-ref HEAD", subdir=subdir)
+	if head_check.get("returncode") != 0:
+		bench.docker_execute("git branch -f main HEAD", subdir=subdir)
+
+	# 4. Push HEAD as `main` on origin — explicit refspec is detached-HEAD safe
+	push_result = bench.docker_execute("git push -u origin HEAD:refs/heads/main", subdir=subdir)
+	if push_result.get("returncode") != 0:
+		out = (push_result.get("output") or "").lower()
+		hint = None
+		if "permission denied" in out or "403" in out:
+			hint = "GitHub auth failed. Check that the team or Press Settings has a token with push access to {0}/{1}.".format(github_owner, repo_name)
+		elif "src refspec" in out and "does not match" in out:
+			hint = "No matching commit on local branch — bench's git state may be unexpected. Try opening the app in VS Code to inspect."
+		return {"step": "push", "hint": hint, "push_result": push_result}
+
+	# 5. Register in Press (creates App + App Source for this team)
 	repo_url = f"https://github.com/{github_owner}/{repo_name}"
 	_register_app_in_press(app_name, repo_url, token, headers)
 
-	return {"repository_url": repo_url, "push_result": result}
+	return {"repository_url": repo_url, "push_result": push_result}
 
 
 @frappe.whitelist()
