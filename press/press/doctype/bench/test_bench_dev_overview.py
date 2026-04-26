@@ -223,24 +223,31 @@ class TestGetDevOverviewBenches(unittest.TestCase):
 class TestGetVscodeRemoteUrl(unittest.TestCase):
     PATCH = "press.press.doctype.bench.bench_dev_overview.frappe"
 
+    @staticmethod
+    def _bypass_team_access(mf):
+        """_ensure_team_access early-returns for System Users — short-circuits the team lookup."""
+        mf.session.data.user_type = "System User"
+
     @patch(PATCH)
-    def test_returns_vscode_uri_with_bench_user_proxy_and_bench_path(self, mf):
-        bench_doc = MagicMock(name="b-001", server="srv-001")
-        bench_doc.name = "b-001"
+    def test_returns_full_vscode_uri(self, mf):
+        """URL must equal the exact composed string — catches any separator/order regressions."""
+        self._bypass_team_access(mf)
+        bench_doc = MagicMock(server="srv-001")
+        bench_doc.name = "bench-0005-000026"
         mf.get_doc.return_value = bench_doc
-        mf.db.get_value.return_value = "press-f1.sandbox.mvpstorm.com"
+        mf.db.get_value.return_value = "proxy.example.com"
 
-        url = _bdo.get_vscode_remote_url("b-001")
-
-        self.assertTrue(url.startswith("vscode://vscode-remote/ssh-remote+"))
-        self.assertIn("+b-001@", url)
-        self.assertIn(":2222", url)
-        self.assertTrue(url.endswith("/home/frappe/frappe-bench"))
+        expected = (
+            "vscode://vscode-remote/ssh-remote+bench-0005-000026"
+            "@proxy.example.com:2222/home/frappe/frappe-bench"
+        )
+        self.assertEqual(_bdo.get_vscode_remote_url("bench-0005-000026"), expected)
         # proxy_server lookup uses Server.proxy_server, not Bench.proxy_server
         mf.db.get_value.assert_called_once_with("Server", "srv-001", "proxy_server")
 
     @patch(PATCH)
     def test_raises_when_proxy_server_missing(self, mf):
+        self._bypass_team_access(mf)
         bench_doc = MagicMock(server="srv-002")
         bench_doc.name = "b-002"
         mf.get_doc.return_value = bench_doc
@@ -253,6 +260,8 @@ class TestGetVscodeRemoteUrl(unittest.TestCase):
 
     @patch(PATCH)
     def test_raises_for_nonexistent_bench(self, mf):
+        self._bypass_team_access(mf)
+
         class _DoesNotExistError(Exception):
             pass
         mf.DoesNotExistError = _DoesNotExistError
@@ -260,6 +269,21 @@ class TestGetVscodeRemoteUrl(unittest.TestCase):
 
         with self.assertRaises(_DoesNotExistError):
             _bdo.get_vscode_remote_url("nonexistent-bench-zzz-9999")
+
+    @patch(PATCH)
+    def test_raises_when_bench_name_has_uri_special_chars(self, mf):
+        """Bench names with @, ?, #, / etc. must be rejected — they would corrupt the URI."""
+        self._bypass_team_access(mf)
+        bench_doc = MagicMock(server="srv-003")
+        bench_doc.name = "evil@host"
+        mf.get_doc.return_value = bench_doc
+        mf.throw.side_effect = Exception("unsafe name")
+
+        with self.assertRaises(Exception):
+            _bdo.get_vscode_remote_url("evil@host")
+        mf.throw.assert_called_once()
+        # Must reject before composing the URL — no proxy lookup should happen
+        mf.db.get_value.assert_not_called()
 
 
 if __name__ == "__main__":
