@@ -293,19 +293,25 @@ export default {
 		async loadCodeServerStatuses(benches) {
 			const statuses = {};
 			const durations = { ...this.durationEdits };
-			for (const b of benches) {
-				try {
-					statuses[b.name] = await call(
+			const results = await Promise.allSettled(
+				benches.map((b) =>
+					call(
 						'press.press.doctype.bench.bench_dev_overview.get_code_server_status',
 						{ bench_name: b.name },
-					);
-					if (statuses[b.name]?.password_expiry_days != null) {
-						durations[b.name] = statuses[b.name].password_expiry_days;
+					),
+				),
+			);
+			benches.forEach((b, i) => {
+				const r = results[i];
+				if (r.status === 'fulfilled') {
+					statuses[b.name] = r.value;
+					if (r.value?.password_expiry_days != null) {
+						durations[b.name] = r.value.password_expiry_days;
 					}
-				} catch (e) {
+				} else {
 					statuses[b.name] = { enabled: false, exists: false, status: null };
 				}
-			}
+			});
 			this.codeServerStatus = statuses;
 			this.durationEdits = durations;
 		},
@@ -366,26 +372,48 @@ export default {
 			return `Expires in ${minutes}m`;
 		},
 
-		async rotateCodeServerPassword(bench) {
-			if (
-				!confirm(
-					'Rotate the Code Server password now?\nAny active browser session will be disconnected.',
-				)
-			)
-				return;
-			this.rotateLoading = { ...this.rotateLoading, [bench.name]: true };
-			try {
-				await call(
-					'press.press.doctype.bench.bench_dev_overview.rotate_code_server_password',
-					{ bench_name: bench.name },
-				);
-				toast.success('Password rotated');
-				await this.loadCodeServerStatuses(this.benches.data || []);
-			} catch (e) {
-				toast.error(e?.messages?.join(', ') || 'Failed to rotate password');
-			} finally {
-				this.rotateLoading = { ...this.rotateLoading, [bench.name]: false };
-			}
+		rotateCodeServerPassword(bench) {
+			confirmDialog({
+				title: 'Rotate Code Server Password',
+				message:
+					'Rotate the password now? Any active browser session will be disconnected.',
+				primaryAction: {
+					label: 'Rotate',
+					variant: 'solid',
+					theme: 'red',
+					onClick: ({ hide }) => {
+						this.rotateLoading = {
+							...this.rotateLoading,
+							[bench.name]: true,
+						};
+						return toast.promise(
+							call(
+								'press.press.doctype.bench.bench_dev_overview.rotate_code_server_password',
+								{ bench_name: bench.name },
+							)
+								.then(async () => {
+									await this.loadCodeServerStatuses(
+										this.benches.data || [],
+									);
+									hide();
+								})
+								.finally(() => {
+									this.rotateLoading = {
+										...this.rotateLoading,
+										[bench.name]: false,
+									};
+								}),
+							{
+								loading: 'Rotating password…',
+								success: 'Password rotated',
+								error: (e) =>
+									e?.messages?.join(', ') ||
+									'Failed to rotate password',
+							},
+						);
+					},
+				},
+			});
 		},
 
 		async saveDuration(bench) {
