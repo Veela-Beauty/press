@@ -1,59 +1,60 @@
 # Press Fork Dev Log
 
 ## Working State
-**Session:** Deploy Page + Create App + Dev Tab | **Date:** 2026-04-03
+**Session:** Dev Actions Redesign | **Date:** 2026-04-26
 
 ### Active Task
-Dev tab local app creation + infrastructure fixes
-- [x] Deploy page blank screen fix
-- [x] Deploy page 7 UX enhancements + code review (all 7 fixes applied)
-- [x] Create New App feature (GitHub-first, from bench Apps tab)
-- [x] Dev tab: Create App Locally + Push to GitHub
-- [x] press-f1 disk cleanup (100% → 39%) + expand (75G → 150G)
-- [x] Daily cleanup cron on press-f1
-- [x] roseline_app git cleanup (removed baked-in database dumps)
-- [ ] "Add to other benches" picker after GitHub push
+Restructure Release Group Dev Actions panel: per-bench section, Code Server KV panel, 4 action tiles, fix password copy bug, add "Open in VS Code" Remote-SSH flow.
+- [x] Plan + approved HTML prototype (`docs/prototypes/dev-actions-redesign.html`)
+- [x] Backend: `get_vscode_remote_url` whitelisted method (16 tests pass)
+- [x] Frontend: `VSCodeLaunchDialog.vue` (222 lines, reuses SSH cert API)
+- [x] Frontend: restructure `ReleaseGroupActions.vue` (per-bench section + KV panel + 4 tiles)
+- [x] Wiki: `press/docs/wiki/04-bench-management/dev-actions.md`
+- [ ] User: build dashboard + smoke test on demo.mvpstorm.com (Task 5)
+- [ ] User: deploy via `bench build --app press --force` + supervisorctl restart
 
 ### Key Files (current shape)
-**`dashboard/src/pages/DeployCandidate.vue`** (MODIFIED, 685 lines)
-Enhanced deploy build page: loading state, failure banner with step details, colored badges,
-stage-grouped collapsible steps, auto-refresh, progress bar with estimate, retry/cancel/force buttons.
+**`dashboard/src/components/group/ReleaseGroupActions.vue`** (REWRITTEN, 521 lines)
+Per-bench section with bench identity, status pill (Running/Pending/Stopped), full-width Code Server KV panel (URL + masked-with-eye-toggle Password + meta footer), and 4-tile action grid (Open in VS Code, Mark as Dev Bench, Generate SSH Cert, Restart Bench). Removed old fixture-driven bottom block (was the "Open Code Server" duplication source). 16 reactive methods. `Promise.allSettled` for parallel status fetch.
 
-**`press/press/doctype/bench/bench_app_management.py`** (NEW, 148 lines)
-Local app creation + GitHub push APIs. create_app_locally runs bench new-app inside container.
-init_github_for_app creates repo, pushes, registers in Press.
+**`dashboard/src/components/group/VSCodeLaunchDialog.vue`** (NEW, 222 lines)
+Sibling to SSHCertificateDialog. Same SSH cert generation flow + final "Launch VS Code" step that fires `vscode://vscode-remote/ssh-remote+<bench>@<proxy>:2222/home/frappe/frappe-bench`. Reuses `releaseGroup.generateCertificate` and `getCertificate` resources. Surfaces URL-fetch errors via `<ErrorMessage>`. Disabled-key safeguards mirror SSHCertificateDialog. Async-imported in parent (`defineAsyncComponent`).
 
-**`press/api/create_app.py`** (NEW, 195 lines)
-GitHub-first app creation. Scaffold → create repo → push → register → auto-add to bench.
-GitHub account selector (user + orgs). Team token with global fallback.
+**`press/press/doctype/bench/bench_dev_overview.py`** (MODIFIED, +24 lines)
+New `get_vscode_remote_url(bench_name)` whitelisted method. Validates bench name as slug (`r"[a-zA-Z0-9_.-]+"`) before URI composition. Reads `proxy_server` from the bench's `Server` doctype (NOT bench/release-group — those fields don't exist; verified). Calls `_ensure_team_access` for consistency with sibling functions.
 
-**`press/press/doctype/deploy_candidate_build/build_diagnostics.py`** (NEW, 37 lines)
-get_failure_details API — returns failed step, stage, output, progress.
+**`press/press/doctype/bench/test_bench_dev_overview.py`** (MODIFIED, +5 tests, 16 total)
+3 happy/sad-path tests for `get_vscode_remote_url` + 1 URI-injection test (bench name with `@` rejected before proxy lookup). Uses the file's existing mocked-frappe scaffold. `_bypass_team_access` helper added since `_ensure_team_access` imports `press.utils.get_current_team` which doesn't load through the mock stub.
 
-**`dashboard/src/components/SiteDevTab.vue`** (MODIFIED, 612 lines)
-Dev tab: New App button (dev benches only), Create App dialog, Push to GitHub dialog,
-git status filtered by site apps, GitHub account selector.
+**`press/docs/wiki/04-bench-management/dev-actions.md`** (NEW, 53 lines)
+User-facing wiki page documenting the panel, password-copy UX, "Open in VS Code" first-time setup, troubleshooting.
 
 ### Decisions
-- **Sibling files over editing upstream**: All new APIs in separate .py files to avoid merge conflicts
-- **git -C over cd**: docker_execute doesn't expand $() subshells — use git -C per app
-- **Daily cleanup cron**: press-f1 at 3 AM — prune images >72h, build cache, /tmp, journals
-- **Docker logs weekly**: Truncate Sunday only (kept for debugging)
-- **Global GitHub token fallback**: OK for self-hosted with trusted teams
+- **One dialog per concern**: VSCodeLaunchDialog is a sibling of SSHCertificateDialog (not an extension). Reuses the same backend cert API. Drift comment added: "Mirrors SSHCertificateDialog.loadSshKeys — keep these two in sync."
+- **Async import for VSCodeLaunchDialog**: only loaded when user clicks the tile. SSHCertificateDialog stays static (already used elsewhere).
+- **`Server.proxy_server` not `Bench.proxy_server`**: plan was wrong, neither Bench nor Release Group has that field. Pattern matches `bench.py:189, 657, 663`.
+- **Port 2222 hardcoded**: SSH proxy port (cert-based access, matches SSHCertificateDialog). Distinct from `22000+offset` admin port for direct bench-server SSH.
+- **Confirm dialogs**: replaced native `confirm()` in `rotateCodeServerPassword` with `confirmDialog` from utils — `confirm()` is silently blocked in cross-origin iframes / sandboxed contexts.
+- **Parallel status fetch**: `loadCodeServerStatuses` uses `Promise.allSettled` so N benches don't serialise.
 
 ### Next Steps
-1. "Add to other benches" picker after GitHub push
-2. Stabilize docker_execute for compound commands (investigate agent shell handling)
-3. Split bench_dev_overview.py if it approaches 600 lines
+1. User: deploy and smoke-test the panel (per-bench rendering, eye toggle reveals password, copy button copies actual password not the dots, all 4 tiles fire correctly, "Open in VS Code" launches local VS Code Desktop).
+2. (Tech debt) Extract `<CodeServerPanel>` sibling component to bring `ReleaseGroupActions.vue` back under the 500-line soft limit (currently 521).
+3. (Tech debt) Other test files in `press/press/doctype/bench/` are broken on the same `_ensure_team_access` import path — pre-existing scaffold issue, not in scope.
 
 ### Watch Out
-- docker_execute $() subshells expand on HOST not container — never use subshells
-- Press benches use detached HEAD (commit hash) not branches — `has_remote` is false for all
-- `rg.add_app()` expects `{name, title, repository_url, branch}` not `{app, source}`
+- `ClickToCopyField` is NOT globally registered (only `dashboard/src/components/global/*.vue` is auto-globbed by `register.js`). Components using it MUST `import ClickToCopyField from '../ClickToCopyField.vue'`. The reference `SSHCertificateDialog.vue` lacks this import — latent bug that hasn't surfaced.
+- `vscode://` URI launches require VS Code Desktop installed locally. Browsers prompt the first time. Wiki documents the copy-URL fallback.
+- `bench.proxy_server` and `release_group.proxy_server` do NOT exist. Use `Server.proxy_server` via `frappe.db.get_value("Server", bench.server, "proxy_server")`.
 
 ---
 
 ## Session Archive
+
+### Session 2026-04-26: Dev Actions redesign
+**What we did:** Restructured Release Group Actions panel into per-bench sections with a Code Server KV panel and 4 action tiles (Open in VS Code, Mark Dev Bench, Generate SSH Cert, Restart Bench). Fixed password copy bug — explicit eye-toggle and copy icon buttons replaced the broken `'•••••••••• copy password'` clickable label. Added "Open in VS Code" flow that mints SSH cert and fires `vscode://` Remote-SSH URI to launch local VS Code Desktop. Removed the standalone "Bench Actions" block (was the source of the "Open Code Server" duplication). 9 commits on `feat/dev-actions-redesign` off `cloudflare-dns`. Two-stage code review per task (spec compliance + code quality) — all approved. 16 backend tests pass.
+**Files:** `ReleaseGroupActions.vue` (521 lines), `VSCodeLaunchDialog.vue` (NEW, 222), `bench_dev_overview.py` (+24), `test_bench_dev_overview.py` (+5 tests), `04-bench-management/dev-actions.md` (NEW), prototype + plan docs.
+**Decisions:** Sibling dialog over extension; `Server.proxy_server` not bench/release-group; async import for VS Code dialog; `confirmDialog` over native `confirm()`; `Promise.allSettled` for parallel status fetch.
 
 ### Session 2026-04-03: Deploy Page + Create App + Dev Tab + Infrastructure
 **What we did:** Fixed deploy page blank screen, added 7 UX enhancements (auto-refresh, stage groups, colored badges, progress bar, failure banner, retry buttons, duration comparison). Built Create New App feature. Built Dev tab local app creation + Push to GitHub. Fixed press-f1 disk full (100% → 39%, expanded 75G → 150G). Cleaned roseline_app git repo.
