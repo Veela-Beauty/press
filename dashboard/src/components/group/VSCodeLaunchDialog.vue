@@ -116,10 +116,11 @@
 
 <script>
 import { getCachedDocumentResource, call, FeatherIcon } from 'frappe-ui';
+import ClickToCopyField from '../ClickToCopyField.vue';
 
 export default {
 	props: ['bench', 'releaseGroup'],
-	components: { FeatherIcon },
+	components: { FeatherIcon, ClickToCopyField },
 	data() {
 		return {
 			show: true,
