@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dev Actions — Redesign Prototype</title>
+<style>
+/* Frappe-UI / Tailwind slate palette — exact production values */
+:root {
+  --gray-50:#f9fafb; --gray-100:#f3f4f6; --gray-200:#e5e7eb; --gray-300:#d1d5db;
+  --gray-400:#9ca3af; --gray-500:#6b7280; --gray-600:#4b5563; --gray-700:#374151;
+  --gray-800:#1f2937; --gray-900:#111827;
+  --blue-50:#eff6ff; --blue-100:#dbeafe; --blue-500:#3b82f6; --blue-600:#2563eb; --blue-700:#1d4ed8;
+  --green-50:#f0fdf4; --green-100:#dcfce7; --green-500:#22c55e; --green-600:#16a34a; --green-700:#15803d;
+  --red-50:#fef2f2; --red-500:#ef4444; --red-600:#dc2626;
+  --surface:#ffffff;
+  --border:#e5e7eb;
+  --radius:6px;
+  --radius-lg:8px;
+  --shadow-sm:0 1px 2px 0 rgb(0 0 0 / .05);
+  --shadow:0 1px 3px 0 rgb(0 0 0 / .10), 0 1px 2px -1px rgb(0 0 0 / .06);
+  --shadow-lg:0 10px 15px -3px rgb(0 0 0 / .08), 0 4px 6px -4px rgb(0 0 0 / .06);
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--gray-50); color:var(--gray-900);
+  font-size:13px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+button { font:inherit; }
+
+/* ── Layout ── */
+.page { max-width:880px; margin:0 auto; padding:40px 24px; }
+.page-title { font-size:18px; font-weight:600; letter-spacing:-0.01em; margin-bottom:4px; }
+.page-sub { font-size:13px; color:var(--gray-500); margin-bottom:24px; }
+
+/* ── View toggle ── */
+.compare { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
+.compare-label { font-size:12px; color:var(--gray-500); font-weight:500; }
+.toggle { display:inline-flex; background:var(--gray-100); border-radius:8px; padding:3px; gap:2px; }
+.toggle button {
+  border:0; background:transparent; padding:6px 14px; font-size:12px; font-weight:500;
+  color:var(--gray-600); border-radius:6px; cursor:pointer; transition:all .15s;
+}
+.toggle button.active { background:var(--surface); color:var(--gray-900); box-shadow:var(--shadow-sm); }
+
+/* ── Card ── */
+.card {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg);
+  margin-bottom:16px; overflow:hidden;
+}
+.card-head {
+  padding:14px 20px; border-bottom:1px solid var(--border);
+  font-size:13px; font-weight:600; color:var(--gray-900); letter-spacing:-0.01em;
+}
+.card-body { padding:0; }
+
+/* Bench section — one section per bench inside the Dev Actions card */
+.bench-section { padding:20px; border-bottom:1px solid var(--border); }
+.bench-section:last-child { border-bottom:0; }
+
+.bench-head {
+  display:flex; align-items:flex-start; justify-content:space-between;
+  gap:16px; margin-bottom:14px;
+}
+.bench-head h3 {
+  font-size:14px; font-weight:600; color:var(--gray-900);
+  letter-spacing:-0.005em; margin-bottom:2px;
+  font-family:'JetBrains Mono','SF Mono',Consolas,monospace;
+}
+.bench-head p { font-size:12px; color:var(--gray-500); }
+.status-pill {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:3px 10px;
+  background:var(--green-50); color:var(--green-700);
+  border-radius:999px; font-size:11px; font-weight:500;
+  flex-shrink:0;
+}
+.status-pill.idle { background:var(--gray-100); color:var(--gray-600); }
+.status-dot { width:6px; height:6px; border-radius:50%; background:var(--green-500); }
+.status-pill.idle .status-dot { background:var(--gray-400); }
+
+/* Code Server panel — full width, properties-list style */
+.cs-panel {
+  background:var(--gray-50);
+  border:1px solid var(--border); border-radius:var(--radius-lg);
+  overflow:hidden;
+  margin-bottom:12px;
+}
+.cs-panel-head {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 14px; background:var(--surface); border-bottom:1px solid var(--border);
+}
+.cs-panel-head .title { font-size:12px; font-weight:600; color:var(--gray-900); }
+
+.kv { display:grid; grid-template-columns:90px 1fr; gap:12px; padding:10px 16px; align-items:center; }
+.kv + .kv { border-top:1px solid var(--border); }
+.kv-label {
+  font-size:11px; color:var(--gray-500); font-weight:500;
+  letter-spacing:0.02em; text-transform:uppercase;
+}
+.kv-value {
+  font-size:12.5px; color:var(--gray-900);
+  display:flex; align-items:center; gap:6px;
+  font-family:'JetBrains Mono','SF Mono',Consolas,monospace;
+  min-width:0;
+}
+.kv-value-text {
+  flex:1; min-width:0;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+
+/* Inline icon button — used for url copy, password show/copy */
+.icon-btn {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:24px; height:24px; padding:0;
+  background:transparent; border:1px solid transparent; border-radius:4px;
+  color:var(--gray-500); cursor:pointer; transition:all .12s;
+  flex-shrink:0;
+}
+.icon-btn:hover { background:var(--gray-200); color:var(--gray-900); }
+.icon-btn.active { color:var(--blue-600); }
+.icon-btn.copied { color:var(--green-600); }
+.icon-btn svg { width:14px; height:14px; stroke-width:2; }
+
+/* Footer of cs-panel: meta + auto-rotate */
+.cs-panel-foot {
+  display:flex; flex-direction:column; gap:6px;
+  padding:10px 14px;
+  background:var(--surface); border-top:1px solid var(--border);
+}
+.meta-line {
+  display:flex; align-items:center; gap:8px;
+  font-size:11.5px; color:var(--gray-500);
+}
+.meta-line a {
+  color:var(--gray-700); text-decoration:none; font-weight:500;
+  border-bottom:1px solid transparent;
+}
+.meta-line a:hover { color:var(--gray-900); border-bottom-color:var(--gray-300); }
+.meta-line .sep { color:var(--gray-300); }
+.meta-line input {
+  width:36px; padding:1px 4px; font-size:11.5px;
+  border:1px solid var(--border); border-radius:4px;
+  text-align:right; font-family:inherit;
+  background:var(--surface);
+}
+.meta-line input:focus { outline:none; border-color:var(--gray-400); }
+
+/* Per-bench action tile grid (replaces right action stack) */
+.bench-actions-grid {
+  display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;
+}
+@media (max-width:920px) { .bench-actions-grid { grid-template-columns:repeat(2, 1fr); } }
+@media (max-width:520px) { .bench-actions-grid { grid-template-columns:1fr; } }
+
+/* Buttons */
+.btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  padding:7px 12px; border-radius:var(--radius);
+  font-size:12.5px; font-weight:500; line-height:1;
+  border:1px solid var(--border); background:var(--surface); color:var(--gray-800);
+  cursor:pointer; transition:all .12s; text-decoration:none;
+  white-space:nowrap;
+}
+.btn:hover { background:var(--gray-50); border-color:var(--gray-300); }
+.btn-primary { background:var(--gray-900); border-color:var(--gray-900); color:#fff; }
+.btn-primary:hover { background:#000; border-color:#000; }
+.btn-block { width:100%; }
+.btn svg { width:14px; height:14px; stroke-width:2; flex-shrink:0; }
+
+/* Empty state inside cs-panel */
+.cs-empty {
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  padding:24px 14px; text-align:center;
+  color:var(--gray-500); font-size:12px;
+}
+.cs-empty .btn { margin-top:6px; }
+
+/* Action tile — used in both per-bench grid and standalone action grids */
+.tile {
+  display:flex; flex-direction:column; gap:8px;
+  padding:14px; border:1px solid var(--border); border-radius:var(--radius-lg);
+  background:var(--surface); cursor:pointer; transition:all .12s;
+  text-align:left; font:inherit; color:inherit;
+  text-decoration:none;
+}
+.tile:hover { border-color:var(--gray-300); box-shadow:var(--shadow-sm); transform:translateY(-1px); }
+.tile-icon {
+  width:30px; height:30px; border-radius:6px;
+  background:var(--gray-100); color:var(--gray-700);
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.tile.tile-primary .tile-icon { background:var(--blue-50); color:var(--blue-600); }
+.tile-icon svg { width:15px; height:15px; stroke-width:1.8; }
+.tile h4 {
+  font-size:13px; font-weight:600; color:var(--gray-900);
+  letter-spacing:-0.005em; line-height:1.3;
+}
+.tile p { font-size:11.5px; color:var(--gray-500); line-height:1.45; margin-top:2px; }
+
+/* Old class names kept for "before" view compatibility */
+.std-actions { padding:16px 20px; display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.std-action { display:flex; align-items:flex-start; gap:12px; padding:14px; border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--surface); cursor:pointer; transition:all .12s; }
+.std-action:hover { border-color:var(--gray-300); box-shadow:var(--shadow-sm); }
+.std-action-icon { width:32px; height:32px; border-radius:6px; background:var(--gray-100); color:var(--gray-700); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.std-action-icon svg { width:16px; height:16px; stroke-width:1.8; }
+.std-action-body h4 { font-size:13px; font-weight:600; color:var(--gray-900); margin-bottom:2px; letter-spacing:-0.005em; }
+.std-action-body p { font-size:12px; color:var(--gray-500); line-height:1.45; }
+
+/* ── Before view (just for comparison reference) ── */
+.before-bench-row {
+  display:flex; justify-content:space-between; align-items:flex-start; gap:16px;
+  padding:14px 20px; border-bottom:1px solid var(--border);
+}
+.before-bench-row:last-child { border-bottom:0; }
+.before-cluster { display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+.before-pill {
+  display:inline-flex; align-items:center; gap:6px;
+  border:1px solid #86efac; background:var(--green-50); color:var(--green-700);
+  padding:5px 12px; border-radius:6px; font-size:12.5px; font-weight:500;
+  text-decoration:none;
+}
+.before-bad-pw {
+  font-size:12px; font-family:'SF Mono',monospace; color:var(--gray-500);
+  background:none; border:0; padding:2px 0; cursor:pointer; user-select:text;
+}
+.before-meta {
+  font-size:11px; color:var(--gray-500);
+  display:inline-flex; align-items:center; gap:6px;
+}
+.before-meta a { color:var(--blue-600); text-decoration:none; }
+.before-actions-grid {
+  display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;
+  padding:0 20px 20px;
+}
+.dup-flag {
+  display:inline-block; background:var(--red-50); color:var(--red-600);
+  font-size:9.5px; font-weight:600; padding:1px 6px; border-radius:3px;
+  text-transform:uppercase; letter-spacing:0.04em; margin-left:6px;
+  border:1px solid #fecaca;
+}
+.problems {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:16px 20px; font-size:12.5px; color:var(--gray-700);
+}
+.problems h4 { font-size:12.5px; font-weight:600; color:var(--gray-900); margin-bottom:8px; }
+.problems ol { padding-left:20px; }
+.problems li { padding:3px 0; line-height:1.5; }
+.problems code {
+  font-size:11.5px; background:var(--gray-100); padding:1px 5px; border-radius:3px;
+  font-family:'JetBrains Mono','SF Mono',monospace;
+}
+
+/* ── Modal ── */
+.modal-overlay {
+  position:fixed; inset:0; background:rgb(0 0 0 / .4);
+  display:none; align-items:center; justify-content:center; z-index:50;
+  backdrop-filter:blur(2px);
+}
+.modal-overlay.open { display:flex; }
+.modal {
+  background:var(--surface); border-radius:12px;
+  max-width:600px; width:92%; max-height:88vh; overflow-y:auto;
+  box-shadow:var(--shadow-lg);
+}
+.modal-head {
+  padding:22px 28px 18px; display:flex; justify-content:space-between; align-items:center;
+}
+.modal-head h3 { font-size:18px; font-weight:600; letter-spacing:-0.01em; color:var(--gray-900); }
+.modal-close {
+  width:30px; height:30px; padding:0; border:0; background:transparent;
+  border-radius:6px; color:var(--gray-400); cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+}
+.modal-close:hover { background:var(--gray-100); color:var(--gray-700); }
+.modal-close svg { width:16px; height:16px; stroke-width:2; }
+.modal-body { padding:0 28px 24px; }
+.modal-intro { font-size:13.5px; color:var(--gray-700); margin-bottom:20px; line-height:1.55; }
+
+.platform-tabs { display:inline-flex; gap:0; margin-bottom:22px; border:1px solid var(--border); border-radius:6px; padding:2px; background:var(--gray-50); }
+.platform-tab {
+  padding:5px 14px; font-size:12px; border:0;
+  background:transparent; border-radius:4px;
+  cursor:pointer; color:var(--gray-600); font-weight:500; transition:all .12s;
+}
+.platform-tab.active { background:var(--surface); color:var(--gray-900); box-shadow:var(--shadow-sm); }
+
+.step { margin-bottom:22px; }
+.step-title { font-size:14px; font-weight:600; color:var(--gray-900); margin-bottom:6px; letter-spacing:-0.005em; }
+.step-body { font-size:13px; color:var(--gray-600); margin-bottom:10px; line-height:1.55; }
+
+.code-block {
+  display:flex; align-items:center; gap:8px;
+  background:var(--gray-100); border:1px solid var(--border);
+  padding:9px 12px; border-radius:6px;
+  font-family:'JetBrains Mono','SF Mono',Consolas,monospace; font-size:12.5px;
+  color:var(--gray-900);
+  overflow:hidden;
+}
+.code-block code { flex:1; user-select:all; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.code-copy {
+  background:var(--surface); border:1px solid var(--border); color:var(--gray-700);
+  padding:3px 10px; border-radius:4px; font-size:11.5px; font-weight:500;
+  cursor:pointer; flex-shrink:0; transition:all .12s;
+}
+.code-copy:hover { background:var(--gray-50); border-color:var(--gray-300); }
+.code-copy.copied { background:var(--green-50); border-color:#bbf7d0; color:var(--green-700); }
+
+.btn-launch {
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  width:100%; padding:12px 18px;
+  background:var(--gray-900); color:#fff; border:0; border-radius:6px;
+  font-size:14px; font-weight:500; cursor:pointer; text-decoration:none; line-height:1;
+  transition:all .12s;
+}
+.btn-launch:hover { background:#000; }
+.btn-launch svg { width:15px; height:15px; stroke-width:2; }
+
+.note {
+  background:var(--gray-50); border:1px solid var(--border); border-radius:6px;
+  padding:12px 14px; font-size:12.5px; color:var(--gray-600); margin-top:8px; line-height:1.55;
+  display:flex; gap:10px; align-items:flex-start;
+}
+.note svg { width:16px; height:16px; stroke-width:1.8; color:var(--gray-500); flex-shrink:0; margin-top:1px; }
+.note strong { color:var(--gray-900); font-weight:600; }
+
+/* Toast */
+.toast {
+  position:fixed; bottom:24px; right:24px;
+  background:var(--gray-900); color:#fff; padding:10px 16px;
+  border-radius:8px; font-size:12.5px; box-shadow:var(--shadow-lg);
+  display:none; align-items:center; gap:8px; z-index:100;
+}
+.toast.show { display:flex; }
+.toast svg { width:14px; height:14px; stroke-width:2.5; color:var(--green-500); }
+
+.hidden { display:none !important; }
+
+@media (max-width:760px) {
+  .bench-row { grid-template-columns:1fr; }
+  .cs-panel { width:100%; }
+  .action-stack { width:100%; }
+  .std-actions { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1 class="page-title">Dev Actions — Redesign Prototype</h1>
+  <p class="page-sub">Reload after each iteration. Toggle below to compare today's UI with the proposed redesign.</p>
+
+  <div class="compare">
+    <span class="compare-label">View:</span>
+    <div class="toggle">
+      <button id="btn-before" onclick="showView('before')">Before</button>
+      <button id="btn-after" class="active" onclick="showView('after')">After</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════ BEFORE ═══════════════════════════ -->
+  <div id="view-before" class="hidden">
+    <div class="card">
+      <div class="card-head">Dev Actions</div>
+      <div class="card-body">
+        <div class="before-bench-row">
+          <div>
+            <h3 style="font-size:13.5px; font-weight:600;">bench-0005-000026-press-f1</h3>
+            <p style="font-size:12px; color:var(--gray-500); margin-top:2px;">Mark this bench for development use only</p>
+          </div>
+          <div class="before-cluster">
+            <a href="#" class="before-pill">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:13px;height:13px;stroke-width:2;"><polyline points="20 6 9 17 4 12"/></svg>
+              Open Code Server
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:11px;height:11px;stroke-width:2;"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>
+            </a>
+            <button class="before-bad-pw" title="Single-string label – selecting it copies the wrong text">•••••••••••• &nbsp;copy password</button>
+            <div class="before-meta">
+              <span>expires in 1d 14h</span>
+              <a href="#">Rotate Now</a>
+              <span style="color:var(--gray-300);">|</span>
+              <a href="#">Restart</a>
+            </div>
+            <div class="before-meta">
+              auto-rotate every <input type="number" value="3" style="width:36px; margin:0 4px; padding:1px 4px; border:1px solid var(--border); border-radius:3px; font-size:11px;"> days
+            </div>
+          </div>
+          <div>
+            <button class="btn">Mark Dev Bench</button>
+          </div>
+        </div>
+      </div>
+      <div class="before-actions-grid">
+        <div class="std-action">
+          <div class="std-action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M21 14v7H3V3h7"/></svg></div>
+          <div class="std-action-body"><h4>Open Code Server <span class="dup-flag">duplicate</span></h4><p>code-bench-0005-000026-press-f1.sandbox.mvpstorm.com · Running</p></div>
+        </div>
+        <div class="std-action">
+          <div class="std-action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+          <div class="std-action-body"><h4>Generate SSH Certificate</h4><p>One-click mint + download for bench-0005</p></div>
+        </div>
+        <div class="std-action">
+          <div class="std-action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></div>
+          <div class="std-action-body"><h4>Restart Bench</h4><p>Restart all bench workers</p></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="problems">
+      <h4>Problems with current UI</h4>
+      <ol>
+        <li><strong>Open Code Server</strong> appears twice — top pill and bottom card.</li>
+        <li>Password is a single-string label <code>•••••••••• copy password</code>. Selecting it with the cursor copies the literal text, not the real password.</li>
+        <li>No path to launch the user's local VS Code Desktop — only browser Code Server.</li>
+        <li>Rotate / Restart / auto-rotate stack is busy and competes with the primary action visually.</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════ AFTER ═══════════════════════════ -->
+  <div id="view-after">
+    <div class="card">
+      <div class="card-head">Dev Actions</div>
+      <div class="card-body">
+
+        <!-- Bench 1 — running -->
+        <div class="bench-section">
+          <div class="bench-head">
+            <div>
+              <h3>bench-0005-000026-press-f1</h3>
+              <p>Mark this bench for development use only</p>
+            </div>
+            <div class="status-pill"><span class="status-dot"></span>Code Server running</div>
+          </div>
+
+          <!-- Code Server panel — full width -->
+          <div class="cs-panel">
+            <div class="cs-panel-head">
+              <span class="title">Code Server</span>
+            </div>
+
+            <div class="kv">
+              <div class="kv-label">URL</div>
+              <div class="kv-value">
+                <span class="kv-value-text">code-bench-0005-000026-press-f1.sandbox.mvpstorm.com</span>
+                <button class="icon-btn" onclick="copyText(this, 'https://code-bench-0005-000026-press-f1.sandbox.mvpstorm.com', 'URL copied')" title="Copy URL">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </button>
+                <a href="https://code-bench-0005-000026-press-f1.sandbox.mvpstorm.com" target="_blank" class="icon-btn" title="Open in new tab">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>
+                </a>
+              </div>
+            </div>
+
+            <div class="kv">
+              <div class="kv-label">Password</div>
+              <div class="kv-value">
+                <span class="kv-value-text" id="pw-display">••••••••••••</span>
+                <button class="icon-btn" id="pw-eye" onclick="togglePassword()" title="Show / hide password">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" id="pw-eye-icon"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+                <button class="icon-btn" onclick="copyText(this, DEMO_PASSWORD, 'Code Server password copied')" title="Copy password">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="cs-panel-foot">
+              <div class="meta-line">
+                <span>Expires in 1d 14h</span>
+                <span class="sep">·</span>
+                <a href="#" onclick="event.preventDefault();showToast('Rotating…')">Rotate now</a>
+                <span class="sep">·</span>
+                <a href="#" onclick="event.preventDefault();showToast('Restarting…')">Restart</a>
+              </div>
+              <div class="meta-line">
+                <span>Auto-rotate every</span>
+                <input type="number" value="3" min="0">
+                <span>days</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4-tile action grid (per bench) -->
+          <div class="bench-actions-grid">
+            <a href="#" onclick="openVscodeModal(event)" class="tile tile-primary">
+              <div class="tile-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              </div>
+              <div>
+                <h4>Open in VS Code</h4>
+                <p>Local VS Code Desktop via Remote-SSH.</p>
+              </div>
+            </a>
+            <button class="tile" onclick="showToast('Marked as dev bench')">
+              <div class="tile-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76Z"/></svg>
+              </div>
+              <div>
+                <h4>Mark as Dev Bench</h4>
+                <p>Tag this bench for development use only.</p>
+              </div>
+            </button>
+            <button class="tile" onclick="showToast('Opening SSH cert dialog…')">
+              <div class="tile-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <div>
+                <h4>Generate SSH Certificate</h4>
+                <p>Required for "Open in VS Code". Valid 6 hours.</p>
+              </div>
+            </button>
+            <button class="tile" onclick="showToast('Restarting bench…')">
+              <div class="tile-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+              </div>
+              <div>
+                <h4>Restart Bench</h4>
+                <p>Restart all bench workers (web, scheduler, queues).</p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Bench 2 — not running -->
+        <div class="bench-section">
+          <div class="bench-head">
+            <div>
+              <h3>bench-0005-000013-press-f1</h3>
+              <p>Mark this bench for development use only</p>
+            </div>
+            <div class="status-pill idle"><span class="status-dot"></span>Code Server stopped</div>
+          </div>
+
+          <div class="cs-panel">
+            <div class="cs-panel-head">
+              <span class="title">Code Server</span>
+            </div>
+            <div class="cs-empty">
+              <span>Code Server is not running for this bench.</span>
+              <button class="btn btn-primary" onclick="showToast('Launching Code Server…')">Launch Code Server</button>
+            </div>
+          </div>
+
+          <div class="bench-actions-grid">
+            <a href="#" onclick="openVscodeModal(event)" class="tile tile-primary">
+              <div class="tile-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              </div>
+              <div>
+                <h4>Open in VS Code</h4>
+                <p>Works without Code Server — uses SSH directly.</p>
+              </div>
+            </a>
+            <button class="tile" onclick="showToast('Marked as dev bench')">
+              <div class="tile-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76Z"/></svg>
+              </div>
+              <div>
+                <h4>Mark as Dev Bench</h4>
+                <p>Tag this bench for development use only.</p>
+              </div>
+            </button>
+            <button class="tile" onclick="showToast('Opening SSH cert dialog…')">
+              <div class="tile-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <div>
+                <h4>Generate SSH Certificate</h4>
+                <p>Required for "Open in VS Code". Valid 6 hours.</p>
+              </div>
+            </button>
+            <button class="tile" onclick="showToast('Restarting bench…')">
+              <div class="tile-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+              </div>
+              <div>
+                <h4>Restart Bench</h4>
+                <p>Restart all bench workers (web, scheduler, queues).</p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════ Modal: Open in VS Code (matches SSH Access dialog) ═════════════════ -->
+<div class="modal-overlay" id="vscodeModal" onclick="closeVscodeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <h3>Open in VS Code</h3>
+      <button class="modal-close" onclick="closeVscodeModal()" title="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-intro">
+        Connect to <strong>bench-0005-000026-press-f1</strong> with your local VS Code Desktop over SSH.
+        Run the commands below once, then click <strong>Launch VS Code</strong>.
+      </p>
+
+      <div class="platform-tabs">
+        <button class="platform-tab active" onclick="switchPlatform(this, 'win')">Windows</button>
+        <button class="platform-tab" onclick="switchPlatform(this, 'mac')">macOS / Linux</button>
+      </div>
+
+      <div id="steps-win">
+        <div class="step">
+          <div class="step-title">Step 1</div>
+          <div class="step-body">Set the PowerShell encoding to UTF-8.</div>
+          <div class="code-block">
+            <code>$PSDefaultParameterValues['*: Encoding'] = 'utf8'</code>
+            <button class="code-copy" onclick="copyCode(this)">copy</button>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-title">Step 2</div>
+          <div class="step-body">Store the SSH certificate locally.</div>
+          <div class="code-block">
+            <code>echo 'ssh-ed25519-cert-v01@openssh.com AAAA…' &gt; ~/.ssh/id_ed25519-cert.pub</code>
+            <button class="code-copy" onclick="copyCode(this)">copy</button>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-title">Step 3</div>
+          <div class="step-body">Launch VS Code Desktop. It opens the bench over Remote-SSH.</div>
+          <a href="vscode://vscode-remote/ssh-remote+bench-0005-000026-press-f1@press-f1.sandbox.mvpstorm.com:2222/home/frappe/frappe-bench" class="btn-launch">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            Launch VS Code
+          </a>
+        </div>
+      </div>
+
+      <div id="steps-mac" class="hidden">
+        <div class="step">
+          <div class="step-title">Step 1</div>
+          <div class="step-body">Store the SSH certificate locally.</div>
+          <div class="code-block">
+            <code>echo 'ssh-ed25519-cert-v01@openssh.com AAAA…' &gt; ~/.ssh/id_ed25519-cert.pub</code>
+            <button class="code-copy" onclick="copyCode(this)">copy</button>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-title">Step 2</div>
+          <div class="step-body">Launch VS Code Desktop. It opens the bench over Remote-SSH.</div>
+          <a href="vscode://vscode-remote/ssh-remote+bench-0005-000026-press-f1@press-f1.sandbox.mvpstorm.com:2222/home/frappe/frappe-bench" class="btn-launch">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            Launch VS Code
+          </a>
+        </div>
+      </div>
+
+      <div class="note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><circle cx="12" cy="16" r=".5" fill="currentColor"/></svg>
+        <div>
+          The certificate is valid for <strong>6 hours</strong>. Reopen this dialog after it expires.
+          Your local SSH key authenticates you — no Code Server password is needed.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="toast-msg">Copied</span>
+</div>
+
+<script>
+const DEMO_PASSWORD = 'k7Q9-2mFn4vBz8RpL';
+
+function showView(v) {
+  document.getElementById('view-before').classList.toggle('hidden', v !== 'before');
+  document.getElementById('view-after').classList.toggle('hidden', v !== 'after');
+  document.getElementById('btn-before').classList.toggle('active', v === 'before');
+  document.getElementById('btn-after').classList.toggle('active', v === 'after');
+}
+
+function copyText(btn, text, message) {
+  navigator.clipboard.writeText(text).then(() => {
+    btn.classList.add('copied');
+    setTimeout(() => btn.classList.remove('copied'), 1500);
+    showToast(message || 'Copied');
+  });
+}
+
+function togglePassword() {
+  const display = document.getElementById('pw-display');
+  const eyeBtn = document.getElementById('pw-eye');
+  const icon = document.getElementById('pw-eye-icon');
+  const masked = display.textContent.startsWith('•');
+  if (masked) {
+    display.textContent = DEMO_PASSWORD;
+    display.style.userSelect = 'text';
+    display.style.color = 'var(--gray-900)';
+    eyeBtn.classList.add('active');
+    icon.innerHTML = '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/>';
+  } else {
+    display.textContent = '••••••••••••';
+    display.style.userSelect = 'none';
+    display.style.color = '';
+    eyeBtn.classList.remove('active');
+    icon.innerHTML = '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>';
+  }
+}
+
+function copyCode(btn) {
+  const text = btn.previousElementSibling.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = 'copied';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'copy'; }, 1500);
+  });
+}
+
+function openVscodeModal(e) { if (e) e.preventDefault(); document.getElementById('vscodeModal').classList.add('open'); }
+function closeVscodeModal(e) {
+  if (e && e.target.id !== 'vscodeModal' && !e.target.closest('.modal-close')) return;
+  document.getElementById('vscodeModal').classList.remove('open');
+}
+
+function switchPlatform(tab, platform) {
+  document.querySelectorAll('.platform-tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  document.getElementById('steps-win').classList.toggle('hidden', platform !== 'win');
+  document.getElementById('steps-mac').classList.toggle('hidden', platform !== 'mac');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window._toastT);
+  window._toastT = setTimeout(() => t.classList.remove('show'), 1800);
+}
+</script>
+</body>
+</html>
