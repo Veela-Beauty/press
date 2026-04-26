@@ -1,6 +1,11 @@
 <template>
 	<Dialog :options="{ title: 'Open in VS Code', size: 'xl' }" v-model="show">
 		<template #body-content v-if="$bench.doc">
+			<ErrorMessage
+				v-if="certificate && !vscodeUrl && vscodeUrlError"
+				class="mt-3"
+				:message="vscodeUrlError"
+			/>
 			<div v-if="certificate && vscodeUrl" class="space-y-4">
 				<p class="text-base text-gray-700">
 					Connect to <strong>{{ bench }}</strong> with your local VS Code Desktop over SSH.
@@ -71,8 +76,8 @@
 							<label
 								v-for="key in sshKeys"
 								:key="key.name"
-								class="flex cursor-pointer items-center gap-2 rounded border p-2 hover:bg-gray-50"
-								:class="selectedSshKey === key.name ? 'border-blue-400 bg-blue-50' : 'border-gray-200'"
+								class="flex items-center gap-2 rounded border p-2"
+								:class="keyRowClasses(key)"
 							>
 								<input
 									type="radio"
@@ -89,6 +94,11 @@
 										{{ key.ssh_fingerprint }}
 									</code>
 								</div>
+								<span
+									v-if="key.is_disabled"
+									class="rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700"
+									>Disabled</span
+								>
 							</label>
 						</div>
 					</div>
@@ -103,12 +113,12 @@
 		>
 			<Button
 				:loading="$releaseGroup.generateCertificate.loading"
-				:disabled="!selectedSshKey"
+				:disabled="!selectedSshKey || selectedKeyDisabled"
 				@click="handleGenerate"
 				variant="solid"
 				class="w-full"
 			>
-				Generate SSH Certificate
+				{{ selectedKeyDisabled ? 'Selected key is disabled by admin' : 'Generate SSH Certificate' }}
 			</Button>
 		</template>
 	</Dialog>
@@ -127,6 +137,7 @@ export default {
 			sshKeys: [],
 			selectedSshKey: null,
 			vscodeUrl: null,
+			vscodeUrlError: null,
 		};
 	},
 	resources: {
@@ -153,6 +164,10 @@ export default {
 		certificate() {
 			return this.$releaseGroup.getCertificate.data;
 		},
+		selectedKeyDisabled() {
+			const key = this.sshKeys.find((k) => k.name === this.selectedSshKey);
+			return key ? !!key.is_disabled : false;
+		},
 		certificateCommand() {
 			if (!this.certificate) return null;
 			return `echo '${this.certificate.ssh_certificate?.trim()}' > ~/.ssh/id_${this.certificate.key_type}-cert.pub`;
@@ -162,6 +177,13 @@ export default {
 		},
 	},
 	methods: {
+		keyRowClasses(key) {
+			const base = ' cursor-pointer hover:bg-gray-50';
+			if (key.is_disabled) return 'border-red-200 bg-red-50 cursor-not-allowed opacity-70';
+			if (this.selectedSshKey === key.name) return 'border-blue-400 bg-blue-50' + base;
+			return 'border-gray-200' + base;
+		},
+		// Mirrors SSHCertificateDialog.loadSshKeys — keep these two in sync.
 		async loadSshKeys() {
 			try {
 				this.sshKeys = await call('press.api.account.get_user_ssh_keys');
@@ -177,6 +199,7 @@ export default {
 			}
 		},
 		async loadVscodeUrl() {
+			this.vscodeUrlError = null;
 			try {
 				this.vscodeUrl = await call(
 					'press.press.doctype.bench.bench_dev_overview.get_vscode_remote_url',
@@ -184,6 +207,8 @@ export default {
 				);
 			} catch (e) {
 				this.vscodeUrl = null;
+				this.vscodeUrlError =
+					e?.messages?.join(', ') || e?.message || 'Failed to compose VS Code URL';
 			}
 		},
 		async handleGenerate() {
