@@ -223,13 +223,25 @@
 </template>
 
 <script>
-import { call, createListResource, getCachedDocumentResource } from 'frappe-ui';
+import {
+	call,
+	createListResource,
+	getCachedDocumentResource,
+	FeatherIcon,
+	Button,
+} from 'frappe-ui';
+import { h, defineAsyncComponent } from 'vue';
 import { toast } from 'vue-sonner';
-import ReleaseGroupActionCell from './ReleaseGroupActionCell.vue';
+import { renderDialog, confirmDialog } from '../../utils/components';
+import SSHCertificateDialog from './SSHCertificateDialog.vue';
+
+const VSCodeLaunchDialog = defineAsyncComponent(
+	() => import('./VSCodeLaunchDialog.vue'),
+);
 
 export default {
 	props: ['releaseGroup'],
-	components: { ReleaseGroupActionCell },
+	components: { FeatherIcon, Button },
 	data() {
 		return {
 			devLoading: {},
@@ -241,7 +253,7 @@ export default {
 			durationEdits: {},
 			benches: createListResource({
 				doctype: 'Bench',
-				fields: ['name', 'status', 'is_development_bench'],
+				fields: ['name', 'status', 'is_development_bench', 'group'],
 				filters: { group: this.releaseGroup, status: ['not in', ['Archived']] },
 				orderBy: 'creation desc',
 				auto: true,
@@ -252,21 +264,6 @@ export default {
 	computed: {
 		$releaseGroup() {
 			return getCachedDocumentResource('Release Group', this.releaseGroup);
-		},
-		actions() {
-			const groupedActions = this.$releaseGroup.doc.actions.reduce(
-				(acc, action) => {
-					const group = action.group || 'General Actions';
-					if (!acc[group]) acc[group] = [];
-					acc[group].push(action);
-					return acc;
-				},
-				{},
-			);
-			return Object.keys(groupedActions).map((group) => ({
-				group,
-				actions: groupedActions[group],
-			}));
 		},
 	},
 	methods: {
@@ -292,6 +289,7 @@ export default {
 				this.devLoading = { ...this.devLoading, [bench.name]: false };
 			}
 		},
+
 		async loadCodeServerStatuses(benches) {
 			const statuses = {};
 			const durations = { ...this.durationEdits };
@@ -311,6 +309,7 @@ export default {
 			this.codeServerStatus = statuses;
 			this.durationEdits = durations;
 		},
+
 		async launchCodeServer(bench) {
 			this.codeServerLoading = { ...this.codeServerLoading, [bench.name]: true };
 			const subdomain = `code-${bench.name.replace(/[^a-z0-9]/g, '-').slice(0, 30)}`;
@@ -331,47 +330,49 @@ export default {
 				this.codeServerLoading = { ...this.codeServerLoading, [bench.name]: false };
 			}
 		},
-		async refreshCodeServerStatus(bench) {
-			try {
-				const s = await call(
-					'press.press.doctype.bench.bench_dev_overview.get_code_server_status',
-					{ bench_name: bench.name },
-				);
-				this.codeServerStatus = { ...this.codeServerStatus, [bench.name]: s };
-			} catch (e) {
-				// ignore
-			}
+
+		togglePasswordReveal(bench) {
+			this.revealedPasswords = {
+				...this.revealedPasswords,
+				[bench.name]: !this.revealedPasswords[bench.name],
+			};
 		},
+
 		async copyCodeServerPassword(bench) {
 			const pwd = this.codeServerStatus[bench.name]?.password;
 			if (!pwd) return;
+			await this.copyToClipboard(pwd, 'Code Server password copied');
+		},
+
+		async copyToClipboard(text, message = 'Copied') {
 			try {
-				await navigator.clipboard.writeText(pwd);
-				this.revealedPasswords = { ...this.revealedPasswords, [bench.name]: true };
-				toast.success('Code Server password copied to clipboard');
-				// Hide again after 15 s
-				setTimeout(() => {
-					this.revealedPasswords = { ...this.revealedPasswords, [bench.name]: false };
-				}, 15000);
+				await navigator.clipboard.writeText(text);
+				toast.success(message);
 			} catch (e) {
-				toast.error('Could not copy — select and copy manually');
-				this.revealedPasswords = { ...this.revealedPasswords, [bench.name]: true };
+				toast.error('Could not copy — your browser may be blocking clipboard access');
 			}
 		},
+
 		formatExpiry(ts) {
-			if (!ts) return '';
+			if (!ts) return 'no expiry';
 			const target = new Date(ts);
 			const diff = target - new Date();
 			if (diff <= 0) return 'expired — rotating on next check';
 			const days = Math.floor(diff / 86400000);
 			const hours = Math.floor((diff % 86400000) / 3600000);
 			const minutes = Math.floor((diff % 3600000) / 60000);
-			if (days > 0) return `expires in ${days}d ${hours}h`;
-			if (hours > 0) return `expires in ${hours}h ${minutes}m`;
-			return `expires in ${minutes}m`;
+			if (days > 0) return `Expires in ${days}d ${hours}h`;
+			if (hours > 0) return `Expires in ${hours}h ${minutes}m`;
+			return `Expires in ${minutes}m`;
 		},
+
 		async rotateCodeServerPassword(bench) {
-			if (!confirm('Rotate the Code Server password now?\\nAny active browser session will be disconnected.')) return;
+			if (
+				!confirm(
+					'Rotate the Code Server password now?\nAny active browser session will be disconnected.',
+				)
+			)
+				return;
 			this.rotateLoading = { ...this.rotateLoading, [bench.name]: true };
 			try {
 				await call(
@@ -386,6 +387,7 @@ export default {
 				this.rotateLoading = { ...this.rotateLoading, [bench.name]: false };
 			}
 		},
+
 		async saveDuration(bench) {
 			const cur = this.codeServerStatus[bench.name]?.password_expiry_days;
 			const newVal = Number(this.durationEdits[bench.name]);
@@ -401,6 +403,7 @@ export default {
 				toast.error(e?.messages?.join(', ') || 'Failed to update duration');
 			}
 		},
+
 		async restartCodeServer(bench) {
 			this.restartLoading = { ...this.restartLoading, [bench.name]: true };
 			try {
@@ -409,13 +412,80 @@ export default {
 					{ bench_name: bench.name },
 				);
 				toast.success('Code Server restart queued — should be back in 10–30 s');
-				// Re-poll after 8 s so the UI picks up the new state
 				setTimeout(() => this.loadCodeServerStatuses(this.benches.data || []), 8000);
 			} catch (e) {
 				toast.error(e?.messages?.join(', ') || 'Failed to restart Code Server');
 			} finally {
 				this.restartLoading = { ...this.restartLoading, [bench.name]: false };
 			}
+		},
+
+		openVscodeDialog(bench) {
+			renderDialog(
+				h(VSCodeLaunchDialog, {
+					bench: bench.name,
+					releaseGroup: this.releaseGroup,
+				}),
+			);
+		},
+
+		openSshDialog(bench) {
+			renderDialog(
+				h(SSHCertificateDialog, {
+					bench: bench.name,
+					releaseGroup: this.releaseGroup,
+				}),
+			);
+		},
+
+		confirmRestartBench(bench) {
+			confirmDialog({
+				title: 'Restart Bench',
+				message: `Are you sure you want to restart the bench <b>${bench.name}</b>?`,
+				primaryAction: {
+					label: 'Restart',
+					variant: 'solid',
+					theme: 'red',
+					onClick: ({ hide }) => {
+						toast.promise(
+							call('press.api.client.run_doc_method', {
+								dt: 'Bench',
+								dn: bench.name,
+								method: 'restart',
+							}),
+							{
+								loading: 'Restarting bench...',
+								success: () => {
+									hide();
+									return 'Bench will restart shortly';
+								},
+								error: (e) =>
+									e?.messages?.join('\n') || 'Failed to restart bench',
+							},
+						);
+					},
+				},
+			});
+		},
+
+		codeServerStatusClass(bench) {
+			const s = this.codeServerStatus[bench.name];
+			if (s?.status === 'Running') return 'bg-green-50 text-green-700';
+			if (s?.exists) return 'bg-yellow-50 text-yellow-700';
+			return 'bg-gray-100 text-gray-600';
+		},
+		codeServerDotClass(bench) {
+			const s = this.codeServerStatus[bench.name];
+			if (s?.status === 'Running') return 'bg-green-500';
+			if (s?.exists) return 'bg-yellow-500';
+			return 'bg-gray-400';
+		},
+		codeServerStatusLabel(bench) {
+			const s = this.codeServerStatus[bench.name];
+			if (s?.status === 'Running') return 'Code Server running';
+			if (s?.status === 'Pending') return 'Code Server starting';
+			if (s?.exists) return `Code Server ${String(s.status || '').toLowerCase()}`;
+			return 'Code Server stopped';
 		},
 	},
 };
