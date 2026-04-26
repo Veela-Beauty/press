@@ -1,20 +1,18 @@
 <template>
 	<div class="mx-auto max-w-3xl space-y-4">
-		<!-- Dev Actions — benches in this release group -->
-		<div
-			v-if="benches.data?.length"
-			class="divide-y rounded border border-gray-200 p-5"
-		>
-			<div class="pb-3 text-lg font-semibold">Dev Actions</div>
+		<div v-if="benches.data?.length" class="rounded border border-gray-200">
+			<div class="border-b border-gray-200 p-5 text-lg font-semibold">Dev Actions</div>
+
 			<div
-				class="py-3 first:pt-0 last:pb-0"
 				v-for="bench in benches.data"
 				:key="bench.name"
+				class="border-b border-gray-200 p-5 last:border-b-0"
 			>
-				<div class="flex items-center justify-between gap-1">
+				<!-- Bench head: name + helper + status pill -->
+				<div class="mb-4 flex items-start justify-between gap-4">
 					<div>
-						<h3 class="text-base font-medium">{{ bench.name }}</h3>
-						<p class="mt-1 text-p-base text-gray-600">
+						<h3 class="font-mono text-base font-semibold text-gray-900">{{ bench.name }}</h3>
+						<p class="mt-0.5 text-sm text-gray-500">
 							{{
 								bench.is_development_bench
 									? 'This bench is marked as a development bench'
@@ -22,47 +20,97 @@
 							}}
 						</p>
 					</div>
-					<div class="flex items-center gap-2">
-						<div
-							v-if="codeServerStatus[bench.name]?.status === 'Running' && codeServerStatus[bench.name]?.url"
-							class="flex flex-col items-end gap-1"
-						>
-							<a
-								:href="codeServerStatus[bench.name].url"
-								target="_blank"
-								class="inline-flex items-center gap-1 rounded border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-100 whitespace-nowrap"
-							>✓ Open Code Server ↗</a>
-							<button
-								v-if="codeServerStatus[bench.name]?.password"
-								@click="copyCodeServerPassword(bench)"
-								class="text-xs text-gray-500 hover:text-gray-900 font-mono whitespace-nowrap"
-								title="Click to copy password"
-							>{{ revealedPasswords[bench.name] ? codeServerStatus[bench.name].password : '••••••••••  copy password' }}</button>
-							<div
-								v-if="codeServerStatus[bench.name]?.password_expires_at"
-								class="flex items-center gap-2 text-xs whitespace-nowrap"
-							>
-								<span :class="codeServerStatus[bench.name]?.password_is_expired ? 'text-red-600 font-medium' : 'text-gray-500'">
-									⏲ {{ formatExpiry(codeServerStatus[bench.name].password_expires_at) }}
+					<span
+						class="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+						:class="codeServerStatusClass(bench)"
+					>
+						<span class="h-1.5 w-1.5 rounded-full" :class="codeServerDotClass(bench)"></span>
+						{{ codeServerStatusLabel(bench) }}
+					</span>
+				</div>
+
+				<!-- Code Server KV panel -->
+				<div class="mb-3 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+					<div class="border-b border-gray-200 bg-white px-4 py-2.5">
+						<span class="text-xs font-semibold text-gray-900">Code Server</span>
+					</div>
+
+					<template v-if="codeServerStatus[bench.name]?.status === 'Running' && codeServerStatus[bench.name]?.url">
+						<div class="grid grid-cols-[90px_1fr] items-center gap-3 px-4 py-2.5">
+							<div class="text-[11px] font-medium uppercase tracking-wider text-gray-500">URL</div>
+							<div class="flex min-w-0 items-center gap-1.5 font-mono text-[12.5px] text-gray-900">
+								<span class="flex-1 truncate">{{ codeServerStatus[bench.name].url }}</span>
+								<button
+									class="inline-flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900"
+									@click="copyToClipboard(codeServerStatus[bench.name].url, 'URL copied')"
+									title="Copy URL"
+								>
+									<FeatherIcon name="copy" class="h-3.5 w-3.5" />
+								</button>
+								<a
+									:href="codeServerStatus[bench.name].url"
+									target="_blank"
+									class="inline-flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900"
+									title="Open in new tab"
+								>
+									<FeatherIcon name="external-link" class="h-3.5 w-3.5" />
+								</a>
+							</div>
+						</div>
+						<div class="grid grid-cols-[90px_1fr] items-center gap-3 border-t border-gray-200 px-4 py-2.5">
+							<div class="text-[11px] font-medium uppercase tracking-wider text-gray-500">Password</div>
+							<div class="flex min-w-0 items-center gap-1.5 font-mono text-[12.5px]">
+								<span
+									class="flex-1 truncate select-none"
+									:class="revealedPasswords[bench.name] ? 'select-text font-medium text-gray-900' : 'tracking-widest text-gray-500'"
+								>
+									{{ revealedPasswords[bench.name] ? codeServerStatus[bench.name].password : '••••••••••••' }}
 								</span>
+								<button
+									class="inline-flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900"
+									:class="revealedPasswords[bench.name] && 'text-blue-600'"
+									@click="togglePasswordReveal(bench)"
+									:title="revealedPasswords[bench.name] ? 'Hide password' : 'Show password'"
+								>
+									<FeatherIcon :name="revealedPasswords[bench.name] ? 'eye-off' : 'eye'" class="h-3.5 w-3.5" />
+								</button>
+								<button
+									class="inline-flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900"
+									@click="copyCodeServerPassword(bench)"
+									title="Copy password"
+								>
+									<FeatherIcon name="copy" class="h-3.5 w-3.5" />
+								</button>
+							</div>
+						</div>
+						<div class="space-y-1.5 border-t border-gray-200 bg-white px-4 py-2.5 text-xs text-gray-500">
+							<div class="flex items-center gap-2">
+								<span :class="codeServerStatus[bench.name]?.password_is_expired ? 'font-medium text-red-600' : ''">
+									{{ formatExpiry(codeServerStatus[bench.name].password_expires_at) }}
+								</span>
+								<span class="text-gray-300">·</span>
 								<button
 									:disabled="rotateLoading[bench.name]"
 									@click="rotateCodeServerPassword(bench)"
-									class="text-blue-600 hover:text-blue-800 underline"
-								>{{ rotateLoading[bench.name] ? 'Rotating…' : 'Rotate Now' }}</button>
-								<span class="text-gray-300">|</span>
+									class="font-medium text-gray-700 hover:text-gray-900 hover:underline"
+								>
+									{{ rotateLoading[bench.name] ? 'Rotating…' : 'Rotate now' }}
+								</button>
+								<span class="text-gray-300">·</span>
 								<button
 									:disabled="restartLoading[bench.name]"
 									@click="restartCodeServer(bench)"
-									class="text-blue-600 hover:text-blue-800 underline"
-								>{{ restartLoading[bench.name] ? 'Restarting…' : 'Restart' }}</button>
+									class="font-medium text-gray-700 hover:text-gray-900 hover:underline"
+								>
+									{{ restartLoading[bench.name] ? 'Restarting…' : 'Restart' }}
+								</button>
 							</div>
-							<div class="flex items-center gap-1 text-xs text-gray-400">
-								<span>auto-rotate every</span>
+							<div class="flex items-center gap-1.5">
+								<span>Auto-rotate every</span>
 								<input
 									type="number"
 									min="0"
-									class="w-12 rounded border border-gray-200 px-1 py-0 text-right focus:border-blue-500 focus:outline-none"
+									class="w-9 rounded border border-gray-200 px-1 py-0 text-right text-xs focus:border-blue-500 focus:outline-none"
 									v-model.number="durationEdits[bench.name]"
 									@blur="saveDuration(bench)"
 									@keyup.enter="saveDuration(bench)"
@@ -70,57 +118,105 @@
 								<span>days</span>
 							</div>
 						</div>
-						<div
-							v-else-if="codeServerStatus[bench.name]?.exists && codeServerStatus[bench.name]?.status !== 'Running'"
-							class="flex flex-col items-end gap-1"
-						>
-							<span class="text-sm text-gray-500 italic whitespace-nowrap">Code Server {{ codeServerStatus[bench.name].status === 'Pending' ? 'starting…' : codeServerStatus[bench.name].status }}</span>
-							<button
-								:disabled="restartLoading[bench.name]"
-								@click="restartCodeServer(bench)"
-								class="text-xs text-blue-600 hover:text-blue-800 underline"
-							>{{ restartLoading[bench.name] ? 'Restarting…' : 'Restart Code Server' }}</button>
-						</div>
-						<Button
-							v-else
-							class="whitespace-nowrap"
-							:loading="codeServerLoading[bench.name]"
-							@click="launchCodeServer(bench)"
-						>Launch Code Server</Button>
-						<Button
-							class="whitespace-nowrap"
-							:loading="devLoading[bench.name]"
-							@click="toggleDevBench(bench)"
-						>
-							<p>{{ bench.is_development_bench ? 'Unset Dev Bench' : 'Mark Dev Bench' }}</p>
-						</Button>
-					</div>
-				</div>
-			</div>
-		</div>
+					</template>
 
-		<!-- Standard actions from Release Group doc.actions child table -->
-		<div
-			v-if="$releaseGroup?.doc?.actions"
-			v-for="group in actions"
-			:key="group.group"
-			class="divide-y rounded border border-gray-200 p-5"
-		>
-			<div class="pb-3 text-lg font-semibold">{{ group.group }}</div>
-			<div
-				class="py-3 first:pt-0 last:pb-0"
-				v-for="row in group.actions"
-				:key="row.action"
-			>
-				<ReleaseGroupActionCell
-					:benchName="releaseGroup"
-					:group="group.group"
-					:actionLabel="row.action"
-					:method="row.doc_method"
-					:description="row.description"
-					:buttonLabel="row.button_label"
-					:linkedVersionUpgrade="$releaseGroup?.doc?.linked_version_upgrade"
-				/>
+					<template v-else-if="codeServerStatus[bench.name]?.exists && codeServerStatus[bench.name]?.status !== 'Running'">
+						<div class="flex flex-col items-center gap-2 px-4 py-6 text-center text-sm text-gray-500">
+							<span>Code Server {{ codeServerStatus[bench.name].status === 'Pending' ? 'starting…' : codeServerStatus[bench.name].status.toLowerCase() }}</span>
+							<Button
+								:loading="restartLoading[bench.name]"
+								@click="restartCodeServer(bench)"
+								class="mt-1"
+							>
+								Restart Code Server
+							</Button>
+						</div>
+					</template>
+
+					<template v-else>
+						<div class="flex flex-col items-center gap-2 px-4 py-6 text-center text-sm text-gray-500">
+							<span>Code Server is not running for this bench.</span>
+							<Button
+								:loading="codeServerLoading[bench.name]"
+								variant="solid"
+								@click="launchCodeServer(bench)"
+								class="mt-1"
+							>
+								Launch Code Server
+							</Button>
+						</div>
+					</template>
+				</div>
+
+				<!-- 4-tile action grid -->
+				<div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+					<button
+						type="button"
+						class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3.5 text-left transition hover:border-gray-300 hover:shadow-sm"
+						@click="openVscodeDialog(bench)"
+					>
+						<div class="flex h-7 w-7 items-center justify-center rounded-md bg-blue-50 text-blue-600">
+							<FeatherIcon name="code" class="h-4 w-4" />
+						</div>
+						<div>
+							<h4 class="text-[13px] font-semibold text-gray-900">Open in VS Code</h4>
+							<p class="mt-0.5 text-[11.5px] leading-snug text-gray-500">
+								Local VS Code Desktop via Remote-SSH.
+							</p>
+						</div>
+					</button>
+
+					<button
+						type="button"
+						class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3.5 text-left transition hover:border-gray-300 hover:shadow-sm disabled:cursor-wait disabled:opacity-60"
+						:disabled="devLoading[bench.name]"
+						@click="toggleDevBench(bench)"
+					>
+						<div class="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-700">
+							<FeatherIcon name="tag" class="h-4 w-4" />
+						</div>
+						<div>
+							<h4 class="text-[13px] font-semibold text-gray-900">
+								{{ bench.is_development_bench ? 'Unset Dev Bench' : 'Mark as Dev Bench' }}
+							</h4>
+							<p class="mt-0.5 text-[11.5px] leading-snug text-gray-500">
+								Tag this bench for development use only.
+							</p>
+						</div>
+					</button>
+
+					<button
+						type="button"
+						class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3.5 text-left transition hover:border-gray-300 hover:shadow-sm"
+						@click="openSshDialog(bench)"
+					>
+						<div class="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-700">
+							<FeatherIcon name="lock" class="h-4 w-4" />
+						</div>
+						<div>
+							<h4 class="text-[13px] font-semibold text-gray-900">Generate SSH Certificate</h4>
+							<p class="mt-0.5 text-[11.5px] leading-snug text-gray-500">
+								Required for "Open in VS Code". Valid 6 hours.
+							</p>
+						</div>
+					</button>
+
+					<button
+						type="button"
+						class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3.5 text-left transition hover:border-gray-300 hover:shadow-sm"
+						@click="confirmRestartBench(bench)"
+					>
+						<div class="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-gray-700">
+							<FeatherIcon name="refresh-cw" class="h-4 w-4" />
+						</div>
+						<div>
+							<h4 class="text-[13px] font-semibold text-gray-900">Restart Bench</h4>
+							<p class="mt-0.5 text-[11.5px] leading-snug text-gray-500">
+								Restart all bench workers (web, scheduler, queues).
+							</p>
+						</div>
+					</button>
+				</div>
 			</div>
 		</div>
 	</div>
