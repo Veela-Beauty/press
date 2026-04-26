@@ -168,6 +168,9 @@
 							<td class="px-4 py-2.5"><code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">{{ item.branch }}</code></td>
 							<td class="px-4 py-2.5">
 								<div class="flex flex-wrap gap-1">
+									<span v-if="!item.is_owned" class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+										upstream
+									</span>
 									<span v-if="item.ahead > 0" class="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-700">↑ {{ item.ahead }} ahead</span>
 									<span v-if="item.dirty > 0" class="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-600">● {{ item.dirty }} dirty</span>
 									<span v-if="item.ahead === 0 && item.dirty === 0" class="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">✓ Clean</span>
@@ -175,7 +178,7 @@
 							</td>
 							<td class="max-w-[180px] truncate px-4 py-2.5 text-xs text-gray-500">{{ item.last_msg }}</td>
 							<td class="px-4 py-2.5 text-right">
-								<div class="flex justify-end gap-1">
+								<div v-if="item.is_owned" class="flex justify-end gap-1">
 									<Button v-if="item.ahead > 0 || item.dirty > 0" size="sm" variant="outline" @click="togglePushRow(item.app)">
 										{{ openPushApp === item.app ? 'Cancel' : 'Push ↓' }}
 									</Button>
@@ -184,6 +187,7 @@
 										GitHub
 									</Button>
 								</div>
+								<span v-else class="text-xs text-gray-400">—</span>
 							</td>
 						</tr>
 						<tr v-if="openPushApp === item.app" :key="item.app + '-push'">
@@ -462,7 +466,7 @@ export default {
 			if (!this.migrationData?.last_run) return 'Never';
 			return 'Last: ' + this.relativeTime(this.migrationData.last_run);
 		},
-		appsNeedingPush() { return this.appGitStatus.filter(a => a.ahead > 0 || a.dirty > 0).length; },
+		appsNeedingPush() { return this.appGitStatus.filter(a => a.is_owned && (a.ahead > 0 || a.dirty > 0)).length; },
 		devTools() {
 			return [
 				{ label: 'Dev Overview', desc: 'All benches at a glance', icon: '⊞', iconColor: 'text-gray-700', href: '/dashboard/dev-overview' },
