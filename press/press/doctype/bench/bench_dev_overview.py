@@ -424,11 +424,15 @@ def get_code_server_status(bench_name):
 		"name": cs_row.name if cs_row else None,
 		"status": cs_row.status if cs_row else None,
 		"url": f"https://{cs_row.name}" if cs_row and cs_row.status == "Running" else None,
-		"password": cs_row.password if cs_row and cs_row.status == "Running" else None,
+		"password": None,
 	}
 	if cs_row:
-		# Always attach expiry info (even while Pending) so UI can render countdown
+		# Always attach expiry info (even while Pending) so UI can render countdown.
+		# Password fieldtype masks via frappe.db.get_value — must call get_password()
+		# on the doc to decrypt. Only return it when Running.
 		cs_doc = frappe.get_doc("Code Server", cs_row.name)
+		if cs_row.status == "Running":
+			result["password"] = cs_doc.get_password("password")
 		result["password_set_at"] = cs_row.password_set_at
 		result["password_expires_at"] = cs_doc.get_password_expires_at()
 		result["password_expiry_days"] = cs_doc.get_password_expiry_days()
