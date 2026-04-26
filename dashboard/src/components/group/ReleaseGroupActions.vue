@@ -3,6 +3,102 @@
 		<div v-if="benches.data?.length" class="rounded border border-gray-200">
 			<div class="border-b border-gray-200 p-5 text-lg font-semibold">Dev Actions</div>
 
+			<!-- Collapsible workflow explainer -->
+			<div class="border-b border-gray-200">
+				<button
+					type="button"
+					class="flex w-full items-center justify-between px-5 py-3 text-left transition hover:bg-gray-50"
+					@click="showWorkflow = !showWorkflow"
+				>
+					<div class="flex items-center gap-2">
+						<FeatherIcon name="info" class="h-4 w-4 text-blue-600" />
+						<span class="text-sm font-medium text-gray-900">How to use a Dev Bench</span>
+						<span class="hidden text-xs text-gray-500 sm:inline">— edit code in the bench, see changes live, push back to GitHub</span>
+					</div>
+					<FeatherIcon
+						:name="showWorkflow ? 'chevron-up' : 'chevron-down'"
+						class="h-4 w-4 text-gray-400"
+					/>
+				</button>
+				<div
+					v-if="showWorkflow"
+					class="space-y-3 border-t border-gray-200 bg-gray-50 px-5 py-4 text-sm text-gray-700"
+				>
+					<div>
+						<div class="font-medium text-gray-900">1. Mark the bench as a Dev Bench</div>
+						<p class="mt-0.5 text-xs leading-relaxed">
+							Click <strong>Mark as Dev Bench</strong> on the bench tile below. Sets
+							<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">is_development_bench=1</code>
+							and enables developer-mode in
+							<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">site_config.json</code>
+							so Python changes hot-reload.
+						</p>
+					</div>
+					<div>
+						<div class="font-medium text-gray-900">2. Edit the code</div>
+						<ul class="mt-0.5 list-disc space-y-1 pl-5 text-xs leading-relaxed">
+							<li>
+								<strong>Open in VS Code</strong> tile — local VS Code Desktop over Remote-SSH (recommended). One click handles SSH cert + launch.
+							</li>
+							<li>
+								Or SSH directly:
+								<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">
+									ssh -A &lt;bench-name&gt;@&lt;proxy_server&gt; -p 2222
+								</code>
+								<span class="text-gray-500">(generate a cert first via the SSH Certificate tile)</span>
+							</li>
+							<li>
+								In container, app code lives at
+								<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">~/frappe-bench/apps/&lt;app_name&gt;/</code>
+							</li>
+						</ul>
+					</div>
+					<div>
+						<div class="font-medium text-gray-900">3. See changes take effect</div>
+						<ul class="mt-0.5 space-y-1 text-xs leading-relaxed">
+							<li>
+								<strong>Python</strong> (controllers, hooks, server scripts):
+								<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">bench --site &lt;site&gt; restart</code>
+							</li>
+							<li>
+								<strong>Client script / DocType JSON / JS:</strong> hard-reload browser (Ctrl+F5)
+							</li>
+							<li>
+								<strong>Schema change / new DocType:</strong>
+								<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">bench --site &lt;site&gt; migrate</code>
+							</li>
+							<li>
+								<strong>CSS rebuild:</strong>
+								<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">bench build --app &lt;app&gt;</code>
+							</li>
+						</ul>
+					</div>
+					<div>
+						<div class="font-medium text-gray-900">4. Push changes back to GitHub</div>
+						<p class="mt-0.5 text-xs leading-relaxed">
+							Open the <strong>Apps</strong> tab → click an app → <strong>Push to GitHub</strong>.
+							The dashboard configures the remote, checks out the working branch, and pushes via
+							your team's GitHub token.
+							<br />
+							<span class="text-gray-500">
+								Don't run
+								<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">git remote add origin</code>
+								manually inside the container — the deploy keys are read-only and auth will fail.
+								The dashboard handles this for you.
+							</span>
+						</p>
+					</div>
+					<div class="flex items-start gap-2 rounded border border-yellow-200 bg-yellow-50 p-2.5 text-xs text-yellow-800">
+						<FeatherIcon name="alert-triangle" class="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+						<div>
+							<strong>Edits live only in the running container.</strong>
+							If the container restarts before you push to GitHub, your changes are lost.
+							Always push before any deploy / restart action.
+						</div>
+					</div>
+				</div>
+			</div>
+
 			<div
 				v-for="bench in benches.data"
 				:key="bench.name"
@@ -282,6 +378,7 @@ export default {
 	components: { FeatherIcon, Button, ReleaseGroupActionCell },
 	data() {
 		return {
+			showWorkflow: false,
 			devLoading: {},
 			codeServerLoading: {},
 			codeServerStatus: {},
