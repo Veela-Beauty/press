@@ -220,5 +220,47 @@ class TestGetDevOverviewBenches(unittest.TestCase):
 
 
 
+class TestGetVscodeRemoteUrl(unittest.TestCase):
+    PATCH = "press.press.doctype.bench.bench_dev_overview.frappe"
+
+    @patch(PATCH)
+    def test_returns_vscode_uri_with_bench_user_proxy_and_bench_path(self, mf):
+        bench_doc = MagicMock(name="b-001", server="srv-001")
+        bench_doc.name = "b-001"
+        mf.get_doc.return_value = bench_doc
+        mf.db.get_value.return_value = "press-f1.sandbox.mvpstorm.com"
+
+        url = _bdo.get_vscode_remote_url("b-001")
+
+        self.assertTrue(url.startswith("vscode://vscode-remote/ssh-remote+"))
+        self.assertIn("+b-001@", url)
+        self.assertIn(":2222", url)
+        self.assertTrue(url.endswith("/home/frappe/frappe-bench"))
+        # proxy_server lookup uses Server.proxy_server, not Bench.proxy_server
+        mf.db.get_value.assert_called_once_with("Server", "srv-001", "proxy_server")
+
+    @patch(PATCH)
+    def test_raises_when_proxy_server_missing(self, mf):
+        bench_doc = MagicMock(server="srv-002")
+        bench_doc.name = "b-002"
+        mf.get_doc.return_value = bench_doc
+        mf.db.get_value.return_value = None
+        mf.throw.side_effect = Exception("no proxy")
+
+        with self.assertRaises(Exception):
+            _bdo.get_vscode_remote_url("b-002")
+        mf.throw.assert_called_once()
+
+    @patch(PATCH)
+    def test_raises_for_nonexistent_bench(self, mf):
+        class _DoesNotExistError(Exception):
+            pass
+        mf.DoesNotExistError = _DoesNotExistError
+        mf.get_doc.side_effect = _DoesNotExistError("Bench not found")
+
+        with self.assertRaises(_DoesNotExistError):
+            _bdo.get_vscode_remote_url("nonexistent-bench-zzz-9999")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

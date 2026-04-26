@@ -696,6 +696,30 @@ def restart_code_server(bench_name):
 
 
 @frappe.whitelist()
+def get_vscode_remote_url(bench_name: str) -> str:
+	"""
+	Compose a `vscode://vscode-remote/ssh-remote+<bench>@<proxy>:2222/home/frappe/frappe-bench`
+	URI for launching local VS Code Desktop against a Press-managed bench over SSH.
+
+	Permission: caller must have read access to the Bench. frappe.get_doc enforces this
+	(also raises DoesNotExistError for unknown bench names).
+
+	The proxy server is resolved from the Bench's Server doc (Server.proxy_server),
+	matching the pattern used elsewhere in bench.py (lines 189, 657, 663).
+	"""
+	bench = frappe.get_doc("Bench", bench_name)  # raises DoesNotExistError + checks read perm
+	proxy_server = frappe.db.get_value("Server", bench.server, "proxy_server")
+	if not proxy_server:
+		frappe.throw(
+			"This bench has no proxy server configured. Run Generate SSH Certificate first."
+		)
+	return (
+		f"vscode://vscode-remote/ssh-remote+{bench.name}@{proxy_server}:2222"
+		f"/home/frappe/frappe-bench"
+	)
+
+
+@frappe.whitelist()
 def set_code_server_password_expiry_days(bench_name, days):
 	"""Set the per-CS override for how many days the password stays valid.
 
