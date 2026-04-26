@@ -777,7 +777,7 @@ def restart_code_server(bench_name):
 	try:
 		agent.update_bench_config(bench)
 	except Exception as e:
-		log_error(title="Restart Code Server: update_bench_config failed", data=e)
+		frappe.log_error(title="Restart Code Server: update_bench_config failed", message=str(e))
 		return {"error": "Failed to queue config update — check Error Log"}
 
 	password = get_decrypted_password("Code Server", cs_name, "password")
@@ -786,7 +786,7 @@ def restart_code_server(bench_name):
 		frappe.db.set_value("Code Server", cs_name, "status", "Pending", update_modified=False)
 		frappe.db.commit()
 	except Exception as e:
-		log_error(title="Restart Code Server: start_code_server failed", data=e)
+		frappe.log_error(title="Restart Code Server: start_code_server failed", message=str(e))
 		return {"error": "Failed to queue start job — check Error Log"}
 
 	return {"restarted": True, "status": "Pending"}
