@@ -60,25 +60,16 @@
 							<li><strong>New DocType / schema change:</strong> <code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">bench --site &lt;site&gt; migrate</code></li>
 						</ul>
 					</div>
-					<div>
-						<div class="font-medium text-gray-900">4. Push to GitHub from a Site's Dev tab</div>
-						<p class="mt-0.5 text-xs leading-relaxed">
-							Open any site on this bench → click the <strong>Dev</strong> tab. The
-							<strong>App Status</strong> table shows what's dirty, with a <strong>Push&nbsp;↓</strong> button on each owned app.
-							You can pick a feature branch (or click <strong>✨ new feature</strong> for an auto-suggested one), and the commit is attributed to YOU on GitHub.
-						</p>
-						<p class="mt-1 text-[11px] text-gray-500">
-							The bench's own <strong>Apps</strong> tab only handles upstream updates — pushing your own work lives on the Site Dev tab. Don't try <code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">git remote add origin</code> manually in the container; the dashboard handles all the git config + token auth for you.
-						</p>
-					</div>
-					<div class="flex items-start gap-2 rounded border border-yellow-200 bg-yellow-50 p-2.5 text-xs text-yellow-800">
-						<FeatherIcon name="alert-triangle" class="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-						<div>
-							<strong>Edits live only in the running container.</strong>
-							Push before any deploy or restart, or your work is gone.
-						</div>
-					</div>
+					<p class="text-xs leading-relaxed text-gray-500">
+						Step 4 — pulling and pushing code — has its own guide right below
+						(<strong>How to pull and push code</strong>): Dashboard, Code Server, and SSH flows.
+					</p>
 				</div>
+			</div>
+
+			<!-- Pull/Push flows guide (Dashboard / Code Server / SSH) -->
+			<div class="border-b border-gray-200 px-5 py-4">
+				<DevFlowsGuide default-flow="code-server" />
 			</div>
 
 			<div
@@ -350,6 +341,7 @@ import { toast } from 'vue-sonner';
 import { renderDialog, confirmDialog } from '../../utils/components';
 import SSHCertificateDialog from './SSHCertificateDialog.vue';
 import ReleaseGroupActionCell from './ReleaseGroupActionCell.vue';
+import DevFlowsGuide from '../DevFlowsGuide.vue';
 
 const VSCodeLaunchDialog = defineAsyncComponent(
 	() => import('./VSCodeLaunchDialog.vue'),
@@ -357,7 +349,7 @@ const VSCodeLaunchDialog = defineAsyncComponent(
 
 export default {
 	props: ['releaseGroup'],
-	components: { FeatherIcon, Button, ReleaseGroupActionCell },
+	components: { FeatherIcon, Button, ReleaseGroupActionCell, DevFlowsGuide },
 	data() {
 		return {
 			showWorkflow: false,
