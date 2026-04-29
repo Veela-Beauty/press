@@ -17,6 +17,7 @@ from press.utils import ensure_team_access
 
 WATCH_PID_FILE = "/tmp/bench-watch.pid"
 WATCH_LOG_FILE = "/tmp/bench-watch.log"
+WATCH_LOCK_FILE = "/tmp/bench-watch.lock"
 
 
 def _is_watch_running(bench_doc) -> bool:
@@ -30,12 +31,24 @@ def _is_watch_running(bench_doc) -> bool:
 
 def start_watch(bench_doc) -> dict:
 	"""Idempotently start `bench watch` in the bench container.
-	Safe to call multiple times — only spawns if not already running."""
+	Safe to call multiple times — only spawns if not already running.
+
+	Uses shell-level flock so two concurrent docker_execute callers can't
+	both pass the 'already running' check and spawn duplicate watches.
+	If the lock is held by another caller, this exits silently (the other
+	caller does the work; our PID-file check on next poll picks it up).
+	"""
 	if _is_watch_running(bench_doc):
 		return {"started": False, "reason": "already_running"}
 
 	cmd = (
-		"bash -c 'cd /home/frappe/frappe-bench && "
+		"bash -c '"
+		f"exec 9>{WATCH_LOCK_FILE}; "
+		"flock -n 9 || exit 0; "
+		# Re-check under lock: another contender may have spawned between
+		# our outer _is_watch_running and acquiring the lock.
+		f'if [ -s {WATCH_PID_FILE} ] && kill -0 $(cat {WATCH_PID_FILE}) 2>/dev/null; then exit 0; fi; '
+		"cd /home/frappe/frappe-bench && "
 		f"nohup bench watch > {WATCH_LOG_FILE} 2>&1 < /dev/null & "
 		f"echo $! > {WATCH_PID_FILE}'"
 	)
