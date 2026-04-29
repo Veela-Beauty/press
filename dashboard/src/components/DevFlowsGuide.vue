@@ -111,13 +111,15 @@
 					</p>
 				</div>
 				<div>
-					<div class="font-medium text-gray-900">3. Set up git auth — once per shell session</div>
-					<p class="mt-0.5 text-xs leading-relaxed">Run:</p>
-					<pre class="mt-1 overflow-x-auto rounded bg-gray-900 px-3 py-2 text-[11px] text-gray-100"><code>bench-git-setup</code></pre>
+					<div class="font-medium text-gray-900">3. Set up git auth — run inside the app folder</div>
+					<pre class="mt-1 overflow-x-auto rounded bg-gray-900 px-3 py-2 text-[11px] text-gray-100"><code>cd ~/frappe-bench/apps/&lt;app&gt;
+bench-git-setup</code></pre>
 					<p class="mt-1 text-xs leading-relaxed">
 						Enter your <strong>Press email</strong> when prompted. Press issues a short-lived per-user
 						GitHub OAuth token (~60 min) and configures <code>git user.name</code> / <code>user.email</code>
-						as you. Re-run <code>bench-git-setup</code> if the token expires.
+						as you. If the app's <code>origin</code> is an SSH URL (<code>git@github.com:...</code>),
+						the script auto-rewrites it to HTTPS so the OAuth token actually works. Re-run if the
+						token expires.
 					</p>
 					<p class="mt-1 text-[11px] text-gray-500">
 						First-time only: if the script says "Connect GitHub", open the link it prints, authorize once,
@@ -125,9 +127,8 @@
 					</p>
 				</div>
 				<div>
-					<div class="font-medium text-gray-900">4. Pull or push from any app folder</div>
-					<pre class="mt-1 overflow-x-auto rounded bg-gray-900 px-3 py-2 text-[11px] text-gray-100"><code>cd ~/frappe-bench/apps/&lt;app&gt;
-git pull                                  # latest from origin
+					<div class="font-medium text-gray-900">4. Pull or push</div>
+					<pre class="mt-1 overflow-x-auto rounded bg-gray-900 px-3 py-2 text-[11px] text-gray-100"><code>git pull                                  # latest from origin
 git checkout -b feat/my-feature           # team-friendly branch
 git add -A &amp;&amp; git commit -m "..."
 git push -u origin feat/my-feature</code></pre>
@@ -160,22 +161,23 @@ git push -u origin feat/my-feature</code></pre>
 					</p>
 				</div>
 				<div>
-					<div class="font-medium text-gray-900">3. Set up git auth — once per shell session</div>
-					<pre class="mt-1 overflow-x-auto rounded bg-gray-900 px-3 py-2 text-[11px] text-gray-100"><code>bench-git-setup</code></pre>
+					<div class="font-medium text-gray-900">3. Set up git auth — run inside the app folder</div>
+					<pre class="mt-1 overflow-x-auto rounded bg-gray-900 px-3 py-2 text-[11px] text-gray-100"><code>cd ~/frappe-bench/apps/&lt;app&gt;
+bench-git-setup</code></pre>
 					<p class="mt-1 text-xs leading-relaxed">
 						Same as Code Server: prompts for your Press email, fetches a per-user GitHub OAuth token,
-						sets <code>git user.name</code> / <code>user.email</code>. Token lives in tmpfs and is
-						wiped on logout.
+						sets <code>git user.name</code> / <code>user.email</code>, and auto-rewrites SSH origins
+						(<code>git@github.com:...</code>) to HTTPS so the token works. Token lives in tmpfs and
+						is wiped on logout.
 					</p>
 				</div>
 				<div>
 					<div class="font-medium text-gray-900">4. Pull or push</div>
-					<pre class="mt-1 overflow-x-auto rounded bg-gray-900 px-3 py-2 text-[11px] text-gray-100"><code>cd ~/frappe-bench/apps/&lt;app&gt;
-git pull
+					<pre class="mt-1 overflow-x-auto rounded bg-gray-900 px-3 py-2 text-[11px] text-gray-100"><code>git pull
 git push origin HEAD</code></pre>
 					<p class="mt-1 text-[11px] text-gray-500">
 						Don't run <code>git remote add origin</code> manually — the existing remote is set up by
-						Press, and deploy keys are read-only. Use <code>bench-git-setup</code> for auth instead.
+						Press, and deploy keys are read-only. <code>bench-git-setup</code> handles auth + URL rewrite.
 					</p>
 				</div>
 			</div>

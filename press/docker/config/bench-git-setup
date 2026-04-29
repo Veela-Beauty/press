@@ -137,9 +137,22 @@ if name:
 minutes = expires_s // 60
 sys.stdout.write(
     f"[bench-git-setup] ✓ Git configured as {github_username} ({email}) — token valid ~{minutes} min\n"
-    f"[bench-git-setup] Tip: for a different app, 'git remote set-url origin git@github.com:<org>/<repo>.git' OR use https://github.com/...\n"
+    f"[bench-git-setup] Auth uses HTTPS via OAuth token. SSH origins are auto-rewritten to HTTPS when this runs inside a git repo.\n"
 )
 PYEOF
+
+# Auto-rewrite SSH origin -> HTTPS if we're inside a git repo with a GitHub
+# SSH remote. The credential helper above only handles HTTPS auth; without
+# this rewrite, `git pull` would still try ssh-key auth and fail with
+# "Permission denied (publickey)" — confusing because we just printed ✓.
+if git -C "$(pwd)" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+	cur_url=$(git -C "$(pwd)" remote get-url origin 2>/dev/null || true)
+	if [[ "$cur_url" == git@github.com:* ]]; then
+		new_url="https://github.com/${cur_url#git@github.com:}"
+		git -C "$(pwd)" remote set-url origin "$new_url"
+		echo "[bench-git-setup] Rewrote 'origin' SSH -> HTTPS so the OAuth token works: $new_url"
+	fi
+fi
 
 # Ensure session cleanup on logout
 if [[ -w "$HOME/.bash_logout" ]] && ! grep -qF 'bench-git-setup cleanup' "$HOME/.bash_logout" 2>/dev/null; then
