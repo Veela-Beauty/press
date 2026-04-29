@@ -212,3 +212,43 @@ No data loss for Press itself; Site Overview just shows 0 again.
 
 - 2026-04-29: initial setup. Plan: `docs/plans/2026-04-29-press-log-server-setup.md`
 - All 4 indices `filebeat-7.17.29-2026.04.{26,27,28,29}` created, 73k+ docs (mostly container stdout).
+
+---
+
+## Site Storage / Database panels show 0
+
+**Symptom:** Site Overview shows "Storage: 0 Bytes / 30 GB" and "Database: 0 Bytes / 3 GB" even though the site clearly has data.
+
+**Cause:** The Storage/Database panels read from the Site doc's `current_database_usage` and `current_disk_usage` fields. Those fields are populated by the `update_disk_usages` scheduler (15/45 hourly), which reads from `tabSite Usage`. `tabSite Usage` itself is populated by the `sync_benches` scheduler (`hourly_long`), which calls `bench.sync_info()` → `site.sync_info()` per site. Each step is independent; if any link is broken, panels stay at 0.
+
+**Diagnostic:**
+```python
+import frappe
+print('Site Usage records:', frappe.db.count('Site Usage'))
+# Should be > 0 — one record per site, refreshed hourly.
+```
+
+If 0, the scheduler hasn't successfully run yet OR is failing silently (`try/except log_error` swallows errors).
+
+**Manual one-time backfill** (forces sync for all active sites):
+```bash
+ssh root@press-ctrl "cd /home/frappe/frappe-bench && bench --site demo.mvpstorm.com console <<'PY'
+import frappe
+sites = frappe.get_all('Site', filters={'status': 'Active'}, pluck='name')
+ok, fail = 0, 0
+for name in sites:
+    try:
+        frappe.get_doc('Site', name).sync_info()
+        ok += 1
+    except Exception:
+        fail += 1
+print(f'sync_info: ok={ok}, fail={fail}')
+
+from press.press.doctype.site.site_usages import update_disk_usages
+update_disk_usages()
+print('update_disk_usages done')
+print('Site Usage count now:', frappe.db.count('Site Usage'))
+PY"
+```
+
+After this runs, Site Overview reloads should show real Storage/Database values. The `hourly_long` scheduler keeps them fresh going forward.
