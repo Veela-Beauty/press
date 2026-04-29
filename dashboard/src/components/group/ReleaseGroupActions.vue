@@ -56,7 +56,11 @@
 						<div class="font-medium text-gray-900">3. See your edits take effect</div>
 						<ul class="mt-0.5 list-disc space-y-1 pl-5 text-xs leading-relaxed">
 							<li><strong>Python</strong> (controllers, hooks, server scripts): auto-reloads. Force a restart only if needed: <code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">bench --site &lt;site&gt; restart</code></li>
-							<li><strong>JavaScript / DocType JSON:</strong> hard-reload your browser (Ctrl + F5)</li>
+							<li><strong>Client Scripts / DocType JSON:</strong> hard-reload browser (Ctrl + F5)</li>
+							<li>
+								<strong>Bundled JS / CSS</strong> (<code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">public/js/*</code>, <code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">public/css/*</code>): auto-rebuild on save while
+								<strong>Auto-Rebuild</strong> is running (see panel above each bench tile). Then Ctrl + F5.
+							</li>
 							<li><strong>New DocType / schema change:</strong> <code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">bench --site &lt;site&gt; migrate</code></li>
 						</ul>
 					</div>
@@ -97,6 +101,11 @@
 						<span class="h-1.5 w-1.5 rounded-full" :class="codeServerDotClass(bench)"></span>
 						{{ codeServerStatusLabel(bench) }}
 					</span>
+				</div>
+
+				<!-- Watch panel — auto-rebuild status for dev benches -->
+				<div v-if="bench.is_development_bench" class="mb-3">
+					<BenchWatchStatus :bench-name="bench.name" />
 				</div>
 
 				<!-- Code Server KV panel (gated by can_use — feature must be enabled for the team) -->
@@ -342,6 +351,7 @@ import { renderDialog, confirmDialog } from '../../utils/components';
 import SSHCertificateDialog from './SSHCertificateDialog.vue';
 import ReleaseGroupActionCell from './ReleaseGroupActionCell.vue';
 import DevFlowsGuide from '../DevFlowsGuide.vue';
+import BenchWatchStatus from './BenchWatchStatus.vue';
 
 const VSCodeLaunchDialog = defineAsyncComponent(
 	() => import('./VSCodeLaunchDialog.vue'),
@@ -349,7 +359,7 @@ const VSCodeLaunchDialog = defineAsyncComponent(
 
 export default {
 	props: ['releaseGroup'],
-	components: { FeatherIcon, Button, ReleaseGroupActionCell, DevFlowsGuide },
+	components: { FeatherIcon, Button, ReleaseGroupActionCell, DevFlowsGuide, BenchWatchStatus },
 	data() {
 		return {
 			showWorkflow: false,

@@ -1227,10 +1227,23 @@ class Bench(Document):
 
 	@dashboard_whitelist()
 	def set_development_bench(self, enable):
-		"""Mark bench as development or production. System Manager only."""
+		"""Mark bench as development or production. System Manager only.
+
+		Side-effect: starts/stops `bench watch` inside the container so JS/CSS
+		edits auto-rebuild on save (only on dev benches). Failures here do not
+		fail the toggle — UI shows watch status separately and offers Restart.
+		"""
 		frappe.only_for("System Manager")
 		self.is_development_bench = 1 if enable else 0
 		self.save(ignore_permissions=True)
+
+		from press.press.doctype.bench.bench_dev_watch import start_watch, stop_watch
+
+		try:
+			(start_watch if self.is_development_bench else stop_watch)(self)
+		except Exception as e:
+			frappe.logger().error(f"{self.name}: bench watch toggle failed: {e}")
+
 		action = "Marked as Development Bench" if self.is_development_bench else "Marked as Production Bench"
 		frappe.logger().info(f"{self.name}: {action} by {frappe.session.user}")
 
