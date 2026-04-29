@@ -130,7 +130,13 @@
 			</Button>
 		</DismissableBanner>
 
-		<div class="col-span-1 rounded-md border lg:col-span-2">
+		<!-- Usage card — hidden when site has no plan AND no recorded usage.
+		     Shows "No plan set + 0 Bytes everywhere" looks like a bug to users
+		     of self-hosted Press setups that don't bill via plans. -->
+		<div
+			v-if="hasUsageDataOrPlan"
+			class="col-span-1 rounded-md border lg:col-span-2"
+		>
 			<div class="grid grid-cols-2 lg:grid-cols-4">
 				<div class="border-b border-r p-5 lg:border-b-0">
 					<div class="flex h-full items-center justify-between">
@@ -543,6 +549,17 @@ export default {
 		},
 		currentUsageLoading() {
 			return this.$resources?.currentUsage?.loading ?? true;
+		},
+		hasUsageDataOrPlan() {
+			// Show the usage card when:
+			//   - the site has a plan assigned (panels are meaningful even at 0), OR
+			//   - any usage value is non-zero (real data is present)
+			// Hide it when both are absent — the "No plan set + 0 Bytes" empty state
+			// is misleading on self-hosted setups that don't bill via plans.
+			if (this.currentUsageLoading) return true;  // don't hide during initial fetch
+			if (this.$site?.doc?.plan) return true;
+			const u = this.currentUsage || {};
+			return Boolean(u.cpu || u.storage || u.database);
 		},
 		$site() {
 			return getCachedDocumentResource('Site', this.site);
