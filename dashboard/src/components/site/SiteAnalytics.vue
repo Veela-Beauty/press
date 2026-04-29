@@ -152,7 +152,11 @@
 			v-if="showAdvancedAnalytics"
 			class="grid grid-cols-1 gap-5 sm:grid-cols-2"
 		>
-			<AnalyticsCard title="Background Jobs" @share-card="shareDashboard">
+			<AnalyticsCard
+				v-if="$resources.advancedAnalytics.loading || hasChartData(jobCountData)"
+				title="Background Jobs"
+				@share-card="shareDashboard"
+			>
 				<LineChart
 					type="time"
 					title="Background Jobs"
@@ -167,6 +171,7 @@
 			</AnalyticsCard>
 
 			<AnalyticsCard
+				v-if="$resources.advancedAnalytics.loading || hasChartData(jobTimeData)"
 				title="Background Jobs CPU Usage"
 				@share-card="shareDashboard"
 			>
@@ -184,6 +189,7 @@
 			</AnalyticsCard>
 
 			<AnalyticsCard
+				v-if="$resources.advancedAnalytics.loading || hasChartData(requestCountByPathData)"
 				class="sm:col-span-2"
 				title="Frequent Requests"
 				@share-card="shareDashboard"
@@ -202,6 +208,7 @@
 			</AnalyticsCard>
 
 			<AnalyticsCard
+				v-if="$resources.advancedAnalytics.loading || hasChartData(requestDurationByPathData)"
 				class="sm:col-span-2"
 				title="Slowest Requests"
 				@share-card="shareDashboard"
@@ -265,6 +272,7 @@
 			</AnalyticsCard>
 
 			<AnalyticsCard
+				v-if="$resources.advancedAnalytics.loading || hasChartData(averageRequestDurationByPathData)"
 				class="sm:col-span-2"
 				title="Individual Request Time (Average)"
 				@share-card="shareDashboard"
@@ -281,6 +289,7 @@
 				/>
 			</AnalyticsCard>
 			<AnalyticsCard
+				v-if="$resources.advancedAnalytics.loading || hasChartData(requestCountByIPData)"
 				class="sm:col-span-2"
 				title="Requests by IP"
 				@share-card="shareDashboard"
@@ -298,6 +307,7 @@
 			</AnalyticsCard>
 
 			<AnalyticsCard
+				v-if="$resources.advancedAnalytics.loading || hasChartData(backgroundJobCountByMethodData)"
 				class="sm:col-span-2"
 				title="Frequent Background Jobs"
 				@share-card="shareDashboard"
@@ -315,6 +325,7 @@
 			</AnalyticsCard>
 
 			<AnalyticsCard
+				v-if="$resources.advancedAnalytics.loading || hasChartData(backgroundJobDurationByMethodData)"
 				class="sm:col-span-2"
 				title="Slowest Background Jobs"
 				@share-card="shareDashboard"
@@ -355,6 +366,7 @@
 			</AnalyticsCard>
 
 			<AnalyticsCard
+				v-if="$resources.advancedAnalytics.loading || hasChartData(averageBackgroundJobDurationByMethodData)"
 				class="sm:col-span-2"
 				title="Individual Background Job Time (Average)"
 				@share-card="shareDashboard"
@@ -372,6 +384,7 @@
 			</AnalyticsCard>
 
 			<AnalyticsCard
+				v-if="$resources.slowLogsCount.loading || hasChartData(slowLogsCountData)"
 				class="sm:col-span-2"
 				title="Frequent Slow Queries"
 				@share-card="shareDashboard"
@@ -403,6 +416,7 @@
 			</AnalyticsCard>
 
 			<AnalyticsCard
+				v-if="$resources.slowLogsDuration.loading || hasChartData(slowLogsDurationData)"
 				class="sm:col-span-2"
 				title="Top Slow Queries"
 				@share-card="shareDashboard"
@@ -738,6 +752,11 @@ export default {
 		},
 	},
 	methods: {
+		hasChartData(d) {
+			// True when the data has at least one dataset (non-empty chart).
+			// Mirrors BarChart.vue's own emptiness check (data.datasets.length).
+			return !!(d && d.datasets && d.datasets.length > 0);
+		},
 		toggleAdvancedAnalytics() {
 			this.showAdvancedAnalytics = !this.showAdvancedAnalytics;
 		},
