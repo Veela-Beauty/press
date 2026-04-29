@@ -417,17 +417,20 @@ class NginxRequestGroupByChart(StackedGroupByChart):
 
 	def setup_search_filters(self):
 		super().setup_search_filters()
+		# Monitor server's IP is excluded from "Requests by IP" so the user
+		# doesn't see monitor-bot traffic in their stats. On self-hosted
+		# Press setups without Prometheus, monitor_server is unset; in that
+		# case we just skip the exclusion (monitor traffic, if any, shows
+		# up in stats — a minor UX cost vs. a hard 417 that breaks the
+		# whole Advanced Analytics page).
 		press_settings: PressSettings = frappe.get_cached_doc("Press Settings")
-		if not (
-			press_settings.monitor_server
-			and (
-				monitor_ip := frappe.db.get_value(
-					"Monitor Server", press_settings.monitor_server, "ip", cache=True
-				)
+		monitor_ip = None
+		if press_settings.monitor_server:
+			monitor_ip = frappe.db.get_value(
+				"Monitor Server", press_settings.monitor_server, "ip", cache=True
 			)
-		):
-			frappe.throw("Monitor server not set in Press Settings")
-		self.search = self.search.exclude("match_phrase", source__ip=monitor_ip)
+		if monitor_ip:
+			self.search = self.search.exclude("match_phrase", source__ip=monitor_ip)
 		if ResourceType(self.resource_type) is ResourceType.SITE:
 			server = frappe.db.get_value("Site", self.name, "server")
 			proxy = frappe.db.get_value("Server", server, "proxy_server")
