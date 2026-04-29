@@ -5,16 +5,22 @@
 		v-if="!status || status.is_dev_bench !== false"
 		class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
 	>
-		<div class="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-2.5">
-			<div class="flex items-center gap-2">
-				<span class="text-xs font-semibold text-gray-900">Auto-Rebuild (bench watch)</span>
-				<span
-					class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium"
-					:class="badgeClass"
-				>
-					<span class="h-1.5 w-1.5 rounded-full" :class="dotClass"></span>
-					{{ badgeLabel }}
-				</span>
+		<div class="flex items-start justify-between border-b border-gray-200 bg-white px-4 py-2.5">
+			<div class="flex flex-col gap-0.5">
+				<div class="flex items-center gap-2">
+					<span class="text-xs font-semibold text-gray-900">Auto-Rebuild (bench watch)</span>
+					<span
+						class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium"
+						:class="badgeClass"
+					>
+						<span class="h-1.5 w-1.5 rounded-full" :class="dotClass"></span>
+						{{ badgeLabel }}
+					</span>
+				</div>
+				<div class="text-[11px] leading-snug text-gray-500">
+					Watches JS/CSS in every app on this bench and rebuilds bundles ~1 s after you save —
+					hard-reload your browser to see changes. Runs only on Dev Benches.
+				</div>
 			</div>
 			<div class="flex items-center gap-1.5">
 				<button
@@ -74,6 +80,7 @@ export default {
 			loading: false,
 			restarting: false,
 			pollTimer: null,
+			visibilityHandler: null,
 		};
 	},
 	computed: {
@@ -95,12 +102,38 @@ export default {
 	},
 	mounted() {
 		this.refresh();
-		this.pollTimer = setInterval(() => this.refresh({ silent: true }), POLL_MS);
+		this.startPolling();
+		// Pause polling when tab is backgrounded; resume on focus.
+		// Saves API calls when the user has the dashboard open in another tab.
+		this.visibilityHandler = () => {
+			if (document.visibilityState === 'visible') {
+				this.refresh({ silent: true });
+				this.startPolling();
+			} else {
+				this.stopPolling();
+			}
+		};
+		document.addEventListener('visibilitychange', this.visibilityHandler);
 	},
 	beforeUnmount() {
-		if (this.pollTimer) clearInterval(this.pollTimer);
+		this.stopPolling();
+		if (this.visibilityHandler) {
+			document.removeEventListener('visibilitychange', this.visibilityHandler);
+			this.visibilityHandler = null;
+		}
 	},
 	methods: {
+		startPolling() {
+			// Don't poll if we already have a timer or the bench is non-dev
+			if (this.pollTimer || (this.status && this.status.is_dev_bench === false)) return;
+			this.pollTimer = setInterval(() => this.refresh({ silent: true }), POLL_MS);
+		},
+		stopPolling() {
+			if (this.pollTimer) {
+				clearInterval(this.pollTimer);
+				this.pollTimer = null;
+			}
+		},
 		async refresh({ silent = false } = {}) {
 			if (!silent) this.loading = true;
 			try {
@@ -109,6 +142,13 @@ export default {
 					{ bench_name: this.benchName }
 				);
 				this.status = res || res?.message || null;
+				// PERF: if this bench will never be a dev bench, stop polling forever.
+				// The component is mounted unconditionally on Site Dev tabs; the v-if
+				// hides DOM but doesn't unmount, so without this the timer would
+				// keep firing every POLL_MS for the lifetime of the page.
+				if (this.status && this.status.is_dev_bench === false) {
+					this.stopPolling();
+				}
 			} catch (e) {
 				if (!silent) toast.error('Could not fetch watch status');
 			} finally {
