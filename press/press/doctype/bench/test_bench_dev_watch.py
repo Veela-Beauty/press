@@ -124,3 +124,29 @@ class TestWatchStatus(FrappeTestCase):
 		self.assertEqual(result, {"started": True})
 		# stop + is_running + spawn = 3 calls
 		self.assertEqual(bench.docker_execute.call_count, 3)
+
+
+class TestBenchDashboardFieldsRegression(FrappeTestCase):
+	"""Regression test for the dashboard_fields whitelist on Bench.
+
+	Background: on 2026-04-29 the Watch panel + 'Mark as Dev Bench' button
+	silently broke because is_development_bench was missing from this tuple.
+	Press's press.api.client.get_list filters response fields to dashboard_fields,
+	so the field never reached the UI even though it was requested in the query.
+	This test locks in the contract.
+
+	Lives here (not in test_bench.py) because test_bench.py's import chain
+	requires the `moto` AWS mocking library which isn't always installed —
+	this test must NOT depend on AWS test fixtures.
+	"""
+
+	def test_is_development_bench_in_dashboard_fields(self):
+		from press.press.doctype.bench.bench import Bench
+
+		self.assertIn(
+			"is_development_bench",
+			Bench.dashboard_fields,
+			"is_development_bench MUST be in Bench.dashboard_fields — the dashboard "
+			"depends on it for the Mark/Unset Dev Bench toggle and the Auto-Rebuild "
+			"watch panel. Removing it silently breaks both surfaces.",
+		)
