@@ -266,6 +266,12 @@ class Site(Document, TagHelpers):
 		"reason_for_disabling_monitoring",
 		"creation_failed",
 		"fatal_site_update",
+		# Usage fields read by Site Overview panel (Storage / Database / CPU).
+		# Without these in dashboard_fields the API filters them out before
+		# the response reaches the dashboard, and panels show 0 forever.
+		"current_cpu_usage",
+		"current_database_usage",
+		"current_disk_usage",
 	)
 
 	@staticmethod

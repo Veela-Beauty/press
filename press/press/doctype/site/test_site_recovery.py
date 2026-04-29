@@ -53,3 +53,33 @@ class TestRecoverGhostPendingSites(FrappeTestCase):
 		self.assertEqual(mock_set.call_count, 2)
 		# Error path was logged
 		self.assertTrue(mock_logger.return_value.error.called)
+
+
+class TestSiteDashboardFieldsRegression(FrappeTestCase):
+	"""Regression test for Site.dashboard_fields.
+
+	Background: on 2026-04-29 the Site Overview page showed 0 Bytes for
+	Storage / Database and 0 hours Compute even when the DB had real values.
+	Root cause: press.api.client.get filters Site fields to dashboard_fields,
+	and current_cpu_usage / current_database_usage / current_disk_usage were
+	missing from that tuple — so the values never reached the UI.
+
+	Same class of bug as the is_development_bench omission on Bench
+	(see test_bench_dev_watch.TestBenchDashboardFieldsRegression).
+	"""
+
+	def test_usage_fields_in_site_dashboard_fields(self):
+		from press.press.doctype.site.site import Site
+
+		for field in (
+			"current_cpu_usage",
+			"current_database_usage",
+			"current_disk_usage",
+		):
+			self.assertIn(
+				field,
+				Site.dashboard_fields,
+				f"{field} MUST be in Site.dashboard_fields — the Site Overview "
+				"page reads it for the Storage/Database/Compute panels. Removing "
+				"it silently makes those panels show 0.",
+			)
