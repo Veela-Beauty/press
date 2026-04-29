@@ -113,18 +113,60 @@ ssh root@press-ctrl "docker exec log-elasticsearch \
 ```
 For now: weekly volume snapshot (manual).
 
-## Known limitations
+## Setup gotchas (lessons from initial install)
 
-### Compute panel still shows 0 hours
+These steps are NOT obvious from the plan but **must** be done for the pipeline to actually flow data:
 
-**Why:** Press's analytics layer queries `filebeat-*` for documents with `json.transaction_type=request` — these come from Frappe's `monitor.json.log` which lives **inside each bench Docker container** at `/home/frappe/frappe-bench/logs/monitor.json.log`. The host-level Filebeat we set up only sees container stdout/stderr (system logs, sshd, errors), not bench app logs.
+### 1. Install ES ingest pipelines
 
-**Path forward (follow-up):** one of:
-- Mount each bench's `logs/` dir as a host volume so host Filebeat can read it
-- Run a sidecar Filebeat container per bench
-- Modify Press's analytics queries to use container stdout fields instead of monitor.json.log
+Filebeat's `inputs.d/monitor.yml` configures `pipeline: monitor`. If that pipeline doesn't exist in ES, Filebeat fails every event with 404 and indexes nothing useful. Two pipelines required:
 
-This was out of scope for this plan; the ES + nginx + Filebeat-shell infrastructure is in place ready to receive the right log shape once we build it.
+```bash
+ssh root@press-ctrl 'source /opt/log-server/.env && \
+  curl -sk -u frappe:$FRAPPE_QUERY_PASSWORD -XPUT \
+    https://logs.sandbox.mvpstorm.com/elasticsearch/_ingest/pipeline/monitor \
+    -H "Content-Type: application/json" \
+    --data-binary @/home/frappe/frappe-bench/apps/press/press/playbooks/roles/filebeat_elasticsearch/files/monitor.json && \
+  curl -sk -u frappe:$FRAPPE_QUERY_PASSWORD -XPUT \
+    https://logs.sandbox.mvpstorm.com/elasticsearch/_ingest/pipeline/nginx \
+    -H "Content-Type: application/json" \
+    --data-binary @/home/frappe/frappe-bench/apps/press/press/playbooks/roles/filebeat_elasticsearch/files/nginx.json'
+```
+
+Source files live in the press repo under `playbooks/roles/filebeat_elasticsearch/files/`. Re-run if you ever clear ES data.
+
+### 2. Disable ILM in Filebeat
+
+Filebeat 7.x tries to PUT to a date-math URL during ILM setup; nginx proxy returns 405 (proper REST routing). Until we fix nginx to allow this, disable ILM in `/etc/filebeat/filebeat.yml`:
+
+```yaml
+setup.ilm.enabled: false
+setup.template.enabled: false
+```
+
+### 3. Bench logs DO live on host (Press's standard mount)
+
+Each bench container has `/home/frappe/frappe-bench/logs/` bind-mounted to host `/home/frappe/benches/<bench-name>/logs/`. Filebeat's `inputs.d/monitor.yml` points at the host path correctly. **No per-container filebeat needed.**
+
+### 4. Password sync between deployment and Log Server doc
+
+The `Log Server.kibana_password` field is what Press's analytics uses to authenticate. **It must equal the htpasswd password you set in nginx.** If they drift, queries silently return 0 (because Press's `get_current_cpu_usage` catches all exceptions).
+
+Verify they match:
+```bash
+ssh root@press-ctrl 'source /opt/log-server/.env && echo "shell prefix: ${FRAPPE_QUERY_PASSWORD:0:8}"'
+# Then on Frappe console:
+from frappe.utils.password import get_decrypted_password
+print(get_decrypted_password('Log Server', 'logs.sandbox.mvpstorm.com', 'kibana_password')[:8])
+# Both prefixes MUST be the same.
+```
+
+### 5. Some sites won't show CPU data
+
+`request.counter` is logged only by **newer Frappe versions** (v15+). Older sites don't emit it. Press's query falls back to 0 silently. There's no fix at the log layer — those sites need a Frappe upgrade.
+
+Currently working: gwis-stg, tradeingdemov15, halwan-egy-demo, claudecodelearn, accuhub-dev-v15, …
+Currently 0: stlube-stg, althulathia-stg, … (older Frappe).
 
 ### Storage / Database panels still 0
 
