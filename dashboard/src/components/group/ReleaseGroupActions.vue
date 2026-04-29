@@ -25,7 +25,14 @@
 					class="space-y-3 border-t border-gray-200 bg-gray-50 px-5 py-4 text-sm text-gray-700"
 				>
 					<p class="text-xs leading-relaxed text-gray-600">
-						A <strong>Dev Bench</strong> is your code playground: edit live, see changes immediately, push back to GitHub when ready. This page handles the bench-level setup. The actual <strong>push</strong> happens on a site's <strong>Dev</strong> tab.
+						A <strong>Dev Bench</strong> is a bench you've flagged for development work.
+						When you mark one, Press flips on Frappe's developer mode (Python edits
+						hot-reload — no restart) and starts the
+						<strong>Auto-Rebuild</strong>
+						process inside the container, which watches your JS/CSS files and rebuilds
+						bundles automatically. Use it for quick edits and iteration; when you're
+						ready to ship, push from any site's <strong>Dev</strong> tab using
+						<strong>How to pull and push code</strong> below.
 					</p>
 					<div>
 						<div class="font-medium text-gray-900">1. Mark this bench as a Dev Bench</div>
