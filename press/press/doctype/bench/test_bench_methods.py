@@ -46,10 +46,22 @@ import frappe as frappe_ref  # noqa: E402 — after stub install
 # Purpose: test the logic in isolation without importing 1200-line bench.py
 
 def set_development_bench(self, enable):
-    """Copied verbatim from bench.py lines 1218-1224."""
+    """Copied verbatim from bench.py lines 1228-1247.
+
+    NOTE: when production bench.py changes, mirror it here so the tests
+    exercise the same logic in isolation (avoids importing 1200-line bench.py).
+    """
     frappe_ref.only_for("System Manager")
     self.is_development_bench = 1 if enable else 0
     self.save(ignore_permissions=True)
+
+    from press.press.doctype.bench.bench_dev_watch import start_watch, stop_watch
+
+    try:
+        (start_watch if self.is_development_bench else stop_watch)(self)
+    except Exception as e:
+        frappe_ref.logger().error(f"{self.name}: bench watch toggle failed: {e}")
+
     action = (
         "Marked as Development Bench"
         if self.is_development_bench
@@ -244,6 +256,45 @@ class TestRestartBench(unittest.TestCase):
         frappe_ref.logger = lambda: logger_mock
         restart_bench(bench)
         self.assertEqual(call_order, ["restart", "log"])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# set_development_bench() — bench-watch side-effect hook
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestSetDevelopmentBenchWatchHook(unittest.TestCase):
+    """Verify set_development_bench triggers start_watch / stop_watch."""
+
+    def setUp(self):
+        frappe_ref.only_for = lambda role: None
+
+    @patch("press.press.doctype.bench.bench_dev_watch.start_watch")
+    @patch("press.press.doctype.bench.bench_dev_watch.stop_watch")
+    def test_enable_calls_start_watch(self, mock_stop, mock_start):
+        bench = _make_bench(is_dev=0)
+        set_development_bench(bench, enable=1)
+        mock_start.assert_called_once_with(bench)
+        mock_stop.assert_not_called()
+
+    @patch("press.press.doctype.bench.bench_dev_watch.start_watch")
+    @patch("press.press.doctype.bench.bench_dev_watch.stop_watch")
+    def test_disable_calls_stop_watch(self, mock_stop, mock_start):
+        bench = _make_bench(is_dev=1)
+        set_development_bench(bench, enable=0)
+        mock_stop.assert_called_once_with(bench)
+        mock_start.assert_not_called()
+
+    @patch("press.press.doctype.bench.bench_dev_watch.start_watch",
+           side_effect=Exception("watch failed"))
+    def test_watch_failure_does_not_break_toggle(self, _start):
+        """The flag toggle and save must succeed even if watch start raises."""
+        bench = _make_bench(is_dev=0)
+        # Must not raise — exception is swallowed and logged
+        set_development_bench(bench, enable=1)
+        # Save still happened
+        bench.save.assert_called_once_with(ignore_permissions=True)
+        # Flag still flipped
+        self.assertEqual(bench.is_development_bench, 1)
 
 
 if __name__ == "__main__":
