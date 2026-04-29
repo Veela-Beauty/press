@@ -351,7 +351,7 @@ import { renderDialog, confirmDialog } from '../../utils/components';
 import SSHCertificateDialog from './SSHCertificateDialog.vue';
 import ReleaseGroupActionCell from './ReleaseGroupActionCell.vue';
 import DevFlowsGuide from '../DevFlowsGuide.vue';
-import BenchWatchStatus from './BenchWatchStatus.vue';
+import BenchWatchStatus from '../BenchWatchStatus.vue';
 
 const VSCodeLaunchDialog = defineAsyncComponent(
 	() => import('./VSCodeLaunchDialog.vue'),

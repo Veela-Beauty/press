@@ -448,7 +448,7 @@ import { session } from '../data/session';
 import BenchCodeHealth from './BenchCodeHealth.vue';
 import AiChatPanel from './AiChatPanel.vue';
 import DevFlowsGuide from './DevFlowsGuide.vue';
-import BenchWatchStatus from './group/BenchWatchStatus.vue';
+import BenchWatchStatus from './BenchWatchStatus.vue';
 
 const API = 'press.press.doctype.bench.bench_dev_overview';
 
