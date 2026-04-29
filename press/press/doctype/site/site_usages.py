@@ -142,3 +142,45 @@ def update_disk_usages():
 		except Exception:
 			log_error("Site Disk Usage Update Error", usage=usage)
 			frappe.db.rollback()
+
+
+def audit_site_usage_freshness():
+	"""Daily defensive check that the sync_benches → Site Usage pipeline is alive.
+
+	`sync_benches` runs hourly_long and is supposed to insert a Site Usage row per
+	active site each cycle. If the agent fails silently (the function wraps each
+	bench's sync in try/except + log_error), Site Usage stops refreshing and the
+	dashboard's Storage/Database panels drift to stale values.
+
+	This check finds active sites whose latest Site Usage record is >24h old (or
+	missing entirely) and logs a warning to Error Log so operators can investigate.
+
+	Discovered as a real-world failure mode on 2026-04-29: tabSite Usage was empty
+	install-wide for weeks. Manual backfill via site.sync_info() per site fixed it
+	immediately. This audit catches that pattern early.
+	"""
+	stale = frappe.db.sql(
+		"""
+		SELECT s.name, COALESCE(MAX(u.creation), 'never') AS last_usage
+		FROM `tabSite` s
+		LEFT JOIN `tabSite Usage` u ON u.site = s.name
+		WHERE s.status = 'Active'
+		GROUP BY s.name
+		HAVING last_usage = 'never' OR MAX(u.creation) < NOW() - INTERVAL 24 HOUR
+		""",
+		as_dict=True,
+	)
+	if not stale:
+		return
+
+	stale_names = [r["name"] for r in stale]
+	frappe.log_error(
+		title="Site Usage data is stale",
+		message=(
+			f"{len(stale_names)} active sites have no Site Usage record in the last 24h.\n"
+			f"This usually means the hourly_long `sync_benches` scheduler is failing silently.\n\n"
+			f"Affected sites: {stale_names[:20]}{'...' if len(stale_names) > 20 else ''}\n\n"
+			f"Recovery: run the manual backfill recipe in docs/runbook/log-server.md "
+			f"(loop site.sync_info() across active sites + update_disk_usages())."
+		),
+	)
