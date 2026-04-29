@@ -1022,3 +1022,29 @@ def get_nearest_cluster():
 			nearest_cluster = cluster_name
 
 	return nearest_cluster
+
+
+def ensure_team_access(bench_name=None, site_name=None):
+	"""Permission check shared by bench- and site-side helpers.
+
+	Allows System Managers, or team members/owner of the bench/site team.
+	Raises frappe.PermissionError otherwise.
+
+	Pass bench_name OR site_name (not both). Resolves the target team via
+	the Bench's team (falling back to its Release Group team) or the Site's
+	team, then compares against the current session's team.
+	"""
+	if frappe.session.data and frappe.session.data.user_type == "System User":
+		return
+	if "System Manager" in frappe.get_roles(frappe.session.user):
+		return
+	current_team = get_current_team()
+	target_team = None
+	if bench_name:
+		target_team = frappe.db.get_value("Bench", bench_name, "team") or frappe.db.get_value(
+			"Release Group", frappe.db.get_value("Bench", bench_name, "group"), "team"
+		)
+	elif site_name:
+		target_team = frappe.db.get_value("Site", site_name, "team")
+	if not target_team or target_team != current_team:
+		frappe.throw("Not allowed", frappe.PermissionError)

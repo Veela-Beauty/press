@@ -13,22 +13,10 @@ offers a one-click Restart.
 
 import frappe
 
-from press.utils import get_current_team
+from press.utils import ensure_team_access
 
 WATCH_PID_FILE = "/tmp/bench-watch.pid"
 WATCH_LOG_FILE = "/tmp/bench-watch.log"
-
-
-def _ensure_team_access(bench_name: str) -> None:
-	if frappe.session.data and frappe.session.data.user_type == "System User":
-		return
-	if "System Manager" in frappe.get_roles(frappe.session.user):
-		return
-	target = frappe.db.get_value("Bench", bench_name, "team") or frappe.db.get_value(
-		"Release Group", frappe.db.get_value("Bench", bench_name, "group"), "team"
-	)
-	if target != get_current_team():
-		frappe.throw("Not allowed", frappe.PermissionError)
 
 
 def _is_watch_running(bench_doc) -> bool:
@@ -70,7 +58,7 @@ def stop_watch(bench_doc) -> dict:
 def get_watch_status(bench_name: str) -> dict:
 	"""Watch status for the dashboard: running flag, PID, last log lines.
 	Returns is_dev_bench=False when bench isn't a dev bench (UI hides the panel)."""
-	_ensure_team_access(bench_name)
+	ensure_team_access(bench_name=bench_name)
 	bench = frappe.get_doc("Bench", bench_name)
 	if not bench.is_development_bench:
 		return {"running": False, "is_dev_bench": False}
@@ -101,7 +89,7 @@ def get_watch_status(bench_name: str) -> dict:
 @frappe.whitelist()
 def restart_watch(bench_name: str) -> dict:
 	"""User-triggered restart — for when watch died after a container restart."""
-	_ensure_team_access(bench_name)
+	ensure_team_access(bench_name=bench_name)
 	bench = frappe.get_doc("Bench", bench_name)
 	if not bench.is_development_bench:
 		frappe.throw("Bench is not a Development Bench")

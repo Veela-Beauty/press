@@ -7,26 +7,7 @@ import frappe
 import requests
 
 from press.press.doctype.bench.bench_dev_overview import get_bench_app_names
-from press.utils import get_current_team
-
-
-
-def _ensure_team_access(bench_name=None, site_name=None):
-	"""Allow System Managers, or team members/owner of the bench/site team."""
-	if frappe.session.data and frappe.session.data.user_type == "System User":
-		return
-	if "System Manager" in frappe.get_roles(frappe.session.user):
-		return
-	from press.utils import get_current_team
-	current_team = get_current_team()
-	target_team = None
-	if bench_name:
-		target_team = frappe.db.get_value("Bench", bench_name, "team") or \
-			frappe.db.get_value("Release Group", frappe.db.get_value("Bench", bench_name, "group"), "team")
-	elif site_name:
-		target_team = frappe.db.get_value("Site", site_name, "team")
-	if not target_team or target_team != current_team:
-		frappe.throw("Not allowed", frappe.PermissionError)
+from press.utils import ensure_team_access, get_current_team
 
 
 @frappe.whitelist()
@@ -35,7 +16,7 @@ def create_app_locally(bench_name, app_name, app_title):
 	Create a new Frappe app inside the bench container via bench new-app.
 	The app is created locally — no GitHub push. Push later from Dev tab.
 	"""
-	_ensure_team_access(bench_name=bench_name)
+	ensure_team_access(bench_name=bench_name)
 
 	app_name = app_name.strip().lower().replace("-", "_").replace(" ", "_")
 	if not app_name.isidentifier():
@@ -80,7 +61,7 @@ def init_github_for_app(bench_name, app_name, github_owner, repo_name=""):
 	is broken inside docker_execute because `&&` evaluates on the host shell
 	after only the first command runs in the container.
 	"""
-	_ensure_team_access(bench_name=bench_name)
+	ensure_team_access(bench_name=bench_name)
 
 	bench = frappe.get_doc("Bench", bench_name)
 	if not repo_name:
