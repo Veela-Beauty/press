@@ -212,7 +212,8 @@ scheduler_events = {
 		"press.press.doctype.database_server.database_server.delete_mariadb_binlog_for_archived_servers",
 		"press.press.doctype.team.team.check_budget_alerts",
 		"press.press.doctype.site.site.archive_creation_failed_sites",
-	
+		"press.press.doctype.site.site.recover_ghost_pending_sites",
+
 		"press.press.doctype.git_credential_session_log.git_credential_session_log.prune_old_git_credential_logs",
 	],
 	"daily_long": [

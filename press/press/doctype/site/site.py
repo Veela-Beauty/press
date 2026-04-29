@@ -5270,3 +5270,57 @@ def archive_creation_failed_sites():
 
 def on_doctype_update():
 	frappe.db.add_index("Site", ["standby_for_product", "is_standby", "status"])
+
+
+def recover_ghost_pending_sites():
+	"""Detect and recover sites stuck in Pending status despite being functional.
+
+	A 'ghost-pending' site has:
+	  - status='Pending'
+	  - setup_wizard_complete=1
+	  - At least one successful Backup Site agent job in the last 7 days
+	  - No in-flight provisioning jobs
+
+	The most common cause is an early 'New Site' agent job failure that left
+	status='Pending' even though all subsequent jobs (migrations, backups,
+	upstream registration) succeeded. This function recovers them automatically.
+
+	Discovered: stlube-stg.sandbox.mvpstorm.com and prime-textile were stuck
+	this way for 16 days on 2026-04-29 (their initial New Site job failed in
+	April but Press's status FSM never auto-recovered, leaving the dashboard
+	UI gating on status='Active' to hide plan/usage and the install-app dialog).
+	"""
+	candidates = frappe.db.sql(
+		"""
+		SELECT s.name FROM `tabSite` s
+		WHERE s.status = 'Pending'
+		  AND s.setup_wizard_complete = 1
+		  AND EXISTS (
+			SELECT 1 FROM `tabAgent Job` j
+			WHERE j.site = s.name
+			  AND j.job_type = 'Backup Site'
+			  AND j.status = 'Success'
+			  AND j.creation > NOW() - INTERVAL 7 DAY
+		  )
+		  AND NOT EXISTS (
+			SELECT 1 FROM `tabAgent Job` j2
+			WHERE j2.site = s.name
+			  AND j2.status IN ('Pending','Running')
+			  AND j2.job_type IN ('New Site','New Site from Backup','Migrate Site',
+			                     'Update Site Migrate','Update Site Pull')
+		  )
+		""",
+		as_dict=True,
+	)
+	for row in candidates:
+		try:
+			frappe.db.set_value("Site", row["name"], "status", "Active")
+			frappe.logger().info(
+				f"recover_ghost_pending_sites: {row['name']} flipped Pending -> Active "
+				f"(had successful backups + setup complete)"
+			)
+		except Exception as e:
+			frappe.logger().error(
+				f"recover_ghost_pending_sites: failed to fix {row['name']}: {e}"
+			)
+	frappe.db.commit()
