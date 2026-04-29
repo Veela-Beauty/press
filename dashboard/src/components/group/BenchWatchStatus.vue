@@ -1,6 +1,10 @@
 <template>
-	<!-- Watch panel — only visible when the bench is a Dev Bench -->
-	<div class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+	<!-- Watch panel — self-hides when the bench isn't a Dev Bench so this
+	     component is safe to mount unconditionally on any bench surface. -->
+	<div
+		v-if="!status || status.is_dev_bench !== false"
+		class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
+	>
 		<div class="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-2.5">
 			<div class="flex items-center gap-2">
 				<span class="text-xs font-semibold text-gray-900">Auto-Rebuild (bench watch)</span>

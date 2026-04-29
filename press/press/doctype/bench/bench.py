@@ -139,6 +139,7 @@ class Bench(Document):
 		"cluster",
 		"is_ssh_proxy_setup",
 		"inplace_update_docker_image",
+		"is_development_bench",
 	)
 
 	@staticmethod

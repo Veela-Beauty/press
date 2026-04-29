@@ -133,6 +133,9 @@
 		<!-- 3a. Pull/Push guide — Dashboard / Code Server / SSH flows -->
 		<DevFlowsGuide default-flow="dashboard" />
 
+		<!-- Auto-Rebuild status (self-hides on production benches) -->
+		<BenchWatchStatus v-if="$site?.doc?.bench" :bench-name="$site.doc.bench" />
+
 		<!-- 3. App Git Status -->
 		<div class="rounded-lg border border-gray-200 bg-white shadow-sm">
 			<div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
@@ -445,12 +448,13 @@ import { session } from '../data/session';
 import BenchCodeHealth from './BenchCodeHealth.vue';
 import AiChatPanel from './AiChatPanel.vue';
 import DevFlowsGuide from './DevFlowsGuide.vue';
+import BenchWatchStatus from './group/BenchWatchStatus.vue';
 
 const API = 'press.press.doctype.bench.bench_dev_overview';
 
 export default {
 	name: 'SiteDevTab',
-	components: { BenchCodeHealth, AiChatPanel, DevFlowsGuide },
+	components: { BenchCodeHealth, AiChatPanel, DevFlowsGuide, BenchWatchStatus },
 	props: { site: { type: String, required: true } },
 	data() {
 		return {
