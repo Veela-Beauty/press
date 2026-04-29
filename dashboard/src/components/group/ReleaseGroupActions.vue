@@ -3,16 +3,17 @@
 		<div v-if="benches.data?.length" class="rounded border border-gray-200">
 			<div class="border-b border-gray-200 p-5 text-lg font-semibold">Dev Actions</div>
 
-			<!-- Collapsible workflow explainer -->
-			<div class="border-b border-gray-200">
+			<!-- Collapsible workflow explainer (rounded card to match DevFlowsGuide style) -->
+			<div class="border-b border-gray-200 bg-gray-50/50 px-5 py-4">
+				<div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
 				<button
 					type="button"
-					class="flex w-full items-center justify-between px-5 py-3 text-left transition hover:bg-gray-50"
+					class="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-gray-50"
 					@click="showWorkflow = !showWorkflow"
 				>
 					<div class="flex items-center gap-2">
 						<FeatherIcon name="info" class="h-4 w-4 text-blue-600" />
-						<span class="text-sm font-medium text-gray-900">How to use a Dev Bench</span>
+						<span class="text-sm font-semibold text-gray-900">How to use a Dev Bench</span>
 						<span class="hidden text-xs text-gray-500 sm:inline">— edit code in the bench, see changes live, push back to GitHub</span>
 					</div>
 					<FeatherIcon
@@ -22,7 +23,7 @@
 				</button>
 				<div
 					v-if="showWorkflow"
-					class="space-y-3 border-t border-gray-200 bg-gray-50 px-5 py-4 text-sm text-gray-700"
+					class="space-y-3 border-t border-gray-200 bg-gray-50 px-4 py-4 text-sm text-gray-700"
 				>
 					<p class="text-xs leading-relaxed text-gray-600">
 						A <strong>Dev Bench</strong> is a bench you've flagged for development work.
@@ -76,10 +77,11 @@
 						(<strong>How to pull and push code</strong>): Dashboard, Code Server, and SSH flows.
 					</p>
 				</div>
+				</div>
 			</div>
 
 			<!-- Pull/Push flows guide (Dashboard / Code Server / SSH) -->
-			<div class="border-b border-gray-200 px-5 py-4">
+			<div class="border-b border-gray-200 bg-gray-50/50 px-5 py-4">
 				<DevFlowsGuide default-flow="code-server" surface="bench" />
 			</div>
 
