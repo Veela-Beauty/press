@@ -59,10 +59,12 @@ def get_watch_status(bench_name: str) -> dict:
 	"""Watch status for the dashboard: running flag, PID, last log lines.
 	Returns is_dev_bench=False when bench isn't a dev bench (UI hides the panel)."""
 	ensure_team_access(bench_name=bench_name)
-	bench = frappe.get_doc("Bench", bench_name)
-	if not bench.is_development_bench:
+	# Cheap single-column read for the gate; only fetch the full doc if needed
+	# for docker_execute below (saves a full Bench doc fetch on every poll).
+	if not frappe.db.get_value("Bench", bench_name, "is_development_bench"):
 		return {"running": False, "is_dev_bench": False}
 
+	bench = frappe.get_doc("Bench", bench_name)
 	check = bench.docker_execute(
 		f"bash -c 'pid=$(cat {WATCH_PID_FILE} 2>/dev/null); "
 		f'if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then '
@@ -90,8 +92,8 @@ def get_watch_status(bench_name: str) -> dict:
 def restart_watch(bench_name: str) -> dict:
 	"""User-triggered restart — for when watch died after a container restart."""
 	ensure_team_access(bench_name=bench_name)
-	bench = frappe.get_doc("Bench", bench_name)
-	if not bench.is_development_bench:
+	if not frappe.db.get_value("Bench", bench_name, "is_development_bench"):
 		frappe.throw("Bench is not a Development Bench")
+	bench = frappe.get_doc("Bench", bench_name)
 	stop_watch(bench)
 	return start_watch(bench)
