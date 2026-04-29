@@ -21,6 +21,11 @@
 		</button>
 
 		<div v-if="open" class="border-t border-gray-200">
+			<!-- Surface-specific leader: explains where you are and what these flows mean here -->
+			<div class="border-b border-gray-200 bg-blue-50/40 px-4 py-2 text-[11.5px] leading-relaxed text-gray-700">
+				{{ surfaceIntro }}
+			</div>
+
 			<!-- Tab switcher -->
 			<div class="flex gap-1 border-b border-gray-200 bg-gray-50 px-2 pt-2">
 				<button
@@ -210,6 +215,14 @@ export default {
 			default: 'dashboard',
 			validator: (v) => ['dashboard', 'code-server', 'ssh'].includes(v),
 		},
+		// Where this guide is mounted: tailors the leader paragraph
+		// 'site'  — Site Dev tab (focuses on "this site's bench")
+		// 'bench' — Release Group Bench Actions tab (focuses on "this group")
+		surface: {
+			type: String,
+			default: 'bench',
+			validator: (v) => ['bench', 'site'].includes(v),
+		},
 	},
 	data() {
 		return {
@@ -221,6 +234,23 @@ export default {
 				{ id: 'ssh', label: 'SSH' },
 			],
 		};
+	},
+	computed: {
+		surfaceIntro() {
+			if (this.surface === 'site') {
+				return (
+					'These are the three ways to push code that affects THIS site. ' +
+					'Pick the one that matches how you edit — from the dashboard, from Code Server in the browser, or from a real SSH terminal. ' +
+					"Whichever you choose, the change lands in the same bench container that powers this site."
+				);
+			}
+			// surface === 'bench'
+			return (
+				'Three ways to push code from a bench in this release group. ' +
+				'These flows apply to every site running on the bench you choose. ' +
+				'Use Dashboard for the easiest path, Code Server for browser-based editing, or SSH if you want your own terminal.'
+			);
+		},
 	},
 };
 </script>

@@ -73,7 +73,7 @@
 
 			<!-- Pull/Push flows guide (Dashboard / Code Server / SSH) -->
 			<div class="border-b border-gray-200 px-5 py-4">
-				<DevFlowsGuide default-flow="code-server" />
+				<DevFlowsGuide default-flow="code-server" surface="bench" />
 			</div>
 
 			<div

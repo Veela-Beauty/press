@@ -131,7 +131,7 @@
 		</div>
 
 		<!-- 3a. Pull/Push guide — Dashboard / Code Server / SSH flows -->
-		<DevFlowsGuide default-flow="dashboard" />
+		<DevFlowsGuide default-flow="dashboard" surface="site" />
 
 		<!-- Auto-Rebuild status (self-hides on production benches) -->
 		<BenchWatchStatus v-if="$site?.doc?.bench" :bench-name="$site.doc.bench" />
