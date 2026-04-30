@@ -14,6 +14,7 @@ Exit codes:
 from __future__ import annotations
 
 import datetime as dt
+import math
 import socket
 import ssl
 import sys
@@ -70,7 +71,7 @@ def issues_for(name: str, host: str) -> list[str]:
         findings.append(f"{name} ({host}): cert missing notAfter field")
         return findings
     not_after = dt.datetime.strptime(not_after_str, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=dt.timezone.utc)
-    days_left = (not_after - dt.datetime.now(dt.timezone.utc)).days
+    days_left = math.ceil((not_after - dt.datetime.now(dt.timezone.utc)).total_seconds() / 86400)
     if days_left < 0:
         findings.append(f"{name} ({host}): cert EXPIRED {-days_left} days ago")
     elif days_left < EXPIRY_WARN_DAYS:
