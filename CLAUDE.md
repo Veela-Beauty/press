@@ -44,6 +44,12 @@ supervisorctl restart all
 sudo -u frappe bash -c 'cd /home/frappe/frappe-bench && bench build --app press && bench clear-cache'
 supervisorctl restart frappe-bench-web:frappe-bench-frappe-web
 
+# Safe update (REQUIRED for any Python/deps/migration change — never use bare `bench update`)
+sudo -u frappe bench-update-safe              # full pipeline: preflight + update + postflight + safe restart + smoke + auto-rollback
+sudo -u frappe bench-update-safe --dry-run    # preview only
+sudo -u frappe bench-update-safe --skip-update --no-restart  # validate env health, no disruption
+sudo -u frappe /home/frappe/scripts/rollback.sh             # emergency rollback to latest snapshot
+
 # Poll pending jobs manually
 bench --site demo.mvpstorm.com execute press.press.doctype.agent_job.agent_job.poll_pending_jobs
 ```
@@ -156,6 +162,18 @@ gateway, provider, DB setup. All deleted — now handled by Sanad AI's `ai_dev` 
 - **Deploy page blank screen**: frappe-ui document resources have `get.loading` not `.loading`. Always use `$resources.x?.get?.loading` with optional chaining.
 - **press-f1 disk**: 75G was too small for build server (each image ~3-4G). Expanded to 150G. Daily cleanup cron at `/etc/cron.d/docker-cleanup`.
 - **GitHub token security**: `Press Settings.github_access_token` is global admin token. Team members should use per-team tokens via GitHub App. On self-hosted, global fallback is OK for trusted teams.
+- **bench update is dangerous** (see [stability runbook](docs/wiki/06-deployment-ops/press-ctrl-stability-runbook.md)): On 2026-04-29, a bare `bench update` upgraded `pydantic` but wiped `pydantic_core`, hidden for 10h until workers recycled → all Python processes FATAL. Always use `bench-update-safe` (auto pre-flight + boot test before restart + auto-rollback). Iron rules in `/etc/sanad/press-ctrl-rules.md` on the box.
+
+## Stability Runbook
+
+The Press-Ctrl Stability Runbook is the source of truth for safe operations on press-ctrl:
+
+- **Wiki**: [docs/wiki/06-deployment-ops/press-ctrl-stability-runbook.md](docs/wiki/06-deployment-ops/press-ctrl-stability-runbook.md)
+- **On the box**: `/etc/sanad/press-ctrl-rules.md` (abridged operator-facing rules)
+- **Scripts**: `/home/frappe/scripts/{lib.sh, pre-flight.sh, post-flight.sh, rollback.sh, bench-update-safe}`
+- **Snapshots**: `/home/frappe/snapshots/<context>-YYYYMMDD-HHMMSS.txt`
+
+Five iron rules: (1) NEVER `sudo pip install`, (2) NEVER bare `bench update`, (3) updates only in maintenance window, (4) NEVER force-push `cloudflare-dns`, (5) take snapshots before destructive ops.
 
 ## Ops Wiki
 

@@ -28,6 +28,8 @@ Enhanced fork of Frappe Press by Accurate Systems — enterprise capabilities, C
 - [Deployment Guide](06-deployment-ops/deployment-guide.md) — New bench/server/domain checklists
 - [Server Provisioning](06-deployment-ops/server-provisioning.md) — Bootstrapping Hetzner VMs without private network
 - [Ops Toolkit](06-deployment-ops/ops-toolkit.md) — do_retry.py bench execute scripts
+- [Press-Ctrl Stability Runbook](06-deployment-ops/press-ctrl-stability-runbook.md) — `bench-update-safe` wrapper, iron rules, snapshots, rollback. **Required reading** before any `bench update` / `pip install` on press-ctrl.
+- [Site Usage Pipeline](06-deployment-ops/site-usage-pipeline.md) — Daily site-usage audit + dashboard backfill
 - [Known Issues & Fixes](06-deployment-ops/known-issues-and-fixes.md) — Troubleshooting guide
 - [Root Cause Patches](06-deployment-ops/root-cause-patches.md) — Patches applied to fix upstream issues
 - [Scaling Guide](06-deployment-ops/scaling-guide.md) — Scaling considerations for self-hosted
@@ -59,6 +61,8 @@ The `cloudflare-dns` branch patches **15 files** from upstream Press. See [Featu
 
 ## Build & Deploy
 
+For **dashboard-only changes** (HTML/JS/CSS — no Python deps touched):
+
 ```bash
 ssh press-ctrl
 su - frappe
@@ -68,3 +72,13 @@ bench build --force --app press
 bench --site demo.mvpstorm.com clear-cache
 sudo supervisorctl restart frappe-bench-web:frappe-bench-frappe-web
 ```
+
+For **any change that touches Python code, requirements, or migrations** — use the safe wrapper instead (auto-rollback on failure, no more 10-hour outages):
+
+```bash
+ssh press-ctrl
+sudo -u frappe bench-update-safe              # full pipeline with safety nets
+sudo -u frappe bench-update-safe --dry-run    # preview only
+```
+
+See [Press-Ctrl Stability Runbook](06-deployment-ops/press-ctrl-stability-runbook.md) for the full pipeline and iron rules.
