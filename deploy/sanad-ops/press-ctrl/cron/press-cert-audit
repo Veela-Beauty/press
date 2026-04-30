@@ -1,0 +1,6 @@
+# Daily Press agent TLS cert audit — runs at 06:00 local time (press-ctrl is Asia/Riyadh +03).
+# Output goes to /var/log/press-cert-audit.log; cron emails root on non-zero exit.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+0 6 * * * root /usr/bin/python3 /home/frappe/scripts/check-press-agent-certs.py >> /var/log/press-cert-audit.log 2>&1
