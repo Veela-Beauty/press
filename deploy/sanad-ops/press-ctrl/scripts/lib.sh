@@ -154,7 +154,9 @@ force_kill_frappe_workers() {
 safe_stop() {
   local timeout_s="$1"; shift
   log "supervisorctl stop (timeout=${timeout_s}s): $*"
-  ( timeout "${timeout_s}" as_root supervisorctl stop "$@" 2>&1 | grep -v pkg_resources ) || \
+  # `as_root` is a shell function — invoke it OUTSIDE timeout. Timeout is a binary
+  # and can't run shell functions; so we put `timeout` INSIDE the elevated context.
+  ( as_root timeout "${timeout_s}" supervisorctl stop "$@" 2>&1 | grep -v pkg_resources ) || \
     log "stop did not complete within ${timeout_s}s — will force-kill"
   force_kill_frappe_workers
   sleep 1
@@ -167,7 +169,7 @@ safe_stop() {
 safe_start() {
   local timeout_s="$1"; shift
   log "supervisorctl start (timeout=${timeout_s}s): $*"
-  if ! timeout "${timeout_s}" as_root supervisorctl start "$@" 2>&1 | grep -v pkg_resources; then
+  if ! as_root timeout "${timeout_s}" supervisorctl start "$@" 2>&1 | grep -v pkg_resources; then
     log "start command failed or timed out"
     return 1
   fi
