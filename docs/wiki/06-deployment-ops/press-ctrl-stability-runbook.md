@@ -281,11 +281,77 @@ ssh root@89.167.116.92 'cd /home/frappe/scripts && \
 
 | Phase | Item | Status |
 |---|---|---|
-| 1 | Generate `env-lock-prod.txt` and commit to a private repo | pending — needs lock-file repo decision |
+| 1 | Generate `env-lock-prod.txt` and commit to a private repo | ✅ done 2026-04-30 (`deploy/sanad-ops/press-ctrl/`) |
 | 1 | Push this runbook to Outline as well | pending — user decision |
-| 3 | Daily drift-check cron (alerts if `pip freeze` ≠ lock file) | pending |
+| 3 | Cert sync on renewal (per-server certbot deploy hook) | ✅ done 2026-04-30 (press-f1) |
+| 3 | Daily TLS audit cron with alert on non-LE / expiring | ✅ done 2026-04-30 (press-ctrl) |
+| 3 | Auto-clear stale Agent Request Failure (10-min cycle) | ✅ done 2026-04-30 (Press scheduler) |
 | 3 | Uptime monitor on `/api/method/ping` (Telegram/email alert if 5xx) | pending — needs tool decision (UptimeRobot / Uptime Kuma / Healthchecks.io) |
 | 5 | Full rollback drill in maintenance window — deliberate break + verify wrapper auto-restores | pending — needs maintenance window |
+| 5 | Live cert-audit drill — swap LE→self-signed on press-f1, verify alert, restore | pending — needs maintenance window (will trip circuit breaker briefly) |
+
+---
+
+## Cert Protection Automation (added 2026-04-30, after lesson #125)
+
+Three independent layers of defense against the cert/circuit-breaker class of bug.
+
+### Layer 1 — Certbot deploy hook (cert sync on renewal)
+
+**Path:** `/etc/letsencrypt/renewal-hooks/deploy/sync-press-agent-cert.sh` on press-f1.
+**Source-of-truth:** `deploy/sanad-ops/press-ctrl/scripts/sync-press-agent-cert.sh` in this repo.
+
+Runs after every successful certbot renewal. Atomic (`install -o frappe -g frappe -m 600/644`) into `/home/frappe/agent/tls/{fullchain,privkey,agent-only-fullchain,agent-only-privkey}.pem`, then `nginx -t` + `nginx -s reload`. Logs to `/var/log/cert-sync.log`. Aborts on any failure (no false-success).
+
+**Not on u4/u5:** they don't run certbot locally — their cert is push-managed by the Press TLS Certificate doctype. Layer 2 (audit cron) catches drift on those servers regardless.
+
+### Layer 2 — Daily TLS audit cron
+
+**Cron:** `/etc/cron.d/press-cert-audit` on press-ctrl, runs `0 6 * * *` (06:00 Asia/Riyadh local).
+**Script:** `/home/frappe/scripts/check-press-agent-certs.py` — Python stdlib `ssl` probe of each server (press-ctrl, press-f1, u4, u5) on port 443.
+**Source-of-truth:** `deploy/sanad-ops/press-ctrl/scripts/check-press-agent-certs.py`.
+**Tests:** 4 unit tests in same dir (`test_check_press_agent_certs.py`) verifying issuer + expiry logic.
+
+Alerts on:
+- non-LE issuer (catches a bootstrap-cert regression, the 2026-04-30 root cause)
+- cert expired
+- cert expires within 14 days
+
+Today writes alerts to stdout + `/var/log/press-cert-audit.log`. Cron emails root on non-zero exit. Phase 3+ will wire alerts to Telegram/email.
+
+### Layer 3 — Auto-clear stale Agent Request Failure rows
+
+**Module:** `press.scheduled_jobs.clear_stale_agent_request_failures.execute`.
+**Source:** `press/scheduled_jobs/clear_stale_agent_request_failures.py`.
+**Tests:** `press/scheduled_jobs/test_clear_stale.py` (4 tests, hermetic via injected `frappe` mock).
+**Schedule:** `*/10 * * * *` in `press/hooks.py` `scheduler_events.cron`.
+
+For each `Agent Request Failure` row older than 10 minutes:
+1. If the Server doc no longer exists → delete the orphan row.
+2. Otherwise call `Agent.ping()`. If it succeeds → delete the row.
+3. If `ping()` raises (any reason) → keep the row for the next cycle.
+
+This means `Agent.should_skip_requests()` self-heals once the server is reachable again. Without it, a single transient network blip permanently traps every subsequent agent job in Undelivered status (the 2026-04-30 incident).
+
+**Operational note:** If the audit (Layer 2) fires an alert, the trip will also create rows in `tabAgent Request Failure`. Layer 3 will clear them automatically once the underlying issue is fixed and the agent is reachable again — no manual `DELETE` needed.
+
+### Verifying all three are healthy
+
+```bash
+# Layer 1 — hook installed?
+ssh -i ~/.ssh/github_key_apr20 root@89.167.57.21 \
+  'ls -la /etc/letsencrypt/renewal-hooks/deploy/sync-press-agent-cert.sh && tail -3 /var/log/cert-sync.log'
+
+# Layer 2 — cron + script + log exist; manual run returns OK
+ssh -i ~/.ssh/id_ed25519_old root@89.167.116.92 \
+  'cat /etc/cron.d/press-cert-audit && /usr/bin/python3 /home/frappe/scripts/check-press-agent-certs.py'
+
+# Layer 3 — Frappe shows the job as registered + active
+ssh -i ~/.ssh/id_ed25519_old root@89.167.116.92 'cd /home/frappe/frappe-bench && \
+  sudo -u frappe bench --site demo.mvpstorm.com mariadb --batch -e \
+    "SELECT name, method, stopped, cron_format, last_execution FROM \`tabScheduled Job Type\` \
+     WHERE method LIKE \"%clear_stale%\" \\G"'
+```
 
 ---
 

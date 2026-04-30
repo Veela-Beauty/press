@@ -144,3 +144,13 @@ Auto-cleaned: snapshots older than 90 days are pruned by `/etc/cron.d/snapshot-c
 ---
 
 *Last updated: 2026-04-30. If you change this file, update `MEMORY.md` and the wiki runbook accordingly.*
+
+## Cert Protection Automation (added 2026-04-30, after pydantic and cert incidents)
+
+Three independent layers — see wiki `docs/wiki/06-deployment-ops/press-ctrl-stability-runbook.md` "Cert Protection Automation" for details.
+
+1. **Renewal hook** on press-f1: `/etc/letsencrypt/renewal-hooks/deploy/sync-press-agent-cert.sh` — fires after every certbot renewal, copies LE cert into agent tls dir, reloads nginx. Log: `/var/log/cert-sync.log`. (u4/u5 use Press push-managed certs — no local certbot.)
+2. **Daily TLS audit cron** here on press-ctrl: `/etc/cron.d/press-cert-audit`, runs 06:00 local. Probes all 4 servers; alerts if any non-LE / expired / expires within 14 days. Script: `/home/frappe/scripts/check-press-agent-certs.py`. Log: `/var/log/press-cert-audit.log`.
+3. **Auto-clear stale Agent Request Failure** every 10 min via Press scheduler — `press.scheduled_jobs.clear_stale_agent_request_failures.execute`. The `Agent.should_skip_requests()` circuit breaker now self-heals when the agent becomes reachable again. No more manual `DELETE FROM tabAgent Request Failure` after a transient blip.
+
+If the audit alerts, fix path is in `frappe-press-lessons.md` lessons #125 + #126.
