@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# bench-update-safe — wraps `bench update` with pre/post-flight checks and
+# automatic rollback to a pip-freeze snapshot on failure.
+#
+# Designed to replace direct `bench update` use on press-ctrl. Prevents the
+# 2026-04-29 incident where a bad pydantic/pydantic_core install stayed hidden
+# for 10 hours until supervisor recycled the workers.
+#
+# Pipeline:
+#   1. Pre-flight: snapshot + ownership + pip check + boot test + supervisor state
+#   2. Update:     git pull + pip install + bench migrate (via `bench update`)
+#   3. Post-flight: boot test BEFORE restart (catches broken envs)
+#   4. Rollback:   automatic if step 3 fails → restores from snapshot
+#   5. Restart:    supervisorctl restart web + workers
+#   6. Smoke:      curl /api/method/ping → must be 200
+#   7. Promote:    log success and snapshot path for next run
+#
+# Usage:
+#   bench-update-safe                      # full safe update
+#   bench-update-safe --dry-run            # pre-flight only, no changes
+#   bench-update-safe --skip-update        # preflight + postflight on current env
+#                                          # (use this to verify the wrapper works
+#                                          # without actually pulling new code)
+#   bench-update-safe --no-rollback        # disable auto-rollback (dangerous)
+#   bench-update-safe -h|--help            # this help
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# When installed as /usr/local/bin/bench-update-safe, lib.sh lives in /home/frappe/scripts
+if [ ! -f "${SCRIPT_DIR}/lib.sh" ] && [ -f "/home/frappe/scripts/lib.sh" ]; then
+  SCRIPT_DIR="/home/frappe/scripts"
+fi
+source "${SCRIPT_DIR}/lib.sh"
+
+DRY_RUN=0
+SKIP_UPDATE=0
+DO_ROLLBACK=1
+DO_RESTART=1
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dry-run) DRY_RUN=1; shift ;;
+    --skip-update) SKIP_UPDATE=1; shift ;;
+    --no-restart) DO_RESTART=0; shift ;;
+    --no-rollback) DO_ROLLBACK=0; shift ;;
+    -h|--help)
+      sed -n '2,30p' "$0"
+      exit 0
+      ;;
+    *) die "unknown arg: $1 (use --help)" ;;
+  esac
+done
+
+ensure_dirs
+RUN_LOG="${LOG_DIR}/bench-update-safe-$(date '+%Y%m%d-%H%M%S').log"
+touch "${RUN_LOG}"
+chown frappe:frappe "${RUN_LOG}"
+
+log "================================================================"
+log "bench-update-safe: starting (dry_run=${DRY_RUN}, skip_update=${SKIP_UPDATE}, restart=${DO_RESTART}, rollback=${DO_ROLLBACK})"
+log "log file: ${RUN_LOG}"
+log "================================================================"
+
+# ============================================================
+# STEP 1: PRE-FLIGHT
+# ============================================================
+log ""
+log "[1/7] pre-flight"
+SNAPSHOT="$("${SCRIPT_DIR}/pre-flight.sh" --context pre-update | tail -1)"
+[ -f "${SNAPSHOT}" ] || die "pre-flight did not produce a snapshot path"
+log "pre-flight snapshot: ${SNAPSHOT}"
+
+if [ "${DRY_RUN}" -eq 1 ]; then
+  log ""
+  log "DRY RUN — would now run: bench update --pull --requirements --no-backup"
+  log "DRY RUN — would now run: post-flight.sh"
+  log "DRY RUN — would now run: bench restart"
+  log "DRY RUN — exiting without changes"
+  exit 0
+fi
+
+# ============================================================
+# STEP 2: UPDATE
+# ============================================================
+if [ "${SKIP_UPDATE}" -eq 0 ]; then
+  log ""
+  log "[2/7] update (bench update --pull --requirements --no-backup)"
+  if ! as_frappe bash -c "cd ${BENCH_HOME} && bench update --pull --requirements --no-backup" 2>&1 | tee -a "${RUN_LOG}"; then
+    log "bench update FAILED — env may be partially updated"
+    if [ "${DO_ROLLBACK}" -eq 1 ]; then
+      log "[2/7] auto-rollback triggered"
+      "${SCRIPT_DIR}/rollback.sh" "${SNAPSHOT}"
+      die "bench update failed; rolled back from ${SNAPSHOT}"
+    else
+      die "bench update failed and --no-rollback was set; manual intervention required. Snapshot: ${SNAPSHOT}"
+    fi
+  fi
+  log "bench update OK"
+else
+  log ""
+  log "[2/7] update SKIPPED (--skip-update)"
+fi
+
+# ============================================================
+# STEP 3: POST-FLIGHT (BEFORE RESTART — this is the critical gate)
+# ============================================================
+log ""
+log "[3/7] post-flight (boot test BEFORE restart)"
+if ! "${SCRIPT_DIR}/post-flight.sh"; then
+  log "post-flight FAILED — env is broken; restarting now would crash supervisor"
+  if [ "${DO_ROLLBACK}" -eq 1 ]; then
+    log "[4/7] auto-rollback triggered"
+    "${SCRIPT_DIR}/rollback.sh" "${SNAPSHOT}"
+    die "post-flight failed; rolled back from ${SNAPSHOT}"
+  else
+    die "post-flight failed and --no-rollback was set; manual intervention required. Snapshot: ${SNAPSHOT}"
+  fi
+fi
+log "post-flight OK"
+
+# ============================================================
+# STEP 5+6: SAFE RESTART (stop with timeout + force-kill stragglers + start + wait for health)
+# ============================================================
+log ""
+if [ "${DO_RESTART}" -eq 0 ]; then
+  log "[5/7] supervisor restart SKIPPED (--no-restart)"
+  log "[6/7] smoke test SKIPPED (no restart was performed)"
+else
+  log "[5/7] safe supervisor restart (stop=15s, start=30s, health=30s)"
+  if ! safe_restart 15 30 30; then
+    log "safe_restart FAILED — supervisor or healthcheck never came up"
+    if [ "${DO_ROLLBACK}" -eq 1 ]; then
+      log "[6/7] auto-rollback triggered"
+      "${SCRIPT_DIR}/rollback.sh" "${SNAPSHOT}"
+      die "restart failed; rolled back from ${SNAPSHOT}"
+    else
+      die "restart failed and --no-rollback was set; manual intervention required. Snapshot: ${SNAPSHOT}"
+    fi
+  fi
+  log "[6/7] healthy after restart"
+fi
+
+# ============================================================
+# STEP 7: PROMOTE — record success
+# ============================================================
+log ""
+log "[7/7] promote"
+SUCCESS_SNAPSHOT="$(snapshot_path "post-update-ok")"
+take_snapshot "${SUCCESS_SNAPSHOT}" >/dev/null
+log "post-update snapshot: ${SUCCESS_SNAPSHOT}"
+
+log ""
+log "================================================================"
+log "bench-update-safe: SUCCESS"
+log "  pre-update snapshot:  ${SNAPSHOT}"
+log "  post-update snapshot: ${SUCCESS_SNAPSHOT}"
+log "  log:                  ${RUN_LOG}"
+log "================================================================"
