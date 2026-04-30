@@ -28,19 +28,13 @@ log() {
 
 log "syncing ${DOMAIN} cert into ${AGENT_TLS}"
 
-cp "${LE_DIR}/fullchain.pem" "${AGENT_TLS}/fullchain.pem"
-cp "${LE_DIR}/privkey.pem"   "${AGENT_TLS}/privkey.pem"
-cp "${LE_DIR}/fullchain.pem" "${AGENT_TLS}/agent-only-fullchain.pem"
-cp "${LE_DIR}/privkey.pem"   "${AGENT_TLS}/agent-only-privkey.pem"
-
-chown frappe:frappe "${AGENT_TLS}/fullchain.pem" "${AGENT_TLS}/privkey.pem" \
-                    "${AGENT_TLS}/agent-only-fullchain.pem" \
-                    "${AGENT_TLS}/agent-only-privkey.pem"
-chmod 644 "${AGENT_TLS}/fullchain.pem" "${AGENT_TLS}/agent-only-fullchain.pem"
-chmod 600 "${AGENT_TLS}/privkey.pem"   "${AGENT_TLS}/agent-only-privkey.pem"
+install -o frappe -g frappe -m 644 "${LE_DIR}/fullchain.pem" "${AGENT_TLS}/fullchain.pem"
+install -o frappe -g frappe -m 600 "${LE_DIR}/privkey.pem"   "${AGENT_TLS}/privkey.pem"
+install -o frappe -g frappe -m 644 "${LE_DIR}/fullchain.pem" "${AGENT_TLS}/agent-only-fullchain.pem"
+install -o frappe -g frappe -m 600 "${LE_DIR}/privkey.pem"   "${AGENT_TLS}/agent-only-privkey.pem"
 
 log "reloading system nginx"
 nginx -t >/dev/null 2>&1 || { log "FATAL: nginx -t failed; not reloading"; exit 1; }
-nginx -s reload
+nginx -s reload || { log "FATAL: nginx reload failed (exit $?)"; exit 1; }
 
 log "cert sync OK"
