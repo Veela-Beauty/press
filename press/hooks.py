@@ -372,6 +372,7 @@ scheduler_events = {
 			"press.press.doctype.site.saas_pool.create",
 			"press.press.doctype.virtual_disk_snapshot.virtual_disk_snapshot.sync_rolling_snapshots",
 			"press.press.doctype.database_server.database_server.auto_purge_binlogs_by_size_limit",
+			"press.scheduled_jobs.clear_stale_agent_request_failures.execute",
 		],
 		"*/30 * * * *": [
 			"press.press.doctype.site_update.scheduled_auto_updates.trigger",
