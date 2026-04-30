@@ -34,7 +34,7 @@ LE_ORG_NAME = "Let's Encrypt"
 
 
 def log(msg: str) -> None:
-    line = f"[{dt.datetime.now():%Y-%m-%d %H:%M:%S}] {msg}"
+    line = f"[{dt.datetime.now(dt.timezone.utc):%Y-%m-%d %H:%M:%S} UTC] {msg}"
     print(line)
     try:
         with LOG_PATH.open("a") as f:
@@ -56,7 +56,7 @@ def issues_for(name: str, host: str) -> list[str]:
         cert = probe_cert(host)
     except ssl.SSLCertVerificationError as e:
         return [f"{name} ({host}): SSL VERIFY FAILED — {e}"]
-    except (socket.timeout, socket.gaierror, ConnectionError) as e:
+    except OSError as e:
         return [f"{name} ({host}): connection error — {e}"]
 
     issuer = dict(x[0] for x in cert.get("issuer", []))
@@ -65,8 +65,12 @@ def issues_for(name: str, host: str) -> list[str]:
             f"{name} ({host}): issuer is NOT Let's Encrypt — {issuer}"
         )
 
-    not_after = dt.datetime.strptime(cert["notAfter"], "%b %d %H:%M:%S %Y %Z")
-    days_left = (not_after - dt.datetime.utcnow()).days
+    not_after_str = cert.get("notAfter")
+    if not not_after_str:
+        findings.append(f"{name} ({host}): cert missing notAfter field")
+        return findings
+    not_after = dt.datetime.strptime(not_after_str, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=dt.timezone.utc)
+    days_left = (not_after - dt.datetime.now(dt.timezone.utc)).days
     if days_left < 0:
         findings.append(f"{name} ({host}): cert EXPIRED {-days_left} days ago")
     elif days_left < EXPIRY_WARN_DAYS:
