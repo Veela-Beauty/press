@@ -142,7 +142,7 @@ export default {
 			if (newVal === oldVal) return;
 			this.selectedRunLog = null;
 			this.matchPreview = null;
-			if (newVal) this.$resources.runLogs.submit();
+			if (newVal) this.$resources.runLogs.submit({ client: newVal, limit: 20 });
 		},
 		selectedRunLog(newVal, oldVal) {
 			if (newVal === oldVal) return;
