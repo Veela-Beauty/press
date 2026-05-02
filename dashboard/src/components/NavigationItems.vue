@@ -191,13 +191,19 @@ export default {
 							isActive: routeName === 'Daman Run Log',
 						},
 						{
+							name: 'DR Restore',
+							icon: () => h(PlayCircle),
+							route: '/backups/dr-restore',
+							isActive: routeName === 'Daman DR Restore',
+						},
+						{
 							name: 'Alerts',
 							icon: () => h(Bell),
 							route: '/backups/alerts',
 							isActive: routeName === 'Daman Backup Alerts',
 						},
 					],
-					isActive: ['Daman Overview', 'Daman Backup Jobs', 'Daman Job Queue', 'Daman Backup Servers', 'Daman Clients', 'Daman Client Detail', 'Daman Run Log', 'Daman Backup Alerts'].includes(routeName),
+					isActive: ['Daman Overview', 'Daman Backup Jobs', 'Daman Job Queue', 'Daman Backup Servers', 'Daman Clients', 'Daman Client Detail', 'Daman Run Log', 'Daman DR Restore', 'Daman Backup Alerts'].includes(routeName),
 				},
 				{
 					name: 'Dev Tools',

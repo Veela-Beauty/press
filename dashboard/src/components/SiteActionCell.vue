@@ -49,6 +49,9 @@ function getSiteActionHandler(action) {
 		'Restore from an existing site': defineAsyncComponent(
 			() => import('./site/SiteDatabaseRestoreFromURLDialog.vue'),
 		),
+		'Restore from Daman Backup': defineAsyncComponent(
+			() => import('./site/SiteRestoreFromDamanDialog.vue'),
+		),
 		'Manage database users': defineAsyncComponent(
 			() => import('./SiteDatabaseAccessDialog.vue'),
 		),

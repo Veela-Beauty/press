@@ -3540,6 +3540,14 @@ class Site(Document, TagHelpers):
 				"group": "Dangerous Actions",
 			},
 			{
+				"action": "Restore from Daman Backup",
+				"description": "Drop and restore this site with a managed Daman backup",
+				"button_label": "Restore",
+				"doc_method": "restore_site_from_files",
+				"condition": self.status in ["Active", "Inactive"],
+				"group": "Dangerous Actions",
+			},
+			{
 				"action": "Reset site",
 				"description": "Reset your site database to a clean state",
 				"button_label": "Reset",

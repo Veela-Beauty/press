@@ -484,6 +484,12 @@ let router = createRouter({
 			props: true,
 		},
 		{
+			path: '/backups/dr-restore',
+			name: 'Daman DR Restore',
+			component: () => import('./pages/backups/DRRestore.vue'),
+			props: true,
+		},
+		{
 			path: '/backups/alerts',
 			name: 'Daman Backup Alerts',
 			component: () => import('./pages/backups/BackupAlerts.vue'),

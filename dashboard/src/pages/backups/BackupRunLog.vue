@@ -208,7 +208,9 @@
 <script>
 import ObjectList from '../../components/ObjectList.vue';
 import { Button, Dialog, Badge, createResource } from 'frappe-ui';
+import { defineAsyncComponent, h } from 'vue';
 import { date } from '../../utils/format';
+import { renderDialog } from '../../utils/components';
 
 export default {
 	name: 'BackupRunLog',
@@ -304,6 +306,15 @@ export default {
 					this.selectedLog = row;
 					this.detailDialogOpen = true;
 				},
+				rowActions: ({ row }) => {
+					if (row.status !== 'success') return [];
+					return [
+						{
+							label: 'Restore',
+							onClick: () => this.openRestoreWizard(row),
+						},
+					];
+				},
 				filterControls: () => [
 					{
 						type: 'link',
@@ -341,6 +352,15 @@ export default {
 		},
 	},
 	methods: {
+		openRestoreWizard(row) {
+			const Wizard = defineAsyncComponent(
+				() => import('../../components/backups/RestoreFromDamanWizard.vue'),
+			);
+			renderDialog(h(Wizard, {
+				prefilledClient: row.client,
+				prefilledRunLog: row.name,
+			}));
+		},
 		formatDetailDate(value) {
 			if (!value) return '-';
 			return date(value, 'llll');
