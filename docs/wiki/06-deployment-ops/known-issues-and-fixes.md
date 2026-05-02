@@ -2,6 +2,50 @@
 
 ## Active Known Issues
 
+### Tenant site hangs (TLS OK, body times out) — wrong upstream IP
+**Status:** Recurring — `charity.sandbox.mvpstorm.com` hit it 2026-05-02 (silent for hours; surfaced via Watch Tower alert)
+**Symptom:** Site is `Active` in Press DB, bench is `Active`, gunicorn is healthy, OTHER sites in the same bench respond fine — but ONE site times out. nginx access log on the proxy shows `499 ... 7.9s` (client gave up); nginx error log has no upstream errors.
+**Cause:** Press's agent stores per-site upstream membership at `/home/frappe/agent/nginx/upstreams/<IP>/<site>` files. The `<IP>` directory name is hashed via `sha512(upstream)[:16]` to produce the `upstream <hash>` block in `proxy.conf`. If a site file is misplaced under the **private IP** of the bench's server (e.g. `10.1.9.105` instead of `46.224.170.58`) and the proxy server has no private network to that IP, every request to that site hangs at `proxy_connect_timeout` (10s). Other sites under the correct public-IP directory work normally.
+**Diagnostic:**
+```bash
+# 1. Compare upstream hashes across sites in the same bench
+ssh press-f1 'sudo nginx -T 2>/dev/null | grep -E "<site>|<bench-mate>" | head -10'
+
+# 2. Find the IP behind the broken upstream hash
+ssh press-f1 'sudo grep -A1 "upstream <hash> {" /home/frappe/agent/nginx/proxy.conf'
+
+# 3. Confirm upstream is healthy when reached via the right IP
+ssh press-f1 'curl -sk --max-time 8 -o /dev/null -w "%{http_code} %{time_total}s\n" \
+   --resolve <site>:443:<good_public_ip> https://<site>/api/method/ping'
+# 200 in <1s = upstream is fine, routing is the bug
+```
+**Fix (permanent — also do this even after a hot patch):**
+```bash
+# Move site to the correct upstream directory
+ssh press-f1 'sudo mv /home/frappe/agent/nginx/upstreams/<wrong_ip>/<site> \
+                       /home/frappe/agent/nginx/upstreams/<right_ip>/<site> && \
+              sudo chown frappe:frappe /home/frappe/agent/nginx/upstreams/<right_ip>/<site>'
+
+# Remove now-empty wrong-ip directory so the dead upstream block disappears
+ssh press-f1 'sudo rmdir /home/frappe/agent/nginx/upstreams/<wrong_ip> 2>/dev/null'
+
+# Regenerate proxy.conf via the agent (NOT a manual rewrite — agent overwrites on every operation)
+ssh press-f1 'sudo -u frappe bash -c "cd /home/frappe/agent && source env/bin/activate && \
+   python -c \"from agent.proxy import Proxy; Proxy()._generate_proxy_config()\""'
+
+# Reload nginx (agent's _reload_nginx() refuses to run outside a job context — use plain nginx)
+ssh press-f1 'sudo nginx -t && sudo nginx -s reload'
+
+# Verify zero references to the dead upstream hash
+ssh press-f1 'sudo grep -c "<dead_hash>" /home/frappe/agent/nginx/proxy.conf'  # expect 0
+```
+**Hot patch (only if you must restore service in seconds — the permanent fix above must follow immediately):**
+```bash
+ssh press-f1 'sudo sed -i "/upstream <dead_hash> {/,/^}/{ s|<wrong_ip>:80|<right_ip>:80| }" \
+              /home/frappe/agent/nginx/proxy.conf && sudo nginx -s reload'
+```
+The agent regenerates `proxy.conf` from the directory tree on every Press operation that touches a site (deploy, archive, rename, …) — so a hot patch is overwritten silently.
+
 ### u4-default agent auth (401 on scheduled jobs)
 **Status:** Ongoing — Purge Binlogs fails with 401 every 30 min
 **Cause:** Agent password in `config.json` on u4 doesn't match Press DB
