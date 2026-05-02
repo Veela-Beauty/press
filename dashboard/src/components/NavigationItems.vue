@@ -28,6 +28,7 @@ import ShieldCheck from '~icons/lucide/shield-check';
 import HeartPulse from '~icons/lucide/heart-pulse';
 import HardDrive from '~icons/lucide/hard-drive';
 import Bell from '~icons/lucide/bell';
+import Calendar from '~icons/lucide/calendar';
 import ListOrdered from '~icons/lucide/list-ordered';
 import LayoutDashboard from '~icons/lucide/layout-dashboard';
 import PlayCircle from '~icons/lucide/play-circle';
@@ -197,13 +198,19 @@ export default {
 							isActive: routeName === 'Daman DR Restore',
 						},
 						{
+							name: 'Restore Tests',
+							icon: () => h(Calendar),
+							route: '/backups/restore-tests',
+							isActive: routeName === 'Daman Restore Tests',
+						},
+						{
 							name: 'Alerts',
 							icon: () => h(Bell),
 							route: '/backups/alerts',
 							isActive: routeName === 'Daman Backup Alerts',
 						},
 					],
-					isActive: ['Daman Overview', 'Daman Backup Jobs', 'Daman Job Queue', 'Daman Backup Servers', 'Daman Clients', 'Daman Client Detail', 'Daman Run Log', 'Daman DR Restore', 'Daman Backup Alerts'].includes(routeName),
+					isActive: ['Daman Overview', 'Daman Backup Jobs', 'Daman Job Queue', 'Daman Backup Servers', 'Daman Clients', 'Daman Client Detail', 'Daman Run Log', 'Daman DR Restore', 'Daman Restore Tests', 'Daman Backup Alerts'].includes(routeName),
 				},
 				{
 					name: 'Dev Tools',
