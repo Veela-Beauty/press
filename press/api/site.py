@@ -202,6 +202,13 @@ def _new(site, server: str | None = None, ignore_plan_validation: bool = False):
 			"remote_public_file": files.get("public"),
 			"remote_private_file": files.get("private"),
 			"skip_failing_patches": site.get("skip_failing_patches", False),
+			# Cloudflare-dns fork patch (2026-05-02): honor caller-supplied
+			# bench so Site.before_insert skips set_bench_for_server() — that
+			# unsorted query picks the OLDEST active bench in the group, which
+			# may lack the source app. Daman's Match Engine selects the right
+			# bench by app coverage; without this, Press would override its
+			# choice and validate_installed_apps would throw.
+			"bench": site.get("bench"),
 		},
 	)
 
