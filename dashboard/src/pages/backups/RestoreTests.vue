@@ -63,25 +63,35 @@
 							<th class="px-4 py-2 text-left">Target Site</th>
 							<th class="px-4 py-2 text-left">RTO</th>
 							<th class="px-4 py-2 text-left">Archived</th>
+							<th class="px-4 py-2 text-left"></th>
 						</tr>
 					</thead>
 					<tbody>
 						<tr
 							v-for="r in $resources.runs.data || []"
 							:key="r.name"
-							class="cursor-pointer border-t border-gray-100 hover:bg-gray-50"
-							@click="openRun(r.name)"
+							class="border-t border-gray-100 hover:bg-gray-50"
 						>
-							<td class="px-4 py-2 font-mono text-xs">{{ r.name }}</td>
-							<td class="px-4 py-2">{{ r.client }}</td>
-							<td class="px-4 py-2 text-xs text-gray-500">{{ r.triggered_at }}</td>
-							<td class="px-4 py-2"><Badge :theme="statusTheme(r.status)" :label="r.status" /></td>
-							<td class="px-4 py-2 font-mono text-xs">{{ r.target_site || '—' }}</td>
-							<td class="px-4 py-2">{{ r.actual_rto_seconds ? `${Math.round(r.actual_rto_seconds / 60)}m` : '—' }}</td>
-							<td class="px-4 py-2 text-xs text-gray-500">{{ r.archived_at || '—' }}</td>
+							<td class="cursor-pointer px-4 py-2 font-mono text-xs" @click="openRun(r.name)">{{ r.name }}</td>
+							<td class="cursor-pointer px-4 py-2" @click="openRun(r.name)">{{ r.client }}</td>
+							<td class="cursor-pointer px-4 py-2 text-xs text-gray-500" @click="openRun(r.name)">{{ r.triggered_at }}</td>
+							<td class="cursor-pointer px-4 py-2" @click="openRun(r.name)"><Badge :theme="statusTheme(r.status)" :label="r.status" /></td>
+							<td class="cursor-pointer px-4 py-2 font-mono text-xs" @click="openRun(r.name)">{{ r.target_site || '—' }}</td>
+							<td class="cursor-pointer px-4 py-2" @click="openRun(r.name)">{{ r.actual_rto_seconds ? `${Math.round(r.actual_rto_seconds / 60)}m` : '—' }}</td>
+							<td class="cursor-pointer px-4 py-2 text-xs text-gray-500" @click="openRun(r.name)">{{ r.archived_at || '—' }}</td>
+							<td class="px-4 py-2 text-right">
+								<Button
+									v-if="r.status === 'Passed' && !r.archived_at && r.target_site"
+									label="Auto-Drop"
+									variant="ghost"
+									size="sm"
+									theme="amber"
+									@click="openAutoDropDialog(r.target_site)"
+								/>
+							</td>
 						</tr>
 						<tr v-if="!($resources.runs.data || []).length">
-							<td colspan="7" class="px-4 py-6 text-center text-gray-500">No runs yet — schedules execute on the next hourly tick.</td>
+							<td colspan="8" class="px-4 py-6 text-center text-gray-500">No runs yet — schedules execute on the next hourly tick.</td>
 						</tr>
 					</tbody>
 				</table>
@@ -110,6 +120,17 @@ export default {
 			return ({ Passed: 'green', Failed: 'red', Running: 'blue', Skipped: 'gray' })[status] || 'gray';
 		},
 		openRun(name) { window.open(`/app/restore-test-run/${name}`, '_blank'); },
+		openAutoDropDialog(targetSite) {
+			// Press's site-name schema appends the root domain. Try both forms
+			// (with + without root) so we match what Press has indexed.
+			const fullSite = targetSite.includes('.') ? targetSite : `${targetSite}.sandbox.mvpstorm.com`;
+			const Dialog = defineAsyncComponent(() => import('../../components/backups/SiteAutoDropDialog.vue'));
+			renderDialog(h(Dialog, {
+				site: fullSite,
+				onScheduled: () => this.$resources.runs.reload(),
+				onCancelled: () => this.$resources.runs.reload(),
+			}));
+		},
 		openNewScheduleDialog() {
 			const Dialog = defineAsyncComponent(() => import('../../components/backups/RestoreTestScheduleDialog.vue'));
 			renderDialog(h(Dialog, { onSaved: () => this.$resources.schedules.reload() }));
