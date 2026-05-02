@@ -11,7 +11,7 @@
 				/>
 				<FormControl label="Frequency" type="select" :options="freqOptions" v-model="form.frequency" />
 				<FormControl label="Enabled" type="checkbox" v-model="form.enabled" />
-				<FormControl label="Email on Failure" type="checkbox" v-model="form.notify_on_failure" />
+				<FormControl label="Notify on Failure (email + webhook)" type="checkbox" v-model="form.notify_on_failure" />
 				<FormControl
 					label="Archive Test Site After (Hours)"
 					type="number"
@@ -23,6 +23,11 @@
 					type="textarea"
 					v-model="form.validation_doctypes"
 					description='Optional. e.g. ["User", "Sales Invoice"]'
+				/>
+				<FormControl
+					label="Webhook URL (Slack/Discord/Teams) — optional override"
+					v-model="form.webhook_url"
+					description="Leave blank to use the global Backup Settings.notification_webhook_url. POSTed with Slack-compatible JSON on Failed runs."
 				/>
 			</div>
 			<ErrorMessage class="mt-2" :message="errorMessage" />
@@ -60,6 +65,7 @@ export default {
 				notify_on_failure: this.existing?.notify_on_failure ?? 1,
 				archive_after_hours: this.existing?.archive_after_hours || 24,
 				validation_doctypes: this.existing?.validation_doctypes || '[]',
+				webhook_url: this.existing?.webhook_url || '',
 			},
 		};
 	},
