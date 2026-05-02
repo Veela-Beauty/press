@@ -17,7 +17,6 @@
 					:options="clientOptions"
 					v-model="selectedClient"
 					:disabled="$resources.clients.loading"
-					@change="onClientChange"
 				/>
 				<FormControl
 					label="Backup Run Log"
@@ -25,7 +24,6 @@
 					:options="runLogOptions"
 					v-model="selectedRunLog"
 					:disabled="!selectedClient || $resources.runLogs.loading"
-					@change="onRunLogChange"
 				/>
 				<div
 					v-if="matchPreview"
@@ -139,20 +137,24 @@ export default {
 			);
 		},
 	},
-	methods: {
-		onClientChange() {
+	watch: {
+		selectedClient(newVal, oldVal) {
+			if (newVal === oldVal) return;
 			this.selectedRunLog = null;
 			this.matchPreview = null;
-			if (this.selectedClient) this.$resources.runLogs.submit();
+			if (newVal) this.$resources.runLogs.submit();
 		},
-		onRunLogChange() {
+		selectedRunLog(newVal, oldVal) {
+			if (newVal === oldVal) return;
 			this.matchPreview = null;
-			if (this.selectedRunLog) {
+			if (newVal) {
 				this.$resources.previewMatch.submit({
-					backup_run_log: this.selectedRunLog,
+					backup_run_log: newVal,
 				});
 			}
 		},
+	},
+	methods: {
 		onRestoreClick() {
 			confirmDialog({
 				title: 'Confirm overwrite restore',
