@@ -38,6 +38,14 @@
 							</td>
 							<td class="px-4 py-2">{{ s.archive_after_hours }}h</td>
 							<td class="px-4 py-2 text-right">
+								<Button
+									label="Run Now"
+									variant="ghost"
+									size="sm"
+									theme="green"
+									:disabled="s.last_run_status === 'Running'"
+									@click="onTriggerNow(s)"
+								/>
 								<Button label="Edit" variant="ghost" size="sm" @click="openEditDialog(s)" />
 								<Button label="Delete" variant="ghost" size="sm" theme="red" @click="onDelete(s)" />
 							</td>
@@ -114,6 +122,15 @@ export default {
 				onSuccess: () => this.$resources.schedules.reload(),
 			};
 		},
+		triggerNow() {
+			return {
+				url: 'daman_backup.daman_backup.press_api.trigger_schedule_now',
+				onSuccess: (data) => {
+					this.$resources.schedules.reload();
+					this.$resources.runs.reload();
+				},
+			};
+		},
 	},
 	methods: {
 		statusTheme(status) {
@@ -147,6 +164,17 @@ export default {
 					label: 'Delete',
 					theme: 'red',
 					onClick: () => this.$resources.deleteSchedule.submit({ name: s.name }),
+				},
+			});
+		},
+		onTriggerNow(s) {
+			confirmDialog({
+				title: 'Run restore test now',
+				message: `Queue an immediate restore test for ${s.client}? This bypasses the frequency check and will start within seconds — full pipeline takes ~12 min for a 12 GB backup. Watch the Recent Runs grid below.`,
+				primaryAction: {
+					label: 'Queue now',
+					theme: 'green',
+					onClick: () => this.$resources.triggerNow.submit({ schedule_name: s.name }),
 				},
 			});
 		},
