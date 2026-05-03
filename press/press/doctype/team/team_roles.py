@@ -15,6 +15,21 @@ PRESS_ROLES = {
 
 PRESS_ROLE_OPTIONS = "\n".join(PRESS_ROLES.keys())
 
+DEFAULT_ROLE = "Viewer"
+
+
+def normalize_press_role(role):
+    """Return role if it is a valid press_role, else DEFAULT_ROLE.
+
+    Hardens against legacy data, direct SQL, or upstream/dashboard bugs that
+    write unrecognized values into Team Member.press_role. Without this an
+    unknown role drops the user to level 0 — *below* Viewer — silently locking
+    them out of every feature.
+    """
+    if role in PRESS_ROLES:
+        return role
+    return DEFAULT_ROLE
+
 
 def setup_role_field():
     """Add press_role custom field to Team Member DocType."""
@@ -48,12 +63,32 @@ def get_user_role(team=None, user=None):
     role = frappe.db.get_value(
         "Team Member", {"parent": team, "user": user}, "press_role",
     )
-    return role or "Viewer"
+    if role and role not in PRESS_ROLES:
+        frappe.log_error(
+            title="Invalid press_role",
+            message=f"Team Member {user} on team {team} has invalid press_role={role!r}; coercing to {DEFAULT_ROLE}",
+        )
+        return DEFAULT_ROLE
+    return role or DEFAULT_ROLE
 
 
 def get_role_level(role_name):
-    """Return numeric level for a role (higher = more access)."""
-    return PRESS_ROLES.get(role_name, {}).get("level", 0)
+    """Return numeric level for a role (higher = more access).
+
+    Unknown roles fall back to DEFAULT_ROLE's level instead of 0 so that a
+    typo or stale value never grants *less* access than the documented floor.
+    """
+    return PRESS_ROLES.get(role_name, PRESS_ROLES[DEFAULT_ROLE])["level"]
+
+
+def validate_team_member_role(doc, method=None):
+    """doc_events validate hook — block invalid press_role at save time."""
+    if doc.get("press_role") and doc.press_role not in PRESS_ROLES:
+        frappe.throw(
+            frappe._("Invalid press_role {0!r}. Allowed: {1}").format(
+                doc.press_role, ", ".join(PRESS_ROLES.keys())
+            )
+        )
 
 
 def has_role_access(required_role, team=None, user=None):

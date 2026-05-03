@@ -194,6 +194,9 @@ doc_events = {
 			"press.press.doctype.server_firewall.server_firewall.from_server",
 		],
 	},
+	"Team Member": {
+		"validate": "press.press.doctype.team.team_roles.validate_team_member_role",
+	},
 }
 
 # Scheduled Tasks
