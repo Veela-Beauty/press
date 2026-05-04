@@ -707,3 +707,33 @@ Kind column renders one Badge per role (`app` blue, `db` purple, `proxy` green).
 **Lesson:**
 - Press standalone mode = "one machine wears 3 hats." Don't model that as 3 rows in admin UIs — model it as 1 row with hat badges.
 - Always check for double-counting when iterating multiple doctypes that may point at the same physical resource.
+
+## Frappe Cache Wrapper Stale-Local Bug — 2026-05-04
+
+**What happened:** Watch Tower's per-alert throttle (`should_send_alert`, capped 3 sends per 6h) was completely bypassed in production. One inbox got **700+ alert emails in 24h** (~30/hour) when the design called for **~12/day total**.
+
+**Root cause:** `frappe.cache().set_value(key, val, expires_in_sec=N)` writes to Redis but **does not** update `frappe.local.cache`. `cache.get_value(key)` (no kwargs) reads `frappe.local.cache` FIRST and only falls through to Redis on miss — and on the fall-through, it populates `frappe.local.cache`. So:
+
+```python
+cache.set_value(k, 1, expires_in_sec=600)   # redis = 1, local = (unset)
+cache.get_value(k)                          # local miss → redis = 1 → local POPULATED with 1
+cache.set_value(k, 2, expires_in_sec=600)   # redis = 2, local = STILL 1
+cache.get_value(k)                          # local hit → returns 1 ❌
+```
+
+Within one worker process, every subsequent read after the first returns the stale local value. Multiple workers each have their own `frappe.local.cache` so they each independently bypass the throttle. With Watch Tower's per-target-doc fan-out (27 sites × hourly tick = 27 attempts) and the throttle silently broken, the cap never kicks in.
+
+**Fix:** pass `expires=True` to `get_value` whenever the matching write used `expires_in_sec`. That tells Frappe to skip the local cache for both read and write-back:
+
+```diff
+- raw = cache.get_value(key)
++ raw = cache.get_value(key, expires=True)  # force redis read; local cache is stale for expiring keys
+```
+
+Commit: `26e9ce16` in `Veela-Beauty/frappe_theme_switcher` (`frappe_theme_switcher/watch_tower/alerts/_helpers.py:96`).
+
+**Lessons:**
+- Anywhere you call `cache.set_value(..., expires_in_sec=...)` and later `cache.get_value(...)`, you MUST pass `expires=True` to the read. Audit any throttle / counter / lock pattern using `expires_in_sec`.
+- **This is generic Frappe**, not Watch Tower–specific. Applies to any app using Frappe's redis wrapper for TTL-based state.
+- Smoke test for any TTL-based cache code: `set 1 → get → set 2 → get`. Second get must return 2; if it returns 1 you have this bug.
+- Watch Tower's `target_doctype` causes the engine to call the alert function ONCE PER target doc (e.g. once per Site). Alert functions that do their own internal scan (over all sites) AND get fanned out by the engine will fire N×N attempts. The throttle is the only thing standing between you and 700+ inbox emails — verify it actually works.
