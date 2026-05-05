@@ -96,7 +96,7 @@ def validate_team_member_role(doc, method=None):
 # an older session, surfacing as a misleading "Function ... is not whitelisted"
 # 403 (Frappe's is_whitelisted() raises the same wording for missing-decorator
 # AND guest-not-allow_guest). 10 covers normal multi-tab workflows.
-MIN_SIMULTANEOUS_SESSIONS = 10
+MIN_SIMULTANEOUS_SESSIONS = 50
 
 
 def ensure_session_cap(doc, method=None):
