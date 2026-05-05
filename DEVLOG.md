@@ -43,13 +43,13 @@ guards so the same class of bug can't bite a future invitee.
 1. **(P0)** Investigate Vue dashboard `getTeam()` ValidationError that fires `logoutWithTeamError()`. The auto-logout loop creates session churn that defeats any reasonable session cap. `dashboard/src/router.js:691-700` is the trigger; need to find what makes the Team load fail intermittently.
 2. (Tech debt) Extend `_DOCTYPE_TO_FLAG`-style hints to `team_guard` decorators + per-method `frappe.throw(..., PermissionError)` sites (Bench.deploy, billing methods).
 3. (Tech debt) Vue router's `INVALID_TEAM` redirect happens BEFORE the new error wording can reach the toast — improvement: show the helpful message in-place instead of bouncing to login.
-4. (Tech debt) Audit existing `tabUser.simultaneous_sessions` for values > 50 — those were manually bumped during diagnosis; document the convention so we know which are intentional.
+4. (Tech debt) Audit existing `tabUser.simultaneous_sessions` across the whole site — anything non-zero on a team-member user is now an outlier; either re-run the patch or document why the user is special-cased.
 
 ### Watch Out
 - "Function X is not whitelisted" 403 has **two** causes: (a) actually missing decorator, (b) user is Guest at moment of call. Always run `frappe.whitelisted` introspection in `bench console` before assuming (a). Diagnostic recipe in lesson #127.
 - `accurate-systems/press` is now a GitHub redirect to `Veela-Beauty/press`. press-ctrl's `upstream` remote returns STALE fetch content — always use `veela` remote for canonical state. See lesson #129.
 - Some files in press get owned by `root:root` (mode 644) after past ops; `sudo -u frappe` writes fail. Quick `chown frappe:frappe <files>` before edits — check ownership before touching files in `/home/frappe/frappe-bench/apps/press/`.
-- **`simultaneous_sessions` cap=10 turned out to be insufficient in practice.** Within 1-2 hours Mahmoud was at 34 sessions, Marco at 12 — eviction loop continued. Final cap raised to 50 (commit `14c47ad604`); Marco/Mahmoud manually at 100 for headroom. Real bug: Vue dashboard's `getTeam()` ValidationError → `logoutWithTeamError()` creates fresh sessions in a tight loop, blowing past any reasonable cap. Investigate that root cause next.
+- **`simultaneous_sessions` cap is now disabled entirely** (`TEAM_MEMBER_SESSION_CAP = 0`). Iterated from 10 → 50 → 0 because the eviction loop kept defeating any positive cap — Vue dashboard's `getTeam()` ValidationError → `logoutWithTeamError()` creates fresh sessions in a tight loop. Frappe's `clear_old_sessions` returns early when the value is falsy, so 0 = no eviction. Sessions still expire naturally after `session_expiry` (170h / ~7d). Final commit `64db47fcd8`. The auto-logout root cause is still P0 — fixing it would let us reinstate a positive cap if compliance ever requires one.
 
 ---
 ---
@@ -257,4 +257,11 @@ Granting role A does NOT grant role B. A new Press Role created via the dashboar
 **Root cause:** Underlying Vue dashboard bug auto-logs the user out whenever `getTeam()` errors with ValidationError, which fires on intermittent transient conditions. Each auto-logout triggers a fresh login, which creates a new session and evicts an old one. Cap=10 gave only 8 evictions of buffer before a freshly-evicted SID belonged to a tab the user actively had open. The death spiral continued because the dashboard kept feeding fresh sessions in.
 **How we fixed it (workaround):** Bumped cap to 50 in `MIN_SIMULTANEOUS_SESSIONS`. Marco/Mahmoud manually at 100 for extra headroom while we investigate the Vue auto-logout. Commit `14c47ad604`.
 **Lesson:** Capping `simultaneous_sessions` only WORKS if the dashboard isn't continuously creating fresh sessions. When there's an auto-logout loop in the frontend, the cap just delays the death spiral by N evictions. The real fix is upstream — find and stop whatever makes `getTeam()` return ValidationError. Tech debt item logged as P0 for next session.
+
+
+### 2026-05-05 - cap=50 was also not enough — disable simultaneous_sessions entirely
+**What happened:** After bumping cap from 10 → 50 (commit `14c47ad604`), the eviction loop *still* fired. The Vue dashboard's auto-logout creates fresh sessions every time it triggers; cap=50 just delays the cliff. With ~10-15 fresh sessions per active user per day plus a 7-day session_expiry, anyone using the dashboard heavily would hit any reasonable cap within a week.
+**Root cause:** Same Vue `getTeam()` ValidationError → `logoutWithTeamError()` that started this whole investigation. The cap and the auto-logout fight each other; the cap loses.
+**How we fixed it:** Disable the cap. `simultaneous_sessions = 0` makes Frappe's `clear_old_sessions` return early — no eviction. Sessions still expire after `session_expiry` (170h / ~7d), so we don't accumulate forever. New constant `TEAM_MEMBER_SESSION_CAP = 0` (renamed from `MIN_SIMULTANEOUS_SESSIONS` to make "always set" semantics clear). New patch `disable_team_member_session_cap` backfills all team-member users. Commit `64db47fcd8`.
+**Lesson:** When a user-facing knob fights an underlying broken loop, the knob loses. The right fix is the loop, not the knob's value. We picked a workaround (disable the cap) because the root cause investigation is non-trivial — but logged as P0 so we don't forget. For internal admin instances with small teams, disabling caps like this is also fine on its own merits — the security argument for capping is thin when the dashboard is not internet-facing public SaaS.
 
