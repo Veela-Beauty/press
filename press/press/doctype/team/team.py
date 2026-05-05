@@ -162,7 +162,19 @@ class Team(Document):
 			and self.user != frappe.session.user
 			and frappe.session.user not in self.get_user_list()
 		):
-			frappe.throw("You are not allowed to access this document")
+			# PermissionError instead of the default ValidationError so the Vue
+			# dashboard router doesn't fire logoutWithTeamError() and bounce
+			# the user to /dashboard/login?reason=INVALID_TEAM. Most causes of
+			# this throw are stale localStorage.current_team (user was removed
+			# from a team they previously belonged to) — auto-logout is
+			# unhelpful; the user should switch teams via the selector.
+			frappe.throw(
+				_(
+					"You are not a member of this team. Use the team "
+					"selector to switch to one of your teams."
+				),
+				frappe.PermissionError,
+			)
 
 		user = frappe.db.get_value(
 			"User",

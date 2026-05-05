@@ -678,17 +678,47 @@ router.beforeEach(async (to, from, next) => {
 });
 
 function waitUntilTeamLoaded() {
+	// One-shot recovery for stale localStorage.current_team: if the team
+	// resource errors (PermissionError or ValidationError), reset to
+	// window.default_team and reload before logging the user out. Most
+	// failures here are users hitting a team they were previously a member
+	// of — switching back to the default team works without a re-login.
 	return new Promise((resolve) => {
+		let attempts = 0;
+		let triedDefaultFallback = false;
 		let interval = setInterval(() => {
 			let team = getTeam();
 			if (team?.doc) {
 				clearInterval(interval);
 				resolve();
 			} else if (team?.get?.error) {
-				if (team?.get?.error?.exc_type === 'ValidationError') {
+				const exc = team?.get?.error?.exc_type;
+				const isPermOrValidation =
+					exc === 'ValidationError' || exc === 'PermissionError';
+				const currentTeam = localStorage.getItem('current_team');
+				const canFallback =
+					!triedDefaultFallback &&
+					window.default_team &&
+					currentTeam !== window.default_team;
+				if (isPermOrValidation && canFallback) {
+					// Stale localStorage — reset to default and let the page reload
+					// re-create the resource with the right name.
+					triedDefaultFallback = true;
+					clearInterval(interval);
+					localStorage.setItem('current_team', window.default_team);
+					window.location.reload();
+					return;
+				}
+				if (isPermOrValidation) {
+					// Already tried fallback or no fallback available — give up.
 					clearInterval(interval);
 					logoutWithTeamError();
 				}
+			}
+			// Safety cap: 5s of polling without resolution -> give up.
+			if (++attempts > 50) {
+				clearInterval(interval);
+				logoutWithTeamError();
 			}
 		}, 100);
 	});
