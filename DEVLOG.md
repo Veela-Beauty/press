@@ -40,14 +40,16 @@ guards so the same class of bug can't bite a future invitee.
 - **Hint-aware error in `press.api.client` only** — highest-traffic 403 source first. `team_guard` decorators + action throws (e.g. `Bench.deploy()`, billing) keep existing wording. Same `_DOCTYPE_TO_FLAG` pattern is reusable when extending.
 
 ### Next Steps
-1. (Tech debt) Extend `_DOCTYPE_TO_FLAG`-style hints to `team_guard` decorators + per-method `frappe.throw(..., PermissionError)` sites (Bench.deploy, billing methods).
-2. (Tech debt) Vue router's `INVALID_TEAM` auto-logout fires BEFORE the new error wording can reach the toast — improvement: show the helpful message in-place instead of bouncing to login.
-3. (Tech debt) Audit existing `tabUser.simultaneous_sessions` for values > 10 — those were probably manually bumped, document the convention.
+1. **(P0)** Investigate Vue dashboard `getTeam()` ValidationError that fires `logoutWithTeamError()`. The auto-logout loop creates session churn that defeats any reasonable session cap. `dashboard/src/router.js:691-700` is the trigger; need to find what makes the Team load fail intermittently.
+2. (Tech debt) Extend `_DOCTYPE_TO_FLAG`-style hints to `team_guard` decorators + per-method `frappe.throw(..., PermissionError)` sites (Bench.deploy, billing methods).
+3. (Tech debt) Vue router's `INVALID_TEAM` redirect happens BEFORE the new error wording can reach the toast — improvement: show the helpful message in-place instead of bouncing to login.
+4. (Tech debt) Audit existing `tabUser.simultaneous_sessions` for values > 50 — those were manually bumped during diagnosis; document the convention so we know which are intentional.
 
 ### Watch Out
 - "Function X is not whitelisted" 403 has **two** causes: (a) actually missing decorator, (b) user is Guest at moment of call. Always run `frappe.whitelisted` introspection in `bench console` before assuming (a). Diagnostic recipe in lesson #127.
 - `accurate-systems/press` is now a GitHub redirect to `Veela-Beauty/press`. press-ctrl's `upstream` remote returns STALE fetch content — always use `veela` remote for canonical state. See lesson #129.
 - Some files in press get owned by `root:root` (mode 644) after past ops; `sudo -u frappe` writes fail. Quick `chown frappe:frappe <files>` before edits — check ownership before touching files in `/home/frappe/frappe-bench/apps/press/`.
+- **`simultaneous_sessions` cap=10 turned out to be insufficient in practice.** Within 1-2 hours Mahmoud was at 34 sessions, Marco at 12 — eviction loop continued. Final cap raised to 50 (commit `14c47ad604`); Marco/Mahmoud manually at 100 for headroom. Real bug: Vue dashboard's `getTeam()` ValidationError → `logoutWithTeamError()` creates fresh sessions in a tight loop, blowing past any reasonable cap. Investigate that root cause next.
 
 ---
 ---
@@ -248,3 +250,11 @@ Granting role A does NOT grant role B. A new Press Role created via the dashboar
 **Root cause:** `accurate-systems/press` is now a GitHub redirect to `Veela-Beauty/press`. The redirect does respect pushes (with a deprecation note in stderr) but the fetch refspec doesn't follow it cleanly — old fetch metadata can get served. press-ctrl already has both `upstream` (= accurate-systems) and `veela` (= Veela-Beauty) remotes; only `veela` is canonical.
 **How we fixed it:** `git fetch veela cloudflare-dns` returned the right SHA. Reset to `veela/cloudflare-dns` to recover.
 **Lesson:** When a GitHub repo moves, deploy boxes still have the old remote name. Prefer the canonical new-location remote (`veela` here) for `git reset` operations. Eventually update the `upstream` URL or remove it to avoid future confusion.
+
+
+### 2026-05-05 - simultaneous_sessions=10 not enough — eviction loop continued
+**What happened:** Bumped the cap from 2 to 10 globally + added after_insert hook for new invites. Problem appeared "fixed." 1-2 hours later Marco was at 12 active sessions, Mahmoud at 34 — both above 10. Vue dashboard kept showing 403/INVALID_TEAM redirects. `clear_old_sessions` on each fresh login was still evicting the OLDEST excess SIDs, which were the cookies of legitimately active browser tabs.
+**Root cause:** Underlying Vue dashboard bug auto-logs the user out whenever `getTeam()` errors with ValidationError, which fires on intermittent transient conditions. Each auto-logout triggers a fresh login, which creates a new session and evicts an old one. Cap=10 gave only 8 evictions of buffer before a freshly-evicted SID belonged to a tab the user actively had open. The death spiral continued because the dashboard kept feeding fresh sessions in.
+**How we fixed it (workaround):** Bumped cap to 50 in `MIN_SIMULTANEOUS_SESSIONS`. Marco/Mahmoud manually at 100 for extra headroom while we investigate the Vue auto-logout. Commit `14c47ad604`.
+**Lesson:** Capping `simultaneous_sessions` only WORKS if the dashboard isn't continuously creating fresh sessions. When there's an auto-logout loop in the frontend, the cap just delays the death spiral by N evictions. The real fix is upstream — find and stop whatever makes `getTeam()` return ValidationError. Tech debt item logged as P0 for next session.
+
