@@ -1,62 +1,63 @@
 # Press Fork Dev Log
 
 ## Working State
-**Session:** Bench-watch polish + Site Overview usage panels + Log Server (ES) end-to-end | **Date:** 2026-04-29
+**Session:** Press Role + simultaneous_sessions + actionable 403 messages | **Date:** 2026-05-05
 
 ### Active Task
-Make the dashboard usage panels show real numbers AND polish the bench-watch
-panel that landed in the previous session. Then deploy ElasticSearch + Filebeat
-end-to-end so Compute hours shows real CPU time.
+Diagnose and fix two related team-permission failures, then build long-term
+guards so the same class of bug can't bite a future invitee.
 
-- [x] DevFlowsGuide 3-tab guide on Site Dev + Bench Actions tabs
-- [x] bench-git-setup auto-rewrite SSH→HTTPS
-- [x] BenchWatchStatus panel: lifecycle + visibility-pause + UX intro
-- [x] dashboard_fields whitelist: added `is_development_bench`, `current_*_usage`
-- [x] bench_dev_watch.py: extracted `ensure_team_access` (DRY across 3 files), flock for race, get_value over get_doc
-- [x] Tests: 33 unit tests added, all green
-- [x] Ghost-pending site recovery scheduler (recover_ghost_pending_sites)
-- [x] Log Server: ES + Kibana + nginx HTTPS deployed on press-ctrl
-- [x] Filebeat on press-f1 reconfigured + monitor/nginx ingest pipelines installed
-- [x] Compute panel verified: tradeingdemov15 shows 0.00082 hours (real CPU time)
-- [x] Both guide cards unified styling (rounded, shadow, font-semibold)
-- [x] sales_force_server_app cleaned (removed Windows-built node_modules-backup, 619 files)
-- [ ] Bench-side filebeat: older Frappe sites don't emit `request.counter` — needs Frappe upgrade for compute tracking
+(1) Marco/Mahmoud hitting `Function press.press.doctype.bench.bench_dev_overview.restart_code_server is not whitelisted` toast — even though the function IS `@frappe.whitelist()`-decorated and IS in `frappe.whitelisted`.
+
+(2) Marco hitting generic "Not permitted" toasts on his own team's Deploy page — even though admin had granted him "all role permissions" via the Team Member dropdown.
+
+- [x] Diagnosed (1): not a missing decorator — `User.simultaneous_sessions = 2` was evicting Marco's older browser tabs every time he opened a 3rd. Frappe's `is_whitelisted()` raises identical wording for missing-decorator AND guest-not-allow_guest.
+- [x] Fixed (1) globally: bumped 5 affected users 2 → 10 via patch + `ensure_session_cap` after_insert hook on Team Member.
+- [x] Diagnosed (2): two parallel permission systems — `Team Member.press_role` STRING field (gates DEFAULT_FEATURES) AND separate `Press Role` doctype with 18 boolean flags (gates per-resource access). Marco's "OptiFlowERP Developer" Press Role had every flag at 0 → silent total lockout.
+- [x] Fixed (2) for current team: flipped all 18 flags = 1 on both team Press Roles.
+- [x] Long-term Layer 1: `simultaneous_sessions` cap auto-set to 10 on every Team Member invite (after_insert hook + one-shot patch).
+- [x] Long-term Layer 2: Press Role `before_insert` pre-ticks 7-flag Developer baseline so a half-configured role isn't a brick.
+- [x] Long-term Layer 3: Press Role `validate` warns "Empty role — members will be locked out" when role has users + zero flags.
+- [x] Long-term Layer 4: `raise_not_permitted(doctype, reason)` now names the missing flag — *"Ask your team admin to enable 'all_release_groups' on your Press Role."*
+- [x] Wiki: `docs/wiki/01-backend-development/team-roles-permissions.md` (279 lines) — two permission systems, all 18 flags categorized, 5 preset recipes, SQL recovery playbook.
+- [x] Verified end-to-end on demo.mvpstorm.com (Marco impersonation + fresh role + zero-flag warning + 6 hint scenarios).
 
 ### Key Files (current shape)
-**`press/utils/__init__.py`** (MODIFIED, +27 lines) — `ensure_team_access(bench_name, site_name)` extracted from 3 duplicate copies; both args supported for back-compat.
+**`press/press/doctype/team/team_roles.py`** (MODIFIED, +24 lines) — `MIN_SIMULTANEOUS_SESSIONS = 10` constant + `ensure_session_cap(doc, method=None)` after_insert hook. Only raises the cap, never lowers a higher value. Idempotent.
 
-**`press/press/doctype/bench/bench_dev_watch.py`** (NEW since 2719f44, ~165 lines) — start_watch / stop_watch / get_watch_status / restart_watch. flock-protected spawn, get_value gate, runs `bench watch` inside the bench Docker container.
+**`press/press/doctype/press_role/press_role.py`** (MODIFIED, +56 lines) — `DEVELOPER_PRESET_FLAGS` (7-flag baseline) + `ALL_FLAGS` (full 18-flag list) + `before_insert` (auto-tick baseline) + `warn_if_zero_flag_lockout` (orange msgprint when role has users but all 18 flags = 0).
 
-**`dashboard/src/components/BenchWatchStatus.vue`** (NEW, 176 lines) — self-contained polling panel. Visibility-aware (pauses on hidden tab). Clears `setInterval` permanently when bench is non-dev. UX intro line. Mounted on Site Dev + Bench Actions tabs.
+**`press/api/client.py`** (MODIFIED, +60 lines) — `_DOCTYPE_TO_FLAG` dict (31 doctypes → primary Press Role flag) + `raise_not_permitted(doctype=None, reason=None)` composes a 1-3 part 403 message ending with an actionable hint. 6 of 7 call sites now pass doctype context.
 
-**`dashboard/src/components/DevFlowsGuide.vue`** (NEW since dbbf97e, 232 lines) — 3-tab guide with surface-aware intros (`surface=site` vs `surface=bench`).
+**`press/patches/v0_0_5/bump_team_member_session_cap.py`** (NEW) — one-shot backfill of `simultaneous_sessions = 10` for every existing Team Member user. Patch log id `5atfsfa2bg`.
 
-**`docs/runbook/log-server.md`** (NEW, 200+ lines) — Operations manual for the ES + Kibana + Filebeat stack on press-ctrl. Includes 5 setup gotchas discovered during install.
-
-**`/opt/log-server/`** on press-ctrl (NEW infra) — Docker Compose stack with ES 7.17.20 + Kibana 7.17.20. Nginx vhost at `logs.sandbox.mvpstorm.com` with HTTP Basic auth. Press queries via `https://logs.sandbox.mvpstorm.com/elasticsearch/filebeat-*/_search`.
+**`docs/wiki/01-backend-development/team-roles-permissions.md`** (NEW, 279 lines) — admin guide; includes the new self-service error-toast wording, recovery SQL, and 5 ready-to-copy preset recipes (Developer / Site Admin / Ops Admin / Read-only Viewer / Full Admin).
 
 ### Decisions
-- **No new VM for Log Server** — user vetoed Press's Ansible-based dedicated-server log_server. Deployed ES + Kibana as Docker Compose on press-ctrl instead. Saves ~€7/mo, fits 30G RAM headroom on press-ctrl.
-- **Skip Press's ILM template setup** — Filebeat's PUT-to-date-math URLs hit nginx 405. `setup.ilm.enabled: false` + `setup.template.enabled: false` is the simpler workaround. Indices roll daily by suffix (`filebeat-7.17.29-YYYY.MM.DD`); manual cleanup cron later.
-- **Two cards unified style** — rounded card chrome with shadow at the same hierarchy level inside the parent Dev Actions card.
-- **Don't unmark user's bench-0011-000110 from Dev** — bench-watch keeps running, harmless to user, easy to undo.
-- **Bundle-relay push pattern** — every commit goes through Hetzner's `elgogary` GitHub key via git bundle (press-ctrl deploy keys are read-only).
+- **`simultaneous_sessions` cap = 10** — generous enough for normal multi-tab/multi-device workflows on the dashboard, tight enough that a leaked cookie can't run unbounded. Only raise existing user values, never lower.
+- **Press Role new-role default = Developer baseline** — 7 flags ticked: `allow_dashboard`, `all_release_groups`, `all_sites`, `all_servers`, `allow_apps`, `allow_bench_creation`, `allow_site_creation`. Sensitive flags (`admin_access`, `allow_billing`, `allow_server_creation`, team-management, webhook) stay 0 by default.
+- **Empty-role check is `msgprint`, not `throw`** — placeholder roles still allowed; warning only fires when role has users assigned.
+- **Hint-aware error in `press.api.client` only** — highest-traffic 403 source first. `team_guard` decorators + action throws (e.g. `Bench.deploy()`, billing) keep existing wording. Same `_DOCTYPE_TO_FLAG` pattern is reusable when extending.
 
 ### Next Steps
-1. (Tech debt) Bench-side filebeat: log shipping works for newer Frappe (request.counter present); older Frappe sites stay 0. Either upgrade Frappe per-site OR modify Press analytics to fall back to nginx.access.duration field.
-2. (Tech debt) Storage / Database panels: depend on `tabSite Usage` populated by `update_disk_usages` scheduler. Should naturally fill within 1 hour of next 15/45 tick now that sites are Active.
-3. (Tech debt) Add weekly cron to delete filebeat indices >90d old (no ILM = manual cleanup).
-4. (Tech debt) Watch process on dev benches doesn't survive container restart — supervisord-managed program is the proper fix; UI Restart button is the workaround.
+1. (Tech debt) Extend `_DOCTYPE_TO_FLAG`-style hints to `team_guard` decorators + per-method `frappe.throw(..., PermissionError)` sites (Bench.deploy, billing methods).
+2. (Tech debt) Vue router's `INVALID_TEAM` auto-logout fires BEFORE the new error wording can reach the toast — improvement: show the helpful message in-place instead of bouncing to login.
+3. (Tech debt) Audit existing `tabUser.simultaneous_sessions` for values > 10 — those were probably manually bumped, document the convention.
 
 ### Watch Out
-- Press's `dashboard_fields` whitelist on each Doctype is a silent failure mode — fields not in the tuple are filtered from API responses. This bit us 3 times in this session: `is_development_bench` on Bench, `current_*_usage` on Site, and (likely) others on other doctypes. Always check this when a UI panel inexplicably shows 0/null/false.
-- Press's `get_current_cpu_usage` catches all exceptions and returns 0. If your ES auth/URL is wrong, you get 0 with NO error visible to the user. Always verify with raw curl first.
-- `frappe.utils.password.get_decrypted_password` decrypts whatever's stored. If the doc was inserted with a different password than what nginx expects, drift is silent. Cross-check the prefix.
+- "Function X is not whitelisted" 403 has **two** causes: (a) actually missing decorator, (b) user is Guest at moment of call. Always run `frappe.whitelisted` introspection in `bench console` before assuming (a). Diagnostic recipe in lesson #127.
+- `accurate-systems/press` is now a GitHub redirect to `Veela-Beauty/press`. press-ctrl's `upstream` remote returns STALE fetch content — always use `veela` remote for canonical state. See lesson #129.
+- Some files in press get owned by `root:root` (mode 644) after past ops; `sudo -u frappe` writes fail. Quick `chown frappe:frappe <files>` before edits — check ownership before touching files in `/home/frappe/frappe-bench/apps/press/`.
 
 ---
 ---
 
 ## Session Archive
+
+### Session 2026-05-05: Press Role + simultaneous_sessions + actionable 403 messages
+**What we did:** Shipped 3 commits (`ce99c03c2d`, `639335ef2b`, `020eb9892c`) diagnosing two related permission failures + 4 long-term guards. Marco's "Function … is not whitelisted" was `simultaneous_sessions=2` evicting his older browser tabs (NOT a missing decorator — Frappe's `is_whitelisted` raises identical wording for both causes). His Deploy 403 was the OptiFlowERP Developer Press Role having all 18 booleans = 0 — a silent lockout from a half-configured role. Bumped 5 affected users to 10 + added `ensure_session_cap` after_insert hook on Team Member so future invites are safe. Press Role now pre-ticks a 7-flag Developer baseline via `before_insert` + warns on zero-flag lockouts via `validate`. Vue dashboard 403s now name the missing flag — *"Ask your team admin to enable 'all_release_groups' on your Press Role."* New 279-line admin wiki guide explains the two parallel permission systems, all 18 Press Role flags, 5 preset recipes, and a SQL recovery playbook.
+**Files:** press/press/doctype/team/team_roles.py, press/press/doctype/press_role/press_role.py, press/api/client.py, press/patches/v0_0_5/bump_team_member_session_cap.py, press/patches.txt, docs/wiki/01-backend-development/team-roles-permissions.md, DEVLOG.md, CHANGELOG.md.
+**Decisions:** `simultaneous_sessions` cap = 10 (generous enough for normal multi-tab use, tight enough that one leaked cookie can't run unbounded); Press Role default = Developer baseline (7 of 18 flags); empty-role warning is `msgprint` not `throw` (placeholder roles still allowed); hint-aware errors in `press.api.client` only — extension to `team_guard` decorators deferred.
 
 ### Session 2026-04-29: Bench-watch polish + Log Server end-to-end
 **What we did:** Shipped 22 commits across 3 areas. Fixed dashboard_fields whitelist class of bug on Bench + Site (3 missing fields). Built BenchWatchStatus polling panel + DevFlowsGuide 3-tab guide. Patched bench-git-setup to auto-rewrite SSH origin → HTTPS. Cleaned sales_force_server_app's Windows-built node_modules-backup. Wrote ghost-pending site recovery scheduler. Stood up ElasticSearch + Kibana + Filebeat on press-ctrl: tradeingdemov15.sandbox.mvpstorm.com Compute panel now shows real 0.00082 hours from indexed Frappe request logs. Unified the two guide cards' styling. Added 33 unit tests across 4 modules. Wrote runbook for log-server ops + 5 setup gotchas.
@@ -225,3 +226,25 @@ git status filtered by site apps, GitHub account selector.
 **How we fixed it:** Removed all `*-backup/` dirs and `*-backup` files. Added entries to `.gitignore`. Committed.
 **Lesson:** Apps in any build pipeline must add `node_modules/`, `node_modules-*/`, `*-backup/`, `playwright-report*/`, `test-results*/` to `.gitignore` from day 1. Once Windows artifacts get committed, even renamed they'll break Linux builds.
 **Lesson:** Always add loading + error UI states. Never trust that a resource loads.
+
+### 2026-05-05 - "is not whitelisted" 403 misdiagnosed as missing decorator
+**What happened:** Marco/Mahmoud reported `Function press.press.doctype.bench.bench_dev_overview.restart_code_server is not whitelisted` toast on the dashboard. The function IS `@frappe.whitelist()`-decorated and IS in `frappe.whitelisted` (verified by importing the module fresh in `bench console`). Yet 401/403 alternated with 200 for the same user in the same minute.
+**Root cause:** `User.simultaneous_sessions = 2` (Frappe default) evicted Marco's older browser tabs every time he opened a 3rd. The kicked tab's next request went through with a Guest cookie. `frappe.is_whitelisted()` (frappe/__init__.py:866) raises identical wording — *"You are not permitted to access this resource. Login to access. Function X is not whitelisted."* — for BOTH the missing-decorator case AND the guest-not-allow_guest case.
+**How we fixed it:** Bumped affected users 2 → 10 directly. Added `MIN_SIMULTANEOUS_SESSIONS = 10` + `ensure_session_cap` `after_insert` hook on Team Member so future invites can't trip on this. Patch v0_0_5/bump_team_member_session_cap backfilled existing users.
+**Lesson:** When you see "is not whitelisted" but the source has the decorator, run `frappe.whitelisted` introspection in `bench console` to confirm registration. If registered but the error persists, the user is Guest at the moment of the call — investigate session limits, cookie state, or auto-logout flows. Same wording for two different bugs.
+
+### 2026-05-05 - Press has TWO permission systems and they are easy to confuse
+**What happened:** Admin granted Marco "all team role permissions" via the Team Member dropdown. Marco still got 403 on Deploy. Spent 20 minutes hunting the wrong bug (whitelist registration, team header, CSRF) before finding the real cause.
+**Root cause:** Press has **two parallel permission systems**:
+- `Team Member.press_role` STRING field (Owner / Platform Admin / DevOps Admin / DevOps User / Developer / Implementor / Viewer) — gates `DEFAULT_FEATURES` (Code Server, SSH Access, Dev Tools — feature visibility).
+- Separate `Press Role` doctype with 18 boolean flags (`allow_bench_creation`, `all_release_groups`, etc.) — gates per-resource access (Bench, Site, Server, Deploy, Billing).
+
+Granting role A does NOT grant role B. A new Press Role created via the dashboard's Manage Team → Roles UI starts with **every flag = 0** — total lockout for any member assigned to it.
+**How we fixed it:** Flipped all 18 flags = 1 on both team Press Role rows. Added `before_insert` to pre-tick a Developer baseline on new roles. Added `validate` warning when a role with users assigned has every flag at 0. Wrote 279-line wiki guide explaining the two systems, all 18 flags, 5 preset recipes, and a SQL recovery playbook.
+**Lesson:** Never assume "I gave them a role" means "they have access." In Press that involves at least 5 different doctypes/fields. The wiki guide at `docs/wiki/01-backend-development/team-roles-permissions.md` is now the source of truth — reference it whenever debugging "Not permitted" toasts.
+
+### 2026-05-05 - GitHub repo redirect makes `git fetch upstream` silently stale
+**What happened:** After pushing my commit to `accurate-systems/press cloudflare-dns` from a local clone, `git fetch upstream` on press-ctrl returned STALE content (no error, no warning). `git reset --hard upstream/cloudflare-dns` rolled HEAD BACKWARDS by 2 commits.
+**Root cause:** `accurate-systems/press` is now a GitHub redirect to `Veela-Beauty/press`. The redirect does respect pushes (with a deprecation note in stderr) but the fetch refspec doesn't follow it cleanly — old fetch metadata can get served. press-ctrl already has both `upstream` (= accurate-systems) and `veela` (= Veela-Beauty) remotes; only `veela` is canonical.
+**How we fixed it:** `git fetch veela cloudflare-dns` returned the right SHA. Reset to `veela/cloudflare-dns` to recover.
+**Lesson:** When a GitHub repo moves, deploy boxes still have the old remote name. Prefer the canonical new-location remote (`veela` here) for `git reset` operations. Eventually update the `upstream` URL or remove it to avoid future confusion.
