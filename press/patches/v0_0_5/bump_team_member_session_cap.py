@@ -8,7 +8,7 @@ this patch backfills users invited before the hook existed.
 """
 import frappe
 
-from press.press.doctype.team.team_roles import MIN_SIMULTANEOUS_SESSIONS
+from press.press.doctype.team.team_roles import TEAM_MEMBER_SESSION_CAP as MIN_SIMULTANEOUS_SESSIONS
 
 
 def execute():

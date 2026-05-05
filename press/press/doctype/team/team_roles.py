@@ -91,26 +91,33 @@ def validate_team_member_role(doc, method=None):
         )
 
 
-# Frappe defaults User.simultaneous_sessions to 2. Press dashboard users keep
-# many tabs open across windows/devices — every new tab beyond the cap evicts
-# an older session, surfacing as a misleading "Function ... is not whitelisted"
-# 403 (Frappe's is_whitelisted() raises the same wording for missing-decorator
-# AND guest-not-allow_guest). 10 covers normal multi-tab workflows.
-MIN_SIMULTANEOUS_SESSIONS = 50
+# 0 = unlimited per Frappe's clear_old_sessions early-return semantics.
+# Press-ctrl is internal admin tooling — the simultaneous_sessions cap was
+# triggering a death-spiral with the Vue dashboard's auto-logout loop (each
+# fresh login evicted older session SIDs, kicking active tabs, which made
+# the dashboard auto-logout again, fresh login, repeat). For an internal
+# instance with a small trusted team this is the right trade-off:
+# session_expiry (default 170h / ~7d) still cleans inactive sessions
+# naturally, and we no longer fight Frappe's eviction on every login.
+TEAM_MEMBER_SESSION_CAP = 0
 
 
 def ensure_session_cap(doc, method=None):
-    """after_insert hook — bump the User's simultaneous_sessions on first invite.
+    """after_insert hook on Team Member — disable simultaneous_sessions cap
+    for the invited User.
 
-    Only raises the cap; never lowers an admin-set higher value. Idempotent.
+    Frappe's clear_old_sessions returns early when the value is falsy, so
+    setting to 0 means no per-login eviction. Sessions still expire naturally
+    after session_expiry. Idempotent — re-running on an already-0 user is a
+    no-op (the field is unchanged).
     """
     user = doc.get("user")
     if not user or not frappe.db.exists("User", user):
         return
-    current = frappe.db.get_value("User", user, "simultaneous_sessions") or 0
-    if current < MIN_SIMULTANEOUS_SESSIONS:
+    current = frappe.db.get_value("User", user, "simultaneous_sessions")
+    if current != TEAM_MEMBER_SESSION_CAP:
         frappe.db.set_value(
-            "User", user, "simultaneous_sessions", MIN_SIMULTANEOUS_SESSIONS,
+            "User", user, "simultaneous_sessions", TEAM_MEMBER_SESSION_CAP,
             update_modified=False,
         )
 
