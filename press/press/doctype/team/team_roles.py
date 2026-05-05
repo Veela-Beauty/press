@@ -91,6 +91,30 @@ def validate_team_member_role(doc, method=None):
         )
 
 
+# Frappe defaults User.simultaneous_sessions to 2. Press dashboard users keep
+# many tabs open across windows/devices — every new tab beyond the cap evicts
+# an older session, surfacing as a misleading "Function ... is not whitelisted"
+# 403 (Frappe's is_whitelisted() raises the same wording for missing-decorator
+# AND guest-not-allow_guest). 10 covers normal multi-tab workflows.
+MIN_SIMULTANEOUS_SESSIONS = 10
+
+
+def ensure_session_cap(doc, method=None):
+    """after_insert hook — bump the User's simultaneous_sessions on first invite.
+
+    Only raises the cap; never lowers an admin-set higher value. Idempotent.
+    """
+    user = doc.get("user")
+    if not user or not frappe.db.exists("User", user):
+        return
+    current = frappe.db.get_value("User", user, "simultaneous_sessions") or 0
+    if current < MIN_SIMULTANEOUS_SESSIONS:
+        frappe.db.set_value(
+            "User", user, "simultaneous_sessions", MIN_SIMULTANEOUS_SESSIONS,
+            update_modified=False,
+        )
+
+
 def has_role_access(required_role, team=None, user=None):
     """Check if user's role level >= required role level."""
     user_role = get_user_role(team, user)

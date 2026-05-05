@@ -196,6 +196,7 @@ doc_events = {
 	},
 	"Team Member": {
 		"validate": "press.press.doctype.team.team_roles.validate_team_member_role",
+		"after_insert": "press.press.doctype.team.team_roles.ensure_session_cap",
 	},
 }
 
