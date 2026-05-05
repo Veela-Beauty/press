@@ -72,9 +72,70 @@ class PressRole(Document):
 		"users",
 	)
 
+	# A fresh Press Role starts with every flag at 0 — assigning a member to such
+	# a role completely locks them out of the dashboard. before_insert pre-ticks
+	# a sensible Developer baseline so a half-configured role isn't a brick.
+	# Admins can still untick anything before saving. Sensitive flags (billing,
+	# admin_access, server_creation, team-management) stay OFF by default.
+	DEVELOPER_PRESET_FLAGS = (
+		"allow_dashboard",
+		"all_release_groups",
+		"all_sites",
+		"all_servers",
+		"allow_apps",
+		"allow_bench_creation",
+		"allow_site_creation",
+	)
+
+	def before_insert(self):
+		for flag in self.DEVELOPER_PRESET_FLAGS:
+			if not self.get(flag):
+				self.set(flag, 1)
+
+	# Every boolean flag — for the empty-role lockout check below.
+	ALL_FLAGS = (
+		"admin_access",
+		"allow_apps",
+		"allow_bench_creation",
+		"allow_billing",
+		"allow_contribution",
+		"allow_customer",
+		"allow_dashboard",
+		"allow_invite_team_members",
+		"allow_leads",
+		"allow_manage_team_members",
+		"allow_manage_team_roles",
+		"allow_partner",
+		"allow_server_creation",
+		"allow_site_creation",
+		"allow_webhook_configuration",
+		"all_release_groups",
+		"all_servers",
+		"all_sites",
+	)
+
 	@team_guard.only_admin()
 	def validate(self):
 		self.validate_duplicate_title()
+		self.warn_if_zero_flag_lockout()
+
+	def warn_if_zero_flag_lockout(self):
+		"""Surface a warning when a role grants zero access AND has assigned users.
+
+		Not a hard block — admins may legitimately save a placeholder role before
+		assigning users, or use this to revoke access en-masse. Just makes the
+		lockout visible instead of silent.
+		"""
+		if self.users and not any(self.get(f) for f in self.ALL_FLAGS):
+			frappe.msgprint(
+				_(
+					"This role grants no access. Members assigned will be unable "
+					"to view or use anything in the dashboard. Tick at least one "
+					"allow_* / all_* flag, or remove the assigned users."
+				),
+				title=_("Empty role — members will be locked out"),
+				indicator="orange",
+			)
 
 	def validate_duplicate_title(self):
 		exists = frappe.db.exists({"doctype": "Press Role", "title": self.title, "team": self.team})
