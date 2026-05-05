@@ -230,7 +230,7 @@ def get(doctype, name):
 		and frappe.get_meta(doctype).has_field("team")
 		and doc.team != frappe.local.team().name
 	):
-		raise_not_permitted()
+		raise_not_permitted(doctype=doctype)
 
 	fields = tuple(default_fields)
 	if hasattr(doc, "dashboard_fields"):
@@ -264,7 +264,7 @@ def insert(doc=None):
 		parent = frappe.get_doc(doc.parenttype, doc.parent)
 
 		if frappe.get_meta(parent.doctype).has_field("team") and parent.team != frappe.local.team().name:
-			raise_not_permitted()
+			raise_not_permitted(doctype=parent.doctype)
 
 		parent.append(doc.parentfield, doc)
 		parent.save()
@@ -335,7 +335,7 @@ def search_link(
 ):
 	check_permissions(doctype)
 	if doctype == "Team" and not frappe.local.system_user():
-		raise_not_permitted()
+		raise_not_permitted(doctype="Team", reason="Team list is only viewable by system users.")
 
 	meta = frappe.get_meta(doctype)
 	DocType = frappe.qb.DocType(doctype)
@@ -391,7 +391,7 @@ def check_document_access(doctype: str, name: str):
 	if has_support_access(doctype, name):
 		return
 
-	raise_not_permitted()
+	raise_not_permitted(doctype=doctype)
 
 
 def check_dashboard_actions(doctype, name, method):
@@ -495,7 +495,7 @@ def is_allowed_table_field(doctype, field):
 
 def check_permissions(doctype):
 	if doctype not in ALLOWED_DOCTYPES:
-		raise_not_permitted()
+		raise_not_permitted(reason=f"{doctype} is not exposed to the dashboard API.")
 
 	if not hasattr(frappe.local, "team") or not frappe.local.team():
 		frappe.throw(
@@ -513,12 +513,73 @@ def is_owned_by_team(doctype, docname, raise_exception=True):
 	docname = cstr(docname)
 	owned = frappe.db.get_value(doctype, docname, "team") == frappe.local.team().name
 	if not owned and raise_exception:
-		raise_not_permitted()
+		raise_not_permitted(doctype=doctype)
 	return owned
 
 
-def raise_not_permitted():
-	frappe.throw("Not permitted", frappe.PermissionError)
+# Doctype -> primary Press Role flag that gates dashboard access to it.
+# Used by raise_not_permitted to surface an actionable hint in the 403 toast
+# so members know which flag to ask their team admin to enable, instead of a
+# generic "Not permitted".
+_DOCTYPE_TO_FLAG = {
+	# Bench / Release Group
+	"Bench": "all_release_groups",
+	"Bench App": "all_release_groups",
+	"Release Group": "all_release_groups",
+	"Release Group App": "all_release_groups",
+	"Release Group Dependency": "all_release_groups",
+	"Release Group Variable": "all_release_groups",
+	"Deploy Candidate": "all_release_groups",
+	"Deploy Candidate Build": "all_release_groups",
+	"Deploy Candidate Difference": "all_release_groups",
+	"Deploy Candidate Difference App": "all_release_groups",
+	"App Release": "all_release_groups",
+	# Site
+	"Site": "all_sites",
+	"Site App": "all_sites",
+	"Site Action": "all_sites",
+	"Site Domain": "all_sites",
+	"Site Backup": "all_sites",
+	"Site Activity": "all_sites",
+	"Site Config": "all_sites",
+	"Site Update": "all_sites",
+	"Site Plan": "all_sites",
+	"Site Group Deploy": "all_sites",
+	# Server
+	"Server": "all_servers",
+	"Database Server": "all_servers",
+	"Proxy Server": "all_servers",
+	"Self Hosted Server": "all_servers",
+	# Team management
+	"Team": "allow_manage_team_members",
+	"Team Member": "allow_manage_team_members",
+	"Press Role": "allow_manage_team_roles",
+	# Billing
+	"Invoice": "allow_billing",
+	"Balance Transaction": "allow_billing",
+	"Payment Method": "allow_billing",
+}
+
+
+def raise_not_permitted(doctype=None, reason=None):
+	"""Throw a PermissionError with a hint about which Press Role flag is missing.
+
+	The goal: members hitting a 403 see something like
+	"You don't have access to this resource. Ask your team admin to enable
+	'all_release_groups' on your Press Role."
+	instead of a generic "Not permitted" they can't act on.
+	"""
+	parts = ["You don't have access to this resource."]
+	if reason:
+		parts.append(reason)
+	flag = _DOCTYPE_TO_FLAG.get(doctype) if doctype else None
+	if flag and doctype:
+		parts.append(
+			f"Ask your team admin to enable '{flag}' on your Press Role "
+			f"(or grant access to this specific {doctype} via "
+			f"Manage Team -> Roles -> Resources)."
+		)
+	frappe.throw(" ".join(parts), frappe.PermissionError, title="Permission denied")
 
 
 def dashboard_whitelist(allow_guest=False, xss_safe=False, methods=None):

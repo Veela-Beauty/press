@@ -255,3 +255,25 @@ default preset, edit `DEVELOPER_PRESET_FLAGS` — single source of truth.
 - `press/guards/role_guard/` — request-time enforcement of Press Role flags
 - `press/utils/__init__.py` `ensure_team_access` — base team-membership check fired before any role flag
 - `frappe-press-lessons.md` lesson #127 — `simultaneous_sessions` cap that masquerades as a permission error
+
+---
+
+## Self-service error messages (new in cloudflare-dns)
+
+When a member hits a permission denial, the dashboard now shows the **specific
+flag** they are missing instead of generic "Not permitted." The toast looks
+like:
+
+> **Permission denied** — You don't have access to this resource. Ask your
+> team admin to enable `all_release_groups` on your Press Role (or grant access
+> to this specific Bench via Manage Team -> Roles -> Resources).
+
+That gives the member exactly the words to send to their admin: *"please tick
+`all_release_groups` on my role."* No code-spelunking, no Slack guessing.
+
+The mapping lives in `press/api/client.py` `_DOCTYPE_TO_FLAG` — to add a new
+doctype, drop a row in that dict and the hint comes through automatically.
+The 6 `raise_not_permitted()` call sites in client.py already pass `doctype`
+context. Internal-only failures (e.g. an unwhitelisted method on
+`run_doc_method`) intentionally still raise the generic message — those are
+developer config errors, not user-actionable role gaps.
