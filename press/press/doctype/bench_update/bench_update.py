@@ -171,7 +171,7 @@ def get_bench_update(
 	current_team = get_current_team()
 	rg_team = frappe.db.get_value("Release Group", name, "team")
 
-	if rg_team != current_team:
+	if rg_team != current_team and frappe.get_cached_value("User", frappe.session.user, "user_type") != "System User":
 		frappe.throw("Bench can only be deployed by the bench owner", exc=frappe.PermissionError)
 
 	bench_update: "BenchUpdate" = frappe.get_doc(

@@ -1,58 +1,68 @@
 # Press Fork Dev Log
 
 ## Working State
-**Session:** Press Role + simultaneous_sessions + actionable 403 messages | **Date:** 2026-05-05
+**Session:** 7 — get_bench_update team check + router.js defensive redirect | **Date:** 2026-05-06
 
 ### Active Task
-Diagnose and fix two related team-permission failures, then build long-term
-guards so the same class of bug can't bite a future invitee.
+Fix deploy-button logout bug: users logged out when clicking Deploy on benches owned by a different team. Two-part root cause with two long-term fixes.
 
-(1) Marco/Mahmoud hitting `Function press.press.doctype.bench.bench_dev_overview.restart_code_server is not whitelisted` toast — even though the function IS `@frappe.whitelist()`-decorated and IS in `frappe.whitelisted`.
-
-(2) Marco hitting generic "Not permitted" toasts on his own team's Deploy page — even though admin had granted him "all role permissions" via the Team Member dropdown.
-
-- [x] Diagnosed (1): not a missing decorator — `User.simultaneous_sessions = 2` was evicting Marco's older browser tabs every time he opened a 3rd. Frappe's `is_whitelisted()` raises identical wording for missing-decorator AND guest-not-allow_guest.
-- [x] Fixed (1) globally: bumped 5 affected users 2 → 10 via patch + `ensure_session_cap` after_insert hook on Team Member.
-- [x] Diagnosed (2): two parallel permission systems — `Team Member.press_role` STRING field (gates DEFAULT_FEATURES) AND separate `Press Role` doctype with 18 boolean flags (gates per-resource access). Marco's "OptiFlowERP Developer" Press Role had every flag at 0 → silent total lockout.
-- [x] Fixed (2) for current team: flipped all 18 flags = 1 on both team Press Roles.
-- [x] Long-term Layer 1: `simultaneous_sessions` cap auto-set to 10 on every Team Member invite (after_insert hook + one-shot patch).
-- [x] Long-term Layer 2: Press Role `before_insert` pre-ticks 7-flag Developer baseline so a half-configured role isn't a brick.
-- [x] Long-term Layer 3: Press Role `validate` warns "Empty role — members will be locked out" when role has users + zero flags.
-- [x] Long-term Layer 4: `raise_not_permitted(doctype, reason)` now names the missing flag — *"Ask your team admin to enable 'all_release_groups' on your Press Role."*
-- [x] Wiki: `docs/wiki/01-backend-development/team-roles-permissions.md` (279 lines) — two permission systems, all 18 flags categorized, 5 preset recipes, SQL recovery playbook.
-- [x] Verified end-to-end on demo.mvpstorm.com (Marco impersonation + fresh role + zero-flag warning + 6 hint scenarios).
+- [x] Diagnosed: `get_bench_update()` at `bench_update.py:175` has a SECOND team check after `@protected("Release Group")` already passes. System Users bypass `@protected` but get blocked here — inconsistent.
+- [x] Diagnosed: `waitUntilTeamLoaded()` in `router.js:712` treats ALL PermissionError/ValidationError from `getTeam()` as session-invalid, calls `session.logout.submit()`, destroys session. Team error != session invalid.
+- [x] Fix 1: Added System User bypass to `get_bench_update()` team check (1 line, matches `@protected` behavior)
+- [x] Fix 2: Replaced `logoutWithTeamError()` with `localStorage.removeItem("current_team")` + `window.location.href="/app"` — clears stale team, redirects to Desk, no session destruction
+- [x] Verified Fix 1 via bench console: old check=block, new check=allow for Admin on bench-0014
+- [x] Verified Fix 2 in built bundle: `index-Ce6tYRJh.js` contains new redirect path
+- [x] Playwright: confirmed dashboard loads, impersonation button visible, bad-team recovery navigates without logout
+- [x] `bench build --app press --force` + `bench restart` shipped
 
 ### Key Files (current shape)
-**`press/press/doctype/team/team_roles.py`** (MODIFIED, +24 lines) — `MIN_SIMULTANEOUS_SESSIONS = 10` constant + `ensure_session_cap(doc, method=None)` after_insert hook. Only raises the cap, never lowers a higher value. Idempotent.
+**`press/press/doctype/bench_update/bench_update.py:175`** (MODIFIED, 1 line) — Added `and frappe.get_cached_value("User", frappe.session.user, "user_type") != "System User"` to team check so System Users can deploy any bench (matching `@protected` decorator).
 
-**`press/press/doctype/press_role/press_role.py`** (MODIFIED, +56 lines) — `DEVELOPER_PRESET_FLAGS` (7-flag baseline) + `ALL_FLAGS` (full 18-flag list) + `before_insert` (auto-tick baseline) + `warn_if_zero_flag_lockout` (orange msgprint when role has users but all 18 flags = 0).
+**`dashboard/src/router.js:712-717`** (MODIFIED, +5 -2 lines) — Replaced `logoutWithTeamError()` (session destruction) with `localStorage.removeItem("current_team")` + `window.location.href="/app"` (graceful recovery). 5-second timeout fallback unchanged as safety net.
 
-**`press/api/client.py`** (MODIFIED, +60 lines) — `_DOCTYPE_TO_FLAG` dict (31 doctypes → primary Press Role flag) + `raise_not_permitted(doctype=None, reason=None)` composes a 1-3 part 403 message ending with an actionable hint. 6 of 7 call sites now pass doctype context.
-
-**`press/patches/v0_0_5/bump_team_member_session_cap.py`** (NEW) — one-shot backfill of `simultaneous_sessions = 10` for every existing Team Member user. Patch log id `5atfsfa2bg`.
-
-**`docs/wiki/01-backend-development/team-roles-permissions.md`** (NEW, 279 lines) — admin guide; includes the new self-service error-toast wording, recovery SQL, and 5 ready-to-copy preset recipes (Developer / Site Admin / Ops Admin / Read-only Viewer / Full Admin).
-
-### Decisions
-- **`simultaneous_sessions` cap = 10** — generous enough for normal multi-tab/multi-device workflows on the dashboard, tight enough that a leaked cookie can't run unbounded. Only raise existing user values, never lower.
-- **Press Role new-role default = Developer baseline** — 7 flags ticked: `allow_dashboard`, `all_release_groups`, `all_sites`, `all_servers`, `allow_apps`, `allow_bench_creation`, `allow_site_creation`. Sensitive flags (`admin_access`, `allow_billing`, `allow_server_creation`, team-management, webhook) stay 0 by default.
-- **Empty-role check is `msgprint`, not `throw`** — placeholder roles still allowed; warning only fires when role has users assigned.
-- **Hint-aware error in `press.api.client` only** — highest-traffic 403 source first. `team_guard` decorators + action throws (e.g. `Bench.deploy()`, billing) keep existing wording. Same `_DOCTYPE_TO_FLAG` pattern is reusable when extending.
+### Decisions (active)
+- Fix 1 is the architectural fix (aligns two inconsistent permission checks)
+- Fix 2 is defense-in-depth (team error should never destroy session)
+- Kept 5-second timeout fallback as safety net for truly broken accounts
+- Did NOT remove `logoutWithTeamError()` entirely — only the PermissionError immediate path
 
 ### Next Steps
-1. ~~**(P0)** Investigate Vue dashboard `getTeam()` ValidationError~~ **DONE** (commit `1b057047f9`). Root cause: `Team.get_doc()` used bare `frappe.throw(string)` which defaults to `ValidationError`. Vue specifically logs out on that exception type. Fixed by changing the throw to explicit `PermissionError` AND adding a one-shot fallback in `waitUntilTeamLoaded` (reset `localStorage.current_team` to `window.default_team` and reload before logging out).
-2. (Tech debt) Extend `_DOCTYPE_TO_FLAG`-style hints to `team_guard` decorators + per-method `frappe.throw(..., PermissionError)` sites (Bench.deploy, billing methods).
-3. (Tech debt) Vue router's `INVALID_TEAM` redirect happens BEFORE the new error wording can reach the toast — improvement: show the helpful message in-place instead of bouncing to login.
-4. (Tech debt) Audit existing `tabUser.simultaneous_sessions` across the whole site — anything non-zero on a team-member user is now an outlier; either re-run the patch or document why the user is special-cased.
+1. Monitor dashboard for login redirects over next 48h
+2. If zero incidents, consider removing the 5s timeout logout fallback too
+
+### Blockers
+- None
 
 ### Watch Out
-- "Function X is not whitelisted" 403 has **two** causes: (a) actually missing decorator, (b) user is Guest at moment of call. Always run `frappe.whitelisted` introspection in `bench console` before assuming (a). Diagnostic recipe in lesson #127.
-- `accurate-systems/press` is now a GitHub redirect to `Veela-Beauty/press`. press-ctrl's `upstream` remote returns STALE fetch content — always use `veela` remote for canonical state. See lesson #129.
-- Some files in press get owned by `root:root` (mode 644) after past ops; `sudo -u frappe` writes fail. Quick `chown frappe:frappe <files>` before edits — check ownership before touching files in `/home/frappe/frappe-bench/apps/press/`.
-- **`simultaneous_sessions` cap = 0 (unlimited) AND auto-logout root cause fixed.** Cap removal (commit `64db47fcd8`) stopped the death-spiral; `Team.get_doc` PermissionError fix + Vue router fallback (commit `1b057047f9`) stopped the auto-logout from firing in the first place. Both layers are live. If compliance later demands a positive cap, the underlying loop is now broken — reinstating a cap (e.g. 10) should be safe.
+- Press-ctrl deploy keys are read-only — push from Hetzner dev box or via bundle method
+- `bench build` must run after any dashboard JS change
+- `bench restart` required after Python changes
 
 ---
 ---
+
+## Session Archive
+
+### Session 6 — 2026-05-05: Vue auto-logout root cause (bare frappe.throw → ValidationError)
+**What we did:** Changed `Team.get_doc` throw to explicit `PermissionError` + Vue one-shot fallback reset to `window.default_team`. Built and shipped.
+**Files:** `press/api/team.py`, `dashboard/src/router.js`
+**Decisions:** Bare `frappe.throw(string)` defaults to `ValidationError` — always pass explicit exception type in dashboard-reachable code paths.
+
+### Session 5 — 2026-05-05: Disable simultaneous_sessions cap entirely
+**What we did:** Set cap to 0 (unlimited), renamed constant, backfilled all team-member users. Cap and auto-logout were fighting each other.
+**Files:** `team_roles.py`, patch `disable_team_member_session_cap`
+**Decisions:** The cap loses against a frontend auto-logout loop. Right fix is the loop, not the cap value.
+
+### Session 4 — 2026-05-05: simultaneous_sessions cap raised to 50
+**What we did:** Bumped from 10 to 50. Still wasn't enough — led to Session 5.
+**Files:** `team_roles.py`
+**Decisions:** Underestimated the dashboard's session creation rate.
+
+### **Session:** Press Role + simultaneous_sessions + actionable 403 messages | **Date:** 2026-05-05
+**What we did:** Diagnosed and fixed Vue auto-logout loop caused by bare frappe.throw defaulting to ValidationError. Changed Team.get_doc to explicit PermissionError + added one-shot localStorage fallback.
+**Files:** `press/api/team.py`, `dashboard/src/router.js`
+**Decisions:** Bare frappe.throw(string) defaults to ValidationError — always pass explicit exception type in dashboard-reachable code paths.
+
 
 ## Session Archive
 

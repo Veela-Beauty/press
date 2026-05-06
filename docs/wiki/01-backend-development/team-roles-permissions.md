@@ -277,3 +277,42 @@ The 6 `raise_not_permitted()` call sites in client.py already pass `doctype`
 context. Internal-only failures (e.g. an unwhitelisted method on
 `run_doc_method`) intentionally still raise the generic message — those are
 developer config errors, not user-actionable role gaps.
+
+---
+
+## Gotcha: `get_bench_update()` double team-check (fixed 2026-05-06)
+
+The `@protected("Release Group")` decorator on `deploy_and_update()` correctly exempts System Users from team checks. However, `get_bench_update()` (called internally by `deploy_and_update`) had a **second** team check at `bench_update.py:175` that rejected ALL users including System Users:
+
+```python
+# OLD — blocked everyone
+if rg_team != current_team:
+    frappe.throw("Bench can only be deployed by the bench owner", exc=frappe.PermissionError)
+
+# NEW — System Users exempt (matches @protected)
+if rg_team != current_team and not is_system_user:
+    frappe.throw("Bench can only be deployed by the bench owner", exc=frappe.PermissionError)
+```
+
+**Root cause pattern**: When an API method decorated with `@protected` calls a second function that does its own team check, that second function MUST mirror the same exemptions as `@protected`. Otherwise the outer decorators System User bypass is silently defeated.
+
+## Gotcha: `get_bench_update()` double team-check (fixed 2026-05-06)
+
+The `@protected("Release Group")` decorator on `deploy_and_update()` correctly exempts System Users from team checks. However, `get_bench_update()` (called internally by `deploy_and_update`) had a **second** team check at `bench_update.py:175` that rejected ALL users including System Users:
+
+```python
+# OLD - blocked everyone
+if rg_team != current_team:
+    frappe.throw("Bench can only be deployed by the bench owner", exc=frappe.PermissionError)
+
+# NEW - System Users exempt (matches @protected)
+if rg_team != current_team and not is_system_user:
+    frappe.throw("Bench can only be deployed by the bench owner", exc=frappe.PermissionError)
+```
+
+**Root cause pattern**: When an API method decorated with `@protected` calls a second function that does its own team check, that second function MUST mirror the same exemptions as `@protected`. Otherwise the outer decorator's System User bypass is silently defeated.
+
+**Audit checklist** for any future Press API changes:
+1. Does the API have `@protected("Doctype")`?
+2. Does it call any internal function that does its own team/ownership check?
+3. If yes - does that internal check exempt System Users?

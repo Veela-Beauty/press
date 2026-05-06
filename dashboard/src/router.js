@@ -710,9 +710,12 @@ function waitUntilTeamLoaded() {
 					return;
 				}
 				if (isPermOrValidation) {
-					// Already tried fallback or no fallback available — give up.
+					// Team error does NOT mean session is invalid — clear stale team and
+					// redirect to Desk rather than destroying the session.
 					clearInterval(interval);
-					logoutWithTeamError();
+					localStorage.removeItem("current_team");
+					window.location.href = "/app";
+					return;
 				}
 			}
 			// Safety cap: 5s of polling without resolution -> give up.
