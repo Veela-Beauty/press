@@ -374,3 +374,34 @@ The 2026-04-29 incident contributed three new entries to the team's lessons-lear
 - **#124** press `pyproject.toml` `>=` deps pulled pre-release transitives — `bench setup requirements` fails (fixed in fork: alibabacloud family pinned to `==`, alibabacloud-credentials declared direct)
 
 See `frappe-press-lessons.md` (auto-memory) for the full text of each.
+
+---
+
+## How to push commits from press-ctrl (deploy key read-only workaround)
+
+Press-ctrl has two GitHub deploy keys, both **read-only**. Direct `git push` fails with:
+`ERROR: Permission to Veela-Beauty/press.git denied to deploy key`
+
+### Method: Push via Hetzner dev box (65.109.65.159)
+
+The Hetzner dev box has `~/.ssh/id_ed25519` added to GitHub as `elgogary` with write access.
+
+1. **On press-ctrl**: Create a bundle of the commit(s):
+   ```bash
+   cd /home/frappe/frappe-bench/apps/press
+   git bundle create /tmp/press_fix.bundle cloudflare-dns~1..cloudflare-dns
+   ```
+
+2. **From Hetzner dev box**: SCP the bundle and push:
+   ```bash
+   scp -i ~/.ssh/id_ed25519_old root@89.167.116.92:/tmp/press_fix.bundle /tmp/
+   cd /tmp && git clone git@github.com:Veela-Beauty/press.git press-push 2>/dev/null || true
+   cd /tmp/press-push && git checkout cloudflare-dns && git pull
+   git pull /tmp/press_fix.bundle cloudflare-dns
+   git push origin cloudflare-dns
+   ```
+
+3. **Back on press-ctrl**: Sync local with remote:
+   ```bash
+   git fetch veela cloudflare-dns && git reset --hard veela/cloudflare-dns
+   ```
