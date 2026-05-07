@@ -45,7 +45,6 @@ def clone_site(
 		"group": bench.group,
 		"cluster": source.cluster,
 		"plan": source.plan,
-		"version": source.version,
 		"bench": target_bench,
 	}
 
