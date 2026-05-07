@@ -86,12 +86,20 @@ class TestSiteMove(FrappeTestCase):
 			)
 
 	def test_move_app_coverage_mismatch_raises(self):
-		# Create a target RG with a different app than what the site has.
-		# The site has self.app; mismatch_rg has extra_app only → coverage check fails.
+		# Add an extra app to the site directly in the DB.
+		# target_rg only has self.app (frappe) so moving will fail coverage check.
 		extra_app = create_test_app(name="erpnext_extra", title="ERPNext Extra")
-		mismatch_rg = create_test_release_group(apps=[extra_app])
+		frappe.get_doc(
+			{
+				"doctype": "Site App",
+				"parent": self.site.name,
+				"parenttype": "Site",
+				"parentfield": "apps",
+				"app": extra_app.name,
+			}
+		).insert(ignore_permissions=True, ignore_if_duplicate=True)
 		with self.assertRaises(frappe.ValidationError):
 			move_to_release_group(
 				site=self.site.name,
-				target_release_group=mismatch_rg.name,
+				target_release_group=self.target_rg.name,
 			)
