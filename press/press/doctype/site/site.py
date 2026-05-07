@@ -3540,6 +3540,13 @@ class Site(Document, TagHelpers):
 				"condition": self.status in ["Active", "Inactive", "Broken"],
 			},
 			{
+				"action": "Move to Release Group",
+				"description": "Move this site to a different Release Group on the same server",
+				"button_label": "Move",
+				"doc_method": "",
+				"condition": self.status in ["Active", "Inactive"],
+			},
+			{
 				"action": "Restore with files",
 				"description": "Restore with database, public and private files",
 				"button_label": "Restore",
