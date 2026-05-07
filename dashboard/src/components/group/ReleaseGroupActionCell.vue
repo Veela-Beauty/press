@@ -21,7 +21,7 @@
 </template>
 
 <script setup>
-import { getCachedDocumentResource } from 'frappe-ui';
+import { call, getCachedDocumentResource } from 'frappe-ui';
 import { toast } from 'vue-sonner';
 import { confirmDialog } from '../../utils/components';
 import router from '../../router';
@@ -45,6 +45,7 @@ function getBenchActionHandler(action) {
 	const actionHandlers = {
 		'Rename Bench': onRenameBench,
 		'Transfer Bench': onTransferBench,
+		'Clone Bench': onCloneBench,
 		'Drop Bench': onDropBench,
 	};
 	if (actionHandlers[action]) {
@@ -83,6 +84,61 @@ function onRenameBench() {
 			} else {
 				toast.error('Please enter a valid bench name');
 			}
+		},
+	});
+}
+
+function onCloneBench() {
+	confirmDialog({
+		title: 'Clone Bench',
+		message:
+			'Create a copy of this bench (Release Group) on the same server with the same apps. The clone will be assigned to your team and a deploy will be queued automatically.',
+		fields: [
+			{
+				label: 'New title for the cloned bench',
+				fieldname: 'new_title',
+				default: `${releaseGroup.doc?.title || ''} (Clone)`,
+			},
+			{
+				label: 'Lifetime',
+				fieldname: 'lifetime',
+				fieldtype: 'Select',
+				options: [
+					{ label: 'Persistent (kept until deleted)', value: 'persistent' },
+					{ label: 'Sandbox (auto-deleted after 24h)', value: 'sandbox' },
+				],
+				default: 'persistent',
+			},
+		],
+		primaryAction: {
+			label: 'Clone',
+			variant: 'solid',
+		},
+		onSuccess({ hide, values }) {
+			if (!values.new_title) {
+				toast.error('Please enter a title for the cloned bench');
+				return;
+			}
+			toast.promise(
+				call(
+					'press.press.doctype.release_group.release_group_clone.clone_release_group',
+					{
+						release_group: props.benchName,
+						new_title: values.new_title,
+						lifetime: values.lifetime || 'persistent',
+					},
+				).then((newName) => {
+					hide();
+					router.push(`/groups/${newName}`);
+					return newName;
+				}),
+				{
+					loading: 'Cloning bench...',
+					success: (newName) => `Cloned bench created: ${newName}`,
+					error: (e) =>
+						`Failed to clone bench: ${e?.messages?.[0] || e?.message || e}`,
+				},
+			);
 		},
 	});
 }
