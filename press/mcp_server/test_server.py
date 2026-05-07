@@ -138,3 +138,32 @@ class TestMCPServer(FrappeTestCase):
 			)
 
 		self.assertEqual(captured_user, ["Administrator"])
+
+	def test_list_my_calls_returns_recent_logs_for_current_user(self):
+		from press.mcp_server.dashboard import list_my_calls
+		from unittest.mock import patch
+
+		# Create a few call log rows directly
+		for i in range(3):
+			frappe.get_doc({
+				"doctype": "Press MCP Call Log",
+				"tool": f"tool-{i}",
+				"user": "Administrator",
+				"status": "Success",
+				"duration_ms": 10 + i,
+			}).insert(ignore_permissions=True)
+		# Plus one for a different user — should be excluded
+		frappe.get_doc({
+			"doctype": "Press MCP Call Log",
+			"tool": "tool-other",
+			"user": "Guest",
+			"status": "Success",
+			"duration_ms": 5,
+		}).insert(ignore_permissions=True)
+
+		results = list_my_calls(limit=100)
+		tools = [r["tool"] for r in results]
+		self.assertIn("tool-0", tools)
+		self.assertIn("tool-1", tools)
+		self.assertIn("tool-2", tools)
+		self.assertNotIn("tool-other", tools)

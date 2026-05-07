@@ -33,6 +33,25 @@ def list_my_tokens() -> list[dict[str, Any]]:
 	return rows
 
 
+@frappe.whitelist()
+def list_my_calls(limit: int = 200) -> list[dict[str, Any]]:
+	"""List recent MCP Call Log entries for the calling user (cap at 500)."""
+	user = frappe.session.user
+	limit = max(1, min(500, int(limit)))
+	rows = frappe.get_all(
+		"Press MCP Call Log",
+		filters={"user": user},
+		fields=[
+			"name", "tool", "status", "duration_ms",
+			"args_json", "response_json", "error_message",
+			"creation", "token",
+		],
+		order_by="creation desc",
+		limit=limit,
+	)
+	return rows
+
+
 def _status_for(row: dict) -> str:
 	if row.get("revoked"):
 		return "revoked"
