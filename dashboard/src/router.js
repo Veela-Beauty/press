@@ -430,6 +430,11 @@ let router = createRouter({
 			props: true,
 		},
 		{
+			path: '/dev-tools/mcp',
+			name: 'MCP Panel',
+			component: () => import('./pages/devtools/mcp/MCPPanel.vue'),
+		},
+		{
 			path: '/backups/sites',
 			name: 'Site Backups',
 			component: () => import('./pages/backups/SiteBackups.vue'),
