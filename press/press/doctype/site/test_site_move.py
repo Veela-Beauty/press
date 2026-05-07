@@ -12,7 +12,25 @@ from press.press.doctype.app.test_app import create_test_app
 from press.press.doctype.release_group.test_release_group import (
 	create_test_release_group,
 )
-from press.press.doctype.site.test_site import create_test_site
+from press.press.doctype.site.test_site import create_test_bench, create_test_site
+
+
+def _insert_active_bench(group_name: str) -> str:
+	"""Insert a minimal Active Bench row for a release group without triggering deploys."""
+	bench_name = frappe.generate_hash(length=10)
+	frappe.db.set_value(
+		"Bench",
+		{"name": bench_name},
+		{
+			"name": bench_name,
+			"group": group_name,
+			"status": "Active",
+			"server": "",
+			"background_workers": 1,
+			"gunicorn_workers": 2,
+		},
+	)
+	return bench_name
 
 
 class TestSiteMove(FrappeTestCase):
@@ -25,9 +43,12 @@ class TestSiteMove(FrappeTestCase):
 		self.addCleanup(self._deploy_patcher.stop)
 
 		self.app = create_test_app()
-		self.source_rg = create_test_release_group(apps=[self.app])
-		self.target_rg = create_test_release_group(apps=[self.app])
+		# create_test_site() creates its own bench + RG internally
 		self.site = create_test_site()
+		self.target_rg = create_test_release_group(apps=[self.app])
+		# Create an active bench for target_rg using the full helper
+		# (deploy patcher prevents the candidate from actually building)
+		self.target_bench = create_test_bench(group=self.target_rg)
 
 	def tearDown(self):
 		frappe.db.delete("Press Lock", {"target_doctype": "Site"})
@@ -40,15 +61,10 @@ class TestSiteMove(FrappeTestCase):
 				site=self.site.name,
 				target_release_group=self.target_rg.name,
 			)
-			# Must have called move_to_bench once with a bench from target_rg
 			self.assertTrue(m.called)
-			args, kwargs = m.call_args
-			# bench arg may be positional or kwarg
-			bench = kwargs.get("bench") or (args[0] if args else None)
-			# Either a bench name string or unset (the test target RG may have
-			# no benches in setUp — that should raise ValidationError instead)
-			# This branch is the success case; assert result has job name.
 			self.assertIn("job", result)
+			self.assertEqual(result["target_bench"], self.target_bench.name)
+			self.assertEqual(result["target_release_group"], self.target_rg.name)
 
 	def test_move_to_rg_with_no_active_bench_raises(self):
 		empty_rg = create_test_release_group(apps=[self.app])
