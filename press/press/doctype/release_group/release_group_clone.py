@@ -61,6 +61,9 @@ def clone_release_group(
 		clone.clone_expires_at = now_datetime() + timedelta(hours=SANDBOX_TTL_HOURS)
 	clone.save(ignore_permissions=True)
 
+	candidate = clone.create_deploy_candidate([])
+	candidate.schedule_build_and_deploy(run_now=False)
+
 	return clone.name
 
 

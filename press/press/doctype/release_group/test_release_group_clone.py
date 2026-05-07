@@ -86,3 +86,16 @@ class TestReleaseGroupClone(FrappeTestCase):
 				new_title="X",
 				lifetime="persistent",
 			)
+
+	def test_clone_calls_create_deploy_candidate_and_schedule(self):
+		# Reset the setUp mock so we count only this test's calls.
+		self._mock_deploy.reset_mock()
+		new_name = clone_release_group(
+			self.source.name,
+			new_title="With Deploy",
+			lifetime="persistent",
+		)
+
+		self._mock_deploy.assert_called_once_with([])
+		self._mock_deploy.return_value.schedule_build_and_deploy.assert_called_once()
+		self.assertTrue(frappe.db.exists("Release Group", new_name))
