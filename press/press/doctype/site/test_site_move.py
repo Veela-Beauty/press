@@ -86,10 +86,10 @@ class TestSiteMove(FrappeTestCase):
 			)
 
 	def test_move_app_coverage_mismatch_raises(self):
-		# Create a target RG with different apps (simulate mismatch by removing apps)
-		mismatch_rg = create_test_release_group(apps=[self.app])
-		mismatch_rg.apps = []
-		mismatch_rg.save(ignore_permissions=True)
+		# Create a target RG with a different app than what the site has.
+		# The site has self.app; mismatch_rg has extra_app only → coverage check fails.
+		extra_app = create_test_app(name="erpnext_extra", title="ERPNext Extra")
+		mismatch_rg = create_test_release_group(apps=[extra_app])
 		with self.assertRaises(frappe.ValidationError):
 			move_to_release_group(
 				site=self.site.name,
