@@ -1,0 +1,171 @@
+<template>
+	<div class="mx-auto max-w-7xl space-y-6 p-6">
+		<div>
+			<h1 class="text-2xl font-semibold">MCP Tokens (Global)</h1>
+			<p class="text-sm text-gray-600">System Admin view of all MCP tokens across all teams.</p>
+		</div>
+
+		<div class="flex flex-wrap items-end gap-3 rounded border border-gray-200 bg-white p-4">
+			<FormControl
+				label="Team"
+				v-model="filters.team"
+				class="min-w-[180px]"
+			/>
+			<FormControl
+				label="User"
+				v-model="filters.user"
+				class="min-w-[200px]"
+			/>
+			<FormControl
+				label="Status"
+				type="select"
+				:options="[
+					{ label: 'Any', value: '' },
+					{ label: 'Active', value: 'active' },
+					{ label: 'Expired', value: 'expired' },
+					{ label: 'Revoked', value: 'revoked' },
+				]"
+				v-model="filters.status"
+				class="min-w-[140px]"
+			/>
+			<FormControl
+				label="Label contains"
+				v-model="filters.label_substring"
+				class="min-w-[200px]"
+			/>
+			<Button @click="loadTokens">Apply</Button>
+			<Button variant="solid" :disabled="!selected.length" @click="onBulkRevoke">
+				Revoke selected ({{ selected.length }})
+			</Button>
+		</div>
+
+		<section class="rounded border border-gray-200 bg-white">
+			<div class="overflow-x-auto">
+				<table class="w-full text-left text-sm">
+					<thead class="bg-gray-50 text-xs uppercase text-gray-600">
+						<tr>
+							<th class="p-3">
+								<input type="checkbox" :checked="allSelected" @change="toggleAll" />
+							</th>
+							<th class="p-3">Label</th>
+							<th class="p-3">User</th>
+							<th class="p-3">Team</th>
+							<th class="p-3">Scope</th>
+							<th class="p-3">Issued</th>
+							<th class="p-3">Expires</th>
+							<th class="p-3">Last Used</th>
+							<th class="p-3">Status</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr v-for="t in tokens" :key="t.name" class="border-t border-gray-100">
+							<td class="p-3">
+								<input
+									type="checkbox"
+									:value="t.name"
+									v-model="selected"
+									:disabled="t.status !== 'active'"
+								/>
+							</td>
+							<td class="p-3 font-medium">{{ t.label }}</td>
+							<td class="p-3 text-xs">{{ t.user }}</td>
+							<td class="p-3 text-xs">{{ t.team || '—' }}</td>
+							<td class="p-3 text-xs text-gray-600">{{ (t.scope || []).join(', ') || 'all' }}</td>
+							<td class="p-3 text-xs text-gray-600">{{ formatDate(t.creation) }}</td>
+							<td class="p-3 text-xs text-gray-600">{{ formatDate(t.expires_at) }}</td>
+							<td class="p-3 text-xs text-gray-600">{{ formatDate(t.last_used_at) || '—' }}</td>
+							<td class="p-3">
+								<span :class="statusClass(t.status)">{{ t.status }}</span>
+							</td>
+						</tr>
+						<tr v-if="!tokens.length">
+							<td colspan="9" class="p-6 text-center text-sm text-gray-500">No tokens match.</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</section>
+	</div>
+</template>
+
+<script setup>
+import { ref, reactive, computed, onMounted } from 'vue';
+import { Button, FormControl, call, toast, confirmDialog } from 'frappe-ui';
+
+const tokens = ref([]);
+const selected = ref([]);
+const filters = reactive({
+	team: '',
+	user: '',
+	status: '',
+	label_substring: '',
+});
+
+const allSelected = computed(() => {
+	const active = tokens.value.filter((t) => t.status === 'active');
+	return active.length > 0 && active.every((t) => selected.value.includes(t.name));
+});
+
+function toggleAll() {
+	const active = tokens.value.filter((t) => t.status === 'active').map((t) => t.name);
+	selected.value = allSelected.value ? [] : active;
+}
+
+async function loadTokens() {
+	try {
+		const cleaned = Object.fromEntries(
+			Object.entries(filters).filter(([, v]) => v),
+		);
+		tokens.value = await call('press.mcp_server.admin.list_all_tokens', {
+			filters: cleaned,
+		});
+	} catch (e) {
+		toast.error('Load failed: ' + (e?.messages?.[0] || e?.message || e));
+	}
+}
+
+function onBulkRevoke() {
+	if (!selected.value.length) return;
+	confirmDialog({
+		title: `Revoke ${selected.value.length} tokens?`,
+		message: 'This action is logged. Provide a reason.',
+		fields: [{ label: 'Reason', fieldname: 'reason' }],
+		primaryAction: { label: 'Revoke', variant: 'solid' },
+		onSuccess({ hide, values }) {
+			if (!values.reason) {
+				toast.error('Reason is required');
+				return;
+			}
+			toast.promise(
+				call('press.mcp_server.admin.bulk_revoke', {
+					token_names: selected.value,
+					reason: values.reason,
+				}).then((r) => {
+					hide();
+					selected.value = [];
+					loadTokens();
+					return r;
+				}),
+				{
+					loading: 'Revoking...',
+					success: (r) => `Revoked ${r.count} tokens`,
+					error: (e) => `Revoke failed: ${e?.messages?.[0] || e?.message || e}`,
+				},
+			);
+		},
+	});
+}
+
+function formatDate(d) {
+	if (!d) return '';
+	try { return new Date(d).toLocaleString(); } catch { return d; }
+}
+
+function statusClass(s) {
+	if (s === 'active') return 'inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800';
+	if (s === 'expired') return 'inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700';
+	return 'inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-800';
+}
+
+onMounted(loadTokens);
+</script>
