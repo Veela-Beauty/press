@@ -57,8 +57,13 @@ def clone_site(
 			)
 		payload["files"] = files
 	elif mode == "fresh_backup":
-		files = _trigger_fresh_backup_and_get_files(source)
-		payload["files"] = files
+		source.backup(with_files=True, offsite=True)
+		frappe.throw(
+			"Fresh backup queued for source site. "
+			"Wait for it to complete (check Backups tab on the source site), "
+			"then retry clone with mode='latest_backup'.",
+			frappe.ValidationError,
+		)
 	# else mode == "empty": no files key added
 
 	return _call_press_new(payload)
@@ -89,23 +94,6 @@ def _get_latest_backup_files(site_name: str) -> dict | None:
 		"database": b.remote_database_file,
 		"public": b.remote_public_file,
 		"private": b.remote_private_file,
-	}
-
-
-def _trigger_fresh_backup_and_get_files(source) -> dict:
-	backup = source.backup(with_files=True, offsite=True)
-	backup.reload()
-	if backup.status != "Success" or not backup.files_availability == "Available":
-		frappe.throw(
-			"Fresh backup not yet ready. Retry in a few minutes "
-			"or use latest_backup mode.",
-			frappe.ValidationError,
-		)
-	return {
-		"config": backup.remote_config_file,
-		"database": backup.remote_database_file,
-		"public": backup.remote_public_file,
-		"private": backup.remote_private_file,
 	}
 
 

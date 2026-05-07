@@ -98,3 +98,19 @@ class TestSiteClone(FrappeTestCase):
 				new_subdomain="taken-sub",
 				mode="empty",
 			)
+
+	def test_clone_fresh_backup_triggers_backup_then_raises(self):
+		# fresh_backup mode is async-by-design: it triggers the backup
+		# then asks the caller to retry with latest_backup once ready.
+		from press.press.doctype.site.site import Site
+
+		with patch.object(Site, "backup") as mock_backup:
+			with self.assertRaises(frappe.ValidationError) as ctx:
+				clone_site(
+					site=self.source_site.name,
+					target_bench=self.target_bench,
+					new_subdomain="copy-fresh",
+					mode="fresh_backup",
+				)
+			self.assertIn("queued", str(ctx.exception).lower())
+			mock_backup.assert_called_once_with(with_files=True, offsite=True)
