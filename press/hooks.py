@@ -426,6 +426,7 @@ fixtures = [
 	"Server Storage Plan",
 	"Server Snapshot Plan",
 	"Press Webhook Event",
+	{"dt": "Custom Field", "filters": [["name", "in", ["Release Group-cloned_from", "Release Group-clone_lifetime", "Release Group-clone_expires_at"]]]},
 ]
 # Testing
 # -------

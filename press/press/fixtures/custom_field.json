@@ -1,0 +1,37 @@
+[
+  {
+    "doctype": "Custom Field",
+    "name": "Release Group-cloned_from",
+    "dt": "Release Group",
+    "fieldname": "cloned_from",
+    "fieldtype": "Link",
+    "options": "Release Group",
+    "label": "Cloned From",
+    "read_only": 1,
+    "insert_after": "title",
+    "module": "Press"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Release Group-clone_lifetime",
+    "dt": "Release Group",
+    "fieldname": "clone_lifetime",
+    "fieldtype": "Select",
+    "options": "\nsandbox\npersistent",
+    "label": "Clone Lifetime",
+    "read_only": 1,
+    "insert_after": "cloned_from",
+    "module": "Press"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Release Group-clone_expires_at",
+    "dt": "Release Group",
+    "fieldname": "clone_expires_at",
+    "fieldtype": "Datetime",
+    "label": "Clone Expires At",
+    "read_only": 1,
+    "insert_after": "clone_lifetime",
+    "module": "Press"
+  }
+]
