@@ -162,13 +162,24 @@ class TestPressLock(FrappeTestCase):
 			"holder",
 			"someone-else@example.com",
 		)
-		# Patch session.data.user_type so release() treats us as non-System.
-		with patch.object(frappe.session.data, "user_type", "Website User"):
+		# Force release() to treat us as non-System: backup + restore
+		# user_type. patch.object on frappe.session.data fails when the
+		# session is reset between tests, so use direct mutation here.
+		original_user_type = frappe.session.data.user_type if frappe.session.data else None
+		if frappe.session.data is None:
+			frappe.session.data = frappe._dict()
+		frappe.session.data.user_type = "Website User"
+		try:
 			with self.assertRaises(frappe.PermissionError):
 				release(
 					target_doctype="Release Group",
 					target_name=self.rg.name,
 				)
+		finally:
+			if original_user_type is None:
+				frappe.session.data.user_type = "System User"
+			else:
+				frappe.session.data.user_type = original_user_type
 
 	def test_cleanup_deletes_locks_older_than_7_days(self):
 		from press.cleanup.expired_locks import cleanup_expired_locks
