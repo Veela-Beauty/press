@@ -169,3 +169,32 @@ class TestPressLock(FrappeTestCase):
 					target_doctype="Release Group",
 					target_name=self.rg.name,
 				)
+
+	def test_cleanup_deletes_locks_older_than_7_days(self):
+		from press.cleanup.expired_locks import cleanup_expired_locks
+		from frappe.utils import add_to_date
+
+		# Create a lock and backdate it past the 7-day cutoff
+		acquire(
+			target_doctype="Release Group",
+			target_name=self.rg.name,
+			reason="old",
+			ttl_minutes=1,
+		)
+		frappe.db.set_value(
+			"Press Lock",
+			{"target_doctype": "Release Group", "target_name": self.rg.name},
+			"expires_at",
+			add_to_date(now_datetime(), days=-10),
+		)
+		old_count = frappe.db.count(
+			"Press Lock", {"target_name": self.rg.name}
+		)
+		self.assertEqual(old_count, 1)
+
+		cleanup_expired_locks()
+
+		new_count = frappe.db.count(
+			"Press Lock", {"target_name": self.rg.name}
+		)
+		self.assertEqual(new_count, 0)
