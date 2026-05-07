@@ -405,3 +405,48 @@ The Hetzner dev box has `~/.ssh/id_ed25519` added to GitHub as `elgogary` with w
    ```bash
    git fetch veela cloudflare-dns && git reset --hard veela/cloudflare-dns
    ```
+
+## press-f1 MariaDB exposed to internet — fixed 2026-05-06
+
+**Issue**: Hetzner abuse report — MariaDB port 3306 was openly accessible from any IP on the internet. `bind-address = 0.0.0.0` with no firewall.
+
+**Why bind-address can't be changed**: press-f1 runs Docker bench containers that connect to the host MariaDB via the public IP `89.167.57.21:3306` (configured in `common_site_config.json` `db_host`). Binding to `127.0.0.1` would break all bench sites.
+
+**Fix**: iptables firewall rules to restrict port 3306 to trusted sources only.
+
+### Rules applied
+
+| Priority | Source | Action |
+|----------|--------|--------|
+| 1 | press-ctrl (89.167.116.92) | ACCEPT |
+| 2 | press-f1 local (89.167.57.21) | ACCEPT |
+| 3 | Docker bridge (172.17.0.0/16) | ACCEPT |
+| 4 | Localhost (127.0.0.1) | ACCEPT |
+| 5 | Everything else | DROP |
+
+### Verification
+
+```
+External (dev box 65.109.65.159):  BLOCKED ✓
+press-ctrl (89.167.116.92):       ALLOWED ✓
+Docker bench containers:          ALLOWED ✓
+```
+
+### Persistence
+- `iptables-persistent` installed
+- Rules saved to `/etc/iptables/rules.v4`
+- `netfilter-persistent.service` enabled on boot
+
+### Recovery
+```bash
+# View rules
+iptables -L INPUT -n -v --line-numbers | grep 3306
+
+# Add a new trusted IP
+iptables -I INPUT 5 -p tcp --dport 3306 -s <NEW_IP> -j ACCEPT
+netfilter-persistent save
+
+# Delete a rule
+iptables -D INPUT <line-number>
+netfilter-persistent save
+```
