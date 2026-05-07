@@ -108,7 +108,11 @@ def bulk_revoke(token_names: list | str, reason: str) -> dict[str, Any]:
 
 
 def _require_system_user() -> None:
-	if frappe.session.data.user_type != "System User":
+	user_type = (
+		(frappe.session.data.user_type if frappe.session.data else None)
+		or frappe.get_cached_value("User", frappe.session.user, "user_type")
+	)
+	if user_type != "System User":
 		raise frappe.PermissionError("System User access required for MCP admin actions")
 
 
