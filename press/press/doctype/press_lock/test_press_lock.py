@@ -146,3 +146,26 @@ class TestPressLock(FrappeTestCase):
 			s = status(target_doctype="Site", target_name=fake_site)
 		self.assertEqual(s["status"], "blocked_by_parent")
 		self.assertEqual(s["parent_lock"]["target_name"], self.rg.name)
+
+	def test_release_by_non_holder_non_system_raises(self):
+		acquire(
+			target_doctype="Release Group",
+			target_name=self.rg.name,
+			reason="held by current user",
+			ttl_minutes=10,
+		)
+		# Force the lock to be held by someone else AND switch session to a
+		# non-System User. Use frappe.db.set_value to bypass Link validation.
+		frappe.db.set_value(
+			"Press Lock",
+			{"target_doctype": "Release Group", "target_name": self.rg.name, "revoked": 0},
+			"holder",
+			"someone-else@example.com",
+		)
+		# Patch session.data.user_type so release() treats us as non-System.
+		with patch.object(frappe.session.data, "user_type", "Website User"):
+			with self.assertRaises(frappe.PermissionError):
+				release(
+					target_doctype="Release Group",
+					target_name=self.rg.name,
+				)
