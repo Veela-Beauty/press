@@ -34,7 +34,7 @@ def _archive_release_group(name: str) -> None:
 	"""
 	sites = frappe.get_all(
 		"Site",
-		filters={"group": name, "status": ("not in", ("Archived", "Suspended"))},
+		filters={"group": name, "status": ("in", ("Active", "Inactive"))},
 		pluck="name",
 	)
 	for site_name in sites:
