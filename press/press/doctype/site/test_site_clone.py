@@ -15,6 +15,12 @@ from press.press.doctype.site_backup.test_site_backup import create_test_site_ba
 class TestSiteClone(FrappeTestCase):
 	def setUp(self):
 		frappe.set_user("Administrator")
+		# Block real agent calls when create_test_site_backup creates non-Pending backups
+		from press.press.doctype.site_backup.site_backup import SiteBackup
+
+		self._backup_after_insert_patcher = patch.object(SiteBackup, "after_insert")
+		self._backup_after_insert_patcher.start()
+		self.addCleanup(self._backup_after_insert_patcher.stop)
 		self.source_site = create_test_site()
 		self.target_bench = frappe.db.get_value(
 			"Bench",
