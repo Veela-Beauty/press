@@ -46,6 +46,7 @@ function getBenchActionHandler(action) {
 		'Rename Bench': onRenameBench,
 		'Transfer Bench': onTransferBench,
 		'Clone Bench': onCloneBench,
+		'Lock Bench': onLockBench,
 		'Drop Bench': onDropBench,
 	};
 	if (actionHandlers[action]) {
@@ -137,6 +138,57 @@ function onCloneBench() {
 					success: (newName) => `Cloned bench created: ${newName}`,
 					error: (e) =>
 						`Failed to clone bench: ${e?.messages?.[0] || e?.message || e}`,
+				},
+			);
+		},
+	});
+}
+
+function onLockBench() {
+	confirmDialog({
+		title: 'Lock Bench',
+		message:
+			'Acquire an advisory lock on this bench. Other agents will see your lock + reason and decide whether to wait or override.',
+		fields: [
+			{
+				label: 'Reason for locking (required)',
+				fieldname: 'reason',
+			},
+			{
+				label: 'TTL (minutes, max 1440)',
+				fieldname: 'ttl',
+				default: '30',
+			},
+			{
+				label: 'Force override existing lock',
+				fieldname: 'override',
+				fieldtype: 'Check',
+			},
+		],
+		primaryAction: { label: 'Acquire Lock', variant: 'solid' },
+		onSuccess({ hide, values }) {
+			if (!values.reason) {
+				toast.error('Reason is required');
+				return;
+			}
+			toast.promise(
+				call('press.api.lock.acquire', {
+					target_doctype: 'Release Group',
+					target_name: props.benchName,
+					reason: values.reason,
+					ttl_minutes: parseInt(values.ttl) || 30,
+					override: values.override ? 1 : 0,
+				}).then((result) => {
+					hide();
+					if (result.status === 'blocked') {
+						throw new Error(`Already locked by ${result.holder}: ${result.reason}`);
+					}
+					return result;
+				}),
+				{
+					loading: 'Acquiring lock...',
+					success: 'Lock acquired',
+					error: (e) => `Could not acquire lock: ${e?.messages?.[0] || e?.message || e}`,
 				},
 			);
 		},

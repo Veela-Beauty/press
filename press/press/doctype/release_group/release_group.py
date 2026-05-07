@@ -241,6 +241,12 @@ class ReleaseGroup(Document, TagHelpers):
 				"doc_method": "",
 			},
 			{
+				"action": "Lock Bench",
+				"description": "Acquire an advisory lock on this bench (and all its sites)",
+				"button_label": "Lock",
+				"doc_method": "",
+			},
+			{
 				"action": "Drop Bench",
 				"description": "Drop the bench",
 				"button_label": "Drop",

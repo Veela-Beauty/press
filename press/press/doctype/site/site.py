@@ -3533,6 +3533,13 @@ class Site(Document, TagHelpers):
 				"condition": self.status in ["Active", "Inactive", "Broken"],
 			},
 			{
+				"action": "Lock site",
+				"description": "Acquire an advisory lock on this site",
+				"button_label": "Lock",
+				"doc_method": "",
+				"condition": self.status in ["Active", "Inactive", "Broken"],
+			},
+			{
 				"action": "Restore with files",
 				"description": "Restore with database, public and private files",
 				"button_label": "Restore",

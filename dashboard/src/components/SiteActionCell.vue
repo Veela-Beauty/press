@@ -75,6 +75,7 @@ function getSiteActionHandler(action) {
 		'Drop site': onDropSite,
 		'Migrate site': onMigrateSite,
 		'Clone site': onCloneSite,
+		'Lock site': onLockSite,
 		'Transfer site': onTransferSite,
 		'Reset site': onSiteReset,
 		'Clear cache': onClearCache,
@@ -233,6 +234,60 @@ function onCloneSite() {
 					success: (newName) => `Cloned site created: ${newName}`,
 					error: (e) =>
 						`Failed to clone site: ${e?.messages?.[0] || e?.message || e}`,
+				},
+			);
+		},
+	});
+}
+
+function onLockSite() {
+	confirmDialog({
+		title: 'Lock Site',
+		message:
+			'Acquire an advisory lock on this site. Other agents will see your lock + reason.',
+		fields: [
+			{
+				label: 'Reason for locking (required)',
+				fieldname: 'reason',
+			},
+			{
+				label: 'TTL (minutes, max 1440)',
+				fieldname: 'ttl',
+				default: '30',
+			},
+			{
+				label: 'Force override existing lock',
+				fieldname: 'override',
+				fieldtype: 'Check',
+			},
+		],
+		primaryAction: { label: 'Acquire Lock', variant: 'solid' },
+		onSuccess({ hide, values }) {
+			if (!values.reason) {
+				toast.error('Reason is required');
+				return;
+			}
+			toast.promise(
+				call('press.api.lock.acquire', {
+					target_doctype: 'Site',
+					target_name: props.siteName,
+					reason: values.reason,
+					ttl_minutes: parseInt(values.ttl) || 30,
+					override: values.override ? 1 : 0,
+				}).then((result) => {
+					hide();
+					if (result.status === 'blocked') {
+						throw new Error(`Already locked by ${result.holder}: ${result.reason}`);
+					}
+					if (result.status === 'blocked_by_parent') {
+						throw new Error(`Bench is locked by ${result.parent_lock?.holder}; release that first`);
+					}
+					return result;
+				}),
+				{
+					loading: 'Acquiring lock...',
+					success: 'Lock acquired',
+					error: (e) => `Could not acquire lock: ${e?.messages?.[0] || e?.message || e}`,
 				},
 			);
 		},
