@@ -43,7 +43,12 @@ def clone_release_group(
 		team_name = source.team
 
 	apps = [{"app": a.app, "source": a.source} for a in source.apps]
-	server = source.servers[0].server if source.servers else None
+	if not source.servers:
+		frappe.throw(
+			f"Cannot clone Release Group {source.name}: source has no server assignment.",
+			frappe.ValidationError,
+		)
+	server = source.servers[0].server
 
 	clone = new_release_group(
 		title=new_title,

@@ -99,3 +99,14 @@ class TestReleaseGroupClone(FrappeTestCase):
 		self._mock_deploy.assert_called_once_with([])
 		self._mock_deploy.return_value.schedule_build_and_deploy.assert_called_once()
 		self.assertTrue(frappe.db.exists("Release Group", new_name))
+
+	def test_clone_source_with_no_servers_raises(self):
+		# Strip servers from the source RG to simulate edge case.
+		self.source.servers = []
+		self.source.save(ignore_permissions=True)
+		with self.assertRaises(frappe.ValidationError):
+			clone_release_group(
+				self.source.name,
+				new_title="No Server Clone",
+				lifetime="persistent",
+			)
