@@ -3526,6 +3526,13 @@ class Site(Document, TagHelpers):
 				"doc_method": "deactivate",
 			},
 			{
+				"action": "Clone site",
+				"description": "Create a copy of this site on a target bench (latest backup, fresh backup, or empty)",
+				"button_label": "Clone",
+				"doc_method": "",
+				"condition": self.status in ["Active", "Inactive", "Broken"],
+			},
+			{
 				"action": "Restore with files",
 				"description": "Restore with database, public and private files",
 				"button_label": "Restore",
