@@ -26,6 +26,12 @@ def clone_site(
 			frappe.ValidationError,
 		)
 
+	if not frappe.db.exists("Bench", target_bench):
+		frappe.throw(
+			f"Target bench {target_bench!r} does not exist",
+			frappe.ValidationError,
+		)
+
 	source = frappe.get_doc("Site", site)
 	_check_team_access(source)
 
