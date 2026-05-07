@@ -42,15 +42,21 @@ def acquire(
 		}
 
 	if existing and existing.holder == user:
-		# Same user — refresh TTL and reason
+		# Same user — refresh TTL and reason via raw DB (no link validation needed)
+		new_expires = now_datetime() + timedelta(minutes=ttl_minutes)
+		frappe.db.set_value(
+			"Press Lock",
+			existing.name,
+			{"reason": reason, "ttl_minutes": ttl_minutes, "expires_at": new_expires},
+		)
 		existing.reason = reason
 		existing.ttl_minutes = ttl_minutes
-		existing.expires_at = now_datetime() + timedelta(minutes=ttl_minutes)
-		existing.save(ignore_permissions=True)
+		existing.expires_at = new_expires
 		return _serialize(existing, lock_status="active")
 
 	if existing and existing.holder != user and override:
-		# Override: revoke existing, create new, append to history
+		# Override: revoke existing via raw DB (bypasses link validation for fake holders),
+		# then create new lock and carry override history forward.
 		hist = _parse_history(existing.override_history)
 		hist.append({
 			"at": now_datetime().isoformat(),
@@ -59,13 +65,18 @@ def acquire(
 			"prev_reason": existing.reason,
 			"override_reason": reason,
 		})
-		existing.revoked = 1
-		existing.revoked_by = user
-		existing.revoked_at = now_datetime()
-		existing.save(ignore_permissions=True)
+		frappe.db.set_value(
+			"Press Lock",
+			existing.name,
+			{
+				"revoked": 1,
+				"revoked_by": user,
+				"revoked_at": now_datetime(),
+			},
+		)
 		new_lock = _create_lock(target_doctype, target_name, user, reason, ttl_minutes)
+		frappe.db.set_value("Press Lock", new_lock.name, "override_history", json.dumps(hist))
 		new_lock.override_history = json.dumps(hist)
-		new_lock.save(ignore_permissions=True)
 		return _serialize(new_lock, lock_status="active")
 
 	# No existing lock — create
@@ -86,10 +97,11 @@ def release(target_doctype: str, target_name: str) -> dict[str, str]:
 			f"You don't hold this lock. Current holder: {existing.holder}",
 			frappe.PermissionError,
 		)
-	existing.revoked = 1
-	existing.revoked_by = frappe.session.user
-	existing.revoked_at = now_datetime()
-	existing.save(ignore_permissions=True)
+	frappe.db.set_value(
+		"Press Lock",
+		existing.name,
+		{"revoked": 1, "revoked_by": frappe.session.user, "revoked_at": now_datetime()},
+	)
 	return {"status": "released"}
 
 
@@ -117,6 +129,15 @@ def status(target_doctype: str, target_name: str) -> dict[str, Any]:
 
 
 def _get_active_lock(target_doctype: str, target_name: str):
+	"""Return a frappe._dict with lock fields, or None if no active lock exists.
+
+	Uses frappe.get_all (not frappe.get_doc) so the function is safe when
+	frappe.db.get_value is mocked in tests.
+	"""
+	FIELDS = [
+		"name", "holder", "reason", "target_doctype", "target_name",
+		"expires_at", "override_history", "revoked", "ttl_minutes",
+	]
 	rows = frappe.get_all(
 		"Press Lock",
 		filters={
@@ -125,13 +146,11 @@ def _get_active_lock(target_doctype: str, target_name: str):
 			"revoked": 0,
 			"expires_at": (">", now_datetime()),
 		},
+		fields=FIELDS,
 		order_by="creation desc",
 		limit=1,
-		pluck="name",
 	)
-	if not rows:
-		return None
-	return frappe.get_doc("Press Lock", rows[0])
+	return rows[0] if rows else None
 
 
 def _create_lock(target_doctype, target_name, holder, reason, ttl_minutes):
