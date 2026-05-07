@@ -1,44 +1,26 @@
 # Press Fork Dev Log
 
-## Working State
-**Session:** 7 — get_bench_update team check + router.js defensive redirect | **Date:** 2026-05-06
+### Session 7 — 2026-05-06: get_bench_update double team-check + router.js defensive redirect + press-f1 MariaDB firewall
 
-### Active Task
-Fix deploy-button logout bug: users logged out when clicking Deploy on benches owned by a different team. Two-part root cause with two long-term fixes.
+**What we did:**
+1. Diagnosed and fixed deploy-button logout bug — two-part root cause
+2. Responded to Hetzner abuse report — secured press-f1 MariaDB port 3306
 
-- [x] Diagnosed: `get_bench_update()` at `bench_update.py:175` has a SECOND team check after `@protected("Release Group")` already passes. System Users bypass `@protected` but get blocked here — inconsistent.
-- [x] Diagnosed: `waitUntilTeamLoaded()` in `router.js:712` treats ALL PermissionError/ValidationError from `getTeam()` as session-invalid, calls `session.logout.submit()`, destroys session. Team error != session invalid.
-- [x] Fix 1: Added System User bypass to `get_bench_update()` team check (1 line, matches `@protected` behavior)
-- [x] Fix 2: Replaced `logoutWithTeamError()` with `localStorage.removeItem("current_team")` + `window.location.href="/app"` — clears stale team, redirects to Desk, no session destruction
-- [x] Verified Fix 1 via bench console: old check=block, new check=allow for Admin on bench-0014
-- [x] Verified Fix 2 in built bundle: `index-Ce6tYRJh.js` contains new redirect path
-- [x] Playwright: confirmed dashboard loads, impersonation button visible, bad-team recovery navigates without logout
-- [x] `bench build --app press --force` + `bench restart` shipped
+**Fix 1 — bench_update.py:175**: Added System User bypass to second team check in `get_bench_update()`. The `@protected("Release Group")` decorator exempts System Users, but the inner function had its own team check that blocked everyone. 1-line fix.
 
-### Key Files (current shape)
-**`press/press/doctype/bench_update/bench_update.py:175`** (MODIFIED, 1 line) — Added `and frappe.get_cached_value("User", frappe.session.user, "user_type") != "System User"` to team check so System Users can deploy any bench (matching `@protected` decorator).
+**Fix 2 — router.js:712-717**: Replaced `logoutWithTeamError()` (which calls `session.logout.submit()` and destroys the session) with `localStorage.removeItem("current_team")` + `window.location.href="/app"`. Team PermissionError != session invalid.
 
-**`dashboard/src/router.js:712-717`** (MODIFIED, +5 -2 lines) — Replaced `logoutWithTeamError()` (session destruction) with `localStorage.removeItem("current_team")` + `window.location.href="/app"` (graceful recovery). 5-second timeout fallback unchanged as safety net.
+**Fix 3 — press-f1 firewall**: MariaDB port 3306 was open to internet. Added iptables rules: ACCEPT from press-ctrl, Docker bridge (172.17.0.0/16), localhost; DROP everything else. Installed iptables-persistent. bind-address unchanged (bench containers connect via public IP).
 
-### Decisions (active)
-- Fix 1 is the architectural fix (aligns two inconsistent permission checks)
+**Files:** `bench_update.py`, `router.js`, `DEVLOG.md`, `team-roles-permissions.md`, `press-ctrl-stability-runbook.md`
+
+**Decisions:**
+- Fix 1 is architectural (aligns two inconsistent permission checks)
 - Fix 2 is defense-in-depth (team error should never destroy session)
-- Kept 5-second timeout fallback as safety net for truly broken accounts
-- Did NOT remove `logoutWithTeamError()` entirely — only the PermissionError immediate path
+- Fix 3: firewall-level fix (can't change MariaDB bind-address without breaking Docker bench containers)
+- Kept 5-second timeout → logout fallback as safety net
+- Pushed via Hetzner dev box (press-ctrl deploy keys are read-only)
 
-### Next Steps
-1. Monitor dashboard for login redirects over next 48h
-2. If zero incidents, consider removing the 5s timeout logout fallback too
-
-### Blockers
-- None
-
-### Watch Out
-- Press-ctrl deploy keys are read-only — push from Hetzner dev box or via bundle method
-- `bench build` must run after any dashboard JS change
-- `bench restart` required after Python changes
-
----
 ---
 
 ## Session Archive
