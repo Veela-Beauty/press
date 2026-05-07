@@ -264,6 +264,7 @@ scheduler_events = {
 		"press.press.doctype.database_server.database_server.update_database_schema_sizes",
 	
 		"press.press.doctype.code_server.code_server.rotate_expired_code_server_passwords",
+		"press.cleanup.sandbox_cleanup.expire_sandbox_release_groups",
 	],
 	"hourly_long": [
 		"press.press.doctype.release_group.release_group.prune_servers_without_sites",
