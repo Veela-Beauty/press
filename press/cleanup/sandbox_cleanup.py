@@ -42,5 +42,5 @@ def _archive_release_group(name: str) -> None:
 		site.archive(reason="Sandbox clone TTL expired")
 
 	rg = frappe.get_doc("Release Group", name)
-	rg.disabled = 1
+	rg.enabled = 0
 	rg.save(ignore_permissions=True)
