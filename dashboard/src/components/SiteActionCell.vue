@@ -21,7 +21,7 @@
 </template>
 
 <script setup>
-import { getCachedDocumentResource } from 'frappe-ui';
+import { getCachedDocumentResource, call } from 'frappe-ui';
 import { defineAsyncComponent, h } from 'vue';
 import { toast } from 'vue-sonner';
 import { confirmDialog, renderDialog } from '../utils/components';
@@ -74,6 +74,9 @@ function getSiteActionHandler(action) {
 		'Deactivate site': onDeactivateSite,
 		'Drop site': onDropSite,
 		'Migrate site': onMigrateSite,
+		'Clone site': onCloneSite,
+		'Lock site': onLockSite,
+		'Move to Release Group': onMoveToReleaseGroup,
 		'Transfer site': onTransferSite,
 		'Reset site': onSiteReset,
 		'Clear cache': onClearCache,
@@ -177,6 +180,158 @@ function onMigrateSite() {
 					.submit({ skip_failing_patches: values.skipFailingPatches })
 					.then(hide);
 			},
+		},
+	});
+}
+
+function onCloneSite() {
+	confirmDialog({
+		title: 'Clone Site',
+		message:
+			'Create a copy of this site onto a target bench. Three data modes are supported: latest_backup (use most recent offsite backup, fast), fresh_backup (trigger a new backup first, slowest), or empty (no data, just install apps).',
+		fields: [
+			{
+				label: 'Target Bench (the Bench to host the cloned site)',
+				fieldname: 'target_bench',
+			},
+			{
+				label: 'New subdomain (without the root domain)',
+				fieldname: 'new_subdomain',
+			},
+			{
+				label: 'Data mode',
+				fieldname: 'mode',
+				fieldtype: 'Select',
+				options: [
+					{ label: 'Latest backup (fast, uses most recent offsite backup)', value: 'latest_backup' },
+					{ label: 'Fresh backup (slow, triggers new backup first)', value: 'fresh_backup' },
+					{ label: 'Empty (no data, just install apps)', value: 'empty' },
+				],
+				default: 'latest_backup',
+			},
+		],
+		primaryAction: {
+			label: 'Clone',
+			variant: 'solid',
+		},
+		onSuccess({ hide, values }) {
+			if (!values.target_bench || !values.new_subdomain) {
+				toast.error('Target bench and new subdomain are required');
+				return;
+			}
+			toast.promise(
+				call('press.press.doctype.site.site_clone.clone_site', {
+					site: props.siteName,
+					target_bench: values.target_bench,
+					new_subdomain: values.new_subdomain,
+					mode: values.mode || 'latest_backup',
+				}).then((newName) => {
+					hide();
+					router.push(`/sites/${newName}`);
+					return newName;
+				}),
+				{
+					loading: 'Cloning site...',
+					success: (newName) => `Cloned site created: ${newName}`,
+					error: (e) =>
+						`Failed to clone site: ${e?.messages?.[0] || e?.message || e}`,
+				},
+			);
+		},
+	});
+}
+
+function onLockSite() {
+	confirmDialog({
+		title: 'Lock Site',
+		message:
+			'Acquire an advisory lock on this site. Other agents will see your lock + reason.',
+		fields: [
+			{
+				label: 'Reason for locking (required)',
+				fieldname: 'reason',
+			},
+			{
+				label: 'TTL (minutes, max 1440)',
+				fieldname: 'ttl',
+				default: '30',
+			},
+			{
+				label: 'Force override existing lock',
+				fieldname: 'override',
+				fieldtype: 'Check',
+			},
+		],
+		primaryAction: { label: 'Acquire Lock', variant: 'solid' },
+		onSuccess({ hide, values }) {
+			if (!values.reason) {
+				toast.error('Reason is required');
+				return;
+			}
+			toast.promise(
+				call('press.api.lock.acquire', {
+					target_doctype: 'Site',
+					target_name: props.siteName,
+					reason: values.reason,
+					ttl_minutes: parseInt(values.ttl) || 30,
+					override: values.override ? 1 : 0,
+				}).then((result) => {
+					hide();
+					if (result.status === 'blocked') {
+						throw new Error(`Already locked by ${result.holder}: ${result.reason}`);
+					}
+					if (result.status === 'blocked_by_parent') {
+						throw new Error(`Bench is locked by ${result.parent_lock?.holder}; release that first`);
+					}
+					return result;
+				}),
+				{
+					loading: 'Acquiring lock...',
+					success: 'Lock acquired',
+					error: (e) => `Could not acquire lock: ${e?.messages?.[0] || e?.message || e}`,
+				},
+			);
+		},
+	});
+}
+
+function onMoveToReleaseGroup() {
+	confirmDialog({
+		title: 'Move Site to Release Group',
+		message:
+			'Move this site to a different Release Group on the same server. The target RG must have an Active Bench and include all apps the site uses. Site will be briefly deactivated during the move.',
+		fields: [
+			{
+				label: 'Target Release Group name',
+				fieldname: 'target_rg',
+			},
+			{
+				label: 'Skip failing patches',
+				fieldname: 'skip_patches',
+				fieldtype: 'Check',
+			},
+		],
+		primaryAction: { label: 'Move', variant: 'solid' },
+		onSuccess({ hide, values }) {
+			if (!values.target_rg) {
+				toast.error('Target Release Group is required');
+				return;
+			}
+			toast.promise(
+				call('press.api.site_move.move_to_release_group', {
+					site: props.siteName,
+					target_release_group: values.target_rg,
+					skip_failing_patches: values.skip_patches ? 1 : 0,
+				}).then((result) => {
+					hide();
+					return result;
+				}),
+				{
+					loading: 'Moving site...',
+					success: (r) => `Move queued (job: ${r.job || 'pending'})`,
+					error: (e) => `Move failed: ${e?.messages?.[0] || e?.message || e}`,
+				},
+			);
 		},
 	});
 }

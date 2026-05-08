@@ -21,7 +21,7 @@
 </template>
 
 <script setup>
-import { getCachedDocumentResource } from 'frappe-ui';
+import { call, getCachedDocumentResource } from 'frappe-ui';
 import { toast } from 'vue-sonner';
 import { confirmDialog } from '../../utils/components';
 import router from '../../router';
@@ -45,6 +45,8 @@ function getBenchActionHandler(action) {
 	const actionHandlers = {
 		'Rename Bench': onRenameBench,
 		'Transfer Bench': onTransferBench,
+		'Clone Bench': onCloneBench,
+		'Lock Bench': onLockBench,
 		'Drop Bench': onDropBench,
 	};
 	if (actionHandlers[action]) {
@@ -83,6 +85,112 @@ function onRenameBench() {
 			} else {
 				toast.error('Please enter a valid bench name');
 			}
+		},
+	});
+}
+
+function onCloneBench() {
+	confirmDialog({
+		title: 'Clone Bench',
+		message:
+			'Create a copy of this bench (Release Group) on the same server with the same apps. The clone will be assigned to your team and a deploy will be queued automatically.',
+		fields: [
+			{
+				label: 'New title for the cloned bench',
+				fieldname: 'new_title',
+				default: `${releaseGroup.doc?.title || ''} (Clone)`,
+			},
+			{
+				label: 'Lifetime',
+				fieldname: 'lifetime',
+				fieldtype: 'Select',
+				options: [
+					{ label: 'Persistent (kept until deleted)', value: 'persistent' },
+					{ label: 'Sandbox (auto-deleted after 24h)', value: 'sandbox' },
+				],
+				default: 'persistent',
+			},
+		],
+		primaryAction: {
+			label: 'Clone',
+			variant: 'solid',
+		},
+		onSuccess({ hide, values }) {
+			if (!values.new_title) {
+				toast.error('Please enter a title for the cloned bench');
+				return;
+			}
+			toast.promise(
+				call(
+					'press.press.doctype.release_group.release_group_clone.clone_release_group',
+					{
+						release_group: props.benchName,
+						new_title: values.new_title,
+						lifetime: values.lifetime || 'persistent',
+					},
+				).then((newName) => {
+					hide();
+					router.push(`/groups/${newName}`);
+					return newName;
+				}),
+				{
+					loading: 'Cloning bench...',
+					success: (newName) => `Cloned bench created: ${newName}`,
+					error: (e) =>
+						`Failed to clone bench: ${e?.messages?.[0] || e?.message || e}`,
+				},
+			);
+		},
+	});
+}
+
+function onLockBench() {
+	confirmDialog({
+		title: 'Lock Bench',
+		message:
+			'Acquire an advisory lock on this bench. Other agents will see your lock + reason and decide whether to wait or override.',
+		fields: [
+			{
+				label: 'Reason for locking (required)',
+				fieldname: 'reason',
+			},
+			{
+				label: 'TTL (minutes, max 1440)',
+				fieldname: 'ttl',
+				default: '30',
+			},
+			{
+				label: 'Force override existing lock',
+				fieldname: 'override',
+				fieldtype: 'Check',
+			},
+		],
+		primaryAction: { label: 'Acquire Lock', variant: 'solid' },
+		onSuccess({ hide, values }) {
+			if (!values.reason) {
+				toast.error('Reason is required');
+				return;
+			}
+			toast.promise(
+				call('press.api.lock.acquire', {
+					target_doctype: 'Release Group',
+					target_name: props.benchName,
+					reason: values.reason,
+					ttl_minutes: parseInt(values.ttl) || 30,
+					override: values.override ? 1 : 0,
+				}).then((result) => {
+					hide();
+					if (result.status === 'blocked') {
+						throw new Error(`Already locked by ${result.holder}: ${result.reason}`);
+					}
+					return result;
+				}),
+				{
+					loading: 'Acquiring lock...',
+					success: 'Lock acquired',
+					error: (e) => `Could not acquire lock: ${e?.messages?.[0] || e?.message || e}`,
+				},
+			);
 		},
 	});
 }

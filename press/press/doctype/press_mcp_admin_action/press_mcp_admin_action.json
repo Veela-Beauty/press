@@ -1,0 +1,37 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:MCPA-{YYYY}{MM}{DD}-{####}",
+ "creation": "2026-05-07 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "action_type",
+  "actor",
+  "column_break_1",
+  "target_token",
+  "section_break_1",
+  "reason",
+  "context_json"
+ ],
+ "fields": [
+  {"fieldname": "action_type", "fieldtype": "Select", "in_list_view": 1, "label": "Action Type", "options": "Revoke\nBulk Revoke\nApprove Risky Token\nReject Risky Token", "reqd": 1, "search_index": 1},
+  {"fieldname": "actor", "fieldtype": "Link", "in_list_view": 1, "label": "Actor", "options": "User", "reqd": 1, "search_index": 1},
+  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+  {"fieldname": "target_token", "fieldtype": "Link", "in_list_view": 1, "label": "Target Token", "options": "Press MCP Token"},
+  {"fieldname": "section_break_1", "fieldtype": "Section Break"},
+  {"fieldname": "reason", "fieldtype": "Small Text", "label": "Reason", "reqd": 1},
+  {"fieldname": "context_json", "fieldtype": "Code", "label": "Context (JSON)"}
+ ],
+ "modified": "2026-05-07 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Press",
+ "name": "Press MCP Admin Action",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {"read": 1, "report": 1, "role": "System Manager"}
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC"
+}

@@ -235,6 +235,18 @@ class ReleaseGroup(Document, TagHelpers):
 				"doc_method": "send_change_team_request",
 			},
 			{
+				"action": "Clone Bench",
+				"description": "Clone this bench into a new Release Group on the same server",
+				"button_label": "Clone",
+				"doc_method": "",
+			},
+			{
+				"action": "Lock Bench",
+				"description": "Acquire an advisory lock on this bench (and all its sites)",
+				"button_label": "Lock",
+				"doc_method": "",
+			},
+			{
 				"action": "Drop Bench",
 				"description": "Drop the bench",
 				"button_label": "Drop",

@@ -264,6 +264,10 @@ scheduler_events = {
 		"press.press.doctype.database_server.database_server.update_database_schema_sizes",
 	
 		"press.press.doctype.code_server.code_server.rotate_expired_code_server_passwords",
+		"press.cleanup.sandbox_cleanup.expire_sandbox_release_groups",
+		"press.cleanup.expired_locks.cleanup_expired_locks",
+		"press.cleanup.expired_auth_attempts.cleanup_expired_auth_attempts",
+		"press.cleanup.expired_mcp_call_logs.cleanup_old_mcp_call_logs",
 	],
 	"hourly_long": [
 		"press.press.doctype.release_group.release_group.prune_servers_without_sites",
@@ -426,6 +430,7 @@ fixtures = [
 	"Server Storage Plan",
 	"Server Snapshot Plan",
 	"Press Webhook Event",
+	{"dt": "Custom Field", "filters": [["name", "in", ["Release Group-cloned_from", "Release Group-clone_lifetime", "Release Group-clone_expires_at", "Press Settings-mcp_script_repo_allowlist", "Press Settings-mcp_script_timeout_max_seconds"]]]},
 ]
 # Testing
 # -------

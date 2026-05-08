@@ -1,0 +1,51 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:LCK-{target_doctype}-{####}",
+ "creation": "2026-05-07 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "target_doctype",
+  "target_name",
+  "holder",
+  "column_break_1",
+  "reason",
+  "ttl_minutes",
+  "expires_at",
+  "section_break_1",
+  "revoked",
+  "revoked_by",
+  "revoked_at",
+  "override_history"
+ ],
+ "fields": [
+  {"fieldname": "target_doctype", "fieldtype": "Select", "in_list_view": 1, "label": "Target DocType", "options": "Site\nRelease Group", "reqd": 1, "read_only": 1, "search_index": 1},
+  {"fieldname": "target_name", "fieldtype": "Data", "in_list_view": 1, "label": "Target Name", "reqd": 1, "read_only": 1, "search_index": 1},
+  {"fieldname": "holder", "fieldtype": "Link", "in_list_view": 1, "label": "Holder", "options": "User", "reqd": 1, "read_only": 1},
+  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+  {"fieldname": "reason", "fieldtype": "Small Text", "label": "Reason", "reqd": 1, "read_only": 1},
+  {"fieldname": "ttl_minutes", "fieldtype": "Int", "label": "TTL (minutes)", "default": "30", "read_only": 1},
+  {"fieldname": "expires_at", "fieldtype": "Datetime", "in_list_view": 1, "label": "Expires At", "reqd": 1, "read_only": 1, "search_index": 1},
+  {"fieldname": "section_break_1", "fieldtype": "Section Break"},
+  {"fieldname": "revoked", "fieldtype": "Check", "label": "Revoked", "default": "0", "read_only": 1},
+  {"fieldname": "revoked_by", "fieldtype": "Link", "label": "Revoked By", "options": "User", "read_only": 1},
+  {"fieldname": "revoked_at", "fieldtype": "Datetime", "label": "Revoked At", "read_only": 1},
+  {"fieldname": "override_history", "fieldtype": "JSON", "label": "Override History", "read_only": 1, "description": "Append-only log of override events"}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-05-07 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Press",
+ "name": "Press Lock",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 0, "email": 0, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}
