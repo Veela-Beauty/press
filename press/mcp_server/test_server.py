@@ -454,3 +454,51 @@ class TestMCPServer(FrappeTestCase):
 		self.assertEqual(len(row), 1)
 		self.assertTrue(row[0].row_hash)
 		self.assertEqual(len(row[0].row_hash), 64)  # SHA-256 hex
+
+	def test_obj8_catalog_complete(self):
+		"""All Obj 8 tools registered with correct risk levels."""
+		from press.mcp_server.tools import TOOLS
+		expected = {
+			"site_domains_list": "low",
+			"site_add_domain": "medium",
+			"site_remove_domain": "medium",
+			"site_set_host_name": "medium",
+			"site_update_config_bulk": "medium",
+			"bench_update_config": "medium",
+			"bench_update_dependencies": "high",
+		}
+		for name, risk in expected.items():
+			self.assertIn(name, TOOLS, f"missing tool {name}")
+			self.assertEqual(TOOLS[name]["risk"], risk, f"wrong risk for {name}")
+
+	def test_obj8_site_domain_tool_dispatches_with_site_target(self):
+		"""site_add_domain should be subject to site allowlist scoping."""
+		from press.mcp_server.server import _extract_target
+		td, tn = _extract_target("site_add_domain", {"name": "x.example.com", "domain": "y.com"})
+		self.assertEqual(td, "Site")
+		self.assertEqual(tn, "x.example.com")
+
+	def test_obj8_bench_config_tool_dispatches_with_rg_target(self):
+		from press.mcp_server.server import _extract_target
+		td, tn = _extract_target("bench_update_config", {"name": "RG-X", "config": {}})
+		self.assertEqual(td, "Release Group")
+		self.assertEqual(tn, "RG-X")
+
+	def test_obj8_dependency_update_is_high_risk(self):
+		"""bench_update_dependencies must require risky_tools_enabled=True."""
+		from press.mcp_server.auth import issue_token
+		basic = issue_token(
+			username="Administrator",
+			password="ignored",
+			scope=["bench_update_dependencies"],
+			ttl_minutes=10,
+			label="dep-update-no-risky",
+			risky_tools_enabled=False,
+		)
+		result = handle(
+			tool="bench_update_dependencies",
+			args={"name": "RG-X", "dependencies": "{}"},
+			token=basic["token"],
+		)
+		self.assertFalse(result["ok"])
+		self.assertEqual(result["error_type"], "PermissionError")

@@ -187,6 +187,11 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"site_config_set",
 		"site_file_read",
 		"site_file_write",
+		"site_domains_list",
+		"site_add_domain",
+		"site_remove_domain",
+		"site_set_host_name",
+		"site_update_config_bulk",
 	}:
 		# api/site.py methods take 'name'; bench_dev_overview methods take 'site_name'
 		site = site or args.get("name")
@@ -201,6 +206,8 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"bench_deploy_information",
 		"bench_restart",
 		"bench_update",
+		"bench_update_config",
+		"bench_update_dependencies",
 	}:
 		if rg:
 			return "Release Group", rg

@@ -246,6 +246,50 @@ TOOLS: dict[str, dict] = {
 		"required_args": ["site_name", "relative_path", "content"],
 		"risk": "medium",
 	},
+	# Domains (Obj 8)
+	"site_domains_list": {
+		"method": "press.api.site.domains",
+		"description": "List domains attached to a site",
+		"required_args": ["name"],
+		"risk": "low",
+	},
+	"site_add_domain": {
+		"method": "press.api.site.add_domain",
+		"description": "Attach a custom domain to a site",
+		"required_args": ["name", "domain"],
+		"risk": "medium",
+	},
+	"site_remove_domain": {
+		"method": "press.api.site.remove_domain",
+		"description": "Detach a custom domain from a site",
+		"required_args": ["name", "domain"],
+		"risk": "medium",
+	},
+	"site_set_host_name": {
+		"method": "press.api.site.set_host_name",
+		"description": "Set the primary domain (host name) for a site",
+		"required_args": ["name", "domain"],
+		"risk": "medium",
+	},
+	"site_update_config_bulk": {
+		"method": "press.api.site.update_config",
+		"description": "Bulk-update site_config.json keys (passes through Press's update_config — uses Press internal allow-list)",
+		"required_args": ["name", "config"],
+		"risk": "medium",
+	},
+	# Bench config (Obj 8)
+	"bench_update_config": {
+		"method": "press.api.bench.update_config",
+		"description": "Bulk-update bench common_site_config keys",
+		"required_args": ["name", "config"],
+		"risk": "medium",
+	},
+	"bench_update_dependencies": {
+		"method": "press.api.bench.update_dependencies",
+		"description": "Update bench dependency versions (Python/Node/etc) — triggers rebuild",
+		"required_args": ["name", "dependencies"],
+		"risk": "high",
+	},
 }
 
 
