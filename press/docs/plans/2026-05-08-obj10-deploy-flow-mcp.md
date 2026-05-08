@@ -232,9 +232,10 @@ Workflow:
 
 ---
 
-## Open questions for you (reviewer)
+## Resolved decisions (2026-05-08, before execution)
 
-1. **Script repo allowlist** — should it be per-team (each team has its own allowlist) OR global (one Press-wide allowlist managed by System Users)? Plan says global; per-team is more work but better isolation.
-2. **Script timeout** — 60s default, or longer (e.g., 5 min for slow seeders like the wazin_mx one which inserts 50+ docs)? Plan says 60s; bump to 300s if needed.
-3. **`wait_for_bench_flip` semantics** — sync poll (blocks the MCP response) vs async (return job ID, agent polls separately)? Plan says sync with timeout. Async is more resilient but agent has to handle 2 round-trips.
-4. **Should `bench_run_repo_script` be split** into `clone+copy` vs `execute` so agents can preview the script before running? Adds complexity; plan combines.
+1. **Allowlist scope: GLOBAL** — `Press Settings.mcp_script_repo_allowlist` (Code field, JSON list of `owner/repo` strings). Managed by System Users.
+2. **Script timeout: USER-CONFIGURABLE per call**, default 60s, hard cap 600s (Press Settings.`mcp_script_timeout_max_seconds`, default 600).
+3. **`wait_for_bench_flip` semantics: ASYNC** — returns immediately with `{status: "pending"|"flipped", current_bench, target_candidate}`. Agent re-polls until `status == "flipped"`. No HTTP-timeout risk.
+4. **`bench_run_repo_script` implementation: REUSE `run_python_on_site`** — fetches GitHub script content, passes to existing `run_python_on_site(site_name, code)` whose docker_execute path is already proven. No new Agent Job machinery; no docker_execute heredoc gotcha. Implication: script must be runnable inside `bench --site X console` Python context (i.e., it can `import frappe` and use the active site). For wazin_mx-style seeders that's natural.
+5. **GitHub auth**: use `Press Settings.github_access_token` (already exists per CLAUDE.md) for private repo clones. Public repos work without auth.
