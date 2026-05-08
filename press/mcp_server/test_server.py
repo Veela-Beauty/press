@@ -297,11 +297,20 @@ class TestMCPServer(FrappeTestCase):
 	def test_low_risk_tool_ignores_dry_run_flag(self):
 		"""dry_run only short-circuits HIGH-risk tools; low-risk runs normally."""
 		from unittest.mock import patch
+		from press.mcp_server.auth import issue_token
+		# Issue a token scoped to list_release_groups
+		tok = issue_token(
+			username="Administrator",
+			password="ignored",
+			scope=["list_release_groups"],
+			ttl_minutes=10,
+			label="dry-run-low-risk",
+		)
 		with patch("press.api.bench.all", return_value=[]):
 			result = handle(
 				tool="list_release_groups",
 				args={"dry_run": True},
-				token=self.token,
+				token=tok["token"],
 			)
 		self.assertTrue(result["ok"])
 		# Result should be the actual list, not a dry-run stub
