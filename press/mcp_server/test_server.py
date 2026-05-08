@@ -183,6 +183,9 @@ class TestMCPServer(FrappeTestCase):
 		self.assertIn("latest", results)
 		tools = [r["tool"] for r in results["rows"]]
 		self.assertIn("tool-0", tools)
+		self.assertIn("tool-1", tools)
+		self.assertIn("tool-2", tools)
+		self.assertNotIn("tool-other", tools)
 
 	def test_list_my_calls_incremental_filter_returns_no_rows_when_unchanged(self):
 		from press.mcp_server.dashboard import list_my_calls
@@ -244,9 +247,6 @@ class TestMCPServer(FrappeTestCase):
 				deadline_seconds=300,
 			)
 		m_log.assert_not_called()
-		self.assertIn("tool-1", tools)
-		self.assertIn("tool-2", tools)
-		self.assertNotIn("tool-other", tools)
 
 	def test_handle_extracts_site_target_from_name_arg(self):
 		"""api/site.py methods take `name`, not `site` — verify _extract_target maps it."""
