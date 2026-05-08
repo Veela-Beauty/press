@@ -127,19 +127,45 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		td = args.get("target_doctype")
 		if td in ("Site", "Release Group"):
 			return td, args.get("target_name")
-	# Tool-specific arg shapes
-	if tool == "clone_bench":
-		rg = args.get("release_group")
+
+	# Site-targeted tools — arg name varies between site, name, site_name
+	site = args.get("site") or args.get("site_name")
+	if tool in {
+		"clone_site",
+		"move_site_to_release_group",
+		"site_migrate",
+		"site_backup",
+		"site_install_app",
+		"site_uninstall_app",
+		"site_activate",
+		"site_deactivate",
+		"site_update",
+		"site_run_python",
+		"site_run_sql",
+		"site_db_processlist",
+	}:
+		# api/site.py methods take 'name'; bench_dev_overview methods take 'site_name'
+		site = site or args.get("name")
+		if site:
+			return "Site", site
+
+	# Release-Group-targeted tools — arg name varies
+	rg = args.get("release_group") or args.get("name")
+	if tool in {
+		"clone_bench",
+		"bench_deploy",
+		"bench_deploy_information",
+		"bench_restart",
+		"bench_update",
+	}:
 		if rg:
 			return "Release Group", rg
-	if tool == "clone_site":
-		site = args.get("site")
-		if site:
-			return "Site", site
-	if tool == "move_site_to_release_group":
-		site = args.get("site")
-		if site:
-			return "Site", site
+
+	# Bench-targeted tools (bench is a deployed instance of a RG, not the RG itself)
+	# These don't map cleanly to per-RG / per-site; they have bench_name.
+	# For now, no resource gating on bench-targeted tools — they require the
+	# user to have access to the bench's parent RG, which Frappe permissions
+	# already enforce via frappe.set_user.
 	return None, None
 
 

@@ -167,3 +167,45 @@ class TestMCPServer(FrappeTestCase):
 		self.assertIn("tool-1", tools)
 		self.assertIn("tool-2", tools)
 		self.assertNotIn("tool-other", tools)
+
+	def test_handle_extracts_site_target_from_name_arg(self):
+		"""api/site.py methods take `name`, not `site` — verify _extract_target maps it."""
+		from unittest.mock import patch
+		# Use site_migrate as a representative tool
+		with patch("press.api.site.migrate") as m:
+			m.return_value = {"job": "fake"}
+			# Issue a token scoped to a specific site
+			from press.mcp_server.auth import issue_token
+			scoped = issue_token(
+				username="Administrator",
+				password="ignored",
+				scope=["site_migrate"],
+				ttl_minutes=10,
+				label="site-scoped",
+				allowed_sites=["allowed-site.example.com"],
+			)
+			# Allowed site should pass
+			result_ok = handle(
+				tool="site_migrate",
+				args={"name": "allowed-site.example.com"},
+				token=scoped["token"],
+			)
+			self.assertTrue(result_ok["ok"])
+
+			# Disallowed site should fail
+			result_blocked = handle(
+				tool="site_migrate",
+				args={"name": "different-site.example.com"},
+				token=scoped["token"],
+			)
+			self.assertFalse(result_blocked["ok"])
+			self.assertEqual(result_blocked["error_type"], "PermissionError")
+
+	def test_handle_recognizes_new_lifecycle_tools_in_catalog(self):
+		from press.mcp_server.tools import get_tool_spec
+		# Spot-check a few of the newly added tools
+		for tool in ("site_migrate", "bench_deploy", "app_git_status", "site_run_python"):
+			spec = get_tool_spec(tool)
+			self.assertIsNotNone(spec, f"tool {tool} missing from catalog")
+			self.assertIn("method", spec)
+			self.assertIn("required_args", spec)
