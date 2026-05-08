@@ -220,6 +220,32 @@ TOOLS: dict[str, dict] = {
 		"required_args": ["bench_name"],
 		"risk": "low",
 	},
+	# Site config (medium-risk — structured replacement for site_run_python config edits)
+	"site_config_get": {
+		"method": "press.mcp_server.file_ops.site_config_get",
+		"description": "Read site_config.json keys (sensitive keys redacted)",
+		"required_args": ["site_name"],
+		"risk": "medium",
+	},
+	"site_config_set": {
+		"method": "press.mcp_server.file_ops.site_config_set",
+		"description": "Set a single site_config.json key (sensitive keys forbidden)",
+		"required_args": ["site_name", "key", "value"],
+		"risk": "medium",
+	},
+	# File ops (medium-risk — constrained to public/private folders)
+	"site_file_read": {
+		"method": "press.mcp_server.file_ops.site_file_read",
+		"description": "Read a file from the site's public/files/ or private/files/ folder",
+		"required_args": ["site_name", "relative_path"],
+		"risk": "medium",
+	},
+	"site_file_write": {
+		"method": "press.mcp_server.file_ops.site_file_write",
+		"description": "Write a file to the site's public/files/ or private/files/ folder",
+		"required_args": ["site_name", "relative_path", "content"],
+		"risk": "medium",
+	},
 }
 
 

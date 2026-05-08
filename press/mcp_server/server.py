@@ -174,6 +174,10 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"site_run_python",
 		"site_run_sql",
 		"site_db_processlist",
+		"site_config_get",
+		"site_config_set",
+		"site_file_read",
+		"site_file_write",
 	}:
 		# api/site.py methods take 'name'; bench_dev_overview methods take 'site_name'
 		site = site or args.get("name")
