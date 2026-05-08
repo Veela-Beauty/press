@@ -268,3 +268,41 @@ class TestMCPServer(FrappeTestCase):
 		)
 		self.assertEqual(len(log_rows), 1)
 		self.assertLessEqual(len(log_rows[0].response_json), MAX_ARGS_LOG_LEN)
+
+	def test_dry_run_high_risk_tool_does_not_execute(self):
+		from unittest.mock import patch
+		# Issue a risky-enabled token (Administrator → auto-approved)
+		from press.mcp_server.auth import issue_token
+		risky = issue_token(
+			username="Administrator",
+			password="ignored",
+			scope=["site_run_python"],
+			ttl_minutes=10,
+			label="dry-run-test",
+			risky_tools_enabled=True,
+		)
+		with patch(
+			"press.press.doctype.bench.bench_dev_overview.run_python_on_site"
+		) as m:
+			result = handle(
+				tool="site_run_python",
+				args={"site_name": "x", "code": "rm_rf", "dry_run": True},
+				token=risky["token"],
+			)
+		self.assertTrue(result["ok"])
+		self.assertTrue(result["data"]["dry_run"])
+		# Underlying method must NOT have been called
+		m.assert_not_called()
+
+	def test_low_risk_tool_ignores_dry_run_flag(self):
+		"""dry_run only short-circuits HIGH-risk tools; low-risk runs normally."""
+		from unittest.mock import patch
+		with patch("press.api.bench.all", return_value=[]):
+			result = handle(
+				tool="list_release_groups",
+				args={"dry_run": True},
+				token=self.token,
+			)
+		self.assertTrue(result["ok"])
+		# Result should be the actual list, not a dry-run stub
+		self.assertNotIn("dry_run", result.get("data") or {})

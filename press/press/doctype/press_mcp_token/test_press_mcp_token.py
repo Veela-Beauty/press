@@ -259,3 +259,58 @@ class TestPressMCPToken(FrappeTestCase):
 					target_doctype="Site",
 					target_name="fake-site.example.com",
 				)
+
+	def test_risky_tool_blocked_when_token_lacks_risky_flag(self):
+		with self._mock_password_check(valid=True):
+			result = issue_token(
+				username="Administrator",
+				password="x",
+				scope=["site_run_python"],
+				ttl_minutes=10,
+				label="no-risky",
+				risky_tools_enabled=False,
+			)
+		with self.assertRaises(frappe.PermissionError):
+			verify_token(result["token"], tool_name="site_run_python")
+
+	def test_risky_tool_allowed_when_token_has_risky_and_approved(self):
+		with self._mock_password_check(valid=True):
+			result = issue_token(
+				username="Administrator",
+				password="x",
+				scope=["site_run_python"],
+				ttl_minutes=10,
+				label="risky-ok",
+				risky_tools_enabled=True,
+			)
+		# Administrator is System User → auto-approved
+		self.assertEqual(result["approval_status"], "approved")
+		user = verify_token(result["token"], tool_name="site_run_python")
+		self.assertEqual(user, "Administrator")
+
+	def test_risky_token_pending_when_issuer_is_not_system(self):
+		# Create a non-System Website User
+		non_system = frappe.get_doc({
+			"doctype": "User",
+			"email": "site-user-mcp@test.example",
+			"first_name": "MCP",
+			"user_type": "Website User",
+			"send_welcome_email": 0,
+		}).insert(ignore_permissions=True)
+		try:
+			with self._mock_password_check(valid=True):
+				result = issue_token(
+					username=non_system.name,
+					password="x",
+					scope=["site_run_python"],
+					ttl_minutes=10,
+					label="pending-risky",
+					risky_tools_enabled=True,
+				)
+			self.assertEqual(result["approval_status"], "pending")
+			# Pending token cannot use risky tool
+			with self.assertRaises(frappe.PermissionError):
+				verify_token(result["token"], tool_name="site_run_python")
+		finally:
+			frappe.delete_doc("User", non_system.name, ignore_permissions=True)
+			frappe.db.delete("Press MCP Token", {"label": "pending-risky"})

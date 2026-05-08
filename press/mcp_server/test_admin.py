@@ -114,3 +114,33 @@ class TestMCPAdmin(FrappeTestCase):
 				bulk_revoke([self.tokens[0]["name"]], reason="x")
 		finally:
 			frappe.session.data.user_type = original_ut
+
+	def test_approve_risky_token_changes_status(self):
+		from press.mcp_server.admin import approve_risky_token
+		# Set the alpha token to pending+risky
+		frappe.db.set_value(
+			"Press MCP Token",
+			self.tokens[0]["name"],
+			{"risky_tools_enabled": 1, "approval_status": "pending"},
+		)
+		result = approve_risky_token(self.tokens[0]["name"])
+		self.assertEqual(result["status"], "approved")
+		status = frappe.db.get_value("Press MCP Token", self.tokens[0]["name"], "approval_status")
+		self.assertEqual(status, "approved")
+
+	def test_reject_risky_token_revokes_it(self):
+		from press.mcp_server.admin import reject_risky_token
+		frappe.db.set_value(
+			"Press MCP Token",
+			self.tokens[1]["name"],
+			{"risky_tools_enabled": 1, "approval_status": "pending"},
+		)
+		reject_risky_token(self.tokens[1]["name"], reason="not authorized")
+		row = frappe.db.get_value(
+			"Press MCP Token",
+			self.tokens[1]["name"],
+			["approval_status", "revoked"],
+			as_dict=True,
+		)
+		self.assertEqual(row.approval_status, "rejected")
+		self.assertEqual(row.revoked, 1)
