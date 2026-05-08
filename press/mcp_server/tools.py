@@ -345,6 +345,12 @@ TOOLS: dict[str, dict] = {
 		"required_args": ["bench_name", "repo", "branch", "script_path"],
 		"risk": "high",
 	},
+	"audit_verify_chain": {
+		"method": "press.mcp_server.audit.verify_chain",
+		"description": "System-User-only: walk the MCP Call Log hash chain and report any tampering/missing rows",
+		"required_args": [],
+		"risk": "low",
+	},
 }
 
 

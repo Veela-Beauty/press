@@ -267,6 +267,7 @@ scheduler_events = {
 		"press.cleanup.sandbox_cleanup.expire_sandbox_release_groups",
 		"press.cleanup.expired_locks.cleanup_expired_locks",
 		"press.cleanup.expired_auth_attempts.cleanup_expired_auth_attempts",
+		"press.cleanup.expired_mcp_call_logs.cleanup_old_mcp_call_logs",
 	],
 	"hourly_long": [
 		"press.press.doctype.release_group.release_group.prune_servers_without_sites",
