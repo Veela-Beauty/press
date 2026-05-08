@@ -51,6 +51,7 @@
 							<th class="p-3">User</th>
 							<th class="p-3">Team</th>
 							<th class="p-3">Scope</th>
+							<th class="p-3">Resources</th>
 							<th class="p-3">Issued</th>
 							<th class="p-3">Expires</th>
 							<th class="p-3">Last Used</th>
@@ -71,6 +72,17 @@
 							<td class="p-3 text-xs">{{ t.user }}</td>
 							<td class="p-3 text-xs">{{ t.team || '—' }}</td>
 							<td class="p-3 text-xs text-gray-600">{{ (t.scope || []).join(', ') || 'all' }}</td>
+							<td class="p-3 text-xs text-gray-600">
+								<div v-if="t.allowed_release_groups?.length || t.allowed_sites?.length">
+									<div v-if="t.allowed_release_groups?.length">
+										<span class="font-medium">RGs:</span> {{ t.allowed_release_groups.join(', ') }}
+									</div>
+									<div v-if="t.allowed_sites?.length">
+										<span class="font-medium">Sites:</span> {{ t.allowed_sites.join(', ') }}
+									</div>
+								</div>
+								<span v-else class="text-gray-400">all (inherits user)</span>
+							</td>
 							<td class="p-3 text-xs text-gray-600">{{ formatDate(t.creation) }}</td>
 							<td class="p-3 text-xs text-gray-600">{{ formatDate(t.expires_at) }}</td>
 							<td class="p-3 text-xs text-gray-600">{{ formatDate(t.last_used_at) || '—' }}</td>
@@ -79,7 +91,7 @@
 							</td>
 						</tr>
 						<tr v-if="!tokens.length">
-							<td colspan="9" class="p-6 text-center text-sm text-gray-500">No tokens match.</td>
+							<td colspan="10" class="p-6 text-center text-sm text-gray-500">No tokens match.</td>
 						</tr>
 					</tbody>
 				</table>

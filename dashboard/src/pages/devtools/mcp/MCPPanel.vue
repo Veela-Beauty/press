@@ -19,6 +19,7 @@
 						<tr>
 							<th class="p-3">Label</th>
 							<th class="p-3">Scope</th>
+							<th class="p-3">Resources</th>
 							<th class="p-3">Issued</th>
 							<th class="p-3">Expires</th>
 							<th class="p-3">Last Used</th>
@@ -30,6 +31,17 @@
 						<tr v-for="t in tokens" :key="t.name" class="border-t border-gray-100">
 							<td class="p-3 font-medium">{{ t.label }}</td>
 							<td class="p-3 text-xs text-gray-600">{{ (t.scope || []).join(', ') || 'all' }}</td>
+							<td class="p-3 text-xs text-gray-600">
+								<div v-if="t.allowed_release_groups?.length || t.allowed_sites?.length">
+									<div v-if="t.allowed_release_groups?.length">
+										<span class="font-medium">RGs:</span> {{ t.allowed_release_groups.join(', ') }}
+									</div>
+									<div v-if="t.allowed_sites?.length">
+										<span class="font-medium">Sites:</span> {{ t.allowed_sites.join(', ') }}
+									</div>
+								</div>
+								<span v-else class="text-gray-400">all (inherits user)</span>
+							</td>
 							<td class="p-3 text-xs text-gray-600">{{ formatDate(t.creation) }}</td>
 							<td class="p-3 text-xs text-gray-600">{{ formatDate(t.expires_at) }}</td>
 							<td class="p-3 text-xs text-gray-600">{{ formatDate(t.last_used_at) || '—' }}</td>
@@ -41,7 +53,7 @@
 							</td>
 						</tr>
 						<tr v-if="!tokens.length">
-							<td colspan="7" class="p-6 text-center text-sm text-gray-500">No tokens yet.</td>
+							<td colspan="8" class="p-6 text-center text-sm text-gray-500">No tokens yet.</td>
 						</tr>
 					</tbody>
 				</table>

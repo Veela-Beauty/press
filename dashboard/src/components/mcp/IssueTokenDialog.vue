@@ -29,6 +29,18 @@
 						</label>
 					</div>
 				</div>
+				<FormControl
+					label="Allowed Release Groups (comma-separated names; leave empty to inherit your full access)"
+					type="textarea"
+					v-model="form.allowedRGs"
+					placeholder="bench-A, bench-B"
+				/>
+				<FormControl
+					label="Allowed Sites (comma-separated full site names; leave empty to inherit your full access)"
+					type="textarea"
+					v-model="form.allowedSites"
+					placeholder="site1.example.com, site2.example.com"
+				/>
 				<div v-if="newToken" class="rounded border border-amber-300 bg-amber-50 p-3">
 					<div class="text-sm font-medium text-amber-900">Copy this token NOW. You won't see it again.</div>
 					<code class="mt-1 block break-all text-xs text-amber-900">{{ newToken }}</code>
@@ -42,6 +54,11 @@
 <script setup>
 import { ref, reactive, computed, watch } from 'vue';
 import { Dialog, FormControl, ErrorMessage, call } from 'frappe-ui';
+
+function parseList(raw) {
+	if (!raw) return [];
+	return raw.split(',').map((s) => s.trim()).filter(Boolean);
+}
 
 const AVAILABLE_TOOLS = [
 	'clone_bench', 'clone_site', 'move_site_to_release_group',
@@ -63,6 +80,8 @@ const form = reactive({
 	ttl: 60,
 	password: '',
 	scope: ['list_release_groups', 'list_sites', 'list_my_tokens'],
+	allowedRGs: '',
+	allowedSites: '',
 });
 const submitting = ref(false);
 const errorMsg = ref('');
@@ -95,6 +114,8 @@ function resetState() {
 	form.password = '';
 	form.ttl = 60;
 	form.scope = ['list_release_groups', 'list_sites', 'list_my_tokens'];
+	form.allowedRGs = '';
+	form.allowedSites = '';
 }
 
 watch(() => props.modelValue, (v) => {
@@ -115,6 +136,8 @@ async function submit() {
 			scope: form.scope,
 			ttl_minutes: parseInt(form.ttl) || 60,
 			label: form.label,
+			allowed_release_groups: parseList(form.allowedRGs),
+			allowed_sites: parseList(form.allowedSites),
 		});
 		newToken.value = result.token;
 	} catch (e) {
