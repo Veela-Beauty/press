@@ -73,6 +73,23 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 		if missing:
 			raise frappe.ValidationError(f"missing required args: {missing}")
 
+		# Dry-run support for high-risk tools
+		from press.mcp_server.tools import get_tool_risk
+		if args.get("dry_run") and get_tool_risk(tool) == "high":
+			response = {
+				"dry_run": True,
+				"tool": tool,
+				"would_execute_with_args": {k: v for k, v in args.items() if k != "dry_run"},
+				"risk": "high",
+				"warning": "this is a dry-run; no action was taken",
+			}
+			_log_call(
+				tool=tool, user=user, token_name=token_doc_name,
+				args=args, response=response, status="Success",
+				duration_ms=int((time.perf_counter() - start) * 1000),
+			)
+			return {"ok": True, "data": response}
+
 		# Run tool as the resolved user
 		with _as_user(user):
 			method = frappe.get_attr(spec["method"])

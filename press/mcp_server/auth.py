@@ -38,11 +38,13 @@ def issue_token(
 	label: str | None = None,
 	allowed_release_groups: list | str | None = None,
 	allowed_sites: list | str | None = None,
+	risky_tools_enabled: bool = False,
 ) -> dict[str, Any]:
 	"""Issue a fresh MCP token for `username` after verifying their password.
 
 	Returns:
-		{token, name, expires_at, scope, label} — plaintext token shown once.
+		{token, name, expires_at, scope, label, risky_tools_enabled, approval_status}
+		— plaintext token shown once.
 	"""
 	ip = _request_ip()
 	if _is_ip_blocked(ip):
@@ -61,6 +63,11 @@ def issue_token(
 		_log_attempt(username, ip, success=False)
 		raise
 
+	# Determine approval_status for risky tokens
+	approval_status = "approved"
+	if risky_tools_enabled:
+		approval_status = "approved" if _user_is_system(username) else "pending"
+
 	plaintext = secrets.token_urlsafe(TOKEN_BYTES)
 	prefix = plaintext[:TOKEN_PREFIX_LEN]
 	hashed = passlibctx.hash(plaintext)
@@ -75,6 +82,8 @@ def issue_token(
 		"scope": json.dumps(scope_list),
 		"allowed_release_groups": json.dumps(allowed_rgs),
 		"allowed_sites": json.dumps(allowed_sites_list),
+		"risky_tools_enabled": 1 if risky_tools_enabled else 0,
+		"approval_status": approval_status,
 		"token_hash": hashed,
 		"token_prefix": prefix,
 		"expires_at": expires_at,
@@ -90,6 +99,8 @@ def issue_token(
 		"expires_at": expires_at.isoformat(),
 		"allowed_release_groups": allowed_rgs,
 		"allowed_sites": allowed_sites_list,
+		"risky_tools_enabled": bool(risky_tools_enabled),
+		"approval_status": approval_status,
 	}
 
 
@@ -133,6 +144,17 @@ def verify_token(
 				raise frappe.PermissionError(
 					f"token does not include scope for {tool_name!r}"
 				)
+			# Risky tool gating
+			from press.mcp_server.tools import get_tool_risk
+			if get_tool_risk(tool_name) == "high":
+				if not doc.risky_tools_enabled:
+					raise frappe.PermissionError(
+						f"tool {tool_name!r} is high-risk; token does not have risky_tools_enabled"
+					)
+				if doc.approval_status != "approved":
+					raise frappe.PermissionError(
+						f"token approval status is {doc.approval_status!r}; must be approved for risky tools"
+					)
 			# Resource scope check
 			if target_doctype and target_name:
 				_check_resource_scope(doc, target_doctype, target_name)
@@ -250,3 +272,8 @@ def _get_team_for_user(username: str) -> str | None:
 		"parent",
 	)
 	return team
+
+
+def _user_is_system(username: str) -> bool:
+	user_type = frappe.db.get_value("User", username, "user_type")
+	return user_type == "System User"

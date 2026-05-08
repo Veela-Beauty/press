@@ -22,6 +22,7 @@ def list_my_tokens() -> list[dict[str, Any]]:
 			"name", "label", "scope", "expires_at", "last_used_at",
 			"revoked", "revoked_at", "creation", "token_prefix",
 			"allowed_release_groups", "allowed_sites",
+			"risky_tools_enabled", "approval_status",
 		],
 		order_by="creation desc",
 		limit=100,

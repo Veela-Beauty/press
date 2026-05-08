@@ -15,7 +15,7 @@
   "context_json"
  ],
  "fields": [
-  {"fieldname": "action_type", "fieldtype": "Select", "in_list_view": 1, "label": "Action Type", "options": "Revoke\nBulk Revoke", "reqd": 1, "search_index": 1},
+  {"fieldname": "action_type", "fieldtype": "Select", "in_list_view": 1, "label": "Action Type", "options": "Revoke\nBulk Revoke\nApprove Risky Token\nReject Risky Token", "reqd": 1, "search_index": 1},
   {"fieldname": "actor", "fieldtype": "Link", "in_list_view": 1, "label": "Actor", "options": "User", "reqd": 1, "search_index": 1},
   {"fieldname": "column_break_1", "fieldtype": "Column Break"},
   {"fieldname": "target_token", "fieldtype": "Link", "in_list_view": 1, "label": "Target Token", "options": "Press MCP Token"},

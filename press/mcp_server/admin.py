@@ -38,6 +38,7 @@ def list_all_tokens(filters: dict | str | None = None, limit: int = 500) -> list
 			"expires_at", "last_used_at",
 			"revoked", "revoked_at", "creation", "token_prefix",
 			"allowed_release_groups", "allowed_sites",
+			"risky_tools_enabled", "approval_status",
 		],
 		order_by="creation desc",
 		limit=limit,
@@ -158,3 +159,53 @@ def _normalize_names(token_names) -> list[str]:
 			return [token_names]
 		return result
 	return safe_parse_list(token_names)
+
+
+@frappe.whitelist()
+def approve_risky_token(token_name: str) -> dict:
+	"""System User approves a pending risky-tool token."""
+	_require_system_user()
+	doc = frappe.get_doc("Press MCP Token", token_name)
+	if doc.approval_status != "pending":
+		raise frappe.ValidationError(
+			f"token is {doc.approval_status!r}, only `pending` tokens can be approved"
+		)
+	frappe.db.set_value(
+		"Press MCP Token",
+		token_name,
+		{"approval_status": "approved", "approved_by": frappe.session.user, "approved_at": now_datetime()},
+	)
+	frappe.get_doc({
+		"doctype": "Press MCP Admin Action",
+		"action_type": "Approve Risky Token",
+		"actor": frappe.session.user,
+		"target_token": token_name,
+		"reason": "approval",
+	}).insert(ignore_permissions=True)
+	return {"status": "approved", "name": token_name}
+
+
+@frappe.whitelist()
+def reject_risky_token(token_name: str, reason: str) -> dict:
+	"""System User rejects and revokes a pending risky-tool token."""
+	_require_system_user()
+	if not reason or not str(reason).strip():
+		raise frappe.ValidationError("reason is required")
+	doc = frappe.get_doc("Press MCP Token", token_name)
+	if doc.approval_status != "pending":
+		raise frappe.ValidationError(
+			f"token is {doc.approval_status!r}, only `pending` tokens can be rejected"
+		)
+	frappe.db.set_value(
+		"Press MCP Token",
+		token_name,
+		{"approval_status": "rejected", "revoked": 1, "revoked_at": now_datetime(), "revoked_by": frappe.session.user},
+	)
+	frappe.get_doc({
+		"doctype": "Press MCP Admin Action",
+		"action_type": "Reject Risky Token",
+		"actor": frappe.session.user,
+		"target_token": token_name,
+		"reason": str(reason).strip(),
+	}).insert(ignore_permissions=True)
+	return {"status": "rejected", "name": token_name}
