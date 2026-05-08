@@ -36,13 +36,29 @@ def list_my_tokens() -> list[dict[str, Any]]:
 
 
 @frappe.whitelist()
-def list_my_calls(limit: int = 200) -> list[dict[str, Any]]:
-	"""List recent MCP Call Log entries for the calling user (cap at 500)."""
+def list_my_calls(
+	limit: int = 200,
+	since_iso: str | None = None,
+) -> dict[str, Any]:
+	"""List recent MCP Call Log entries for the calling user.
+
+	Args:
+		limit: max rows (capped at 500).
+		since_iso: optional ISO datetime — return rows with creation > since_iso.
+			If unchanged from last poll, returns `{rows: [], latest: <iso>}`
+			so the Vue client can skip re-rendering.
+
+	Returns:
+		{rows: [...], latest: ISO timestamp of newest row or None}
+	"""
 	user = frappe.session.user
 	limit = max(1, min(500, int(limit)))
+	filters: dict[str, Any] = {"user": user}
+	if since_iso:
+		filters["creation"] = (">", since_iso)
 	rows = frappe.get_all(
 		"Press MCP Call Log",
-		filters={"user": user},
+		filters=filters,
 		fields=[
 			"name", "tool", "status", "duration_ms",
 			"args_json", "response_json", "error_message",
@@ -51,7 +67,8 @@ def list_my_calls(limit: int = 200) -> list[dict[str, Any]]:
 		order_by="creation desc",
 		limit=limit,
 	)
-	return rows
+	latest = rows[0]["creation"].isoformat() if rows and rows[0].get("creation") else None
+	return {"rows": rows, "latest": latest}
 
 
 def _status_for(row: dict) -> str:

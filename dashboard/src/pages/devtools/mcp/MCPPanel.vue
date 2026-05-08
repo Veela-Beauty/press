@@ -105,6 +105,7 @@ import IssueTokenDialog from '../../../components/mcp/IssueTokenDialog.vue';
 
 const tokens = ref([]);
 const calls = ref([]);
+const latestCallTs = ref(null);
 const showIssueDialog = ref(false);
 let pollHandle = null;
 
@@ -116,12 +117,31 @@ async function loadTokens() {
 	}
 }
 
-async function loadCalls() {
+async function loadCalls(incremental = false) {
 	try {
-		calls.value = await call('press.mcp_server.dashboard.list_my_calls', { limit: 200 });
+		const args = { limit: 200 };
+		if (incremental && latestCallTs.value) {
+			args.since_iso = latestCallTs.value;
+		}
+		const result = await call('press.mcp_server.dashboard.list_my_calls', args);
+		// API now returns { rows, latest }
+		const rows = result?.rows || [];
+		if (!incremental) {
+			calls.value = rows;
+		} else if (rows.length) {
+			// Prepend new rows (creation desc); cap at 200 to bound memory
+			calls.value = [...rows, ...calls.value].slice(0, 200);
+		}
+		if (result?.latest) {
+			latestCallTs.value = result.latest;
+		}
 	} catch (e) {
 		toast.error('Failed to load calls: ' + (e?.message || e));
 	}
+}
+
+function pollCalls() {
+	loadCalls(true);
 }
 
 async function onRevoke(token) {
@@ -154,8 +174,8 @@ function callStatusClass(s) {
 
 onMounted(() => {
 	loadTokens();
-	loadCalls();
-	pollHandle = setInterval(loadCalls, 10000);
+	loadCalls(false);
+	pollHandle = setInterval(pollCalls, 10000);
 });
 
 onUnmounted(() => {

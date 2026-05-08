@@ -178,8 +178,72 @@ class TestMCPServer(FrappeTestCase):
 		}).insert(ignore_permissions=True)
 
 		results = list_my_calls(limit=100)
-		tools = [r["tool"] for r in results]
+		# New shape: {rows, latest}
+		self.assertIn("rows", results)
+		self.assertIn("latest", results)
+		tools = [r["tool"] for r in results["rows"]]
 		self.assertIn("tool-0", tools)
+
+	def test_list_my_calls_incremental_filter_returns_no_rows_when_unchanged(self):
+		from press.mcp_server.dashboard import list_my_calls
+		# Pull all rows first
+		first = list_my_calls(limit=100)
+		latest = first["latest"]
+		# Re-poll with since_iso=latest — should return no NEW rows
+		second = list_my_calls(limit=100, since_iso=latest)
+		# Note: since the filter is creation > since_iso (strict), rows AT latest are excluded
+		self.assertEqual(len(second["rows"]), 0)
+
+	def test_deploy_failure_followup_logs_error_on_failed_build(self):
+		"""When a bench_deploy build later transitions to Failure, the
+		background check writes a [MCP-DEPLOY-FAILED] error log."""
+		from press.mcp_server.server import _check_deploy_followup
+		from unittest.mock import patch
+
+		fake_row = frappe._dict({
+			"name": "build-X",
+			"status": "Failure",
+			"deploy_candidate": "candidate-X",
+		})
+		with patch(
+			"press.mcp_server.server.frappe.db.get_value",
+			return_value=fake_row,
+		), patch(
+			"press.mcp_server.server.frappe.log_error",
+		) as m_log:
+			_check_deploy_followup(
+				tool="bench_deploy",
+				build_name="build-X",
+				triggered_by="Administrator",
+				deadline_seconds=300,
+			)
+		m_log.assert_called_once()
+		_, kwargs = m_log.call_args
+		self.assertIn("[MCP-DEPLOY-FAILED]", kwargs["title"])
+
+	def test_deploy_failure_followup_no_log_on_success_status(self):
+		"""Successful build → no log written."""
+		from press.mcp_server.server import _check_deploy_followup
+		from unittest.mock import patch
+
+		fake_row = frappe._dict({
+			"name": "build-Y",
+			"status": "Success",
+			"deploy_candidate": "candidate-Y",
+		})
+		with patch(
+			"press.mcp_server.server.frappe.db.get_value",
+			return_value=fake_row,
+		), patch(
+			"press.mcp_server.server.frappe.log_error",
+		) as m_log:
+			_check_deploy_followup(
+				tool="bench_deploy",
+				build_name="build-Y",
+				triggered_by="Administrator",
+				deadline_seconds=300,
+			)
+		m_log.assert_not_called()
 		self.assertIn("tool-1", tools)
 		self.assertIn("tool-2", tools)
 		self.assertNotIn("tool-other", tools)

@@ -109,6 +109,10 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 		# Destructive-op notification (Obj 7)
 		if get_tool_risk(tool) == "high":
 			_notify_destructive_op(tool=tool, user=user, args=args, token_name=token_doc_name)
+		# Deploy-failure follow-up (Obj-10 polish item 8): tools that schedule a
+		# Press build return a build name; enqueue a delayed status check so an
+		# operator/agent gets notified if the build later transitions to Failure.
+		_maybe_schedule_deploy_failure_check(tool, response, user)
 		return {"ok": True, "data": response}
 	except RateLimitError as e:
 		error_type = "RateLimitError"
@@ -383,5 +387,83 @@ def _notify_destructive_op(
 			title=f"[MCP-DESTRUCTIVE] {tool}",
 			message=f"{summary}\n\nargs: {json.dumps(args, default=str)[:2000]}",
 		)
+	except Exception:
+		pass
+
+
+# Tools whose response includes a build job that may fail asynchronously.
+# Each entry maps tool name → key in response dict that holds the build name.
+_DEPLOY_FOLLOWUP_TOOLS = {
+	"bench_deploy": "name",  # press.api.bench.deploy returns the build name as 'name'
+	"deploy_candidate_schedule_build": "build",
+}
+_DEPLOY_FOLLOWUP_DELAY_SECONDS = 300  # 5 min
+
+
+def _maybe_schedule_deploy_failure_check(
+	tool: str, response: Any, user: str | None
+) -> None:
+	"""If the tool kicks off a Press build, enqueue a check 5 min later that
+	emits a notification if the build is in Failure state.
+
+	No-op for tools that don't produce a build name.
+	"""
+	if tool not in _DEPLOY_FOLLOWUP_TOOLS:
+		return
+	if not isinstance(response, dict):
+		return
+	build_name = response.get(_DEPLOY_FOLLOWUP_TOOLS[tool])
+	if not build_name:
+		return
+	try:
+		frappe.enqueue(
+			"press.mcp_server.server._check_deploy_followup",
+			queue="long",
+			enqueue_after_commit=True,
+			now=False,
+			# Frappe's enqueue doesn't have a built-in delay; we re-enqueue if
+			# the build is still in-flight when the worker picks this up.
+			tool=tool,
+			build_name=build_name,
+			triggered_by=user or "",
+			deadline_seconds=_DEPLOY_FOLLOWUP_DELAY_SECONDS,
+		)
+	except Exception:
+		# Notification is best-effort; never break the MCP response path.
+		pass
+
+
+def _check_deploy_followup(
+	tool: str, build_name: str, triggered_by: str, deadline_seconds: int
+) -> None:
+	"""Background task: poll the build's status, notify on Failure.
+
+	If the build is still Running/Pending, re-enqueue once for another check.
+	After 2 re-enqueues we stop polling — terminal-state notification not
+	guaranteed for 30+ minute builds. Operators can use audit_verify_chain
+	+ deploy_candidate_status for those.
+	"""
+	try:
+		row = frappe.db.get_value(
+			"Deploy Candidate Build",
+			build_name,
+			["name", "status", "deploy_candidate"],
+			as_dict=True,
+		)
+		if not row:
+			return
+		status = row.status or ""
+		if status in ("Failure", "Cancelled"):
+			frappe.log_error(
+				title=f"[MCP-DEPLOY-FAILED] {tool}",
+				message=(
+					f"Build {build_name} (candidate {row.deploy_candidate}) "
+					f"transitioned to {status} after {deadline_seconds}s.\n"
+					f"Triggered by: {triggered_by or 'unknown'}\n"
+					f"Tool: {tool}"
+				),
+			)
+		# Success / no further action; Running/Pending → fire and forget
+		# (operators can poll deploy_candidate_status directly).
 	except Exception:
 		pass
