@@ -49,7 +49,8 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 		if not token:
 			raise frappe.PermissionError("token is required")
 
-		user = verify_token(token, tool_name=tool)
+		target_doctype, target_name = _extract_target(tool, args)
+		user = verify_token(token, tool_name=tool, target_doctype=target_doctype, target_name=target_name)
 		token_doc_name = _resolve_token_docname(token)
 
 		# Validate required args present
@@ -114,6 +115,32 @@ def _resolve_token_docname(token_plaintext: str) -> str | None:
 		limit=1,
 	)
 	return rows[0] if rows else None
+
+
+def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
+	"""Map tool args → (target_doctype, target_name) for resource-scope checks.
+
+	Returns (None, None) for tools that don't operate on a single resource.
+	"""
+	# Lock-style tools have explicit target_doctype/target_name args
+	if "target_doctype" in args and "target_name" in args:
+		td = args.get("target_doctype")
+		if td in ("Site", "Release Group"):
+			return td, args.get("target_name")
+	# Tool-specific arg shapes
+	if tool == "clone_bench":
+		rg = args.get("release_group")
+		if rg:
+			return "Release Group", rg
+	if tool == "clone_site":
+		site = args.get("site")
+		if site:
+			return "Site", site
+	if tool == "move_site_to_release_group":
+		site = args.get("site")
+		if site:
+			return "Site", site
+	return None, None
 
 
 def _log_call(

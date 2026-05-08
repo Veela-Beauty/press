@@ -33,6 +33,8 @@ def issue_token(
 	scope: list | str,
 	ttl_minutes: int = 60,
 	label: str | None = None,
+	allowed_release_groups: list | str | None = None,
+	allowed_sites: list | str | None = None,
 ) -> dict[str, Any]:
 	"""Issue a fresh MCP token for `username` after verifying their password.
 
@@ -44,7 +46,9 @@ def issue_token(
 		raise frappe.AuthenticationError("IP blocked due to repeated failures")
 
 	ttl_minutes = max(TTL_MIN, min(TTL_MAX, int(ttl_minutes)))
-	scope_list = _normalize_scope(scope)
+	scope_list = _normalize_string_list(scope)
+	allowed_rgs = _normalize_string_list(allowed_release_groups)
+	allowed_sites_list = _normalize_string_list(allowed_sites)
 	if not label or not str(label).strip():
 		raise frappe.ValidationError("label is required")
 
@@ -66,6 +70,8 @@ def issue_token(
 		"team": team,
 		"label": str(label).strip(),
 		"scope": json.dumps(scope_list),
+		"allowed_release_groups": json.dumps(allowed_rgs),
+		"allowed_sites": json.dumps(allowed_sites_list),
 		"token_hash": hashed,
 		"token_prefix": prefix,
 		"expires_at": expires_at,
@@ -79,13 +85,20 @@ def issue_token(
 		"scope": scope_list,
 		"label": doc.label,
 		"expires_at": expires_at.isoformat(),
+		"allowed_release_groups": allowed_rgs,
+		"allowed_sites": allowed_sites_list,
 	}
 
 
-def verify_token(token_plaintext: str, tool_name: str) -> str:
-	"""Verify token_plaintext is valid for tool_name. Returns User docname.
+def verify_token(
+	token_plaintext: str,
+	tool_name: str,
+	target_doctype: str | None = None,
+	target_name: str | None = None,
+) -> str:
+	"""Verify token_plaintext is valid for tool_name on optional target.
 
-	Raises frappe.PermissionError on any failure (expired/revoked/wrong scope).
+	Raises frappe.PermissionError on any failure.
 	"""
 	if not token_plaintext or len(token_plaintext) < 8:
 		raise frappe.PermissionError("invalid token")
@@ -97,18 +110,21 @@ def verify_token(token_plaintext: str, tool_name: str) -> str:
 			"revoked": 0,
 			"expires_at": (">", now_datetime()),
 		},
-		fields=["name", "user", "scope"],
+		fields=["name", "user", "scope", "expires_at"],
 	)
 	for row in rows:
 		doc = frappe.get_doc("Press MCP Token", row.name)
 		# get_password returns the bcrypt hash (Frappe Fernet-decrypts the stored value)
 		stored_hash = doc.get_password("token_hash", raise_exception=False)
 		if stored_hash and passlibctx.verify(token_plaintext, stored_hash):
-			scope_list = _normalize_scope(doc.scope)
+			scope_list = _normalize_string_list(doc.scope)
 			if scope_list and tool_name not in scope_list:
 				raise frappe.PermissionError(
 					f"token does not include scope for {tool_name!r}"
 				)
+			# Resource scope check
+			if target_doctype and target_name:
+				_check_resource_scope(doc, target_doctype, target_name)
 			# Record last-used timestamp (best-effort, never break auth path)
 			try:
 				frappe.db.set_value(
@@ -118,6 +134,31 @@ def verify_token(token_plaintext: str, tool_name: str) -> str:
 				pass
 			return doc.user
 	raise frappe.PermissionError("token not found, revoked, or expired")
+
+
+def _check_resource_scope(token_doc, target_doctype: str, target_name: str) -> None:
+	"""Raise PermissionError if token's resource allowlist excludes the target."""
+	if target_doctype == "Release Group":
+		allowed = _normalize_string_list(token_doc.allowed_release_groups)
+		if allowed and target_name not in allowed:
+			raise frappe.PermissionError(
+				f"token does not allow Release Group {target_name!r}"
+			)
+	elif target_doctype == "Site":
+		allowed = _normalize_string_list(token_doc.allowed_sites)
+		if allowed and target_name not in allowed:
+			raise frappe.PermissionError(
+				f"token does not allow Site {target_name!r}"
+			)
+		# Also check the site's parent Release Group, if RG allowlist set
+		rg_allowed = _normalize_string_list(token_doc.allowed_release_groups)
+		if rg_allowed:
+			parent_rg = frappe.db.get_value("Site", target_name, "group")
+			if parent_rg and parent_rg not in rg_allowed:
+				raise frappe.PermissionError(
+					f"site's Release Group {parent_rg!r} not in token allowlist"
+				)
+	# Other target types: no resource-scope check (e.g., listing tools)
 
 
 @frappe.whitelist()
@@ -184,17 +225,17 @@ def _is_ip_blocked(ip: str) -> bool:
 	return failed_count >= BRUTE_FORCE_THRESHOLD
 
 
-def _normalize_scope(scope) -> list:
-	if scope is None:
+def _normalize_string_list(value) -> list:
+	if value is None:
 		return []
-	if isinstance(scope, str):
+	if isinstance(value, str):
 		try:
-			parsed = json.loads(scope)
+			parsed = json.loads(value)
 			return list(parsed) if isinstance(parsed, list) else []
 		except (ValueError, TypeError):
 			return []
-	if isinstance(scope, list):
-		return [str(s) for s in scope]
+	if isinstance(value, list):
+		return [str(s) for s in value]
 	return []
 
 

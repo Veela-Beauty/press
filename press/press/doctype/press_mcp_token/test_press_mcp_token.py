@@ -156,3 +156,56 @@ class TestPressMCPToken(FrappeTestCase):
 		)
 		with self.assertRaises(frappe.PermissionError):
 			verify_token(result["token"], tool_name="clone_bench")
+
+	def test_resource_scope_allows_listed_release_group(self):
+		with self._mock_password_check(valid=True):
+			result = issue_token(
+				username="Administrator",
+				password="x",
+				scope=["lock_acquire"],
+				ttl_minutes=10,
+				label="rg-scoped",
+				allowed_release_groups=["RG-Allowed-001"],
+			)
+		user = verify_token(
+			result["token"],
+			tool_name="lock_acquire",
+			target_doctype="Release Group",
+			target_name="RG-Allowed-001",
+		)
+		self.assertEqual(user, "Administrator")
+
+	def test_resource_scope_rejects_unlisted_release_group(self):
+		with self._mock_password_check(valid=True):
+			result = issue_token(
+				username="Administrator",
+				password="x",
+				scope=["lock_acquire"],
+				ttl_minutes=10,
+				label="rg-scoped",
+				allowed_release_groups=["RG-Allowed-001"],
+			)
+		with self.assertRaises(frappe.PermissionError):
+			verify_token(
+				result["token"],
+				tool_name="lock_acquire",
+				target_doctype="Release Group",
+				target_name="RG-NOT-ALLOWED",
+			)
+
+	def test_resource_scope_empty_allowlist_means_all_access(self):
+		with self._mock_password_check(valid=True):
+			result = issue_token(
+				username="Administrator",
+				password="x",
+				scope=["lock_acquire"],
+				ttl_minutes=10,
+				label="all-rg",
+			)
+		user = verify_token(
+			result["token"],
+			tool_name="lock_acquire",
+			target_doctype="Release Group",
+			target_name="any-rg-name",
+		)
+		self.assertEqual(user, "Administrator")
