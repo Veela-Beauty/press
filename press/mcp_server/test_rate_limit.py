@@ -16,30 +16,37 @@ from press.mcp_server.rate_limit import (
 
 class TestMCPRateLimit(FrappeTestCase):
 	def setUp(self):
-		# Clear any existing rate-limit keys for the test token
-		cache = frappe.cache()
-		# Best-effort key cleanup; specific keys depend on time bucket
-		self.token_name = "MCPT-test-rate-limit"
+		import time as _time
+		# Each test gets a unique token name so Redis keys never collide across tests.
+		self._counter = 0
+		self._base_token = f"MCPT-test-rl-{int(_time.time() * 1000)}"
+
+	def _fresh_token(self) -> str:
+		"""Return a unique token name for this test invocation."""
+		self._counter += 1
+		return f"{self._base_token}-{self._counter}"
 
 	def tearDown(self):
-		# No persistent state — Redis keys expire on their own.
+		# No persistent state — Redis keys expire on their own (2× window TTL).
 		pass
 
 	def test_first_call_passes(self):
 		# Should not raise
-		check_rate_limit(self.token_name, limit=DEFAULT_LIMIT)
+		check_rate_limit(self._fresh_token(), limit=DEFAULT_LIMIT)
 
 	def test_under_limit_passes(self):
+		token = self._fresh_token()
 		for _ in range(DEFAULT_LIMIT - 1):
-			check_rate_limit(self.token_name, limit=DEFAULT_LIMIT)
+			check_rate_limit(token, limit=DEFAULT_LIMIT)
 		# Final call still under limit
-		check_rate_limit(self.token_name, limit=DEFAULT_LIMIT)
+		check_rate_limit(token, limit=DEFAULT_LIMIT)
 
 	def test_over_limit_raises(self):
+		token = self._fresh_token()
 		for _ in range(DEFAULT_LIMIT):
-			check_rate_limit(self.token_name, limit=DEFAULT_LIMIT)
+			check_rate_limit(token, limit=DEFAULT_LIMIT)
 		with self.assertRaises(RateLimitError):
-			check_rate_limit(self.token_name, limit=DEFAULT_LIMIT)
+			check_rate_limit(token, limit=DEFAULT_LIMIT)
 
 	def test_none_token_skips_check(self):
 		# Should not raise regardless of how many calls
