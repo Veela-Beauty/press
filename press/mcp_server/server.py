@@ -90,10 +90,13 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 			)
 			return {"ok": True, "data": response}
 
+		# Strip dry_run from dispatch args (it's a meta-arg, not a tool arg)
+		dispatch_args = {k: v for k, v in args.items() if k != "dry_run"}
+
 		# Run tool as the resolved user
 		with _as_user(user):
 			method = frappe.get_attr(spec["method"])
-			response = method(**args)
+			response = method(**dispatch_args)
 
 		_log_call(
 			tool=tool, user=user, token_name=token_doc_name,
