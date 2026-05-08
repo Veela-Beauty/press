@@ -20,7 +20,8 @@ import frappe
 from frappe.utils import now_datetime
 
 from press.mcp_server.auth import TOKEN_PREFIX_LEN, verify_token
-from press.mcp_server.tools import get_tool_spec, list_tool_names
+from press.mcp_server.rate_limit import RateLimitError, check_rate_limit
+from press.mcp_server.tools import get_tool_spec, get_tool_risk, list_tool_names
 
 MAX_ARGS_LOG_LEN = 5000  # truncate long arg payloads in audit log
 
@@ -68,13 +69,15 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 		user = verify_token(token, tool_name=tool, target_doctype=target_doctype, target_name=target_name)
 		token_doc_name = _resolve_token_docname(token)
 
+		# Rate limit per token (Obj 7)
+		check_rate_limit(token_doc_name)
+
 		# Validate required args present
 		missing = [a for a in spec["required_args"] if a not in args]
 		if missing:
 			raise frappe.ValidationError(f"missing required args: {missing}")
 
 		# Dry-run support for high-risk tools
-		from press.mcp_server.tools import get_tool_risk
 		if args.get("dry_run") and get_tool_risk(tool) == "high":
 			response = {
 				"dry_run": True,
@@ -103,7 +106,13 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 			args=args, response=response, status="Success",
 			duration_ms=int((time.perf_counter() - start) * 1000),
 		)
+		# Destructive-op notification (Obj 7)
+		if get_tool_risk(tool) == "high":
+			_notify_destructive_op(tool=tool, user=user, args=args, token_name=token_doc_name)
 		return {"ok": True, "data": response}
+	except RateLimitError as e:
+		error_type = "RateLimitError"
+		error_msg = str(e)
 	except frappe.PermissionError as e:
 		error_type = "PermissionError"
 		error_msg = str(e)
@@ -260,8 +269,31 @@ def _write_call_log(
 	response_json: str | None,
 	error_message: str | None,
 ) -> None:
-	"""Background-job target invoked by _log_call."""
+	"""Background-job target invoked by _log_call. Computes hash chain."""
+	import hashlib
+
 	try:
+		# Walk back to the latest row's row_hash for chain linkage
+		latest = frappe.get_all(
+			"Press MCP Call Log",
+			fields=["row_hash"],
+			order_by="creation desc",
+			limit=1,
+		)
+		prev_hash = latest[0].row_hash if latest else "GENESIS"
+
+		# Compute this row's hash. Use a stable serialization.
+		creation_iso = now_datetime().isoformat()
+		hash_input = "||".join([
+			prev_hash or "",
+			tool,
+			user or "",
+			token_name or "",
+			status,
+			creation_iso,
+		])
+		row_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
+
 		frappe.get_doc({
 			"doctype": "Press MCP Call Log",
 			"tool": tool,
@@ -272,9 +304,34 @@ def _write_call_log(
 			"args_json": args_json,
 			"response_json": response_json,
 			"error_message": error_message,
+			"prev_hash": prev_hash,
+			"row_hash": row_hash,
 		}).insert(ignore_permissions=True)
 	except Exception:
 		frappe.log_error(
 			title=f"MCP audit log write failed for tool {tool}",
 			message=frappe.get_traceback(),
 		)
+
+
+def _notify_destructive_op(
+	tool: str, user: str, args: dict, token_name: str | None
+) -> None:
+	"""Best-effort notification when a high-risk MCP tool runs successfully.
+
+	Writes to Error Log with a distinctive title so operators can grep / hook
+	external alerting on it (e.g., a periodic scheduler scan + Slack post).
+	"""
+	try:
+		summary = (
+			f"MCP destructive op: {tool} by {user} "
+			f"via token {token_name or 'unknown'}"
+		)
+		# Use error_log so it shows up in Frappe's Error Log list — operators
+		# can build an alerting hook on this title prefix.
+		frappe.log_error(
+			title=f"[MCP-DESTRUCTIVE] {tool}",
+			message=f"{summary}\n\nargs: {json.dumps(args, default=str)[:2000]}",
+		)
+	except Exception:
+		pass

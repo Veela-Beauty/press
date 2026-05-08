@@ -387,3 +387,70 @@ class TestMCPServer(FrappeTestCase):
 		self.assertEqual(TOOLS["bench_ssh_cert_get"]["risk"], "medium")
 		self.assertEqual(TOOLS["bench_ssh_cert_generate"]["risk"], "high")
 		self.assertEqual(TOOLS["bench_dev_info"]["risk"], "low")
+
+	def test_handle_returns_rate_limit_error_when_exceeded(self):
+		from press.mcp_server.rate_limit import RateLimitError
+
+		with patch(
+			"press.mcp_server.server.check_rate_limit",
+			side_effect=RateLimitError("test cap exceeded"),
+		):
+			result = handle(
+				tool="lock_status",
+				args={"target_doctype": "Release Group", "target_name": "X"},
+				token=self.token,
+			)
+		self.assertFalse(result["ok"])
+		self.assertEqual(result["error_type"], "RateLimitError")
+		self.assertIn("cap exceeded", result["error"])
+
+	def test_destructive_op_notification_logged_on_success(self):
+		"""High-risk tool successful run must trigger _notify_destructive_op."""
+		from press.mcp_server.auth import issue_token
+		risky = issue_token(
+			username="Administrator",
+			password="ignored",
+			scope=["site_run_python"],
+			ttl_minutes=10,
+			label="destructive-test",
+			risky_tools_enabled=True,
+		)
+		with patch(
+			"press.press.doctype.bench.bench_dev_overview.run_python_on_site",
+			return_value="OK",
+		):
+			with patch("press.mcp_server.server._notify_destructive_op") as m_notify:
+				handle(
+					tool="site_run_python",
+					args={"site_name": "x", "code": "print('hi')"},
+					token=risky["token"],
+				)
+		m_notify.assert_called_once()
+
+	def test_audit_log_writes_row_hash(self):
+		"""After a successful call, the latest log row has a non-empty row_hash."""
+		def sync_enqueue(method_path, **kwargs):
+			from press.mcp_server.server import _write_call_log
+			_write_call_log(
+				tool=kwargs["tool"], user=kwargs["user"], token_name=kwargs["token_name"],
+				status=kwargs["status"], duration_ms=kwargs["duration_ms"],
+				args_json=kwargs["args_json"], response_json=kwargs["response_json"],
+				error_message=kwargs["error_message"],
+			)
+		with patch("press.mcp_server.server.frappe.enqueue", side_effect=sync_enqueue):
+			with patch("press.api.bench.all", return_value=[]):
+				handle(
+					tool="list_release_groups",
+					args={},
+					token=self.token,
+				)
+		row = frappe.get_all(
+			"Press MCP Call Log",
+			filters={"tool": "list_release_groups"},
+			fields=["row_hash", "prev_hash"],
+			order_by="creation desc",
+			limit=1,
+		)
+		self.assertEqual(len(row), 1)
+		self.assertTrue(row[0].row_hash)
+		self.assertEqual(len(row[0].row_hash), 64)  # SHA-256 hex
