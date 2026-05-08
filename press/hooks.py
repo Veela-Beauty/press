@@ -266,6 +266,7 @@ scheduler_events = {
 		"press.press.doctype.code_server.code_server.rotate_expired_code_server_passwords",
 		"press.cleanup.sandbox_cleanup.expire_sandbox_release_groups",
 		"press.cleanup.expired_locks.cleanup_expired_locks",
+		"press.cleanup.expired_auth_attempts.cleanup_expired_auth_attempts",
 	],
 	"hourly_long": [
 		"press.press.doctype.release_group.release_group.prune_servers_without_sites",
