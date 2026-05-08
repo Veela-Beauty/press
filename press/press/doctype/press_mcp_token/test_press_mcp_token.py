@@ -239,12 +239,18 @@ class TestPressMCPToken(FrappeTestCase):
 				label="rg-cascade",
 				allowed_release_groups=["RG-Allowed"],
 			)
-		# Mock the site→group lookup to return a RG NOT in the allowlist
+		# Mock only the site→group lookup; delegate everything else to the real method.
 		original_get_value = frappe.db.get_value
-		def fake_get_value(doctype, name, fieldname=None, *a, **kw):
-			if doctype == "Site" and name == "fake-site.example.com" and fieldname == "group":
+		def fake_get_value(*args, **kw):
+			# Positional: (doctype, name, fieldname, ...)
+			if (
+				len(args) >= 3
+				and args[0] == "Site"
+				and args[1] == "fake-site.example.com"
+				and args[2] == "group"
+			):
 				return "RG-NotAllowed"
-			return original_get_value(doctype, name, fieldname, *a, **kw)
+			return original_get_value(*args, **kw)
 		with patch.object(frappe.db, "get_value", side_effect=fake_get_value):
 			with self.assertRaises(frappe.PermissionError):
 				verify_token(
