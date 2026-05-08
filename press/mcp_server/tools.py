@@ -290,6 +290,61 @@ TOOLS: dict[str, dict] = {
 		"required_args": ["name", "dependencies"],
 		"risk": "high",
 	},
+	# Deploy / release flow (Obj 10)
+	"app_release_approve": {
+		"method": "press.mcp_server.deploy_flow.app_release_approve",
+		"description": "Approve a Draft App Release for inclusion in Deploy Candidates",
+		"required_args": ["release_name"],
+		"risk": "medium",
+	},
+	"release_group_create_deploy_candidate": {
+		"method": "press.mcp_server.deploy_flow.release_group_create_deploy_candidate",
+		"description": "Create a new Deploy Candidate for a Release Group",
+		"required_args": ["name"],
+		"risk": "medium",
+	},
+	"deploy_candidate_schedule_build": {
+		"method": "press.mcp_server.deploy_flow.deploy_candidate_schedule_build",
+		"description": "Schedule build + deploy for a Deploy Candidate; returns the build job name",
+		"required_args": ["candidate_name"],
+		"risk": "medium",
+	},
+	"deploy_candidate_status": {
+		"method": "press.mcp_server.deploy_flow.deploy_candidate_status",
+		"description": "Status of a Deploy Candidate Build OR a Deploy Candidate",
+		"required_args": ["name"],
+		"risk": "low",
+	},
+	"site_schedule_update": {
+		"method": "press.mcp_server.deploy_flow.site_schedule_update",
+		"description": "Schedule a Site Update (migrate to latest bench in same Release Group)",
+		"required_args": ["site_name"],
+		"risk": "medium",
+	},
+	"site_status": {
+		"method": "press.mcp_server.deploy_flow.site_status",
+		"description": "Current site bench + status + recent agent jobs (polling primitive)",
+		"required_args": ["site_name"],
+		"risk": "low",
+	},
+	"agent_job_list": {
+		"method": "press.mcp_server.deploy_flow.agent_job_list",
+		"description": "List recent Agent Jobs filtered by site/status/window",
+		"required_args": [],
+		"risk": "low",
+	},
+	"wait_for_bench_flip": {
+		"method": "press.mcp_server.deploy_flow.wait_for_bench_flip",
+		"description": "Async-style poll: returns flipped|pending for a site against a target Deploy Candidate",
+		"required_args": ["site_name", "target_candidate"],
+		"risk": "low",
+	},
+	"bench_run_repo_script": {
+		"method": "press.mcp_server.script_runner.bench_run_repo_script",
+		"description": "Fetch a Python script from an allowlisted GitHub repo and run it in a bench (high-risk; gated)",
+		"required_args": ["bench_name", "repo", "branch", "script_path"],
+		"risk": "high",
+	},
 }
 
 

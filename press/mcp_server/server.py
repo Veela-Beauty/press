@@ -192,6 +192,10 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"site_remove_domain",
 		"site_set_host_name",
 		"site_update_config_bulk",
+		# Obj 10
+		"site_schedule_update",
+		"site_status",
+		"wait_for_bench_flip",
 	}:
 		# api/site.py methods take 'name'; bench_dev_overview methods take 'site_name'
 		site = site or args.get("name")
@@ -208,6 +212,8 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"bench_update",
 		"bench_update_config",
 		"bench_update_dependencies",
+		# Obj 10
+		"release_group_create_deploy_candidate",
 	}:
 		if rg:
 			return "Release Group", rg
@@ -224,12 +230,32 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"bench_ssh_cert_get",
 		"bench_ssh_cert_generate",
 		"bench_dev_info",
+		# Obj 10
+		"bench_run_repo_script",
 	}:
 		parent_rg = frappe.db.get_value("Bench", bench_name, "group")
 		if parent_rg:
 			return "Release Group", parent_rg
 
+	# Deploy Candidate / Build → resolve to parent Release Group (Obj 10)
+	if tool in {"deploy_candidate_schedule_build", "deploy_candidate_status"}:
+		candidate_or_build = args.get("candidate_name") or args.get("name")
+		if candidate_or_build:
+			rg = _candidate_to_release_group(candidate_or_build)
+			if rg:
+				return "Release Group", rg
+
 	return None, None
+
+
+def _candidate_to_release_group(name: str) -> str | None:
+	"""Resolve a Deploy Candidate Build or Deploy Candidate name to its RG."""
+	# Try Build first; its `deploy_candidate` points to the candidate
+	candidate = frappe.db.get_value("Deploy Candidate Build", name, "deploy_candidate")
+	if candidate:
+		return frappe.db.get_value("Deploy Candidate", candidate, "group")
+	# Maybe the name IS a Deploy Candidate
+	return frappe.db.get_value("Deploy Candidate", name, "group")
 
 
 def _log_call(

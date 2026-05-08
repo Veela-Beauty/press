@@ -84,6 +84,13 @@ const AVAILABLE_TOOLS = [
 	'site_add_domain', 'site_remove_domain', 'site_set_host_name',
 	'site_update_config_bulk', 'bench_update_config',
 	'bench_ssh_cert_get',
+	// Deploy / release flow (Obj 10) — read-only
+	'deploy_candidate_status', 'site_status', 'agent_job_list', 'wait_for_bench_flip',
+	// Deploy / release flow (Obj 10) — state-changing
+	'app_release_approve',
+	'release_group_create_deploy_candidate',
+	'deploy_candidate_schedule_build',
+	'site_schedule_update',
 	// Risky (high) — also requires risky_tools_enabled
 	'site_run_python', 'site_run_sql',
 	'app_git_push',
@@ -91,6 +98,7 @@ const AVAILABLE_TOOLS = [
 	'bench_update', 'site_update',
 	'bench_ssh_cert_generate',
 	'bench_update_dependencies',
+	'bench_run_repo_script',
 ];
 
 const props = defineProps({ modelValue: { type: Boolean, default: false } });

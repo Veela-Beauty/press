@@ -33,5 +33,30 @@
     "read_only": 1,
     "insert_after": "clone_lifetime",
     "module": "Press"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Press Settings-mcp_script_repo_allowlist",
+    "dt": "Press Settings",
+    "fieldname": "mcp_script_repo_allowlist",
+    "fieldtype": "Code",
+    "label": "MCP Script Repo Allowlist (JSON list)",
+    "options": "JSON",
+    "default": "[]",
+    "description": "JSON list of `owner/repo` strings allowed for bench_run_repo_script. Empty = no repos allowed.",
+    "insert_after": "github_access_token",
+    "module": "Press"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Press Settings-mcp_script_timeout_max_seconds",
+    "dt": "Press Settings",
+    "fieldname": "mcp_script_timeout_max_seconds",
+    "fieldtype": "Int",
+    "label": "MCP Script Timeout Max (seconds)",
+    "default": "600",
+    "description": "Hard cap on bench_run_repo_script execution. Defaults to 600s.",
+    "insert_after": "mcp_script_repo_allowlist",
+    "module": "Press"
   }
 ]
