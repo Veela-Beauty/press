@@ -99,16 +99,32 @@ class TestMCPServer(FrappeTestCase):
 			lifetime="persistent",
 		)
 
+	def _sync_enqueue(self, method_path, **kwargs):
+		"""Run frappe.enqueue targets synchronously so log rows exist in tests."""
+		from press.mcp_server.server import _write_call_log
+		_write_call_log(
+			tool=kwargs["tool"],
+			user=kwargs["user"],
+			token_name=kwargs["token_name"],
+			status=kwargs["status"],
+			duration_ms=kwargs["duration_ms"],
+			args_json=kwargs["args_json"],
+			response_json=kwargs["response_json"],
+			error_message=kwargs["error_message"],
+		)
+
 	def test_handle_logs_call_with_status_and_duration(self):
-		with patch(
-			"press.press.doctype.release_group.release_group_clone.clone_release_group"
-		) as m:
-			m.return_value = "RG-X"
-			handle(
-				tool="clone_bench",
-				args={"release_group": "S", "new_title": "T"},
-				token=self.token,
-			)
+		# Run enqueue synchronously so the log row exists before assertions
+		with patch("press.mcp_server.server.frappe.enqueue", side_effect=self._sync_enqueue):
+			with patch(
+				"press.press.doctype.release_group.release_group_clone.clone_release_group"
+			) as m:
+				m.return_value = "RG-X"
+				handle(
+					tool="clone_bench",
+					args={"release_group": "S", "new_title": "T"},
+					token=self.token,
+				)
 
 		logs = frappe.get_all(
 			"Press MCP Call Log",
@@ -209,3 +225,46 @@ class TestMCPServer(FrappeTestCase):
 			self.assertIsNotNone(spec, f"tool {tool} missing from catalog")
 			self.assertIn("method", spec)
 			self.assertIn("required_args", spec)
+
+	def test_extract_target_from_explicit_target_args(self):
+		"""Lock-style tools pass target_doctype/target_name directly."""
+		from press.mcp_server.server import _extract_target
+		td, tn = _extract_target(
+			"lock_acquire",
+			{"target_doctype": "Release Group", "target_name": "RG-X", "reason": "test"},
+		)
+		self.assertEqual(td, "Release Group")
+		self.assertEqual(tn, "RG-X")
+
+	def test_extract_target_from_release_group_arg(self):
+		"""clone_bench takes release_group arg."""
+		from press.mcp_server.server import _extract_target
+		td, tn = _extract_target("clone_bench", {"release_group": "RG-Y", "new_title": "T"})
+		self.assertEqual(td, "Release Group")
+		self.assertEqual(tn, "RG-Y")
+
+	def test_log_call_truncates_oversized_payloads(self):
+		"""args/response over MAX_ARGS_LOG_LEN must be truncated, not crash the log insert."""
+		from press.mcp_server.server import MAX_ARGS_LOG_LEN
+
+		big_response = "x" * (MAX_ARGS_LOG_LEN + 50000)
+		with patch("press.mcp_server.server.frappe.enqueue", side_effect=self._sync_enqueue):
+			with patch(
+				"press.press.doctype.release_group.release_group_clone.clone_release_group",
+				return_value=big_response,
+			):
+				result = handle(
+					tool="clone_bench",
+					args={"release_group": "src", "new_title": "t"},
+					token=self.token,
+				)
+		self.assertTrue(result["ok"])
+		log_rows = frappe.get_all(
+			"Press MCP Call Log",
+			filters={"tool": "clone_bench"},
+			fields=["response_json"],
+			limit=1,
+			order_by="creation desc",
+		)
+		self.assertEqual(len(log_rows), 1)
+		self.assertLessEqual(len(log_rows[0].response_json), MAX_ARGS_LOG_LEN)

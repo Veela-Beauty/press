@@ -209,3 +209,47 @@ class TestPressMCPToken(FrappeTestCase):
 			target_name="any-rg-name",
 		)
 		self.assertEqual(user, "Administrator")
+
+	def test_resource_scope_allows_listed_site(self):
+		with self._mock_password_check(valid=True):
+			result = issue_token(
+				username="Administrator",
+				password="x",
+				scope=["lock_acquire"],
+				ttl_minutes=10,
+				label="site-scoped",
+				allowed_sites=["allowed-site.example.com"],
+			)
+		user = verify_token(
+			result["token"],
+			tool_name="lock_acquire",
+			target_doctype="Site",
+			target_name="allowed-site.example.com",
+		)
+		self.assertEqual(user, "Administrator")
+
+	def test_resource_scope_rejects_unlisted_site_via_parent_rg_cascade(self):
+		# Token has RG allowlist; site's parent RG must be in it.
+		with self._mock_password_check(valid=True):
+			result = issue_token(
+				username="Administrator",
+				password="x",
+				scope=["lock_acquire"],
+				ttl_minutes=10,
+				label="rg-cascade",
+				allowed_release_groups=["RG-Allowed"],
+			)
+		# Mock the site→group lookup to return a RG NOT in the allowlist
+		original_get_value = frappe.db.get_value
+		def fake_get_value(doctype, name, fieldname=None, *a, **kw):
+			if doctype == "Site" and name == "fake-site.example.com" and fieldname == "group":
+				return "RG-NotAllowed"
+			return original_get_value(doctype, name, fieldname, *a, **kw)
+		with patch.object(frappe.db, "get_value", side_effect=fake_get_value):
+			with self.assertRaises(frappe.PermissionError):
+				verify_token(
+					result["token"],
+					tool_name="lock_acquire",
+					target_doctype="Site",
+					target_name="fake-site.example.com",
+				)

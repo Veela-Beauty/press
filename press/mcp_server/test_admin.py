@@ -92,6 +92,13 @@ class TestMCPAdmin(FrappeTestCase):
 		types = [a["action_type"] for a in actions]
 		self.assertEqual(types.count("Revoke"), 2)
 		self.assertEqual(types.count("Bulk Revoke"), 1)
+		# Each individual Revoke action must link to a distinct token
+		revoke_targets = frappe.get_all(
+			"Press MCP Admin Action",
+			filters={"action_type": "Revoke"},
+			pluck="target_token",
+		)
+		self.assertEqual(set(revoke_targets), set(names))
 
 	def test_bulk_revoke_requires_reason(self):
 		with self.assertRaises(frappe.ValidationError):
