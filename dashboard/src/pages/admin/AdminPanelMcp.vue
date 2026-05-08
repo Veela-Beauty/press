@@ -56,6 +56,7 @@
 							<th class="p-3">Expires</th>
 							<th class="p-3">Last Used</th>
 							<th class="p-3">Status</th>
+							<th class="p-3">Risky</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -89,9 +90,18 @@
 							<td class="p-3">
 								<span :class="statusClass(t.status)">{{ t.status }}</span>
 							</td>
+							<td class="p-3 text-xs">
+								<span v-if="t.risky_tools_enabled && t.approval_status === 'approved'" class="rounded bg-purple-100 px-2 py-0.5 text-purple-800">risky / approved</span>
+								<span v-else-if="t.approval_status === 'pending'" class="rounded bg-amber-100 px-2 py-0.5 text-amber-800">pending</span>
+								<span v-else class="text-gray-400">—</span>
+								<div v-if="t.approval_status === 'pending'" class="mt-1 flex gap-1">
+									<Button size="sm" @click="onApprove(t)">Approve</Button>
+									<Button size="sm" theme="red" @click="onReject(t)">Reject</Button>
+								</div>
+							</td>
 						</tr>
 						<tr v-if="!tokens.length">
-							<td colspan="10" class="p-6 text-center text-sm text-gray-500">No tokens match.</td>
+							<td colspan="11" class="p-6 text-center text-sm text-gray-500">No tokens match.</td>
 						</tr>
 					</tbody>
 				</table>
@@ -163,6 +173,41 @@ function onBulkRevoke() {
 					success: (r) => `Revoked ${r.count} tokens`,
 					error: (e) => `Revoke failed: ${e?.messages?.[0] || e?.message || e}`,
 				},
+			);
+		},
+	});
+}
+
+async function onApprove(token) {
+	try {
+		await call('press.mcp_server.admin.approve_risky_token', { token_name: token.name });
+		toast.success('Token approved');
+		await loadTokens();
+	} catch (e) {
+		toast.error('Approve failed: ' + (e?.messages?.[0] || e?.message || e));
+	}
+}
+
+function onReject(token) {
+	confirmDialog({
+		title: 'Reject risky token?',
+		message: 'This will revoke the token immediately.',
+		fields: [{ label: 'Reason', fieldname: 'reason' }],
+		primaryAction: { label: 'Reject', variant: 'solid', theme: 'red' },
+		onSuccess({ hide, values }) {
+			if (!values.reason) {
+				toast.error('Reason is required');
+				return;
+			}
+			toast.promise(
+				call('press.mcp_server.admin.reject_risky_token', {
+					token_name: token.name,
+					reason: values.reason,
+				}).then(() => {
+					hide();
+					loadTokens();
+				}),
+				{ loading: 'Rejecting...', success: 'Token rejected', error: (e) => 'Reject failed: ' + (e?.messages?.[0] || e?.message || e) },
 			);
 		},
 	});
