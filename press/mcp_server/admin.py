@@ -12,6 +12,8 @@ from typing import Any
 import frappe
 from frappe.utils import now_datetime
 
+from press.mcp_server._util import safe_parse_dict, safe_parse_list
+
 
 @frappe.whitelist()
 def list_all_tokens(filters: dict | str | None = None, limit: int = 500) -> list[dict[str, Any]]:
@@ -44,15 +46,9 @@ def list_all_tokens(filters: dict | str | None = None, limit: int = 500) -> list
 	now = now_datetime()
 	results = []
 	for row in rows:
-		try:
-			row["scope"] = json.loads(row.get("scope") or "[]")
-		except (ValueError, TypeError):
-			row["scope"] = []
+		row["scope"] = safe_parse_list(row.get("scope"))
 		for k in ("allowed_release_groups", "allowed_sites"):
-			try:
-				row[k] = json.loads(row.get(k) or "[]")
-			except (ValueError, TypeError):
-				row[k] = []
+			row[k] = safe_parse_list(row.get(k))
 		row["status"] = _compute_status(row, now)
 		# Apply status + label filters in Python
 		want_status = filter_dict.get("status")
@@ -77,12 +73,16 @@ def bulk_revoke(token_names: list | str, reason: str) -> dict[str, Any]:
 
 	actor = frappe.session.user
 	revoked = []
-	skipped = []
+	already_revoked = []
+	errored = []
 	for name in names:
 		try:
-			doc = frappe.get_doc("Press MCP Token", name)
-			if doc.revoked:
-				skipped.append(name)
+			if not frappe.db.exists("Press MCP Token", name):
+				errored.append({"name": name, "error": "not found"})
+				continue
+			is_revoked = frappe.db.get_value("Press MCP Token", name, "revoked")
+			if is_revoked:
+				already_revoked.append(name)
 				continue
 			frappe.db.set_value(
 				"Press MCP Token",
@@ -98,7 +98,11 @@ def bulk_revoke(token_names: list | str, reason: str) -> dict[str, Any]:
 			}).insert(ignore_permissions=True)
 			revoked.append(name)
 		except Exception as e:
-			skipped.append({"name": name, "error": str(e)})
+			errored.append({"name": name, "error": str(e)})
+			frappe.log_error(
+				title=f"bulk_revoke failed for token {name}",
+				message=frappe.get_traceback(),
+			)
 	# Also write a single Bulk Revoke roll-up entry
 	try:
 		frappe.get_doc({
@@ -106,11 +110,20 @@ def bulk_revoke(token_names: list | str, reason: str) -> dict[str, Any]:
 			"action_type": "Bulk Revoke",
 			"actor": actor,
 			"reason": str(reason).strip(),
-			"context_json": json.dumps({"revoked": revoked, "skipped": skipped}),
+			"context_json": json.dumps({
+				"revoked": revoked,
+				"already_revoked": already_revoked,
+				"errored": errored,
+			}),
 		}).insert(ignore_permissions=True)
 	except Exception:
 		pass
-	return {"revoked": revoked, "skipped": skipped, "count": len(revoked)}
+	return {
+		"revoked": revoked,
+		"already_revoked": already_revoked,
+		"errored": errored,
+		"count": len(revoked),
+	}
 
 
 def _require_system_user() -> None:
@@ -132,28 +145,16 @@ def _compute_status(row: dict, now) -> str:
 
 
 def _parse_filters(filters) -> dict:
-	if filters is None:
-		return {}
-	if isinstance(filters, dict):
-		return filters
-	if isinstance(filters, str):
-		try:
-			parsed = json.loads(filters)
-			return parsed if isinstance(parsed, dict) else {}
-		except (ValueError, TypeError):
-			return {}
-	return {}
+	return safe_parse_dict(filters)
 
 
 def _normalize_names(token_names) -> list[str]:
+	# safe_parse_list handles list|JSON-list. For a bare non-JSON string,
+	# treat it as a single-element list (e.g., a single token docname passed directly).
 	if isinstance(token_names, str):
-		try:
-			parsed = json.loads(token_names)
-			if isinstance(parsed, list):
-				return [str(n) for n in parsed]
-		except (ValueError, TypeError):
-			pass
-		return [token_names]
-	if isinstance(token_names, list):
-		return [str(n) for n in token_names]
-	return []
+		result = safe_parse_list(token_names)
+		if not result:
+			# Non-JSON bare string → single element
+			return [token_names]
+		return result
+	return safe_parse_list(token_names)

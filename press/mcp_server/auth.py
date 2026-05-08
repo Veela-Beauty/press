@@ -17,7 +17,10 @@ import frappe
 from frappe.utils import add_to_date, now_datetime
 from frappe.utils.password import passlibctx
 
+from press.mcp_server._util import safe_parse_list
+
 TOKEN_BYTES = 32  # 256-bit randomness; url-safe base64 gives ~43-char string
+TOKEN_PREFIX_LEN = 8  # chars stored in token_prefix for fast lookup
 TTL_MIN = 1
 TTL_MAX = 1440  # 24 hours
 
@@ -46,9 +49,9 @@ def issue_token(
 		raise frappe.AuthenticationError("IP blocked due to repeated failures")
 
 	ttl_minutes = max(TTL_MIN, min(TTL_MAX, int(ttl_minutes)))
-	scope_list = _normalize_string_list(scope)
-	allowed_rgs = _normalize_string_list(allowed_release_groups)
-	allowed_sites_list = _normalize_string_list(allowed_sites)
+	scope_list = safe_parse_list(scope)
+	allowed_rgs = safe_parse_list(allowed_release_groups)
+	allowed_sites_list = safe_parse_list(allowed_sites)
 	if not label or not str(label).strip():
 		raise frappe.ValidationError("label is required")
 
@@ -59,7 +62,7 @@ def issue_token(
 		raise
 
 	plaintext = secrets.token_urlsafe(TOKEN_BYTES)
-	prefix = plaintext[:8]
+	prefix = plaintext[:TOKEN_PREFIX_LEN]
 	hashed = passlibctx.hash(plaintext)
 	expires_at = now_datetime() + timedelta(minutes=ttl_minutes)
 
@@ -100,9 +103,9 @@ def verify_token(
 
 	Raises frappe.PermissionError on any failure.
 	"""
-	if not token_plaintext or len(token_plaintext) < 8:
+	if not token_plaintext or len(token_plaintext) < TOKEN_PREFIX_LEN:
 		raise frappe.PermissionError("invalid token")
-	prefix = token_plaintext[:8]
+	prefix = token_plaintext[:TOKEN_PREFIX_LEN]
 	rows = frappe.get_all(
 		"Press MCP Token",
 		filters={
@@ -111,13 +114,21 @@ def verify_token(
 			"expires_at": (">", now_datetime()),
 		},
 		fields=["name", "user", "scope", "expires_at"],
+		limit=100,
 	)
 	for row in rows:
-		doc = frappe.get_doc("Press MCP Token", row.name)
-		# get_password returns the bcrypt hash (Frappe Fernet-decrypts the stored value)
-		stored_hash = doc.get_password("token_hash", raise_exception=False)
+		# Avoid frappe.get_doc on hot path — fetch token_hash via password util.
+		from frappe.utils.password import get_decrypted_password
+		try:
+			stored_hash = get_decrypted_password(
+				"Press MCP Token", row.name, "token_hash", raise_exception=False
+			)
+		except Exception:
+			stored_hash = None
 		if stored_hash and passlibctx.verify(token_plaintext, stored_hash):
-			scope_list = _normalize_string_list(doc.scope)
+			# Re-fetch full doc only when verifying succeeded (rare path)
+			doc = frappe.get_doc("Press MCP Token", row.name)
+			scope_list = safe_parse_list(doc.scope)
 			if scope_list and tool_name not in scope_list:
 				raise frappe.PermissionError(
 					f"token does not include scope for {tool_name!r}"
@@ -139,19 +150,19 @@ def verify_token(
 def _check_resource_scope(token_doc, target_doctype: str, target_name: str) -> None:
 	"""Raise PermissionError if token's resource allowlist excludes the target."""
 	if target_doctype == "Release Group":
-		allowed = _normalize_string_list(token_doc.allowed_release_groups)
+		allowed = safe_parse_list(token_doc.allowed_release_groups)
 		if allowed and target_name not in allowed:
 			raise frappe.PermissionError(
 				f"token does not allow Release Group {target_name!r}"
 			)
 	elif target_doctype == "Site":
-		allowed = _normalize_string_list(token_doc.allowed_sites)
+		allowed = safe_parse_list(token_doc.allowed_sites)
 		if allowed and target_name not in allowed:
 			raise frappe.PermissionError(
 				f"token does not allow Site {target_name!r}"
 			)
 		# Also check the site's parent Release Group, if RG allowlist set
-		rg_allowed = _normalize_string_list(token_doc.allowed_release_groups)
+		rg_allowed = safe_parse_list(token_doc.allowed_release_groups)
 		if rg_allowed:
 			parent_rg = frappe.db.get_value("Site", target_name, "group")
 			if parent_rg and parent_rg not in rg_allowed:
@@ -182,15 +193,20 @@ def revoke_token(token_id: str) -> dict[str, str]:
 
 
 def _check_password(username: str, password: str) -> None:
-	"""Validate password via Frappe's login manager. Raises on failure."""
-	# Tests mock frappe.local.login_manager with MagicMock (create=True).
-	# Production uses Frappe's standard check_password utility.
-	lm = getattr(frappe.local, "login_manager", None)
-	if lm is not None:
-		lm.check_password(username, password)
+	"""Validate password via Frappe's authentication path. Raises on failure.
+
+	Uses LoginManager.authenticate so MFA, expired-password, and locked-account
+	checks all run. Tests mock frappe.local.login_manager directly.
+	"""
+	# Tests inject a mock at frappe.local.login_manager (create=True).
+	mocked_lm = getattr(frappe.local, "login_manager", None)
+	if mocked_lm is not None:
+		mocked_lm.check_password(username, password)
 		return
-	from frappe.utils.password import check_password as _cp
-	_cp(username, password)
+	# Production path: full LoginManager flow including MFA / lockout
+	from frappe.auth import LoginManager
+	lm = LoginManager()
+	lm.authenticate(user=username, pwd=password)
 
 
 def _request_ip() -> str:
@@ -223,20 +239,6 @@ def _is_ip_blocked(ip: str) -> bool:
 		},
 	)
 	return failed_count >= BRUTE_FORCE_THRESHOLD
-
-
-def _normalize_string_list(value) -> list:
-	if value is None:
-		return []
-	if isinstance(value, str):
-		try:
-			parsed = json.loads(value)
-			return list(parsed) if isinstance(parsed, list) else []
-		except (ValueError, TypeError):
-			return []
-	if isinstance(value, list):
-		return [str(s) for s in value]
-	return []
 
 
 def _get_team_for_user(username: str) -> str | None:

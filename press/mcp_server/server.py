@@ -13,15 +13,30 @@ from __future__ import annotations
 
 import json
 import time
+from contextlib import contextmanager
 from typing import Any
 
 import frappe
 from frappe.utils import now_datetime
 
-from press.mcp_server.auth import verify_token
+from press.mcp_server.auth import TOKEN_PREFIX_LEN, verify_token
 from press.mcp_server.tools import get_tool_spec, list_tool_names
 
 MAX_ARGS_LOG_LEN = 5000  # truncate long arg payloads in audit log
+
+
+@contextmanager
+def _as_user(user: str):
+	"""Run a block as `user`, then restore the previous session user.
+
+	Guarantees restoration even on exception, mid-edit, or future refactor.
+	"""
+	original = frappe.session.user
+	frappe.set_user(user)
+	try:
+		yield
+	finally:
+		frappe.set_user(original)
 
 
 @frappe.whitelist(allow_guest=True)
@@ -59,13 +74,9 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 			raise frappe.ValidationError(f"missing required args: {missing}")
 
 		# Run tool as the resolved user
-		original_user = frappe.session.user
-		frappe.set_user(user)
-		try:
+		with _as_user(user):
 			method = frappe.get_attr(spec["method"])
 			response = method(**args)
-		finally:
-			frappe.set_user(original_user)
 
 		_log_call(
 			tool=tool, user=user, token_name=token_doc_name,
@@ -107,7 +118,7 @@ def _parse_args(args) -> dict:
 
 
 def _resolve_token_docname(token_plaintext: str) -> str | None:
-	prefix = token_plaintext[:8]
+	prefix = token_plaintext[:TOKEN_PREFIX_LEN]
 	rows = frappe.get_all(
 		"Press MCP Token",
 		filters={"token_prefix": prefix},
@@ -161,11 +172,20 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		if rg:
 			return "Release Group", rg
 
-	# Bench-targeted tools (bench is a deployed instance of a RG, not the RG itself)
-	# These don't map cleanly to per-RG / per-site; they have bench_name.
-	# For now, no resource gating on bench-targeted tools — they require the
-	# user to have access to the bench's parent RG, which Frappe permissions
-	# already enforce via frappe.set_user.
+	# Bench-targeted tools: bench_name → parent Release Group via DB lookup.
+	# Token RG allowlist applies to the parent RG of the bench.
+	bench_name = args.get("bench_name")
+	if bench_name and tool in {
+		"app_git_status",
+		"app_git_push",
+		"app_create_locally",
+		"app_init_github",
+		"bench_recent_logs",
+	}:
+		parent_rg = frappe.db.get_value("Bench", bench_name, "group")
+		if parent_rg:
+			return "Release Group", parent_rg
+
 	return None, None
 
 
@@ -179,6 +199,7 @@ def _log_call(
 	duration_ms: int,
 	error_message: str | None = None,
 ) -> None:
+	"""Best-effort async log of MCP call. Never blocks the response path."""
 	try:
 		args_json = json.dumps(args, default=str)[:MAX_ARGS_LOG_LEN]
 		response_json = (
@@ -186,10 +207,38 @@ def _log_call(
 			if response is not None
 			else None
 		)
+		frappe.enqueue(
+			"press.mcp_server.server._write_call_log",
+			queue="short",
+			tool=tool,
+			user=user or "",
+			token_name=token_name,
+			status=status,
+			duration_ms=duration_ms,
+			args_json=args_json,
+			response_json=response_json,
+			error_message=error_message,
+		)
+	except Exception:
+		pass
+
+
+def _write_call_log(
+	tool: str,
+	user: str,
+	token_name: str | None,
+	status: str,
+	duration_ms: int,
+	args_json: str,
+	response_json: str | None,
+	error_message: str | None,
+) -> None:
+	"""Background-job target invoked by _log_call."""
+	try:
 		frappe.get_doc({
 			"doctype": "Press MCP Call Log",
 			"tool": tool,
-			"user": user or "",
+			"user": user,
 			"token": token_name,
 			"status": status,
 			"duration_ms": duration_ms,
@@ -197,7 +246,8 @@ def _log_call(
 			"response_json": response_json,
 			"error_message": error_message,
 		}).insert(ignore_permissions=True)
-		frappe.db.commit()
 	except Exception:
-		# Never break MCP path because of logging
-		pass
+		frappe.log_error(
+			title=f"MCP audit log write failed for tool {tool}",
+			message=frappe.get_traceback(),
+		)

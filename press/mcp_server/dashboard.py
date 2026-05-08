@@ -3,11 +3,12 @@
 """Dashboard-facing helpers for the Vue MCP panel (Obj 4c uses these too)."""
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import frappe
 from frappe.utils import now_datetime
+
+from press.mcp_server._util import safe_parse_list
 
 
 @frappe.whitelist()
@@ -26,15 +27,9 @@ def list_my_tokens() -> list[dict[str, Any]]:
 		limit=100,
 	)
 	for row in rows:
-		try:
-			row["scope"] = json.loads(row.get("scope") or "[]")
-		except (ValueError, TypeError):
-			row["scope"] = []
+		row["scope"] = safe_parse_list(row.get("scope"))
 		for k in ("allowed_release_groups", "allowed_sites"):
-			try:
-				row[k] = json.loads(row.get(k) or "[]")
-			except (ValueError, TypeError):
-				row[k] = []
+			row[k] = safe_parse_list(row.get(k))
 		row["status"] = _status_for(row)
 	return rows
 
