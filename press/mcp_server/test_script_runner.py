@@ -62,6 +62,20 @@ class TestScriptRunner(FrappeTestCase):
 			"accurate-systems/wazin_mx", "main", "scripts/seed_report_data.py"
 		)
 
+	def test_validate_branch_pinned_allowlist_entry(self):
+		"""`owner/repo@branch` entry restricts to that branch only."""
+		from press.mcp_server.script_runner import _is_repo_branch_allowed
+		allowlist = ["org/proj@release"]
+		self.assertTrue(_is_repo_branch_allowed("org/proj", "release", allowlist))
+		self.assertFalse(_is_repo_branch_allowed("org/proj", "main", allowlist))
+
+	def test_validate_repo_only_entry_allows_any_branch(self):
+		from press.mcp_server.script_runner import _is_repo_branch_allowed
+		allowlist = ["org/proj"]
+		self.assertTrue(_is_repo_branch_allowed("org/proj", "main", allowlist))
+		self.assertTrue(_is_repo_branch_allowed("org/proj", "feature-x", allowlist))
+		self.assertFalse(_is_repo_branch_allowed("other/proj", "main", allowlist))
+
 	def test_bench_run_repo_script_happy_path(self):
 		"""Happy path: validation passes, GitHub fetch returns content,
 		run_python_on_site is invoked with the script as `code`."""

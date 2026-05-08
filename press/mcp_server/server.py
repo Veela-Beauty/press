@@ -249,11 +249,28 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 
 
 def _candidate_to_release_group(name: str) -> str | None:
-	"""Resolve a Deploy Candidate Build or Deploy Candidate name to its RG."""
-	# Try Build first; its `deploy_candidate` points to the candidate
-	candidate = frappe.db.get_value("Deploy Candidate Build", name, "deploy_candidate")
-	if candidate:
-		return frappe.db.get_value("Deploy Candidate", candidate, "group")
+	"""Resolve a Deploy Candidate Build or Deploy Candidate name to its RG.
+
+	Fail-closed: if the name resolves to a Build whose `deploy_candidate` is
+	null (orphaned mid-create), raise rather than returning None — silent None
+	would skip the resource-scope check at the dispatch layer.
+	"""
+	build_row = frappe.db.get_value(
+		"Deploy Candidate Build",
+		name,
+		["name", "deploy_candidate"],
+		as_dict=True,
+	)
+	if build_row is not None:
+		if not build_row.deploy_candidate:
+			frappe.throw(
+				f"Deploy Candidate Build {name!r} has no linked candidate; "
+				"cannot enforce resource scope.",
+				frappe.ValidationError,
+			)
+		return frappe.db.get_value(
+			"Deploy Candidate", build_row.deploy_candidate, "group"
+		)
 	# Maybe the name IS a Deploy Candidate
 	return frappe.db.get_value("Deploy Candidate", name, "group")
 

@@ -211,3 +211,21 @@ class TestDeployFlow(FrappeTestCase):
 		with patch("press.mcp_server.deploy_flow.frappe.db.get_value", return_value=None):
 			with self.assertRaises(frappe.DoesNotExistError):
 				wait_for_bench_flip(site_name="ghost.example.com", target_candidate="deploy-X")
+
+	def test_candidate_to_release_group_orphan_build_raises(self):
+		"""A Deploy Candidate Build whose deploy_candidate is NULL must NOT
+		silently fall through; it must raise so scope-check isn't bypassed."""
+		from press.mcp_server.server import _candidate_to_release_group
+
+		def fake_get_value(doctype, name, fields=None, as_dict=False, **kw):
+			# Build exists but its deploy_candidate is null
+			if doctype == "Deploy Candidate Build":
+				return frappe._dict({"name": name, "deploy_candidate": None})
+			return None
+
+		with patch(
+			"press.mcp_server.server.frappe.db.get_value",
+			side_effect=fake_get_value,
+		):
+			with self.assertRaises(frappe.ValidationError):
+				_candidate_to_release_group("orphan-build")

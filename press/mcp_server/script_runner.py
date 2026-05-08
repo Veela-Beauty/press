@@ -68,7 +68,14 @@ def fetch_script_from_github(
 
 
 def validate_script_request(repo: str, branch: str, script_path: str) -> None:
-	"""Raise ValidationError / PermissionError if request is unsafe."""
+	"""Raise ValidationError / PermissionError if request is unsafe.
+
+	Allowlist supports two formats per entry:
+		- `owner/repo` — any branch on the repo is allowed
+		- `owner/repo@branch` — only that exact branch is allowed
+	Mixed entries are fine; an `owner/repo` entry permits all branches even if
+	a stricter `owner/repo@branch` entry also exists.
+	"""
 	if not repo or "/" not in repo:
 		raise frappe.ValidationError(
 			"repo must be in 'owner/name' format (e.g., 'accurate-systems/wazin_mx')"
@@ -86,11 +93,22 @@ def validate_script_request(repo: str, branch: str, script_path: str) -> None:
 			"Press Settings.mcp_script_repo_allowlist is empty; no repos allowed. "
 			"A System User must populate it before bench_run_repo_script can be used."
 		)
-	if repo not in allowlist:
+	if not _is_repo_branch_allowed(repo, branch, allowlist):
 		raise frappe.PermissionError(
-			f"Repo {repo!r} is not in the MCP script allowlist. "
+			f"Repo+branch {repo}@{branch} is not in the MCP script allowlist. "
 			f"Allowed: {sorted(allowlist)}"
 		)
+
+
+def _is_repo_branch_allowed(repo: str, branch: str, allowlist: list[str]) -> bool:
+	"""True iff an allowlist entry permits this (repo, branch) combination."""
+	target = f"{repo}@{branch}"
+	for entry in allowlist:
+		if entry == repo:  # any-branch permission
+			return True
+		if entry == target:  # exact branch pin
+			return True
+	return False
 
 
 @frappe.whitelist()
@@ -112,12 +130,15 @@ def bench_run_repo_script(
 		script_path: Path within repo (e.g., 'scripts/seed.py').
 		site_name: Site to run the script in. If omitted, picks the first Active
 			site on the bench.
-		timeout_seconds: Cap on agent-side execution. Min 1, max 600.
+		timeout_seconds: Cap on agent-side execution. Min 1, capped at the
+			operator-configured `Press Settings.mcp_script_timeout_max_seconds`
+			(default 600).
 
 	Returns:
 		{site, repo, branch, script_path, output, bytes_fetched}
 	"""
-	timeout_seconds = max(1, min(MAX_TIMEOUT_SECONDS, int(timeout_seconds)))
+	configured_max = _get_timeout_max()
+	timeout_seconds = max(1, min(configured_max, int(timeout_seconds)))
 	validate_script_request(repo, branch, script_path)
 
 	# Resolve site if not given
@@ -155,6 +176,21 @@ def _get_repo_allowlist() -> list[str]:
 		"Press Settings", "mcp_script_repo_allowlist"
 	)
 	return safe_parse_list(raw)
+
+
+def _get_timeout_max() -> int:
+	"""Return the operator-configured timeout cap, or MAX_TIMEOUT_SECONDS as fallback."""
+	configured = frappe.db.get_single_value(
+		"Press Settings", "mcp_script_timeout_max_seconds"
+	)
+	try:
+		value = int(configured) if configured else 0
+	except (ValueError, TypeError):
+		value = 0
+	# Floor at 1 so a misconfigured 0 doesn't block all scripts.
+	# Ceiling at MAX_TIMEOUT_SECONDS so an over-permissive setting
+	# can't exceed the hardcoded safety cap.
+	return max(1, min(MAX_TIMEOUT_SECONDS, value)) if value else MAX_TIMEOUT_SECONDS
 
 
 def _get_github_token() -> str | None:

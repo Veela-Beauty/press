@@ -123,11 +123,18 @@ def site_schedule_update(
 
 
 @frappe.whitelist()
-def site_status(site_name: str) -> dict[str, Any]:
-	"""Current site bench + status + recent pending agent jobs.
+def site_status(
+	site_name: str,
+	jobs_window_minutes: int = 120,
+	jobs_limit: int = 10,
+) -> dict[str, Any]:
+	"""Current site bench + status + recent agent jobs.
 
-	The pending_agent_jobs list is the polling primitive — agents can call
+	The recent_agent_jobs list is the polling primitive — agents can call
 	this repeatedly until the desired job lands in Success or the bench flips.
+	Window defaults to 120 minutes so that long-running deploys (build + push +
+	migrate cycle commonly takes 10-30 min) stay visible across the full poll
+	loop. Use `agent_job_list` for finer control.
 	"""
 	row = frappe.db.get_value(
 		"Site",
@@ -137,14 +144,15 @@ def site_status(site_name: str) -> dict[str, Any]:
 	)
 	if not row:
 		frappe.throw(f"Site {site_name!r} does not exist", frappe.DoesNotExistError)
-	# Recent agent jobs (last 30 min, any status)
-	since = add_to_date(now_datetime(), minutes=-30)
+	jobs_window_minutes = max(1, min(1440, int(jobs_window_minutes)))
+	jobs_limit = max(1, min(100, int(jobs_limit)))
+	since = add_to_date(now_datetime(), minutes=-jobs_window_minutes)
 	jobs = frappe.get_all(
 		"Agent Job",
 		filters={"site": site_name, "creation": (">=", since)},
 		fields=["name", "job_type", "status", "creation"],
 		order_by="creation desc",
-		limit=10,
+		limit=jobs_limit,
 	)
 	for j in jobs:
 		if j.get("creation"):

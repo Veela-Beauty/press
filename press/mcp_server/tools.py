@@ -311,7 +311,7 @@ TOOLS: dict[str, dict] = {
 	},
 	"deploy_candidate_status": {
 		"method": "press.mcp_server.deploy_flow.deploy_candidate_status",
-		"description": "Status of a Deploy Candidate Build OR a Deploy Candidate",
+		"description": "Status of a Deploy Candidate Build OR a Deploy Candidate. `name` may be either; response contains a `kind: build|candidate` discriminator.",
 		"required_args": ["name"],
 		"risk": "low",
 	},
