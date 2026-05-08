@@ -15,11 +15,20 @@ from press.mcp_server.rate_limit import (
 
 
 class TestMCPRateLimit(FrappeTestCase):
+	# Class-level counter so tokens are unique even when tests run within
+	# the same millisecond on a fast box.
+	_global_counter = 0
+
 	def setUp(self):
 		import time as _time
-		# Each test gets a unique token name so Redis keys never collide across tests.
+		import uuid as _uuid
+		# Bump the class counter and combine with time + uuid for uniqueness.
+		TestMCPRateLimit._global_counter += 1
 		self._counter = 0
-		self._base_token = f"MCPT-test-rl-{int(_time.time() * 1000)}"
+		self._base_token = (
+			f"MCPT-test-rl-{int(_time.time() * 1000)}-"
+			f"{TestMCPRateLimit._global_counter}-{_uuid.uuid4().hex[:8]}"
+		)
 
 	def _fresh_token(self) -> str:
 		"""Return a unique token name for this test invocation."""
