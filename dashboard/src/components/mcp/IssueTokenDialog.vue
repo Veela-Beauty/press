@@ -61,10 +61,36 @@ function parseList(raw) {
 }
 
 const AVAILABLE_TOOLS = [
-	'clone_bench', 'clone_site', 'move_site_to_release_group',
-	'lock_acquire', 'lock_release', 'lock_status',
+	// Read-only / list
+	'lock_status',
 	'list_release_groups', 'list_sites',
 	'list_my_tokens', 'revoke_my_token',
+	'app_git_status',
+	'bench_recent_logs',
+	'site_db_processlist',
+	'deploy_failure_details',
+	'bench_deploy_information',
+	'bench_dev_info',
+	'site_domains_list',
+	// State-changing
+	'clone_bench', 'clone_site', 'move_site_to_release_group',
+	'lock_acquire', 'lock_release',
+	'app_create_locally', 'app_init_github',
+	'bench_deploy', 'bench_restart',
+	'site_migrate', 'site_backup',
+	'site_install_app', 'site_activate',
+	'site_config_get', 'site_config_set',
+	'site_file_read', 'site_file_write',
+	'site_add_domain', 'site_remove_domain', 'site_set_host_name',
+	'site_update_config_bulk', 'bench_update_config',
+	'bench_ssh_cert_get',
+	// Risky (high) — also requires risky_tools_enabled
+	'site_run_python', 'site_run_sql',
+	'app_git_push',
+	'site_uninstall_app', 'site_deactivate',
+	'bench_update', 'site_update',
+	'bench_ssh_cert_generate',
+	'bench_update_dependencies',
 ];
 
 const props = defineProps({ modelValue: { type: Boolean, default: false } });
