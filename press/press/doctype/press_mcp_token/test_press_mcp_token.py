@@ -312,5 +312,6 @@ class TestPressMCPToken(FrappeTestCase):
 			with self.assertRaises(frappe.PermissionError):
 				verify_token(result["token"], tool_name="site_run_python")
 		finally:
-			frappe.delete_doc("User", non_system.name, ignore_permissions=True)
+			# Delete token first (it links to the user), then the user
 			frappe.db.delete("Press MCP Token", {"label": "pending-risky"})
+			frappe.delete_doc("User", non_system.name, ignore_permissions=True)
