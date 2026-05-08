@@ -201,6 +201,25 @@ TOOLS: dict[str, dict] = {
 		"required_args": ["name"],
 		"risk": "high",
 	},
+	# SSH access (cert generation lets agents SSH into bench container)
+	"bench_ssh_cert_get": {
+		"method": "press.press.doctype.bench.bench_dev_overview.get_ssh_certificate",
+		"description": "Get the existing SSH certificate for a bench (returns None if not yet generated)",
+		"required_args": ["bench_name"],
+		"risk": "medium",
+	},
+	"bench_ssh_cert_generate": {
+		"method": "press.press.doctype.bench.bench_dev_overview.generate_ssh_certificate",
+		"description": "Generate an SSH certificate for a bench so the agent can SSH into the bench container",
+		"required_args": ["bench_name"],
+		"risk": "high",
+	},
+	"bench_dev_info": {
+		"method": "press.press.doctype.bench.bench_dev_overview.get_bench_dev_info",
+		"description": "Get bench dev connection info: server IP, SSH port, is_development_bench flag",
+		"required_args": ["bench_name"],
+		"risk": "low",
+	},
 }
 
 

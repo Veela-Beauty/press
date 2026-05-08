@@ -201,6 +201,9 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"app_create_locally",
 		"app_init_github",
 		"bench_recent_logs",
+		"bench_ssh_cert_get",
+		"bench_ssh_cert_generate",
+		"bench_dev_info",
 	}:
 		parent_rg = frappe.db.get_value("Bench", bench_name, "group")
 		if parent_rg:

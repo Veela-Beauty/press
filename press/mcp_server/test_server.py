@@ -315,3 +315,75 @@ class TestMCPServer(FrappeTestCase):
 		self.assertTrue(result["ok"])
 		# Result should be the actual list, not a dry-run stub
 		self.assertNotIn("dry_run", result.get("data") or {})
+
+	def test_ssh_cert_generate_blocked_without_risky_flag(self):
+		"""bench_ssh_cert_generate is high-risk; basic token must be rejected."""
+		from press.mcp_server.auth import issue_token
+		basic = issue_token(
+			username="Administrator",
+			password="ignored",
+			scope=["bench_ssh_cert_generate"],
+			ttl_minutes=10,
+			label="ssh-no-risky",
+			risky_tools_enabled=False,
+		)
+		result = handle(
+			tool="bench_ssh_cert_generate",
+			args={"bench_name": "fake-bench"},
+			token=basic["token"],
+		)
+		self.assertFalse(result["ok"])
+		self.assertEqual(result["error_type"], "PermissionError")
+
+	def test_ssh_cert_get_works_with_basic_token_when_in_scope(self):
+		"""bench_ssh_cert_get is medium-risk; basic token with proper scope works."""
+		from press.mcp_server.auth import issue_token
+		from unittest.mock import patch
+		basic = issue_token(
+			username="Administrator",
+			password="ignored",
+			scope=["bench_ssh_cert_get"],
+			ttl_minutes=10,
+			label="ssh-get",
+			risky_tools_enabled=False,
+		)
+		with patch(
+			"press.press.doctype.bench.bench_dev_overview.get_ssh_certificate",
+			return_value={"certificate": "fake-cert", "expires": "2026-12-31"},
+		):
+			result = handle(
+				tool="bench_ssh_cert_get",
+				args={"bench_name": "fake-bench"},
+				token=basic["token"],
+			)
+		self.assertTrue(result["ok"])
+		self.assertIn("certificate", result["data"])
+
+	def test_ssh_cert_generate_works_with_risky_approved_token(self):
+		from press.mcp_server.auth import issue_token
+		from unittest.mock import patch
+		risky = issue_token(
+			username="Administrator",
+			password="ignored",
+			scope=["bench_ssh_cert_generate"],
+			ttl_minutes=10,
+			label="ssh-risky",
+			risky_tools_enabled=True,
+		)
+		self.assertEqual(risky["approval_status"], "approved")
+		with patch(
+			"press.press.doctype.bench.bench_dev_overview.generate_ssh_certificate",
+			return_value={"status": "generated"},
+		):
+			result = handle(
+				tool="bench_ssh_cert_generate",
+				args={"bench_name": "fake-bench"},
+				token=risky["token"],
+			)
+		self.assertTrue(result["ok"])
+
+	def test_ssh_tools_in_catalog_with_correct_risk_levels(self):
+		from press.mcp_server.tools import TOOLS
+		self.assertEqual(TOOLS["bench_ssh_cert_get"]["risk"], "medium")
+		self.assertEqual(TOOLS["bench_ssh_cert_generate"]["risk"], "high")
+		self.assertEqual(TOOLS["bench_dev_info"]["risk"], "low")
