@@ -20,6 +20,7 @@ def list_my_tokens() -> list[dict[str, Any]]:
 		fields=[
 			"name", "label", "scope", "expires_at", "last_used_at",
 			"revoked", "revoked_at", "creation", "token_prefix",
+			"allowed_release_groups", "allowed_sites",
 		],
 		order_by="creation desc",
 		limit=100,
@@ -29,6 +30,11 @@ def list_my_tokens() -> list[dict[str, Any]]:
 			row["scope"] = json.loads(row.get("scope") or "[]")
 		except (ValueError, TypeError):
 			row["scope"] = []
+		for k in ("allowed_release_groups", "allowed_sites"):
+			try:
+				row[k] = json.loads(row.get(k) or "[]")
+			except (ValueError, TypeError):
+				row[k] = []
 		row["status"] = _status_for(row)
 	return rows
 

@@ -35,6 +35,7 @@ def list_all_tokens(filters: dict | str | None = None, limit: int = 500) -> list
 			"name", "user", "team", "label", "scope",
 			"expires_at", "last_used_at",
 			"revoked", "revoked_at", "creation", "token_prefix",
+			"allowed_release_groups", "allowed_sites",
 		],
 		order_by="creation desc",
 		limit=limit,
@@ -47,6 +48,11 @@ def list_all_tokens(filters: dict | str | None = None, limit: int = 500) -> list
 			row["scope"] = json.loads(row.get("scope") or "[]")
 		except (ValueError, TypeError):
 			row["scope"] = []
+		for k in ("allowed_release_groups", "allowed_sites"):
+			try:
+				row[k] = json.loads(row.get(k) or "[]")
+			except (ValueError, TypeError):
+				row[k] = []
 		row["status"] = _compute_status(row, now)
 		# Apply status + label filters in Python
 		want_status = filter_dict.get("status")
