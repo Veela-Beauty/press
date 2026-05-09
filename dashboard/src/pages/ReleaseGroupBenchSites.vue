@@ -45,7 +45,7 @@
 </template>
 <script lang="jsx">
 import Badge from '@/components/global/Badge.vue';
-import { createResource, getCachedDocumentResource, Tooltip } from 'frappe-ui';
+import { call, createResource, getCachedDocumentResource, Tooltip } from 'frappe-ui';
 import { defineAsyncComponent, h } from 'vue';
 import { toast } from 'vue-sonner';
 import ActionButton from '../components/ActionButton.vue';
@@ -195,6 +195,51 @@ export default {
 							this.$router.push({
 								name: 'Site Detail',
 								params: { name: row.name },
+							});
+						},
+					},
+					{
+						label: 'Clear Cache',
+						onClick: () => {
+							toast.promise(
+								call('press.api.site.clear_cache', { name: row.name }),
+								{
+									loading: `Clearing cache for ${row.name}...`,
+									success: () => `Cache cleared on ${row.name}`,
+									error: (e) =>
+										`Clear cache failed: ${e?.messages?.[0] || e?.message || e}`,
+								},
+							);
+						},
+					},
+					{
+						label: 'Migrate Site',
+						onClick: () => {
+							confirmDialog({
+								title: 'Migrate Site',
+								message: `Run <code class="rounded bg-gray-100 px-1 font-mono text-xs">bench --site ${row.name} migrate</code>? This applies pending migrations on the site DB. Take a backup first if the site is critical.`,
+								fields: [
+									{
+										label: 'Skip patches if any fail (not recommended)',
+										fieldname: 'skip_failing_patches',
+										fieldtype: 'Check',
+									},
+								],
+								primaryAction: { label: 'Migrate', variant: 'solid' },
+								onSuccess({ hide, values }) {
+									toast.promise(
+										call('press.api.site.migrate', {
+											name: row.name,
+											skip_failing_patches: values.skip_failing_patches ? 1 : 0,
+										}).then(() => hide()),
+										{
+											loading: `Starting migration on ${row.name}...`,
+											success: () => `Migration queued on ${row.name}`,
+											error: (e) =>
+												`Migrate failed: ${e?.messages?.[0] || e?.message || e}`,
+										},
+									);
+								},
 							});
 						},
 					},
