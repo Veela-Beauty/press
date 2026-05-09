@@ -20,8 +20,19 @@ import frappe
 from frappe.utils import now_datetime
 
 from press.mcp_server.auth import TOKEN_PREFIX_LEN, verify_token
+from press.mcp_server.help import get_tool_help
 from press.mcp_server.rate_limit import RateLimitError, check_rate_limit
 from press.mcp_server.tools import get_tool_spec, get_tool_risk, list_tool_names
+
+# Built-in virtual tools handled inline (no scope check, no catalog dispatch).
+# These are always available to any valid token — they're discoverability aids.
+BUILTIN_TOOLS = {"help", "list_tools"}
+
+DISCOVERABILITY_HINT = (
+	"Tip: call {tool: 'help'} for the catalog of tools you can use, "
+	"or {tool: 'help', args: {tool: '<name>'}} for a single-tool detail. "
+	"Pass args.suppress_hints=true to silence this."
+)
 
 MAX_ARGS_LOG_LEN = 5000  # truncate long arg payloads in audit log
 
@@ -56,10 +67,32 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 	response = None
 
 	try:
+		# Built-in discoverability tools (help / list_tools) — handled inline.
+		# Still require a valid token (so anonymous callers can't enumerate),
+		# but bypass the per-tool scope check and rate limit.
+		if tool in BUILTIN_TOOLS:
+			if not token:
+				raise frappe.PermissionError("token is required")
+			user, token_doc_name, caller_scope = _resolve_for_builtin(token)
+			help_args = args if isinstance(args, dict) else {}
+			response = get_tool_help(
+				tool=help_args.get("tool"),
+				category=help_args.get("category"),
+				scope_only=bool(help_args.get("scope_only", True)),
+				caller_scope=caller_scope,
+			)
+			_log_call(
+				tool=tool, user=user, token_name=token_doc_name,
+				args=args, response=response, status="Success",
+				duration_ms=int((time.perf_counter() - start) * 1000),
+			)
+			return _wrap_success(response, args)
+
 		spec = get_tool_spec(tool)
 		if not spec:
 			raise frappe.ValidationError(
-				f"unknown tool {tool!r}; available: {list_tool_names()}"
+				f"unknown tool {tool!r}; available: {list_tool_names()}. "
+				f"Call {{tool: 'help'}} to see what your token can use."
 			)
 
 		if not token:
@@ -91,7 +124,7 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 				args=args, response=response, status="Success",
 				duration_ms=int((time.perf_counter() - start) * 1000),
 			)
-			return {"ok": True, "data": response}
+			return _wrap_success(response, args)
 
 		# Strip dry_run from dispatch args (it's a meta-arg, not a tool arg)
 		dispatch_args = {k: v for k, v in args.items() if k != "dry_run"}
@@ -113,7 +146,7 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 		# Press build return a build name; enqueue a delayed status check so an
 		# operator/agent gets notified if the build later transitions to Failure.
 		_maybe_schedule_deploy_failure_check(tool, response, user)
-		return {"ok": True, "data": response}
+		return _wrap_success(response, args)
 	except RateLimitError as e:
 		error_type = "RateLimitError"
 		error_msg = str(e)
@@ -148,6 +181,55 @@ def _parse_args(args) -> dict:
 		except (ValueError, TypeError):
 			return {}
 	return {}
+
+
+def _wrap_success(response: Any, args: dict) -> dict[str, Any]:
+	"""Build the success envelope and conditionally append the discoverability hint.
+
+	Agents that already know the catalog can pass {suppress_hints: true} to
+	skip the hint and shave a few tokens off each response.
+	"""
+	envelope: dict[str, Any] = {"ok": True, "data": response}
+	if not args.get("suppress_hints"):
+		envelope["_hint"] = DISCOVERABILITY_HINT
+	return envelope
+
+
+def _resolve_for_builtin(token_plaintext: str) -> tuple[str, str | None, list[str]]:
+	"""Verify token + return (user, token_docname, scope_list) for built-in tools.
+
+	Built-ins (help/list_tools) skip the per-tool scope check, but we still
+	authenticate the token so anonymous callers can't enumerate the catalog.
+	Returns the token's scope list so help can filter to "what you can call".
+
+	Raises frappe.PermissionError on invalid/expired/revoked token.
+	"""
+	from frappe.utils.password import get_decrypted_password, passlibctx
+	from press.mcp_server._util import safe_parse_list
+
+	if not token_plaintext or len(token_plaintext) < TOKEN_PREFIX_LEN:
+		raise frappe.PermissionError("invalid token")
+	prefix = token_plaintext[:TOKEN_PREFIX_LEN]
+	rows = frappe.get_all(
+		"Press MCP Token",
+		filters={
+			"token_prefix": prefix,
+			"revoked": 0,
+			"expires_at": (">", now_datetime()),
+		},
+		fields=["name", "user", "scope"],
+		limit=100,
+	)
+	for row in rows:
+		try:
+			stored_hash = get_decrypted_password(
+				"Press MCP Token", row.name, "token_hash", raise_exception=False
+			)
+		except Exception:
+			stored_hash = None
+		if stored_hash and passlibctx.verify(token_plaintext, stored_hash):
+			return row.user, row.name, safe_parse_list(row.scope)
+	raise frappe.PermissionError("invalid or expired token")
 
 
 def _resolve_token_docname(token_plaintext: str) -> str | None:
