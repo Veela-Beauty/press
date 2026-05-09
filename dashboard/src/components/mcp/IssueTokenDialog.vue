@@ -2,8 +2,8 @@
 	<Dialog v-model="show" :options="dialogOptions">
 		<template #body-content>
 			<div class="space-y-4">
-				<!-- Top section: 2-col grid for form fields + risky toggle -->
-				<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+				<!-- Top section: 3-col grid for form fields -->
+				<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
 					<FormControl
 						label="Label (what this token is for)"
 						v-model="form.label"
@@ -22,29 +22,29 @@
 						required
 						autocomplete="new-password"
 					/>
+				</div>
 
-					<!-- Risky tools enabled toggle (sits beside password on wide screens) -->
-					<div class="rounded border border-amber-200 bg-amber-50 p-3">
-						<label class="flex items-start gap-2 cursor-pointer">
-							<input
-								type="checkbox"
-								v-model="form.riskyToolsEnabled"
-								class="mt-0.5"
-							/>
-							<div class="flex-1">
-								<div class="text-sm font-medium text-amber-900">
-									Enable risky (high-risk) tools
-									<span class="text-xs font-normal text-amber-700">
-										— required for site_run_python, site_run_sql, bench_run_repo_script
-									</span>
-								</div>
-								<div class="mt-0.5 text-xs text-amber-800">
-									Non-System Users get a <code class="rounded bg-amber-100 px-1">pending</code> token
-									that must be approved via Admin Panel → MCP.
-								</div>
+				<!-- Risky tools enabled toggle (full width — it's important) -->
+				<div class="rounded border border-amber-200 bg-amber-50 p-3">
+					<label class="flex items-start gap-2 cursor-pointer">
+						<input
+							type="checkbox"
+							v-model="form.riskyToolsEnabled"
+							class="mt-0.5"
+						/>
+						<div class="flex-1">
+							<div class="text-sm font-medium text-amber-900">
+								Enable risky (high-risk) tools
+								<span class="text-xs font-normal text-amber-700">
+									— required for site_run_python, site_run_sql, bench_run_repo_script
+								</span>
 							</div>
-						</label>
-					</div>
+							<div class="mt-0.5 text-xs text-amber-800">
+								Non-System Users get a <code class="rounded bg-amber-100 px-1">pending</code> token
+								that must be approved via Admin Panel → MCP.
+							</div>
+						</div>
+					</label>
 				</div>
 
 				<!-- Scope picker: search + presets + grouped categories -->
@@ -107,7 +107,7 @@
 									{{ allCategorySelected(cat.id) ? 'Deselect all' : 'Select all' }}
 								</button>
 							</div>
-							<div class="grid grid-cols-1 gap-x-3 gap-y-1 sm:grid-cols-2">
+							<div class="grid grid-cols-1 gap-x-3 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
 								<label
 									v-for="tool in visibleToolsByCategory(cat.id)"
 									:key="tool"
@@ -144,19 +144,23 @@
 
 				</div>
 
-				<!-- Resource scoping: 2-col grid for the two textareas -->
+				<!-- Resource scoping: 2-col multi-select chip pickers -->
 				<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-					<FormControl
-						label="Allowed Release Groups (comma-separated; empty = inherit your access)"
-						type="textarea"
+					<MultiSelectChips
+						label="Allowed Release Groups"
+						placeholder="Search benches by name or title..."
+						hint="Empty = inherit your full RG access."
 						v-model="form.allowedRGs"
-						placeholder="bench-A, bench-B"
+						:options="rgOptions"
+						:loading="loadingRGs"
 					/>
-					<FormControl
-						label="Allowed Sites (comma-separated; empty = inherit your access)"
-						type="textarea"
+					<MultiSelectChips
+						label="Allowed Sites"
+						placeholder="Search sites..."
+						hint="Empty = inherit your full site access."
 						v-model="form.allowedSites"
-						placeholder="site1.example.com, site2.example.com"
+						:options="siteOptions"
+						:loading="loadingSites"
 					/>
 				</div>
 				<div v-if="newToken" class="rounded border border-amber-300 bg-amber-50 p-3">
@@ -180,11 +184,7 @@ import {
 	riskBadgeClass,
 	categoryBorderClass,
 } from './_tool_catalog.js';
-
-function parseList(raw) {
-	if (!raw) return [];
-	return raw.split(',').map((s) => s.trim()).filter(Boolean);
-}
+import MultiSelectChips from './MultiSelectChips.vue';
 
 const props = defineProps({ modelValue: { type: Boolean, default: false } });
 const emit = defineEmits(['update:modelValue', 'issued']);
@@ -199,8 +199,8 @@ const form = reactive({
 	ttl: 60,
 	password: '',
 	scope: ['list_release_groups', 'list_sites', 'list_my_tokens'],
-	allowedRGs: '',
-	allowedSites: '',
+	allowedRGs: [],
+	allowedSites: [],
 	riskyToolsEnabled: false,
 });
 const submitting = ref(false);
@@ -208,9 +208,15 @@ const errorMsg = ref('');
 const newToken = ref('');
 const search = ref('');
 
+// Resource picker state
+const rgOptions = ref([]);
+const siteOptions = ref([]);
+const loadingRGs = ref(false);
+const loadingSites = ref(false);
+
 const dialogOptions = computed(() => ({
 	title: 'Issue MCP Token',
-	size: '3xl',
+	size: '4xl',
 	actions: [
 		{
 			label: newToken.value ? 'Done' : 'Issue Token',
@@ -234,14 +240,44 @@ function resetState() {
 	form.password = '';
 	form.ttl = 60;
 	form.scope = ['list_release_groups', 'list_sites', 'list_my_tokens'];
-	form.allowedRGs = '';
-	form.allowedSites = '';
+	form.allowedRGs = [];
+	form.allowedSites = [];
 	form.riskyToolsEnabled = false;
 	search.value = '';
 }
 
+async function loadResourceOptions() {
+	loadingRGs.value = true;
+	loadingSites.value = true;
+	try {
+		const [rgs, sites] = await Promise.all([
+			call('press.mcp_server.dashboard.list_my_release_groups'),
+			call('press.mcp_server.dashboard.list_my_sites'),
+		]);
+		rgOptions.value = (rgs || []).map((r) => ({
+			value: r.name,
+			label: r.title || r.name,
+			sub: r.title && r.title !== r.name ? r.name : '',
+		}));
+		siteOptions.value = (sites || []).map((s) => ({
+			value: s.name,
+			label: s.name,
+			sub: s.group ? `bench: ${s.group}` : '',
+		}));
+	} catch (e) {
+		// non-fatal — user can still skip resource scoping
+		console.warn('Failed to load RG/Site options:', e);
+	} finally {
+		loadingRGs.value = false;
+		loadingSites.value = false;
+	}
+}
+
 watch(() => props.modelValue, (v) => {
-	if (v) resetState();
+	if (v) {
+		resetState();
+		loadResourceOptions();
+	}
 });
 
 // ---- Scope picker helpers ----
@@ -329,8 +365,8 @@ async function submit() {
 			scope: form.scope,
 			ttl_minutes: parseInt(form.ttl) || 60,
 			label: form.label,
-			allowed_release_groups: parseList(form.allowedRGs),
-			allowed_sites: parseList(form.allowedSites),
+			allowed_release_groups: form.allowedRGs,
+			allowed_sites: form.allowedSites,
 			risky_tools_enabled: form.riskyToolsEnabled ? 1 : 0,
 		});
 		newToken.value = result.token;
