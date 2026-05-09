@@ -114,3 +114,17 @@ export function categoryBorderClass(tone) {
 	if (tone === 'green') return 'border-green-200 bg-green-50/30';
 	return 'border-gray-200';
 }
+
+// Friendly tool label for a single tool name. Falls back to the raw name for
+// unknown tools (older logs / forward-compatible with new tools added server-side).
+export function toolLabel(toolName) {
+	if (!toolName) return '';
+	return TOOL_CATALOG[toolName]?.label || toolName;
+}
+
+// Format a scope array for display in token list rows.
+// Returns 'all' for empty scope, otherwise comma-separated friendly labels.
+export function formatScope(scope) {
+	if (!scope || !scope.length) return 'all';
+	return scope.map(toolLabel).join(', ');
+}

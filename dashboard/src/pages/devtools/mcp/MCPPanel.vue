@@ -30,7 +30,9 @@
 					<tbody>
 						<tr v-for="t in tokens" :key="t.name" class="border-t border-gray-100">
 							<td class="p-3 font-medium">{{ t.label }}</td>
-							<td class="p-3 text-xs text-gray-600">{{ (t.scope || []).join(', ') || 'all' }}</td>
+							<td class="p-3 text-xs text-gray-600" :title="(t.scope || []).join(', ') || 'all'">
+								{{ formatScope(t.scope) }}
+							</td>
 							<td class="p-3 text-xs text-gray-600">
 								<div v-if="t.allowed_release_groups?.length || t.allowed_sites?.length">
 									<div v-if="t.allowed_release_groups?.length">
@@ -79,7 +81,12 @@
 					<tbody>
 						<tr v-for="c in calls" :key="c.name" class="border-t border-gray-100">
 							<td class="p-3 text-xs text-gray-600">{{ formatDate(c.creation) }}</td>
-							<td class="p-3 font-medium">{{ c.tool }}</td>
+							<td class="p-3" :title="c.tool">
+								<div class="font-medium">{{ toolLabel(c.tool) }}</div>
+								<div v-if="toolLabel(c.tool) !== c.tool" class="font-mono text-[10px] text-gray-400 leading-tight">
+									{{ c.tool }}
+								</div>
+							</td>
 							<td class="p-3">
 								<span :class="callStatusClass(c.status)">{{ c.status }}</span>
 							</td>
@@ -102,6 +109,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { Button, FeatherIcon, call, toast } from 'frappe-ui';
 import IssueTokenDialog from '../../../components/mcp/IssueTokenDialog.vue';
+import { formatScope, toolLabel } from '../../../components/mcp/_tool_catalog.js';
 
 const tokens = ref([]);
 const calls = ref([]);
