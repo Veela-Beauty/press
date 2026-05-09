@@ -7,7 +7,10 @@ from unittest.mock import patch
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from press.press.doctype.release_group.release_group_clone import clone_release_group
+from press.press.doctype.release_group.release_group_clone import (
+	clone_release_group,
+	clone_release_group_only,
+)
 from press.press.doctype.app.test_app import create_test_app
 from press.press.doctype.release_group.test_release_group import (
 	create_test_release_group,
@@ -110,3 +113,25 @@ class TestReleaseGroupClone(FrappeTestCase):
 				new_title="No Server Clone",
 				lifetime="persistent",
 			)
+
+	# ------------------------------------------------------------------
+	# clone_release_group_only — RG cloned WITHOUT auto-deploy
+	# Used by the Move-Site dialog when the user wants to tweak versions
+	# before deploying the new bench.
+	# ------------------------------------------------------------------
+
+	def test_clone_release_group_only_skips_deploy(self):
+		new_name = clone_release_group_only(
+			self.source.name,
+			new_title="RG-only Clone of " + self.source.title,
+			lifetime="persistent",
+		)
+		# Same RG row as the full clone — apps copied, server inherited
+		clone = frappe.get_doc("Release Group", new_name)
+		self.assertEqual(clone.cloned_from, self.source.name)
+		self.assertEqual(
+			[a.app for a in clone.apps],
+			[a.app for a in self.source.apps],
+		)
+		# But NO Deploy Candidate is created/scheduled — the whole point
+		self._mock_deploy.assert_not_called()
