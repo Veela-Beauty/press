@@ -13,15 +13,14 @@ VALID_LIFETIMES = ("sandbox", "persistent")
 SANDBOX_TTL_HOURS = 24
 
 
-@frappe.whitelist()
-def clone_release_group(
+def _clone_release_group_inner(
 	release_group: str,
 	new_title: str,
-	lifetime: str = "persistent",
+	lifetime: str,
+	auto_deploy: bool,
 ) -> str:
-	"""Clone a Release Group on the same server with the same apps + version.
-
-	Returns the name of the new Release Group.
+	"""Shared core for both clone variants. auto_deploy=True schedules
+	a Deploy Candidate; auto_deploy=False stops after creating the RG row.
 	"""
 	if lifetime not in VALID_LIFETIMES:
 		frappe.throw(
@@ -39,7 +38,6 @@ def clone_release_group(
 		_check_team_access(source, team)
 		team_name = team.name
 	else:
-		# System Users (Administrator, background jobs) inherit the source team
 		team_name = source.team
 
 	apps = [{"app": a.app, "source": a.source} for a in source.apps]
@@ -66,10 +64,36 @@ def clone_release_group(
 		clone.clone_expires_at = now_datetime() + timedelta(hours=SANDBOX_TTL_HOURS)
 	clone.save(ignore_permissions=True)
 
-	candidate = clone.create_deploy_candidate([])
-	candidate.schedule_build_and_deploy(run_now=False)
+	if auto_deploy:
+		candidate = clone.create_deploy_candidate([])
+		candidate.schedule_build_and_deploy(run_now=False)
 
 	return clone.name
+
+
+@frappe.whitelist()
+def clone_release_group(
+	release_group: str,
+	new_title: str,
+	lifetime: str = "persistent",
+) -> str:
+	"""Clone an RG on the same server + auto-deploy a bench. Ready-to-use."""
+	return _clone_release_group_inner(release_group, new_title, lifetime, auto_deploy=True)
+
+
+@frappe.whitelist()
+def clone_release_group_only(
+	release_group: str,
+	new_title: str,
+	lifetime: str = "persistent",
+) -> str:
+	"""Clone an RG WITHOUT auto-deploying a bench.
+
+	Same apps + server + version, but no Deploy Candidate is scheduled.
+	The caller is expected to go to the new RG and trigger a deploy
+	manually after tweaking versions / branches as needed.
+	"""
+	return _clone_release_group_inner(release_group, new_title, lifetime, auto_deploy=False)
 
 
 def _check_team_access(source, team) -> None:

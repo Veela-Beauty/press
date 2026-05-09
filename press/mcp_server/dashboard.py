@@ -71,38 +71,6 @@ def list_my_calls(
 	return {"rows": rows, "latest": latest}
 
 
-@frappe.whitelist()
-def list_my_release_groups() -> list[dict[str, Any]]:
-	"""Return Release Groups visible to the calling user (for token-issue picker).
-
-	Uses standard Frappe permissions — System Users see all, regular users see
-	only RGs in their team(s).
-	"""
-	rows = frappe.get_list(
-		"Release Group",
-		fields=["name", "title"],
-		order_by="title asc",
-		limit=500,
-	)
-	return rows
-
-
-@frappe.whitelist()
-def list_my_sites() -> list[dict[str, Any]]:
-	"""Return Sites visible to the calling user (for token-issue picker).
-
-	Excludes archived/broken sites; includes the bench (RG) name for grouping.
-	"""
-	rows = frappe.get_list(
-		"Site",
-		fields=["name", "group"],
-		filters={"status": ("in", ("Active", "Inactive", "Suspended"))},
-		order_by="name asc",
-		limit=1000,
-	)
-	return rows
-
-
 def _status_for(row: dict) -> str:
 	if row.get("revoked"):
 		return "revoked"
