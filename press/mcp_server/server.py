@@ -19,20 +19,10 @@ from typing import Any
 import frappe
 from frappe.utils import now_datetime
 
-from press.mcp_server.auth import TOKEN_PREFIX_LEN, verify_token
-from press.mcp_server.help import get_tool_help
+from press.mcp_server.auth import _authenticate_token, verify_token
+from press.mcp_server.help import BUILTIN_TOOLS, DISCOVERABILITY_HINT, get_tool_help
 from press.mcp_server.rate_limit import RateLimitError, check_rate_limit
 from press.mcp_server.tools import get_tool_spec, get_tool_risk, list_tool_names
-
-# Built-in virtual tools handled inline (no scope check, no catalog dispatch).
-# These are always available to any valid token — they're discoverability aids.
-BUILTIN_TOOLS = {"help", "list_tools"}
-
-DISCOVERABILITY_HINT = (
-	"Tip: call {tool: 'help'} for the catalog of tools you can use, "
-	"or {tool: 'help', args: {tool: '<name>'}} for a single-tool detail. "
-	"Pass args.suppress_hints=true to silence this."
-)
 
 MAX_ARGS_LOG_LEN = 5000  # truncate long arg payloads in audit log
 
@@ -183,12 +173,16 @@ def _parse_args(args) -> dict:
 	return {}
 
 
-def _wrap_success(response: Any, args: dict) -> dict[str, Any]:
+def _wrap_success(response: Any, args: Any) -> dict[str, Any]:
 	"""Build the success envelope and conditionally append the discoverability hint.
 
 	Agents that already know the catalog can pass {suppress_hints: true} to
 	skip the hint and shave a few tokens off each response.
 	"""
+	# Defensive guard: callers should pass a dict (after _parse_args), but
+	# treat any non-dict as empty so we never crash on `args.get`.
+	if not isinstance(args, dict):
+		args = {}
 	envelope: dict[str, Any] = {"ok": True, "data": response}
 	if not args.get("suppress_hints"):
 		envelope["_hint"] = DISCOVERABILITY_HINT
@@ -200,36 +194,15 @@ def _resolve_for_builtin(token_plaintext: str) -> tuple[str, str | None, list[st
 
 	Built-ins (help/list_tools) skip the per-tool scope check, but we still
 	authenticate the token so anonymous callers can't enumerate the catalog.
-	Returns the token's scope list so help can filter to "what you can call".
+	Uses the shared `_authenticate_token` helper so token-auth lives in
+	one place — see auth.py.
 
 	Raises frappe.PermissionError on invalid/expired/revoked token.
 	"""
-	from frappe.utils.password import get_decrypted_password, passlibctx
 	from press.mcp_server._util import safe_parse_list
 
-	if not token_plaintext or len(token_plaintext) < TOKEN_PREFIX_LEN:
-		raise frappe.PermissionError("invalid token")
-	prefix = token_plaintext[:TOKEN_PREFIX_LEN]
-	rows = frappe.get_all(
-		"Press MCP Token",
-		filters={
-			"token_prefix": prefix,
-			"revoked": 0,
-			"expires_at": (">", now_datetime()),
-		},
-		fields=["name", "user", "scope"],
-		limit=100,
-	)
-	for row in rows:
-		try:
-			stored_hash = get_decrypted_password(
-				"Press MCP Token", row.name, "token_hash", raise_exception=False
-			)
-		except Exception:
-			stored_hash = None
-		if stored_hash and passlibctx.verify(token_plaintext, stored_hash):
-			return row.user, row.name, safe_parse_list(row.scope)
-	raise frappe.PermissionError("invalid or expired token")
+	doc = _authenticate_token(token_plaintext)
+	return doc.user, doc.name, safe_parse_list(doc.scope)
 
 
 def _resolve_token_docname(token_plaintext: str) -> str | None:

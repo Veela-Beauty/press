@@ -104,15 +104,15 @@ def issue_token(
 	}
 
 
-def verify_token(
-	token_plaintext: str,
-	tool_name: str,
-	target_doctype: str | None = None,
-	target_name: str | None = None,
-) -> str:
-	"""Verify token_plaintext is valid for tool_name on optional target.
+def _authenticate_token(token_plaintext: str):
+	"""Look up + cryptographically verify a token plaintext.
 
-	Raises frappe.PermissionError on any failure.
+	Returns the Press MCP Token doc on success. Raises frappe.PermissionError
+	on any failure. Does NOT check scope / risk / resource permissions —
+	callers layer those on top.
+
+	Single source of truth for token-auth shared by `verify_token` (full
+	scope check) and `_resolve_for_builtin` (auth-only for help/list_tools).
 	"""
 	if not token_plaintext or len(token_plaintext) < TOKEN_PREFIX_LEN:
 		raise frappe.PermissionError("invalid token")
@@ -127,9 +127,8 @@ def verify_token(
 		fields=["name", "user", "scope", "expires_at"],
 		limit=100,
 	)
+	from frappe.utils.password import get_decrypted_password
 	for row in rows:
-		# Avoid frappe.get_doc on hot path — fetch token_hash via password util.
-		from frappe.utils.password import get_decrypted_password
 		try:
 			stored_hash = get_decrypted_password(
 				"Press MCP Token", row.name, "token_hash", raise_exception=False
@@ -138,35 +137,48 @@ def verify_token(
 			stored_hash = None
 		if stored_hash and passlibctx.verify(token_plaintext, stored_hash):
 			# Re-fetch full doc only when verifying succeeded (rare path)
-			doc = frappe.get_doc("Press MCP Token", row.name)
-			scope_list = safe_parse_list(doc.scope)
-			if scope_list and tool_name not in scope_list:
-				raise frappe.PermissionError(
-					f"token does not include scope for {tool_name!r}"
-				)
-			# Risky tool gating
-			from press.mcp_server.tools import get_tool_risk
-			if get_tool_risk(tool_name) == "high":
-				if not doc.risky_tools_enabled:
-					raise frappe.PermissionError(
-						f"tool {tool_name!r} is high-risk; token does not have risky_tools_enabled"
-					)
-				if doc.approval_status != "approved":
-					raise frappe.PermissionError(
-						f"token approval status is {doc.approval_status!r}; must be approved for risky tools"
-					)
-			# Resource scope check
-			if target_doctype and target_name:
-				_check_resource_scope(doc, target_doctype, target_name)
-			# Record last-used timestamp (best-effort, never break auth path)
-			try:
-				frappe.db.set_value(
-					"Press MCP Token", doc.name, "last_used_at", now_datetime()
-				)
-			except Exception:
-				pass
-			return doc.user
+			return frappe.get_doc("Press MCP Token", row.name)
 	raise frappe.PermissionError("token not found, revoked, or expired")
+
+
+def verify_token(
+	token_plaintext: str,
+	tool_name: str,
+	target_doctype: str | None = None,
+	target_name: str | None = None,
+) -> str:
+	"""Verify token_plaintext is valid for tool_name on optional target.
+
+	Raises frappe.PermissionError on any failure.
+	"""
+	doc = _authenticate_token(token_plaintext)
+	scope_list = safe_parse_list(doc.scope)
+	if scope_list and tool_name not in scope_list:
+		raise frappe.PermissionError(
+			f"token does not include scope for {tool_name!r}"
+		)
+	# Risky tool gating
+	from press.mcp_server.tools import get_tool_risk
+	if get_tool_risk(tool_name) == "high":
+		if not doc.risky_tools_enabled:
+			raise frappe.PermissionError(
+				f"tool {tool_name!r} is high-risk; token does not have risky_tools_enabled"
+			)
+		if doc.approval_status != "approved":
+			raise frappe.PermissionError(
+				f"token approval status is {doc.approval_status!r}; must be approved for risky tools"
+			)
+	# Resource scope check
+	if target_doctype and target_name:
+		_check_resource_scope(doc, target_doctype, target_name)
+	# Record last-used timestamp (best-effort, never break auth path)
+	try:
+		frappe.db.set_value(
+			"Press MCP Token", doc.name, "last_used_at", now_datetime()
+		)
+	except Exception:
+		pass
+	return doc.user
 
 
 def _check_resource_scope(token_doc, target_doctype: str, target_name: str) -> None:

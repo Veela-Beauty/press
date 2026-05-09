@@ -31,6 +31,17 @@ from typing import Any
 
 from press.mcp_server.tools import TOOLS, get_tool_spec, list_tool_names
 
+# Built-in virtual tools — handled inline by server.handle, not via the catalog.
+# Always callable by any valid token, bypass scope check + rate limit.
+BUILTIN_TOOLS = {"help", "list_tools"}
+
+# Appended to every successful tool response unless caller passes args.suppress_hints=true.
+DISCOVERABILITY_HINT = (
+	"Tip: call {tool: 'help'} for the catalog of tools you can use, "
+	"or {tool: 'help', args: {tool: '<name>'}} for a single-tool detail. "
+	"Pass args.suppress_hints=true to silence this."
+)
+
 # Category metadata — kept here, not in tools.py, because it's UX-only.
 # Mirrors dashboard/src/components/mcp/_tool_catalog.js TOOL_CATEGORIES.
 CATEGORIES: dict[str, dict[str, str]] = {
