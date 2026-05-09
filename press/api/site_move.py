@@ -8,6 +8,26 @@ import frappe
 
 
 @frappe.whitelist()
+def get_site_move_context(site: str) -> dict[str, Any]:
+	"""Return everything the Move-Site dialog needs in one round-trip.
+
+	Includes the site's current RG (so the empty-state CTA can offer to
+	clone the current bench) and the eligible target list. Designed so
+	the dialog never has to fetch more than once.
+	"""
+	site_doc = frappe.get_doc("Site", site)
+	current_bench = frappe.db.get_value("Bench", site_doc.bench, ["server"], as_dict=True)
+	eligible = list_eligible_target_release_groups(site) if current_bench else []
+	return {
+		"site": site_doc.name,
+		"current_release_group": site_doc.group,
+		"current_bench": site_doc.bench,
+		"server": current_bench.server if current_bench else None,
+		"eligible": eligible,
+	}
+
+
+@frappe.whitelist()
 def list_eligible_target_release_groups(site: str) -> list[dict[str, Any]]:
 	"""Return Release Groups this site CAN be moved to.
 
