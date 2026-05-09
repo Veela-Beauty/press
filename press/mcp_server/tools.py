@@ -6,6 +6,13 @@ Each entry:
 	method: dotted-path to the underlying whitelisted Python function
 	description: shown in tool list
 	required_args: list of arg names the tool requires
+	risk: 'low' | 'medium' | 'high' — gates the dialog UX + verify_token
+
+WHEN ADDING / REMOVING / RENAMING A TOOL HERE, ALSO UPDATE:
+	dashboard/src/components/mcp/_tool_catalog.js  (frontend mirror used by
+	the Issue Token dialog to show categories, risk badges, and search).
+The two files MUST stay in sync; otherwise the new tool will not appear in
+the scope picker and existing tokens with that scope cannot be issued via UI.
 """
 from __future__ import annotations
 

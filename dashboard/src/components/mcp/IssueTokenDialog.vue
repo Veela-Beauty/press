@@ -72,6 +72,15 @@
 						<Button size="sm" theme="gray" @click="clearScope">Clear</Button>
 					</div>
 
+					<div
+						v-if="riskyMissingFlag"
+						class="mb-2 rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800"
+					>
+						<strong>Heads-up:</strong> you've selected high-risk tools
+						(<code class="rounded bg-red-100 px-1">{{ riskyMissingFlag.join(', ') }}</code>) but
+						<strong>Enable risky tools</strong> is unchecked. Calls to these tools will fail with
+						PermissionError until you enable risky tools above.
+					</div>
 					<div class="space-y-2 max-h-[420px] overflow-y-auto pr-1">
 						<div
 							v-for="cat in TOOL_CATEGORIES"
@@ -123,15 +132,6 @@
 						</div>
 					</div>
 
-					<div
-						v-if="riskyMissingFlag"
-						class="mt-2 rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800"
-					>
-						<strong>Heads-up:</strong> you've selected high-risk tools
-						({{ riskyMissingFlag.join(', ') }}) but
-						<strong>Enable risky tools</strong> is unchecked. Calls to these tools will fail with
-						PermissionError until you enable risky tools above.
-					</div>
 				</div>
 
 				<FormControl
