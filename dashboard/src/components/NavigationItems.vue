@@ -256,6 +256,12 @@ export default {
 							isActive: routeName === 'Binlog Browser',
 							condition: this.$team.doc.is_binlog_indexer_enabled ?? false,
 						},
+						{
+							name: 'MCP Server',
+							icon: () => h(Server),
+							route: '/dev-tools/mcp',
+							isActive: routeName === 'MCP Panel',
+						},
 					].filter((item) => item.condition ?? true),
 					isActive: [
 						'Dev Overview',
@@ -264,6 +270,7 @@ export default {
 						'DB Analyzer',
 						'SQL Playground',
 						'Binlog Browser',
+						'MCP Panel',
 					].includes(routeName),
 					disabled: enforce2FA,
 				},

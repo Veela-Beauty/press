@@ -177,6 +177,11 @@
 			<AiPolicyGate @acknowledged="activeMainTab = 'teams'" />
 		</template>
 
+		<!-- TAB: MCP -->
+		<template v-if="activeMainTab === 'mcp'">
+			<AdminPanelMcp />
+		</template>
+
 		<!-- Create Team Dialog -->
 		<Dialog :options="{ title: 'Create New Team', size: 'md' }" v-model="showCreateTeam">
 			<template #body-content>
@@ -206,12 +211,13 @@ import AiGovernance from '../components/admin/AiGovernance.vue';
 import AiEscalations from '../components/admin/AiEscalations.vue';
 import AiUsageCost from '../components/admin/AiUsageCost.vue';
 import AiPolicyGate from '../components/admin/AiPolicyGate.vue';
+import AdminPanelMcp from './admin/AdminPanelMcp.vue';
 
 const API = 'press.api.admin_panel';
 
 export default {
 	name: 'AdminPanel',
-	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate },
+	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate, AdminPanelMcp },
 	data() {
 		return {
 			loading: false,
@@ -233,6 +239,7 @@ export default {
 				{ id: 'escalations', label: 'Escalations', icon: 'fa fa-exclamation-circle', badge: '1', badgeColor: 'bg-orange-500' },
 				{ id: 'usage-cost', label: 'Usage & Cost', icon: 'fa fa-bar-chart' },
 				{ id: 'policy', label: 'Policy', icon: 'fa fa-file-text-o' },
+				{ id: 'mcp', label: 'MCP', icon: 'fa fa-key' },
 			],
 		};
 	},
