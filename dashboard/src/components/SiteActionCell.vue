@@ -29,6 +29,7 @@ import { getToastErrorMessage } from '../utils/toast';
 import router from '../router';
 import { isLastSite } from '../data/team';
 import CommunicationInfoDialog from './CommunicationInfoDialog.vue';
+import MoveSiteDialog from './MoveSiteDialog.vue';
 
 const props = defineProps({
 	siteName: { type: String, required: true },
@@ -296,44 +297,7 @@ function onLockSite() {
 }
 
 function onMoveToReleaseGroup() {
-	confirmDialog({
-		title: 'Move Site to Release Group',
-		message:
-			'Move this site to a different Release Group on the same server. The target RG must have an Active Bench and include all apps the site uses. Site will be briefly deactivated during the move.',
-		fields: [
-			{
-				label: 'Target Release Group name',
-				fieldname: 'target_rg',
-			},
-			{
-				label: 'Skip failing patches',
-				fieldname: 'skip_patches',
-				fieldtype: 'Check',
-			},
-		],
-		primaryAction: { label: 'Move', variant: 'solid' },
-		onSuccess({ hide, values }) {
-			if (!values.target_rg) {
-				toast.error('Target Release Group is required');
-				return;
-			}
-			toast.promise(
-				call('press.api.site_move.move_to_release_group', {
-					site: props.siteName,
-					target_release_group: values.target_rg,
-					skip_failing_patches: values.skip_patches ? 1 : 0,
-				}).then((result) => {
-					hide();
-					return result;
-				}),
-				{
-					loading: 'Moving site...',
-					success: (r) => `Move queued (job: ${r.job || 'pending'})`,
-					error: (e) => `Move failed: ${e?.messages?.[0] || e?.message || e}`,
-				},
-			);
-		},
-	});
+	renderDialog(h(MoveSiteDialog, { siteName: props.siteName }));
 }
 
 function onSiteReset() {

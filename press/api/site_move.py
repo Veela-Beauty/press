@@ -8,6 +8,62 @@ import frappe
 
 
 @frappe.whitelist()
+def list_eligible_target_release_groups(site: str) -> list[dict[str, Any]]:
+	"""Return Release Groups this site CAN be moved to.
+
+	Filters:
+		- Not the site's current RG
+		- On the same server (Press only supports same-server moves)
+		- Has every app the site currently uses
+		- Has at least one Active Bench
+
+	Returns minimal fields for the picker: name, title, server, app_count.
+	"""
+	site_doc = frappe.get_doc("Site", site)
+	site_apps = {a.app for a in site_doc.apps}
+	current_bench = frappe.db.get_value("Bench", site_doc.bench, ["server"], as_dict=True)
+	if not current_bench:
+		return []
+
+	candidates = frappe.get_all(
+		"Release Group",
+		filters={"name": ("!=", site_doc.group), "enabled": 1},
+		fields=["name", "title"],
+		order_by="title asc",
+		limit=500,
+	)
+
+	out = []
+	for rg in candidates:
+		rg_apps = {
+			a.app for a in frappe.get_all(
+				"Release Group App",
+				filters={"parent": rg.name},
+				fields=["app"],
+			)
+		}
+		if not site_apps.issubset(rg_apps):
+			continue
+
+		active_bench = frappe.db.get_value(
+			"Bench",
+			{"group": rg.name, "status": "Active", "server": current_bench.server},
+			["name", "server"],
+			as_dict=True,
+		)
+		if not active_bench:
+			continue
+
+		out.append({
+			"name": rg.name,
+			"title": rg.title,
+			"server": active_bench.server,
+			"app_count": len(rg_apps),
+		})
+	return out
+
+
+@frappe.whitelist()
 def move_to_release_group(
 	site: str,
 	target_release_group: str,
