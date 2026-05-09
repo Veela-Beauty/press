@@ -105,20 +105,28 @@
 									{{ allCategorySelected(cat.id) ? 'Deselect all' : 'Select all' }}
 								</button>
 							</div>
-							<div class="grid grid-cols-1 gap-1 sm:grid-cols-2">
+							<div class="grid grid-cols-1 gap-x-3 gap-y-1 sm:grid-cols-2">
 								<label
 									v-for="tool in visibleToolsByCategory(cat.id)"
 									:key="tool"
-									class="inline-flex items-center gap-2 text-sm cursor-pointer hover:bg-white/60 rounded px-1 py-0.5"
+									class="flex items-start gap-2 cursor-pointer hover:bg-white/60 rounded px-1.5 py-1 min-w-0"
 									:title="TOOL_CATALOG[tool].desc"
 								>
 									<input
 										type="checkbox"
 										:value="tool"
 										v-model="form.scope"
+										class="mt-0.5 shrink-0"
 									/>
-									<span class="font-mono text-xs text-gray-800">{{ tool }}</span>
-									<span :class="riskBadgeClass(TOOL_CATALOG[tool].risk)">
+									<span class="flex-1 min-w-0">
+										<span class="block text-sm text-gray-800 leading-tight">
+											{{ TOOL_CATALOG[tool].label || tool }}
+										</span>
+										<span class="block font-mono text-[10px] text-gray-400 leading-tight truncate">
+											{{ tool }}
+										</span>
+									</span>
+									<span :class="riskBadgeClass(TOOL_CATALOG[tool].risk)" class="shrink-0">
 										{{ TOOL_CATALOG[tool].risk }}
 									</span>
 								</label>
