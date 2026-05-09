@@ -60,6 +60,7 @@ import { confirmDialog, icon, renderDialog } from '../utils/components';
 import { getToastErrorMessage } from '../utils/toast';
 import DismissableBanner from '../components/DismissableBanner.vue';
 import CustomAlerts from '../components/CustomAlerts.vue';
+import MoveSiteDialog from '../components/MoveSiteDialog.vue';
 
 export default {
 	name: 'ReleaseGroupBenchSites',
@@ -187,6 +188,23 @@ export default {
 				columns: getSitesTabColumns(false),
 				filterControls: siteTabFilterControls,
 				route: sitesTabRoute,
+				rowActions: ({ row }) => [
+					{
+						label: 'Open Site',
+						onClick: () => {
+							this.$router.push({
+								name: 'Site Detail',
+								params: { name: row.name },
+							});
+						},
+					},
+					{
+						label: 'Move to Release Group',
+						onClick: () => {
+							renderDialog(h(MoveSiteDialog, { siteName: row.name }));
+						},
+					},
+				],
 				primaryAction: () => {
 					return {
 						label: 'New Site',
