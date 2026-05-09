@@ -116,8 +116,9 @@ class TestSiteMove(FrappeTestCase):
 	# ------------------------------------------------------------------
 
 	def test_eligible_includes_target_rg_on_same_server_with_active_bench(self):
-		# self.target_bench is on the same server as self.site (both created
-		# by the same test harness). Should appear in the eligible list.
+		# Test fixtures don't guarantee same server — pin them explicitly.
+		site_server = frappe.db.get_value("Bench", self.site.bench, "server")
+		frappe.db.set_value("Bench", self.target_bench.name, "server", site_server)
 		result = list_eligible_target_release_groups(self.site.name)
 		names = [rg["name"] for rg in result]
 		self.assertIn(self.target_rg.name, names)
