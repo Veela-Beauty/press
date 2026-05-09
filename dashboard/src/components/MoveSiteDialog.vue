@@ -152,6 +152,7 @@ const show = ref(true);
 
 const eligibleRGs = ref([]);
 const currentReleaseGroup = ref(null);
+const currentReleaseGroupTitle = ref(null);
 const loading = ref(false);
 const selected = ref(null);
 const query = ref('');
@@ -214,6 +215,8 @@ async function loadContext() {
 		);
 		eligibleRGs.value = ctx?.eligible || [];
 		currentReleaseGroup.value = ctx?.current_release_group || null;
+		currentReleaseGroupTitle.value =
+			ctx?.current_release_group_title || ctx?.current_release_group || null;
 	} catch (e) {
 		toast.error('Failed to load: ' + (e?.messages?.[0] || e?.message || e));
 	} finally {
@@ -227,12 +230,15 @@ onMounted(() => {
 
 async function onCloneCurrentBench() {
 	if (!currentReleaseGroup.value) {
-		toast.error("Couldn't determine the site's current bench.");
+		toast.error("Couldn't determine the site's current Release Group.");
 		return;
 	}
+	// Use the human-readable RG title for the default (e.g. "AccuBuild Demo (copy)"),
+	// not the technical RG name (e.g. "bench-0005 (copy)").
+	const sourceLabel = currentReleaseGroupTitle.value || currentReleaseGroup.value;
 	const newTitle = prompt(
-		`Title for the cloned bench (apps copied from "${currentReleaseGroup.value}"):`,
-		`${currentReleaseGroup.value} (copy)`,
+		`Name for the new Release Group (apps will be copied from "${sourceLabel}"):`,
+		`${sourceLabel} (copy)`,
 	);
 	if (!newTitle) return;
 	cloning.value = true;

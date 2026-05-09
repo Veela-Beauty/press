@@ -178,6 +178,9 @@ class TestSiteMove(FrappeTestCase):
 		ctx = get_site_move_context(self.site.name)
 		self.assertEqual(ctx["current_release_group"], current_rg)
 		self.assertEqual(ctx["site"], self.site.name)
+		# Title falls back to the technical name when title is empty,
+		# but the key must always be present so the dialog has something to show.
+		self.assertIn("current_release_group_title", ctx)
 
 	def test_context_returns_current_bench_and_server(self):
 		ctx = get_site_move_context(self.site.name)

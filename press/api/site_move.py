@@ -17,10 +17,12 @@ def get_site_move_context(site: str) -> dict[str, Any]:
 	"""
 	site_doc = frappe.get_doc("Site", site)
 	current_bench = frappe.db.get_value("Bench", site_doc.bench, ["server"], as_dict=True)
+	current_rg_title = frappe.db.get_value("Release Group", site_doc.group, "title")
 	eligible = list_eligible_target_release_groups(site) if current_bench else []
 	return {
 		"site": site_doc.name,
 		"current_release_group": site_doc.group,
+		"current_release_group_title": current_rg_title or site_doc.group,
 		"current_bench": site_doc.bench,
 		"server": current_bench.server if current_bench else None,
 		"eligible": eligible,
