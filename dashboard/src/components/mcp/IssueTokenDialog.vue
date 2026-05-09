@@ -2,47 +2,49 @@
 	<Dialog v-model="show" :options="dialogOptions">
 		<template #body-content>
 			<div class="space-y-4">
-				<FormControl
-					label="Label (what this token is for)"
-					v-model="form.label"
-					required
-					autocomplete="off"
-				/>
-				<FormControl
-					label="TTL (minutes, max 1440)"
-					type="number"
-					v-model="form.ttl"
-				/>
-				<FormControl
-					label="Your password (re-auth to issue)"
-					type="password"
-					v-model="form.password"
-					required
-					autocomplete="new-password"
-				/>
+				<!-- Top section: 2-col grid for form fields + risky toggle -->
+				<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+					<FormControl
+						label="Label (what this token is for)"
+						v-model="form.label"
+						required
+						autocomplete="off"
+					/>
+					<FormControl
+						label="TTL (minutes, max 1440)"
+						type="number"
+						v-model="form.ttl"
+					/>
+					<FormControl
+						label="Your password (re-auth to issue)"
+						type="password"
+						v-model="form.password"
+						required
+						autocomplete="new-password"
+					/>
 
-				<!-- Risky tools enabled toggle -->
-				<div class="rounded border border-amber-200 bg-amber-50 p-3">
-					<label class="flex items-start gap-2 cursor-pointer">
-						<input
-							type="checkbox"
-							v-model="form.riskyToolsEnabled"
-							class="mt-0.5"
-						/>
-						<div class="flex-1">
-							<div class="text-sm font-medium text-amber-900">
-								Enable risky (high-risk) tools
-								<span class="text-xs font-normal text-amber-700">
-									— required for tools like site_run_python, site_run_sql, bench_run_repo_script
-								</span>
+					<!-- Risky tools enabled toggle (sits beside password on wide screens) -->
+					<div class="rounded border border-amber-200 bg-amber-50 p-3">
+						<label class="flex items-start gap-2 cursor-pointer">
+							<input
+								type="checkbox"
+								v-model="form.riskyToolsEnabled"
+								class="mt-0.5"
+							/>
+							<div class="flex-1">
+								<div class="text-sm font-medium text-amber-900">
+									Enable risky (high-risk) tools
+									<span class="text-xs font-normal text-amber-700">
+										— required for site_run_python, site_run_sql, bench_run_repo_script
+									</span>
+								</div>
+								<div class="mt-0.5 text-xs text-amber-800">
+									Non-System Users get a <code class="rounded bg-amber-100 px-1">pending</code> token
+									that must be approved via Admin Panel → MCP.
+								</div>
 							</div>
-							<div class="mt-0.5 text-xs text-amber-800">
-								If you (or your token holder) is not a System User, the token will start in
-								<code class="rounded bg-amber-100 px-1">pending</code> state and must be approved
-								via Admin Panel → MCP.
-							</div>
-						</div>
-					</label>
+						</label>
+					</div>
 				</div>
 
 				<!-- Scope picker: search + presets + grouped categories -->
@@ -142,18 +144,21 @@
 
 				</div>
 
-				<FormControl
-					label="Allowed Release Groups (comma-separated names; leave empty to inherit your full access)"
-					type="textarea"
-					v-model="form.allowedRGs"
-					placeholder="bench-A, bench-B"
-				/>
-				<FormControl
-					label="Allowed Sites (comma-separated full site names; leave empty to inherit your full access)"
-					type="textarea"
-					v-model="form.allowedSites"
-					placeholder="site1.example.com, site2.example.com"
-				/>
+				<!-- Resource scoping: 2-col grid for the two textareas -->
+				<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+					<FormControl
+						label="Allowed Release Groups (comma-separated; empty = inherit your access)"
+						type="textarea"
+						v-model="form.allowedRGs"
+						placeholder="bench-A, bench-B"
+					/>
+					<FormControl
+						label="Allowed Sites (comma-separated; empty = inherit your access)"
+						type="textarea"
+						v-model="form.allowedSites"
+						placeholder="site1.example.com, site2.example.com"
+					/>
+				</div>
 				<div v-if="newToken" class="rounded border border-amber-300 bg-amber-50 p-3">
 					<div class="text-sm font-medium text-amber-900">Copy this token NOW. You won't see it again.</div>
 					<code class="mt-1 block break-all text-xs text-amber-900">{{ newToken }}</code>
@@ -205,7 +210,7 @@ const search = ref('');
 
 const dialogOptions = computed(() => ({
 	title: 'Issue MCP Token',
-	size: 'xl',
+	size: '3xl',
 	actions: [
 		{
 			label: newToken.value ? 'Done' : 'Issue Token',
