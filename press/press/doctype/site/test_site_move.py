@@ -7,7 +7,11 @@ from unittest.mock import patch
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from press.api.site_move import move_to_release_group
+from press.api.site_move import (
+	get_site_move_context,
+	list_eligible_target_release_groups,
+	move_to_release_group,
+)
 from press.press.doctype.app.test_app import create_test_app
 from press.press.doctype.release_group.test_release_group import (
 	create_test_release_group,
@@ -103,3 +107,91 @@ class TestSiteMove(FrappeTestCase):
 				site=self.site.name,
 				target_release_group=self.target_rg.name,
 			)
+
+	# ------------------------------------------------------------------
+	# list_eligible_target_release_groups — picker filter (depth: full)
+	# Critical: drives what RGs the user sees in the move dialog.
+	# A bug here either hides valid moves (frustrating) or shows invalid
+	# moves (server-side rejects with confusing error).
+	# ------------------------------------------------------------------
+
+	def test_eligible_includes_target_rg_on_same_server_with_active_bench(self):
+		# self.target_bench is on the same server as self.site (both created
+		# by the same test harness). Should appear in the eligible list.
+		result = list_eligible_target_release_groups(self.site.name)
+		names = [rg["name"] for rg in result]
+		self.assertIn(self.target_rg.name, names)
+
+	def test_eligible_excludes_current_rg(self):
+		current_rg = frappe.db.get_value("Site", self.site.name, "group")
+		result = list_eligible_target_release_groups(self.site.name)
+		names = [rg["name"] for rg in result]
+		self.assertNotIn(current_rg, names)
+
+	def test_eligible_excludes_rg_with_no_active_bench(self):
+		empty_rg = create_test_release_group(apps=[self.app])
+		# No Bench created → not eligible
+		result = list_eligible_target_release_groups(self.site.name)
+		names = [rg["name"] for rg in result]
+		self.assertNotIn(empty_rg.name, names)
+
+	def test_eligible_excludes_rg_missing_required_app(self):
+		# Add a second app to the site that target_rg doesn't have.
+		extra_app = create_test_app(name="erpnext_pickerfilter", title="ERPNext PF")
+		frappe.get_doc(
+			{
+				"doctype": "Site App",
+				"parent": self.site.name,
+				"parenttype": "Site",
+				"parentfield": "apps",
+				"app": extra_app.name,
+			}
+		).insert(ignore_permissions=True, ignore_if_duplicate=True)
+		result = list_eligible_target_release_groups(self.site.name)
+		names = [rg["name"] for rg in result]
+		# target_rg is missing extra_app → should NOT be eligible
+		self.assertNotIn(self.target_rg.name, names)
+
+	def test_eligible_excludes_rg_on_different_server(self):
+		other_rg = create_test_release_group(apps=[self.app])
+		# Insert an Active Bench on a DIFFERENT server
+		other_bench = create_test_bench(group=other_rg)
+		frappe.db.set_value("Bench", other_bench.name, "server", "different-server-12345")
+		result = list_eligible_target_release_groups(self.site.name)
+		names = [rg["name"] for rg in result]
+		self.assertNotIn(other_rg.name, names)
+
+	def test_eligible_returns_required_shape(self):
+		# Picker UI relies on these specific keys — guard against drift.
+		result = list_eligible_target_release_groups(self.site.name)
+		if result:
+			required_keys = {"name", "title", "server", "app_count"}
+			self.assertEqual(set(result[0].keys()), required_keys)
+			self.assertIsInstance(result[0]["app_count"], int)
+
+	# ------------------------------------------------------------------
+	# get_site_move_context — wrapper used by the dialog (depth: normal)
+	# ------------------------------------------------------------------
+
+	def test_context_returns_current_release_group(self):
+		current_rg = frappe.db.get_value("Site", self.site.name, "group")
+		ctx = get_site_move_context(self.site.name)
+		self.assertEqual(ctx["current_release_group"], current_rg)
+		self.assertEqual(ctx["site"], self.site.name)
+
+	def test_context_returns_current_bench_and_server(self):
+		ctx = get_site_move_context(self.site.name)
+		self.assertEqual(ctx["current_bench"], self.site.bench)
+		# server may be empty string in test fixtures, but key must exist
+		self.assertIn("server", ctx)
+
+	def test_context_eligible_matches_standalone_list(self):
+		# get_site_move_context.eligible should be exactly what
+		# list_eligible_target_release_groups returns. Catches accidental
+		# divergence if someone duplicates the filter logic.
+		ctx = get_site_move_context(self.site.name)
+		standalone = list_eligible_target_release_groups(self.site.name)
+		self.assertEqual(
+			[rg["name"] for rg in ctx["eligible"]],
+			[rg["name"] for rg in standalone],
+		)
