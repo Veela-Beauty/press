@@ -164,11 +164,15 @@ class TestSiteMove(FrappeTestCase):
 
 	def test_eligible_returns_required_shape(self):
 		# Picker UI relies on these specific keys — guard against drift.
+		# Pin servers so the eligible list is non-empty (otherwise this test
+		# would silently pass without asserting anything — code-review T3A).
+		site_server = frappe.db.get_value("Bench", self.site.bench, "server")
+		frappe.db.set_value("Bench", self.target_bench.name, "server", site_server)
 		result = list_eligible_target_release_groups(self.site.name)
-		if result:
-			required_keys = {"name", "title", "server", "app_count"}
-			self.assertEqual(set(result[0].keys()), required_keys)
-			self.assertIsInstance(result[0]["app_count"], int)
+		self.assertGreater(len(result), 0, "fixture should produce at least 1 eligible RG")
+		required_keys = {"name", "title", "server", "app_count"}
+		self.assertEqual(set(result[0].keys()), required_keys)
+		self.assertIsInstance(result[0]["app_count"], int)
 
 	# ------------------------------------------------------------------
 	# get_site_move_context — wrapper used by the dialog (depth: normal)
@@ -191,11 +195,8 @@ class TestSiteMove(FrappeTestCase):
 
 	def test_context_eligible_matches_standalone_list(self):
 		# get_site_move_context.eligible should be exactly what
-		# list_eligible_target_release_groups returns. Catches accidental
-		# divergence if someone duplicates the filter logic.
+		# list_eligible_target_release_groups returns. Full equality
+		# catches drift in EITHER name list OR row shape (T4A).
 		ctx = get_site_move_context(self.site.name)
 		standalone = list_eligible_target_release_groups(self.site.name)
-		self.assertEqual(
-			[rg["name"] for rg in ctx["eligible"]],
-			[rg["name"] for rg in standalone],
-		)
+		self.assertEqual(ctx["eligible"], standalone)

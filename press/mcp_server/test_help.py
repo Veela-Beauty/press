@@ -6,7 +6,14 @@ from __future__ import annotations
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from press.mcp_server.help import CATEGORIES, TOOL_CATEGORY, get_tool_help
+from press.mcp_server.help import (
+	BUILTIN_TOOLS,
+	CATEGORIES,
+	DISCOVERABILITY_HINT,
+	TOOL_CATEGORY,
+	get_tool_help,
+)
+from press.mcp_server.server import handle as mcp_handle
 from press.mcp_server.tools import TOOLS
 
 
@@ -72,3 +79,35 @@ class TestHelp(FrappeTestCase):
 		# Catches typos in TOOL_CATEGORY values.
 		unknown = {cid for cid in TOOL_CATEGORY.values() if cid not in CATEGORIES}
 		self.assertEqual(unknown, set(), f"Unknown category ids: {unknown}")
+
+	def test_builtin_tools_set_includes_help_and_list_tools(self):
+		# Drift guard: if someone removes 'list_tools' alias, agents that
+		# call it instead of 'help' silently break.
+		self.assertEqual(BUILTIN_TOOLS, {"help", "list_tools"})
+
+	def test_discoverability_hint_mentions_help(self):
+		# The hint should always tell agents how to call help.
+		self.assertIn("help", DISCOVERABILITY_HINT.lower())
+
+	# ------------------------------------------------------------------
+	# Server-handle integration: auth path for built-in tools (T2A)
+	# Critical: wraps the discoverability layer in token verification so
+	# anonymous callers can't enumerate the catalog. A bug here = info leak.
+	# ------------------------------------------------------------------
+
+	def test_handle_help_with_no_token_raises(self):
+		result = mcp_handle(tool="help")
+		self.assertFalse(result["ok"])
+		self.assertEqual(result["error_type"], "PermissionError")
+		self.assertIn("token", result["error"].lower())
+
+	def test_handle_help_with_bogus_token_raises(self):
+		result = mcp_handle(tool="help", token="not-a-real-token-xxxxxxxxx")
+		self.assertFalse(result["ok"])
+		self.assertEqual(result["error_type"], "PermissionError")
+
+	def test_handle_list_tools_alias_routes_to_help(self):
+		# 'list_tools' is the alias; should hit the same auth path.
+		result = mcp_handle(tool="list_tools")
+		self.assertFalse(result["ok"])
+		self.assertEqual(result["error_type"], "PermissionError")
