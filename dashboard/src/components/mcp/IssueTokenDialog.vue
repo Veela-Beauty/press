@@ -251,8 +251,8 @@ async function loadResourceOptions() {
 	loadingSites.value = true;
 	try {
 		const [rgs, sites] = await Promise.all([
-			call('press.mcp_server.dashboard.list_my_release_groups'),
-			call('press.mcp_server.dashboard.list_my_sites'),
+			call('press.api.team_resources.list_my_release_groups'),
+			call('press.api.team_resources.list_my_sites'),
 		]);
 		rgOptions.value = (rgs || []).map((r) => ({
 			value: r.name,

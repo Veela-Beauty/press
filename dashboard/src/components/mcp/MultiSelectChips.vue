@@ -39,6 +39,7 @@
 				/>
 				<div
 					v-if="open && filtered.length"
+					ref="dropdownRef"
 					class="absolute left-0 right-0 z-50 mt-1 max-h-64 overflow-y-auto rounded border border-gray-200 bg-white shadow-lg"
 				>
 					<button
@@ -79,6 +80,7 @@ const emit = defineEmits(['update:modelValue']);
 const query = ref('');
 const open = ref(false);
 const inputRef = ref(null);
+const dropdownRef = ref(null);
 
 const filtered = computed(() => {
 	const q = query.value.trim().toLowerCase();
@@ -115,8 +117,10 @@ function addFirst() {
 	if (filtered.value.length) toggle(filtered.value[0].value);
 }
 
-function onBlur() {
-	// Defer so click on dropdown options registers first
-	setTimeout(() => { open.value = false; }, 150);
+function onBlur(e) {
+	// Use relatedTarget to deterministically close only when focus moves
+	// outside the dropdown — avoids the 150ms setTimeout race.
+	if (e.relatedTarget && dropdownRef.value?.contains(e.relatedTarget)) return;
+	open.value = false;
 }
 </script>
