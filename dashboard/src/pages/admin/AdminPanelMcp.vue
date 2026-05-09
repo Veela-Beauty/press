@@ -72,7 +72,9 @@
 							<td class="p-3 font-medium">{{ t.label }}</td>
 							<td class="p-3 text-xs">{{ t.user }}</td>
 							<td class="p-3 text-xs">{{ t.team || '—' }}</td>
-							<td class="p-3 text-xs text-gray-600">{{ (t.scope || []).join(', ') || 'all' }}</td>
+							<td class="p-3 text-xs text-gray-600" :title="(t.scope || []).join(', ') || 'all'">
+								{{ formatScope(t.scope) }}
+							</td>
 							<td class="p-3 text-xs text-gray-600">
 								<div v-if="t.allowed_release_groups?.length || t.allowed_sites?.length">
 									<div v-if="t.allowed_release_groups?.length">
@@ -113,6 +115,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
 import { Button, FormControl, call, toast, confirmDialog } from 'frappe-ui';
+import { formatScope } from '../../components/mcp/_tool_catalog.js';
 
 const tokens = ref([]);
 const selected = ref([]);
