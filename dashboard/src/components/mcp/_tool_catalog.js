@@ -13,6 +13,10 @@ export const TOOL_CATEGORIES = [
 // risk: 'low' | 'medium' | 'high'  — must match tools.py
 // category: id from TOOL_CATEGORIES above
 // label: human-friendly display name (recipients see this in the dialog)
+//
+// Built-in virtual tools `help` and `list_tools` are ALWAYS callable by any
+// valid token (server.py BUILTIN_TOOLS) — they are not in this catalog and
+// don't need to appear in the scope picker.
 export const TOOL_CATALOG = {
 	// READ-ONLY (low risk)
 	lock_status:              { category: 'readonly', risk: 'low', label: 'Lock — Status',                desc: 'Inspect lock state of Site or Release Group' },
