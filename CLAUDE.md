@@ -27,8 +27,9 @@ SSH key: `E:/.ssh/new_id_ed25519` (all three servers)
 u4 uses ProxyCommand through press-ctrl (ProxyJump not supported by Windows OpenSSH client):
 `ProxyCommand ssh -i E:/.ssh/new_id_ed25519 -o StrictHostKeyChecking=no root@89.167.116.92 -W %h:%p`
 
-**Push method:** press-ctrl has SSH key to GitHub (`upstream` remote via `git@github.com:accurate-systems/press.git`).
-To push local commits: bundle → SCP to press-ctrl → apply → push from there.
+**Push method (canonical):** push DIRECTLY from this Hetzner dev box — `git push origin cloudflare-dns`. The local `~/.ssh/id_ed25519` is a personal GitHub-write key (`elgogary`) registered on both `Veela-Beauty/press` and `accurate-systems/press` with write access. **Do NOT bundle through press-ctrl** — press-ctrl's keys are read-only deploy keys; pushing from there ALWAYS fails with "Permission denied to deploy key". Full workflow: `~/.claude/projects/-home-eslam/memory/PRESS-WORKFLOW.md`.
+
+**Deploy method:** press-ctrl is for DEPLOYING (cherry-pick local commits onto its `apps/press` clone, `bench build` if Vue changed, restart web). Bundle → SCP → cherry-pick → restart. Never run `git push` from press-ctrl.
 
 ## Commands
 
