@@ -77,6 +77,7 @@ TOOL_CATEGORY: dict[str, str] = {
 	"bench_read_app_file": "readonly",
 	"bench_list_app_files": "readonly",
 	"bench_ssh_instructions": "readonly",
+	"bench_ssh_register_key": "bench_rg",
 	# Bench / Release Group
 	"clone_bench": "bench_rg",
 	"bench_deploy": "bench_rg",
