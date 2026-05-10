@@ -3,6 +3,7 @@ Dev Tools API — dev overview, git status, console, logs, process management.
 Kept in a separate file because bench.py is already >700 lines.
 """
 import re
+from typing import Any
 
 import frappe
 from frappe import _
