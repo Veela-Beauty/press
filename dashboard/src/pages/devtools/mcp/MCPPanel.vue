@@ -64,8 +64,25 @@
 
 		<section class="rounded border border-gray-200 bg-white">
 			<div class="flex items-center justify-between border-b border-gray-200 p-4">
-				<div class="text-base font-semibold">Recent Calls</div>
-				<Button size="sm" @click="loadCalls">Refresh</Button>
+				<div class="flex items-baseline gap-3">
+					<div class="text-base font-semibold">Recent Calls</div>
+					<div class="text-xs text-gray-500">
+						<span v-if="totalCalls">
+							{{ pageStart }}–{{ pageEnd }} of {{ totalCalls }}
+						</span>
+						<span v-else>—</span>
+					</div>
+				</div>
+				<div class="flex items-center gap-2">
+					<select
+						v-model.number="pageSize"
+						class="rounded border border-gray-300 bg-white px-2 py-1 text-xs"
+						@change="onPageSizeChange"
+					>
+						<option v-for="s in [10, 25, 50, 100]" :key="s" :value="s">{{ s }}/page</option>
+					</select>
+					<Button size="sm" @click="loadCalls(false)">Refresh</Button>
+				</div>
 			</div>
 			<div class="overflow-x-auto">
 				<table class="w-full text-left text-sm">
@@ -99,6 +116,15 @@
 					</tbody>
 				</table>
 			</div>
+			<div v-if="totalCalls > pageSize" class="flex items-center justify-between gap-2 border-t border-gray-200 p-3">
+				<div class="text-xs text-gray-500">Page {{ currentPage }} of {{ totalPages }}</div>
+				<div class="flex gap-1">
+					<Button size="sm" :disabled="currentPage === 1" @click="goToPage(1)">First</Button>
+					<Button size="sm" :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">Prev</Button>
+					<Button size="sm" :disabled="currentPage === totalPages" @click="goToPage(currentPage + 1)">Next</Button>
+					<Button size="sm" :disabled="currentPage === totalPages" @click="goToPage(totalPages)">Last</Button>
+				</div>
+			</div>
 		</section>
 
 		<IssueTokenDialog v-model="showIssueDialog" @issued="loadTokens" />
@@ -106,16 +132,23 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Button, FeatherIcon, call, toast } from 'frappe-ui';
 import IssueTokenDialog from '../../../components/mcp/IssueTokenDialog.vue';
 import { formatScope, toolLabel } from '../../../components/mcp/_tool_catalog.js';
 
 const tokens = ref([]);
 const calls = ref([]);
+const totalCalls = ref(0);
+const currentPage = ref(1);
+const pageSize = ref(25);
 const latestCallTs = ref(null);
 const showIssueDialog = ref(false);
 let pollHandle = null;
+
+const totalPages = computed(() => Math.max(1, Math.ceil(totalCalls.value / pageSize.value)));
+const pageStart = computed(() => totalCalls.value === 0 ? 0 : (currentPage.value - 1) * pageSize.value + 1);
+const pageEnd = computed(() => Math.min(currentPage.value * pageSize.value, totalCalls.value));
 
 async function loadTokens() {
 	try {
@@ -127,18 +160,26 @@ async function loadTokens() {
 
 async function loadCalls(incremental = false) {
 	try {
-		const args = { limit: 200 };
-		if (incremental && latestCallTs.value) {
+		const args = {
+			limit: pageSize.value,
+			offset: (currentPage.value - 1) * pageSize.value,
+		};
+		// Incremental polling only on page 1 (newest rows show there)
+		if (incremental && currentPage.value === 1 && latestCallTs.value) {
 			args.since_iso = latestCallTs.value;
 		}
 		const result = await call('press.mcp_server.dashboard.list_my_calls', args);
-		// API now returns { rows, latest }
 		const rows = result?.rows || [];
-		if (!incremental) {
+		const isPolling = !!args.since_iso;
+		if (!isPolling) {
 			calls.value = rows;
 		} else if (rows.length) {
-			// Prepend new rows (creation desc); cap at 200 to bound memory
-			calls.value = [...rows, ...calls.value].slice(0, 200);
+			// Prepend new rows; trim to pageSize so the page stays bounded
+			calls.value = [...rows, ...calls.value].slice(0, pageSize.value);
+			totalCalls.value += rows.length;
+		}
+		if (typeof result?.total === 'number' && !isPolling) {
+			totalCalls.value = result.total;
 		}
 		if (result?.latest) {
 			latestCallTs.value = result.latest;
@@ -150,6 +191,18 @@ async function loadCalls(incremental = false) {
 
 function pollCalls() {
 	loadCalls(true);
+}
+
+function goToPage(p) {
+	const target = Math.max(1, Math.min(totalPages.value, p));
+	if (target === currentPage.value) return;
+	currentPage.value = target;
+	loadCalls(false);
+}
+
+function onPageSizeChange() {
+	currentPage.value = 1;
+	loadCalls(false);
 }
 
 async function onRevoke(token) {

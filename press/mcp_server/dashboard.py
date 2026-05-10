@@ -37,25 +37,31 @@ def list_my_tokens() -> list[dict[str, Any]]:
 
 @frappe.whitelist()
 def list_my_calls(
-	limit: int = 200,
+	limit: int = 25,
+	offset: int = 0,
 	since_iso: str | None = None,
 ) -> dict[str, Any]:
 	"""List recent MCP Call Log entries for the calling user.
 
 	Args:
-		limit: max rows (capped at 500).
+		limit: max rows per page (capped at 200).
+		offset: rows to skip — used for pagination.
 		since_iso: optional ISO datetime — return rows with creation > since_iso.
-			If unchanged from last poll, returns `{rows: [], latest: <iso>}`
-			so the Vue client can skip re-rendering.
+			Used by the Vue panel for incremental polling: when set, offset
+			is forced to 0 (only newest rows matter).
 
 	Returns:
-		{rows: [...], latest: ISO timestamp of newest row or None}
+		{rows: [...], latest: ISO of newest row or None, total: count of all
+		rows for this user (without limit/offset, but respecting since_iso)}
 	"""
 	user = frappe.session.user
-	limit = max(1, min(500, int(limit)))
+	limit = max(1, min(200, int(limit)))
+	offset = max(0, int(offset))
 	filters: dict[str, Any] = {"user": user}
 	if since_iso:
 		filters["creation"] = (">", since_iso)
+		offset = 0  # incremental polling never paginates
+	total = frappe.db.count("Press MCP Call Log", filters=filters)
 	rows = frappe.get_all(
 		"Press MCP Call Log",
 		filters=filters,
@@ -66,9 +72,10 @@ def list_my_calls(
 		],
 		order_by="creation desc",
 		limit=limit,
+		start=offset,
 	)
 	latest = rows[0]["creation"].isoformat() if rows and rows[0].get("creation") else None
-	return {"rows": rows, "latest": latest}
+	return {"rows": rows, "latest": latest, "total": total}
 
 
 def _status_for(row: dict) -> str:
