@@ -89,6 +89,32 @@ def list_my_calls(
 	return {"rows": rows, "latest": latest, "total": total}
 
 
+@frappe.whitelist()
+def purge_my_expired_tokens() -> dict[str, int]:
+	"""Delete the calling user's expired tokens immediately, ignoring the
+	24h grace window the daily cron uses. Used by the 'Purge expired'
+	button in the dashboard.
+	"""
+	user = frappe.session.user
+	expired = frappe.get_all(
+		"Press MCP Token",
+		filters={
+			"user": user,
+			"expires_at": ("<", now_datetime()),
+		},
+		pluck="name",
+		limit=1000,
+	)
+	for name in expired:
+		try:
+			frappe.delete_doc("Press MCP Token", name, force=1, ignore_permissions=True)
+		except Exception as e:
+			frappe.logger().warning(f"purge_my_expired_tokens: failed to delete {name}: {e}")
+	if expired:
+		frappe.db.commit()
+	return {"deleted": len(expired)}
+
+
 def _status_for(row: dict) -> str:
 	if row.get("revoked"):
 		return "revoked"

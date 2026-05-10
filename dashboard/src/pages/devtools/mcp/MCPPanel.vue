@@ -28,12 +28,17 @@
 						</span>
 					</div>
 				</div>
-				<input
-					type="text"
-					v-model="tokenSearch"
-					placeholder="Search by label or tool..."
-					class="w-64 rounded border border-gray-300 px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
-				/>
+				<div class="flex items-center gap-2">
+					<input
+						type="text"
+						v-model="tokenSearch"
+						placeholder="Search by label or tool..."
+						class="w-56 rounded border border-gray-300 px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+					/>
+					<Button size="sm" @click="onPurgeExpired" title="Delete all expired tokens immediately (instead of waiting for the daily cron)">
+						Purge expired
+					</Button>
+				</div>
 			</div>
 
 			<!-- Token list (cards, not a wide table) -->
@@ -101,13 +106,19 @@
 						</div>
 						<!-- Right: handover / reissue / revoke actions -->
 						<div class="flex shrink-0 gap-1">
-							<Button size="sm" @click="onShowHandover(t)"
-								:title="t.has_plaintext
-									? 'Recover plaintext + show handover (requires password)'
-									: 'Show handover snippet (token plaintext was not stored — placeholder)'">
-								{{ t.has_plaintext ? 'Copy token' : 'Snippet' }}
+							<!-- Has plaintext: one-click Copy reveals the real token inline. -->
+							<Button v-if="t.has_plaintext" size="sm" @click="onShowHandover(t)"
+								title="Show plaintext token + handover snippet">
+								Copy token
 							</Button>
-							<Button v-if="t.status === 'active'" size="sm" @click="onReissue(t)" title="Revoke + issue new token with same scope">
+							<!-- Active old token without plaintext: one-click Reissue & Copy replaces
+							     it with a fresh one and shows the new plaintext inline. -->
+							<Button v-else-if="t.status === 'active'" size="sm" @click="onReissue(t)"
+								title="Revoke this old token + issue a new one with the same scope, then show the fresh plaintext">
+								Reissue & Copy
+							</Button>
+							<!-- Old expired/revoked token without plaintext: nothing useful to show. -->
+							<Button v-if="t.has_plaintext && t.status === 'active'" size="sm" @click="onReissue(t)" title="Revoke + issue new token with same scope">
 								Reissue
 							</Button>
 							<Button v-if="t.status === 'active'" size="sm" @click="onRevoke(t)">Revoke</Button>
@@ -371,6 +382,23 @@ function goToPage(p) {
 	loadCalls(false);
 }
 
+async function onPurgeExpired() {
+	confirmDialog({
+		title: 'Purge expired tokens?',
+		message: 'This will permanently delete <strong>all</strong> of your expired tokens right now (instead of waiting for tomorrow\'s daily cron). Active tokens are not affected.',
+		onSuccess: async ({ hide }) => {
+			try {
+				const result = await call('press.mcp_server.dashboard.purge_my_expired_tokens');
+				toast.success(`Purged ${result.deleted} expired token${result.deleted === 1 ? '' : 's'}`);
+				hide();
+				await loadTokens();
+			} catch (e) {
+				toast.error('Purge failed: ' + (e?.messages?.[0] || e?.message || e));
+			}
+		},
+	});
+}
+
 function onPageSizeChange() {
 	currentPage.value = 1;
 	loadCalls(false);
@@ -415,20 +443,14 @@ async function onShowHandover(token) {
 function onReissue(token) {
 	confirmDialog({
 		title: 'Reissue token?',
-		message: `This will <strong>revoke</strong> <code>${token.label}</code> and create a new token with the same scope. Any agent using the old token will lose access immediately.<br><br>Re-enter your password to continue.`,
+		message: `This will <strong>revoke</strong> <code>${token.label}</code> and create a new token with the same scope. Any agent using the old token will lose access immediately.`,
 		fields: [
-			{ label: 'Password', fieldname: 'password', type: 'password', required: true },
 			{ label: 'New TTL (minutes)', fieldname: 'ttl', type: 'int', default: 60 },
 		],
 		onSuccess: async ({ hide, values }) => {
-			if (!values.password) {
-				toast.error('Password required');
-				return;
-			}
 			try {
 				const result = await call('press.mcp_server.auth.reissue_token', {
 					token_id: token.name,
-					password: values.password,
 					ttl_minutes: parseInt(values.ttl) || 60,
 				});
 				toast.success(`Reissued: ${token.label}`);
