@@ -50,12 +50,21 @@ def issue_token(
 	if _is_ip_blocked(ip):
 		raise frappe.AuthenticationError("IP blocked due to repeated failures")
 
+	# Default to the dashboard session user when the Vue dialog passes an
+	# empty username (window.frappe?.session?.user is undefined in the
+	# Vue dashboard context). Issuing a token for someone else still requires
+	# explicit `username` — empty just means "for myself".
+	if not username and frappe.session.user and frappe.session.user != "Guest":
+		username = frappe.session.user
+
 	ttl_minutes = max(TTL_MIN, min(TTL_MAX, int(ttl_minutes)))
 	scope_list = safe_parse_list(scope)
 	allowed_rgs = safe_parse_list(allowed_release_groups)
 	allowed_sites_list = safe_parse_list(allowed_sites)
 	if not label or not str(label).strip():
 		raise frappe.ValidationError("label is required")
+	if not username:
+		raise frappe.ValidationError("username is required")
 
 	try:
 		_check_password(username, password)
