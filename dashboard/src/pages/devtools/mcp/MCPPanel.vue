@@ -386,7 +386,7 @@ async function performRevoke(token) {
 	}
 }
 
-function onShowHandover(token) {
+async function onShowHandover(token) {
 	if (handoverFor.value === token.name) {
 		// Toggle off
 		handoverFor.value = null;
@@ -399,29 +399,17 @@ function onShowHandover(token) {
 		handoverToken.value = null;
 		return;
 	}
-	// Recoverable: ask password, fetch plaintext, show inline panel with real token
-	confirmDialog({
-		title: 'Recover token',
-		message: `Re-enter your password to display the plaintext token for <code>${token.label}</code>. The token will be visible on this page until you collapse the panel.`,
-		fields: [{ label: 'Password', fieldname: 'password', type: 'password', required: true }],
-		onSuccess: async ({ hide, values }) => {
-			if (!values.password) {
-				toast.error('Password required');
-				return;
-			}
-			try {
-				const r = await call('press.mcp_server.auth.recover_token', {
-					token_id: token.name,
-					password: values.password,
-				});
-				handoverFor.value = token.name;
-				handoverToken.value = r.token;
-				hide();
-			} catch (e) {
-				toast.error(e?.messages?.[0] || e?.message || 'Recover failed');
-			}
-		},
-	});
+	// Recoverable: fetch plaintext directly (owner check is the auth gate;
+	// no password prompt — same model as viewing a GitHub PAT in repo settings).
+	try {
+		const r = await call('press.mcp_server.auth.recover_token', {
+			token_id: token.name,
+		});
+		handoverFor.value = token.name;
+		handoverToken.value = r.token;
+	} catch (e) {
+		toast.error(e?.messages?.[0] || e?.message || 'Recover failed');
+	}
 }
 
 function onReissue(token) {

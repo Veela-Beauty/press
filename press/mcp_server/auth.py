@@ -316,16 +316,20 @@ def reissue_token(token_id: str, password: str, ttl_minutes: int = 60) -> dict[s
 
 
 @frappe.whitelist()
-def recover_token(token_id: str, password: str) -> dict[str, str]:
+def recover_token(token_id: str, password: str | None = None) -> dict[str, str]:
 	"""Recover the plaintext token for an existing Press MCP Token.
 
 	Self-hosted convenience: tokens issued from 2026-05-10 onwards store
 	their plaintext encrypted-at-rest in `token_plaintext`. This endpoint
-	requires password re-auth (same gate as issue_token / reissue_token)
-	and returns the plaintext for re-copy without revoking the old token.
+	returns the plaintext to the token's owner — no password re-auth
+	required (the active dashboard session IS the auth gate, same model
+	as viewing GitHub PATs in repo settings).
 
-	Older tokens (issued before this field existed) return 400 with
-	`reason='no_plaintext_stored'` — caller should fall back to reissue.
+	`password` arg accepted for backward compatibility with older clients
+	but no longer required.
+
+	Older tokens (issued before this field existed) return ValidationError
+	— caller should fall back to reissue.
 
 	Caller must own the token. System Users can recover any token.
 	"""
@@ -334,9 +338,6 @@ def recover_token(token_id: str, password: str) -> dict[str, str]:
 	is_system = frappe.session.data.user_type == "System User"
 	if doc.user != user and not is_system:
 		raise frappe.PermissionError("you can only recover your own tokens")
-
-	# Re-auth — same gate as issue/reissue
-	_check_password(doc.user, password)
 
 	from frappe.utils.password import get_decrypted_password
 	try:
