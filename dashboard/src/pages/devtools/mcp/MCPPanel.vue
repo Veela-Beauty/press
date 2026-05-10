@@ -130,6 +130,7 @@
 						<HandoverPanel
 							:token="handoverToken || '<YOUR_TOKEN_HERE>'"
 							:label="t.label"
+							:scope="t.scope || []"
 							:mode="handoverToken ? 'issued' : 'existing'"
 						/>
 					</div>
