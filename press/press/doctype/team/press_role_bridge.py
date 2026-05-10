@@ -228,6 +228,8 @@ def sync_team_member(doc, method=None) -> None:
 	4. Else: add user to the role's users child + remove from any OTHER role on this team
 	5. Clear user_permissions cache for (team, user)
 	"""
+	if _is_bridge_disabled():
+		return
 	team = doc.parent
 	user = doc.get("user")
 	role = doc.get("press_role") or "Viewer"
@@ -290,3 +292,151 @@ def backfill_all_team_members() -> dict:
 			errors.append(f"team={r.parent} user={r.user}: {e!r}")
 	frappe.db.commit()
 	return {"scanned": scanned, "synced": synced, "errors": errors}
+
+
+# ── Guards (added 2026-05-10) ────────────────────────────────────────────────
+
+
+def _is_bridge_disabled() -> bool:
+	"""Emergency safety valve: site_config flag disable_press_role_bridge=1
+	disables ALL bridge enforcement (validate + sync + audit). Used during
+	migrations or recovery when you need to hand-edit Press Role docs without
+	the bridge fighting back. Set in site_config.json + clear cache.
+	"""
+	try:
+		return bool(frappe.conf.get("disable_press_role_bridge"))
+	except Exception:
+		return False
+
+
+def validate_press_role_flags(doc, method=None) -> None:
+	"""Guard 1: doc_events validate hook on Press Role.
+
+	If a Press Role's title is one of our canonical roles (Platform Admin /
+	DevOps Admin / Developer / etc.), enforce that its flags match
+	ROLE_TO_FLAGS. Prevents silent drift from someone unchecking
+	'admin_access' on a Platform Admin role through the Desk UI.
+
+	Custom roles (titles NOT in ROLE_TO_FLAGS like 'OptiFlowERP Developer')
+	are left alone — admins can hand-craft those.
+	"""
+	if _is_bridge_disabled():
+		return
+	title = doc.get("title")
+	if not title or title not in ROLE_TO_FLAGS:
+		return  # Custom role — admin owns the flags
+	canonical = ROLE_TO_FLAGS[title]
+	drift: list[str] = []
+	for flag, expected in canonical.items():
+		actual = doc.get(flag)
+		# Coerce truthy/falsy to 0/1 for comparison
+		if int(bool(actual)) != int(bool(expected)):
+			drift.append(f"{flag}: expected={expected} got={actual}")
+	if drift:
+		# Auto-correct silently — log a warning so we know it happened, but
+		# don't throw (would block legitimate doc.save() in the bridge itself).
+		# The validate hook fires INSIDE the bridge's flag-fix path; throwing
+		# would cause a chicken-and-egg problem. Soft-correct + log instead.
+		for flag, expected in canonical.items():
+			doc.set(flag, expected)
+		frappe.logger("press_role_bridge").info(
+			f"validate_press_role_flags: corrected drift on {doc.name} "
+			f"(title={title!r}): {'; '.join(drift)}"
+		)
+
+
+def audit_press_role_drift() -> dict:
+	"""Guard 2: scheduler daily — walk all Team Members + Press Roles,
+	re-sync any drift detected.
+
+	Catches:
+	- Team Members whose press_role text doesn't match their Press Role User
+	  membership (someone hand-edited tabPress Role User SQL-direct)
+	- Press Role docs whose flags drifted from canonical (someone unchecked
+	  flags through the Desk UI)
+	- Team Members with no Press Role User row at all (legacy data, missed
+	  inserts during a migration)
+
+	Returns: {team_members_scanned, drift_corrected, errors}
+	Logs to frappe error log if drift_corrected > 0 so we get a notification.
+	"""
+	if _is_bridge_disabled():
+		return {"team_members_scanned": 0, "drift_corrected": 0, "skipped": True}
+
+	scanned = 0
+	corrected = 0
+	errors: list[str] = []
+
+	# Phase 1: re-sync every Team Member (catches missing/wrong Press Role memberships)
+	tm_rows = frappe.db.get_all(
+		"Team Member",
+		fields=["name", "parent", "user", "press_role"],
+		limit=0,
+	)
+	for r in tm_rows:
+		scanned += 1
+		try:
+			# Snapshot which Press Role this user is in BEFORE sync
+			before = frappe.db.get_value(
+				"Press Role User",
+				{"user": r.user},
+				"parent",
+				cache=False,
+			)
+			doc = frappe._dict(
+				name=r.name, parent=r.parent, user=r.user, press_role=r.press_role,
+			)
+			sync_team_member(doc, method="after_insert")
+			# Check if anything actually changed
+			after = frappe.db.get_value(
+				"Press Role User",
+				{"user": r.user, "parent": ("in", frappe.db.get_all(
+					"Press Role", filters={"team": r.parent}, pluck="name"
+				) or ["__none__"])},
+				"parent",
+				cache=False,
+			)
+			if before != after:
+				corrected += 1
+		except Exception as e:
+			errors.append(f"team={r.parent} user={r.user}: {e!r}")
+
+	# Phase 2: audit Press Role flag drift on canonical titles
+	all_canonical_roles = frappe.db.get_all(
+		"Press Role",
+		filters={"title": ("in", list(ROLE_TO_FLAGS.keys()))},
+		fields=["name", "title"] + [f for f in ROLE_TO_FLAGS["Platform Admin"]],
+	)
+	for role in all_canonical_roles:
+		canonical = ROLE_TO_FLAGS.get(role.title)
+		if not canonical:
+			continue
+		drift_flags: dict[str, int] = {}
+		for flag, expected in canonical.items():
+			if int(bool(role.get(flag))) != int(bool(expected)):
+				drift_flags[flag] = expected
+		if drift_flags:
+			for flag, expected in drift_flags.items():
+				frappe.db.set_value(
+					"Press Role", role.name, flag, expected, update_modified=False
+				)
+			corrected += 1
+
+	frappe.db.commit()
+
+	if corrected > 0:
+		# Log so we get a daily-digest notification of any drift
+		frappe.log_error(
+			title="press_role_bridge: drift corrected during audit",
+			message=(
+				f"Daily audit corrected {corrected} drift event(s) across "
+				f"{scanned} Team Members.\n"
+				f"Errors: {errors[:10]}"
+			),
+		)
+
+	return {
+		"team_members_scanned": scanned,
+		"drift_corrected": corrected,
+		"errors": errors,
+	}
