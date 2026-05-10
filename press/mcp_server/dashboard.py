@@ -27,11 +27,22 @@ def list_my_tokens() -> list[dict[str, Any]]:
 		order_by="creation desc",
 		limit=100,
 	)
+	# Detect which tokens have plaintext stored (issued post-2026-05-10).
+	# We DON'T return the plaintext here — only whether it's recoverable.
+	# The UI shows "Recover" instead of placeholder for these.
+	from frappe.utils.password import get_decrypted_password
 	for row in rows:
 		row["scope"] = safe_parse_list(row.get("scope"))
 		for k in ("allowed_release_groups", "allowed_sites"):
 			row[k] = safe_parse_list(row.get(k))
 		row["status"] = _status_for(row)
+		try:
+			pt = get_decrypted_password(
+				"Press MCP Token", row["name"], "token_plaintext", raise_exception=False,
+			)
+			row["has_plaintext"] = bool(pt)
+		except Exception:
+			row["has_plaintext"] = False
 	return rows
 
 

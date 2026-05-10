@@ -94,6 +94,7 @@ def issue_token(
 		"risky_tools_enabled": 1 if risky_tools_enabled else 0,
 		"approval_status": approval_status,
 		"token_hash": hashed,
+		"token_plaintext": plaintext,
 		"token_prefix": prefix,
 		"expires_at": expires_at,
 	}).insert(ignore_permissions=True)
@@ -295,6 +296,7 @@ def reissue_token(token_id: str, password: str, ttl_minutes: int = 60) -> dict[s
 		"risky_tools_enabled": old.risky_tools_enabled,
 		"approval_status": approval_status,
 		"token_hash": hashed,
+		"token_plaintext": plaintext,
 		"token_prefix": prefix,
 		"expires_at": expires_at,
 	}).insert(ignore_permissions=True)
@@ -311,6 +313,79 @@ def reissue_token(token_id: str, password: str, ttl_minutes: int = 60) -> dict[s
 		"approval_status": approval_status,
 		"replaced": token_id,
 	}
+
+
+@frappe.whitelist()
+def recover_token(token_id: str, password: str) -> dict[str, str]:
+	"""Recover the plaintext token for an existing Press MCP Token.
+
+	Self-hosted convenience: tokens issued from 2026-05-10 onwards store
+	their plaintext encrypted-at-rest in `token_plaintext`. This endpoint
+	requires password re-auth (same gate as issue_token / reissue_token)
+	and returns the plaintext for re-copy without revoking the old token.
+
+	Older tokens (issued before this field existed) return 400 with
+	`reason='no_plaintext_stored'` — caller should fall back to reissue.
+
+	Caller must own the token. System Users can recover any token.
+	"""
+	doc = frappe.get_doc("Press MCP Token", token_id)
+	user = frappe.session.user
+	is_system = frappe.session.data.user_type == "System User"
+	if doc.user != user and not is_system:
+		raise frappe.PermissionError("you can only recover your own tokens")
+
+	# Re-auth — same gate as issue/reissue
+	_check_password(doc.user, password)
+
+	from frappe.utils.password import get_decrypted_password
+	try:
+		plaintext = get_decrypted_password(
+			"Press MCP Token", token_id, "token_plaintext", raise_exception=False,
+		)
+	except Exception:
+		plaintext = None
+
+	if not plaintext:
+		raise frappe.ValidationError(
+			"This token was issued before plaintext storage was enabled. "
+			"Use Reissue to get a new token with the same scope."
+		)
+
+	return {
+		"token": plaintext,
+		"name": doc.name,
+		"label": doc.label,
+	}
+
+
+def cleanup_expired_tokens(grace_hours: int = 24) -> dict[str, int]:
+	"""Delete Press MCP Tokens that expired more than `grace_hours` ago.
+
+	Wired into hooks.py scheduler_events.daily so the list stays clean —
+	stale expired tokens were polluting the dashboard. Grace window keeps
+	recently-expired tokens around for short audit + reissue use cases.
+
+	Returns:
+		{deleted: N, grace_hours: H}
+	"""
+	from datetime import timedelta
+	cutoff = now_datetime() - timedelta(hours=int(grace_hours))
+	expired = frappe.get_all(
+		"Press MCP Token",
+		filters={"expires_at": ("<", cutoff)},
+		pluck="name",
+		limit=1000,
+	)
+	for name in expired:
+		try:
+			frappe.delete_doc("Press MCP Token", name, force=1, ignore_permissions=True)
+		except Exception as e:
+			frappe.logger().warning(f"cleanup_expired_tokens: failed to delete {name}: {e}")
+	if expired:
+		frappe.db.commit()
+	frappe.logger().info(f"cleanup_expired_tokens: deleted {len(expired)} tokens older than {grace_hours}h past expiry")
+	return {"deleted": len(expired), "grace_hours": grace_hours}
 
 
 def _check_password(username: str, password: str) -> None:

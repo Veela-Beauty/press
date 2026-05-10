@@ -99,8 +99,11 @@
 						</div>
 						<!-- Right: handover / reissue / revoke actions -->
 						<div class="flex shrink-0 gap-1">
-							<Button size="sm" @click="onShowHandover(t)" title="Show the handover snippet for this token (with placeholder for the secret)">
-								Handover
+							<Button size="sm" @click="onShowHandover(t)"
+								:title="t.has_plaintext
+									? 'Recover plaintext + show handover (requires password)'
+									: 'Show handover snippet (token plaintext was not stored — placeholder)'">
+								{{ t.has_plaintext ? 'Copy token' : 'Snippet' }}
 							</Button>
 							<Button v-if="t.status === 'active'" size="sm" @click="onReissue(t)" title="Revoke + issue new token with same scope">
 								Reissue
@@ -387,8 +390,35 @@ function onShowHandover(token) {
 		handoverToken.value = null;
 		return;
 	}
-	handoverFor.value = token.name;
-	handoverToken.value = null; // existing-mode (placeholder)
+	if (!token.has_plaintext) {
+		// Old token (pre-plaintext-storage) — show placeholder snippet
+		handoverFor.value = token.name;
+		handoverToken.value = null;
+		return;
+	}
+	// Recoverable: ask password, fetch plaintext, show inline panel with real token
+	confirmDialog({
+		title: 'Recover token',
+		message: `Re-enter your password to display the plaintext token for <code>${token.label}</code>. The token will be visible on this page until you collapse the panel.`,
+		fields: [{ label: 'Password', fieldname: 'password', type: 'password', required: true }],
+		onSuccess: async ({ hide, values }) => {
+			if (!values.password) {
+				toast.error('Password required');
+				return;
+			}
+			try {
+				const r = await call('press.mcp_server.auth.recover_token', {
+					token_id: token.name,
+					password: values.password,
+				});
+				handoverFor.value = token.name;
+				handoverToken.value = r.token;
+				hide();
+			} catch (e) {
+				toast.error(e?.messages?.[0] || e?.message || 'Recover failed');
+			}
+		},
+	});
 }
 
 function onReissue(token) {
