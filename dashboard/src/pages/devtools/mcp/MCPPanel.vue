@@ -97,8 +97,25 @@
 								Last used {{ formatDate(t.last_used_at) || 'never' }}
 							</div>
 						</div>
-						<!-- Right: Revoke button -->
-						<Button v-if="t.status === 'active'" size="sm" @click="onRevoke(t)">Revoke</Button>
+						<!-- Right: handover / reissue / revoke actions -->
+						<div class="flex shrink-0 gap-1">
+							<Button size="sm" @click="onShowHandover(t)" title="Show the handover snippet for this token (with placeholder for the secret)">
+								Handover
+							</Button>
+							<Button v-if="t.status === 'active'" size="sm" @click="onReissue(t)" title="Revoke + issue new token with same scope">
+								Reissue
+							</Button>
+							<Button v-if="t.status === 'active'" size="sm" @click="onRevoke(t)">Revoke</Button>
+						</div>
+					</div>
+
+					<!-- Inline handover panel (toggled per-row) -->
+					<div v-if="handoverFor === t.name" class="mt-3">
+						<HandoverPanel
+							:token="handoverToken || '<YOUR_TOKEN_HERE>'"
+							:label="t.label"
+							:mode="handoverToken ? 'issued' : 'existing'"
+						/>
 					</div>
 
 					<!-- Expanded scope detail (grouped by category) -->
@@ -201,6 +218,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { Button, FeatherIcon, call, toast } from 'frappe-ui';
 import { confirmDialog } from '../../../utils/components';
 import IssueTokenDialog from '../../../components/mcp/IssueTokenDialog.vue';
+import HandoverPanel from '../../../components/mcp/HandoverPanel.vue';
 import {
 	toolLabel,
 	TOOL_CATALOG,
@@ -211,6 +229,8 @@ import {
 const tokens = ref([]);
 const tokenSearch = ref('');
 const expandedTokens = reactive({});
+const handoverFor = ref(null); // token name whose inline handover panel is open
+const handoverToken = ref(null); // plaintext token (only set after a Reissue)
 const calls = ref([]);
 const totalCalls = ref(0);
 const currentPage = ref(1);
@@ -358,6 +378,49 @@ async function performRevoke(token) {
 	} catch (e) {
 		toast.error('Revoke failed: ' + (e?.message || e));
 	}
+}
+
+function onShowHandover(token) {
+	if (handoverFor.value === token.name) {
+		// Toggle off
+		handoverFor.value = null;
+		handoverToken.value = null;
+		return;
+	}
+	handoverFor.value = token.name;
+	handoverToken.value = null; // existing-mode (placeholder)
+}
+
+function onReissue(token) {
+	confirmDialog({
+		title: 'Reissue token?',
+		message: `This will <strong>revoke</strong> <code>${token.label}</code> and create a new token with the same scope. Any agent using the old token will lose access immediately.<br><br>Re-enter your password to continue.`,
+		fields: [
+			{ label: 'Password', fieldname: 'password', type: 'password', required: true },
+			{ label: 'New TTL (minutes)', fieldname: 'ttl', type: 'int', default: 60 },
+		],
+		onSuccess: async ({ hide, values }) => {
+			if (!values.password) {
+				toast.error('Password required');
+				return;
+			}
+			try {
+				const result = await call('press.mcp_server.auth.reissue_token', {
+					token_id: token.name,
+					password: values.password,
+					ttl_minutes: parseInt(values.ttl) || 60,
+				});
+				toast.success(`Reissued: ${token.label}`);
+				hide();
+				await loadTokens();
+				// Show the new token's handover inline on the new row
+				handoverFor.value = result.name;
+				handoverToken.value = result.token;
+			} catch (e) {
+				toast.error('Reissue failed: ' + (e?.messages?.[0] || e?.message || e));
+			}
+		},
+	});
 }
 
 function onRevoke(token) {

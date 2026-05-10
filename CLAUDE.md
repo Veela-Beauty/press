@@ -41,8 +41,15 @@ bench --site demo.mvpstorm.com clear-cache
 supervisorctl status
 supervisorctl restart all
 
-# Build dashboard assets
-sudo -u frappe bash -c 'cd /home/frappe/frappe-bench && bench build --app press && bench clear-cache'
+# Build Vue dashboard (REQUIRED for any change under apps/press/dashboard/src/)
+# `bench build` does NOT compile the Vue SPA — it only handles Frappe assets.
+# You MUST run `yarn build` from the dashboard/ directory.
+sudo -u frappe bash -lc 'cd /home/frappe/frappe-bench/apps/press/dashboard && yarn build'
+sudo -u frappe bash -lc 'cd /home/frappe/frappe-bench && bench --site demo.mvpstorm.com clear-cache'
+supervisorctl restart frappe-bench-web:
+
+# For pure Frappe asset changes (Python templates, CSS, etc.) — bench build IS sufficient
+sudo -u frappe bash -lc 'cd /home/frappe/frappe-bench && bench build --app press && bench clear-cache'
 supervisorctl restart frappe-bench-web:frappe-bench-frappe-web
 
 # Safe update (REQUIRED for any Python/deps/migration change — never use bare `bench update`)
