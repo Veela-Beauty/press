@@ -358,6 +358,27 @@ TOOLS: dict[str, dict] = {
 		"required_args": [],
 		"risk": "low",
 	},
+	# Source-code reads — agents need to inspect app source for bug investigation
+	# (e.g. read erpnext/.../general_ledger.py before proposing a fix). Read-only,
+	# path-validated to stay under apps/<app>/, 1 MB cap per file.
+	"bench_read_app_file": {
+		"method": "press.press.doctype.bench.bench_dev_overview.bench_read_app_file",
+		"description": "Read a source file from an app installed in the bench (e.g. erpnext/accounts/report/general_ledger/general_ledger.py). Read-only, 1 MB cap.",
+		"required_args": ["bench_name", "app", "relative_path"],
+		"risk": "low",
+	},
+	"bench_list_app_files": {
+		"method": "press.press.doctype.bench.bench_dev_overview.bench_list_app_files",
+		"description": "List files under apps/<app>/<relative_path>/ in the bench container. Optional glob pattern. Capped at 200 entries.",
+		"required_args": ["bench_name", "app"],
+		"risk": "low",
+	},
+	"bench_ssh_instructions": {
+		"method": "press.press.doctype.bench.bench_dev_overview.bench_ssh_instructions",
+		"description": "Get human-readable SSH connection instructions for a bench (server, port, paths, do/don't list). Does NOT grant access — use bench_ssh_cert_generate for that.",
+		"required_args": ["bench_name"],
+		"risk": "low",
+	},
 }
 
 

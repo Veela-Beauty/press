@@ -35,6 +35,9 @@ export const TOOL_CATALOG = {
 	agent_job_list:           { category: 'readonly', risk: 'low', label: 'Agent Jobs — List',             desc: 'List recent Agent Jobs filtered by site / status / window' },
 	wait_for_bench_flip:      { category: 'readonly', risk: 'low', label: 'Wait for Bench Flip',           desc: 'Async-style poll: returns flipped|pending for a site / candidate' },
 	audit_verify_chain:       { category: 'readonly', risk: 'low', label: 'Audit — Verify Hash Chain',     desc: 'System-User-only: verify MCP Call Log hash chain' },
+	bench_read_app_file:      { category: 'readonly', risk: 'low', label: 'Bench — Read App Source File',  desc: 'Read a file from apps/<app>/ inside the bench (1 MB cap, path-validated)' },
+	bench_list_app_files:     { category: 'readonly', risk: 'low', label: 'Bench — List App Files',        desc: 'List files under apps/<app>/<dir>/ in the bench (optional glob pattern, capped at 200)' },
+	bench_ssh_instructions:   { category: 'readonly', risk: 'low', label: 'Bench — SSH Instructions',      desc: 'Get SSH connection instructions for a bench (server/port/paths/do-and-dont). Does NOT grant access.' },
 
 	// BENCH / RELEASE GROUP (medium risk)
 	clone_bench:                            { category: 'bench_rg', risk: 'medium', label: 'Clone Bench',                          desc: 'Clone a Release Group on the same server with the same apps' },

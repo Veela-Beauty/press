@@ -74,6 +74,9 @@ TOOL_CATEGORY: dict[str, str] = {
 	"agent_job_list": "readonly",
 	"wait_for_bench_flip": "readonly",
 	"audit_verify_chain": "readonly",
+	"bench_read_app_file": "readonly",
+	"bench_list_app_files": "readonly",
+	"bench_ssh_instructions": "readonly",
 	# Bench / Release Group
 	"clone_bench": "bench_rg",
 	"bench_deploy": "bench_rg",

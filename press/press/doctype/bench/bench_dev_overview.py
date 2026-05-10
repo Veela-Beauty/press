@@ -598,6 +598,278 @@ def run_python_on_site(site_name, code):
 		return {"error": str(e)}
 
 
+# ── App Source Read API ──────────────────────────────────────────────────────
+
+# 1 MB cap on app file reads. App source files are mostly <100 KB; the cap
+# stops accidental reads of huge generated/vendored files (e.g. compiled JS
+# bundles, locale .po files) that would blow past Frappe's response budget.
+_APP_FILE_MAX_BYTES = 1 * 1024 * 1024
+
+# Path-traversal guard: reject any segment that resolves outside apps/<app>/.
+_APP_FILE_BANNED = ("..", "")
+
+
+def _validate_app_path(app: str, relative_path: str) -> str:
+	"""Sanitize + canonicalize the requested file path.
+
+	Returns the absolute path inside the container (under
+	/home/frappe/frappe-bench/apps/<app>/) ready to pass to `cat`.
+	Raises frappe.ValidationError on traversal attempts or empty input.
+	"""
+	if not app or not isinstance(app, str) or "/" in app or app in _APP_FILE_BANNED:
+		raise frappe.ValidationError(f"app name {app!r} is invalid")
+	if not relative_path or not isinstance(relative_path, str):
+		raise frappe.ValidationError("relative_path must be a non-empty string")
+	# Reject ../ traversal and absolute paths (re-rooting via leading /)
+	if relative_path.startswith("/"):
+		raise frappe.ValidationError("relative_path must not be absolute")
+	for seg in relative_path.split("/"):
+		if seg in _APP_FILE_BANNED or seg.startswith(".."):
+			raise frappe.ValidationError(
+				f"relative_path segment {seg!r} is not allowed"
+			)
+	# Container-side path. The bench's docker_execute pwd is already
+	# /home/frappe/frappe-bench, but we use the absolute path for clarity
+	# and to avoid the agent's subdir kwarg.
+	return f"/home/frappe/frappe-bench/apps/{app}/{relative_path}"
+
+
+@frappe.whitelist()
+def bench_read_app_file(
+	bench_name: str,
+	app: str,
+	relative_path: str,
+) -> dict[str, Any]:
+	"""Read a source file from an app installed in this bench.
+
+	Args:
+		bench_name: Bench docname (e.g. "bench-0015-000012-press-f1")
+		app: app name as installed in apps/ (e.g. "erpnext", "frappe", "press")
+		relative_path: path under apps/<app>/ (e.g.
+			"erpnext/accounts/report/general_ledger/general_ledger.py")
+
+	Returns:
+		{path, content, encoding, size_bytes} on success, or
+		{error, path} on missing file / oversize / read failure.
+
+	Read-only by design — no write counterpart. Use site_file_write for
+	user-uploaded content; source files should not be edited via MCP.
+	"""
+	ensure_team_access(bench_name=bench_name)
+	abs_path = _validate_app_path(app, relative_path)
+	bench = frappe.get_doc("Bench", bench_name)
+	# `wc -c` for size, then `cat` if under cap. Two cheap commands instead
+	# of always streaming a potentially huge file.
+	size_cmd = f"wc -c < {abs_path} 2>/dev/null || echo MISSING"
+	try:
+		size_raw = bench.docker_execute(size_cmd, create_log=False)
+	except Exception as e:
+		return {"error": str(e), "path": abs_path}
+	size_text = (size_raw.get("output") or "").strip()
+	if not size_text or size_text == "MISSING":
+		return {"error": "not_found", "path": abs_path}
+	try:
+		size_bytes = int(size_text)
+	except ValueError:
+		return {"error": "could_not_stat", "path": abs_path, "raw": size_text}
+	if size_bytes > _APP_FILE_MAX_BYTES:
+		return {
+			"error": "too_large",
+			"path": abs_path,
+			"size_bytes": size_bytes,
+			"limit_bytes": _APP_FILE_MAX_BYTES,
+		}
+	# base64-pipe to dodge any binary content / control chars that would
+	# corrupt the stdout payload going back through Press Agent.
+	read_cmd = f"base64 -w0 {abs_path}"
+	try:
+		raw = bench.docker_execute(read_cmd, create_log=False)
+	except Exception as e:
+		return {"error": str(e), "path": abs_path}
+	import base64 as _b64
+	encoded = (raw.get("output") or "").strip()
+	try:
+		data = _b64.b64decode(encoded)
+	except Exception:
+		return {"error": "decode_failed", "path": abs_path}
+	# Try utf-8; fall back to base64 for binaries (rare in apps/).
+	try:
+		content = data.decode("utf-8")
+		return {
+			"path": abs_path,
+			"content": content,
+			"encoding": "utf-8",
+			"size_bytes": size_bytes,
+		}
+	except UnicodeDecodeError:
+		return {
+			"path": abs_path,
+			"content_b64": encoded,
+			"encoding": "base64",
+			"size_bytes": size_bytes,
+		}
+
+
+@frappe.whitelist()
+def bench_list_app_files(
+	bench_name: str,
+	app: str,
+	relative_path: str = "",
+	pattern: str | None = None,
+) -> dict[str, Any]:
+	"""List files under apps/<app>/<relative_path>/ inside the bench container.
+
+	Args:
+		bench_name: Bench docname
+		app: app name
+		relative_path: subdir under apps/<app>/ ("" = app root)
+		pattern: optional glob (e.g. "*.py", "**/general_ledger*"). Find -name.
+
+	Returns: {dir, files: [...], count} (capped at 200 entries).
+	"""
+	ensure_team_access(bench_name=bench_name)
+	# Reuse path validator with a sentinel name when relative_path is empty
+	probe_path = relative_path if relative_path else "."
+	# Validation: empty string is fine ("." resolves to app root); other
+	# checks (../, /) still apply.
+	if relative_path:
+		_validate_app_path(app, relative_path)
+	if "/" in app or not app or app in _APP_FILE_BANNED:
+		raise frappe.ValidationError(f"app name {app!r} is invalid")
+	dir_abs = f"/home/frappe/frappe-bench/apps/{app}"
+	if relative_path:
+		dir_abs = f"{dir_abs}/{relative_path}"
+	bench = frappe.get_doc("Bench", bench_name)
+	# find with -path stays inside the dir, -maxdepth caps recursion
+	if pattern:
+		# Sanitize pattern: only allow alphanumeric + glob chars
+		import re as _re
+		if not _re.match(r"^[A-Za-z0-9_./*?\[\]-]+$", pattern):
+			raise frappe.ValidationError(
+				f"pattern {pattern!r} contains disallowed characters"
+			)
+		find_cmd = f"find {dir_abs} -name '{pattern}' -type f 2>/dev/null | head -200"
+	else:
+		find_cmd = f"find {dir_abs} -maxdepth 2 -type f 2>/dev/null | head -200"
+	try:
+		raw = bench.docker_execute(find_cmd, create_log=False)
+	except Exception as e:
+		return {"error": str(e), "dir": dir_abs}
+	output = (raw.get("output") or "").strip()
+	if not output:
+		return {"dir": dir_abs, "files": [], "count": 0}
+	files = [line.strip() for line in output.split("\n") if line.strip()]
+	return {"dir": dir_abs, "files": files, "count": len(files)}
+
+
+# ── SSH Instructions API ─────────────────────────────────────────────────────
+
+
+@frappe.whitelist()
+def bench_ssh_instructions(
+	bench_name: str,
+	site_name: str | None = None,
+) -> dict[str, Any]:
+	"""Return human-readable SSH connection instructions for a bench.
+
+	Pure information lookup — does NOT grant access. To actually get SSH
+	in, the caller still needs `bench_ssh_cert_generate` (high-risk, gated).
+
+	Use this when an agent needs to tell a human how to manually inspect
+	a bench beyond what MCP tools allow (e.g. interactive debugging,
+	editing app source files, running long-running scripts). Returns
+	connection info, paths, dos-and-don'ts. Read-only.
+
+	Args:
+		bench_name: Bench docname (e.g. "bench-0015-000012-press-f1")
+		site_name: optional site name to include site-specific paths
+
+	Returns:
+		{server, port, user, paths, commands, dos, donts, requires_cert}
+	"""
+	ensure_team_access(bench_name=bench_name)
+	bench = frappe.get_doc("Bench", bench_name)
+	server = bench.server
+	server_doc = frappe.db.get_value(
+		"Server", server, ["ip", "ssh_port"], as_dict=True
+	)
+	ip = server_doc.ip if server_doc else server
+	port = server_doc.ssh_port if server_doc and server_doc.ssh_port else 22
+	bench_path = "/home/frappe/frappe-bench"
+	apps_path = f"{bench_path}/apps"
+	site_paths = {}
+	if site_name:
+		# Validate the site is on this bench
+		site_bench = frappe.db.get_value("Site", site_name, "bench")
+		if site_bench != bench_name:
+			raise frappe.ValidationError(
+				f"Site {site_name!r} is not on bench {bench_name!r} "
+				f"(it's on {site_bench!r}). Pick a site on this bench."
+			)
+		site_paths = {
+			"site_root": f"{bench_path}/sites/{site_name}",
+			"site_config": f"{bench_path}/sites/{site_name}/site_config.json",
+			"public_files": f"{bench_path}/sites/{site_name}/public/files",
+			"private_files": f"{bench_path}/sites/{site_name}/private/files",
+		}
+	return {
+		"server": server,
+		"server_ip": ip,
+		"ssh_port": port,
+		"user": "frappe",
+		"requires_cert": True,
+		"how_to_get_cert": (
+			"Call MCP tool `bench_ssh_cert_generate` (high-risk; needs "
+			"risky_tools_enabled on token + System User or admin approval). "
+			"That tool returns a short-lived signed certificate you load "
+			"into your local SSH agent. Press tracks the grant in Press "
+			"SSH Certificate doctype."
+		),
+		"connect_command": (
+			f"ssh -p {port} -i ~/.ssh/<your-key-with-cert> frappe@{ip}"
+		),
+		"after_login_paths": {
+			"bench_root": bench_path,
+			"apps_dir": apps_path,
+			"sites_dir": f"{bench_path}/sites",
+			"logs_dir": f"{bench_path}/logs",
+			**site_paths,
+		},
+		"useful_commands": {
+			"enter_bench": f"cd {bench_path}",
+			"site_console": (
+				f"cd {bench_path} && bench --site {site_name or '<site>'} console"
+			),
+			"site_shell": (
+				f"cd {bench_path} && bench --site {site_name or '<site>'} mariadb"
+			),
+			"tail_log": f"tail -f {bench_path}/logs/web.log",
+			"app_source": (
+				f"cd {apps_path}/<app> && grep -rn '<symbol>' --include='*.py'"
+			),
+		},
+		"do": [
+			"Use bench --site <site> console for read-only inspection",
+			"Run `git log` / `git diff` inside apps/<app> to see what changed",
+			"Tail logs/web.log + logs/scheduler.log when reproducing a bug",
+			"Use `bench --site <site> migrate --dry-run` before real migration",
+		],
+		"do_not": [
+			"Edit app source files in-place (apps/<app>/...) — those are git-managed; the next deploy will overwrite changes",
+			"Run `bench update` from the SSH session — use Press's Bench → Update flow so the deploy candidate is recorded",
+			"Run `git pull` in apps/ — Press owns the deployment lifecycle; manual pulls cause drift the next deploy can't reconcile",
+			"Modify site_config.json by hand for sensitive keys (db_password, encryption_key) — those are under Press's control",
+			"Leave background processes running after disconnect (no nohup/screen for long jobs); use Press scheduled jobs instead",
+		],
+		"why_no_cert_in_response": (
+			"This tool is low-risk and read-only on purpose. Issuing the "
+			"actual SSH cert is a separate explicit step (bench_ssh_cert_generate) "
+			"so audit + risky-token gating apply. Asking 'how do I SSH' "
+			"shouldn't itself grant SSH."
+		),
+	}
+
+
 # ── Recent Logs API ──────────────────────────────────────────────────────────
 
 _LOG_PATTERN = re.compile(
