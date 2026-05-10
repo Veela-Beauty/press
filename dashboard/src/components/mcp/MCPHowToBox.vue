@@ -42,7 +42,7 @@
 			<div>
 				<div class="font-medium text-gray-900">3. Manage existing tokens</div>
 				<ul class="mt-0.5 list-disc space-y-1 pl-5 text-xs leading-relaxed">
-					<li><strong>Copy token</strong> — re-fetch the original plaintext (password re-auth required). Use if you forgot to copy at issue time. Token stays valid; agent isn't disrupted.</li>
+					<li><strong>Copy token</strong> — one-click reveals the original plaintext inline. Use if you forgot to copy at issue time. Token stays valid; agent isn't disrupted.</li>
 					<li><strong>Snippet</strong> — older tokens (issued before 2026-05-10) only have a placeholder. Use <strong>Reissue</strong> if you need a fresh plaintext.</li>
 					<li><strong>Reissue</strong> — revokes old + issues new with same scope, resources, and label. Existing agents lose access immediately.</li>
 					<li><strong>Revoke</strong> — kills the token. High-risk tokens prompt for confirmation.</li>
