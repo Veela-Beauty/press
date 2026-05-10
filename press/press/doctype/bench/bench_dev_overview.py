@@ -775,6 +775,77 @@ def bench_list_app_files(
 
 
 @frappe.whitelist()
+def bench_ssh_register_key(public_key: str, label: str | None = None) -> dict[str, Any]:
+	"""Register the caller's SSH public key with Press (one-time, before
+	bench_ssh_cert_generate can sign it).
+
+	Press signs ONLY keys that are registered for the current user under
+	`User SSH Key`. External agents (no dashboard session) must call this
+	tool to upload their pubkey before requesting a cert. The pubkey is
+	stored against frappe.session.user (the token's owner).
+
+	Args:
+		public_key: full ssh-ed25519 / ssh-rsa / ecdsa-... public key string
+			(the .pub file content, including the algorithm prefix)
+		label: optional human-readable label for the key
+
+	Returns:
+		{name, label, is_default, fingerprint}
+
+	Idempotent: if the same key is already registered, returns the
+	existing record without raising.
+	"""
+	if not public_key or not isinstance(public_key, str):
+		raise frappe.ValidationError("public_key must be a non-empty string")
+	pk = public_key.strip()
+	# Crude prefix check — the doctype validator does the real parsing.
+	if not pk.split(" ", 1)[0] in (
+		"ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256",
+		"ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521",
+	):
+		raise frappe.ValidationError(
+			"public_key must start with a supported algorithm "
+			"(ssh-ed25519, ssh-rsa, ecdsa-sha2-*)"
+		)
+	# Check for duplicate by full pubkey content — Press stores it as a Code field
+	existing = frappe.db.get_value(
+		"User SSH Key",
+		{
+			"user": frappe.session.user,
+			"ssh_public_key": pk,
+			"is_removed": 0,
+		},
+		["name", "label", "is_default"],
+		as_dict=True,
+	)
+	if existing:
+		return {
+			"name": existing.name,
+			"label": existing.label,
+			"is_default": bool(existing.is_default),
+			"already_registered": True,
+		}
+	doc = frappe.get_doc({
+		"doctype": "User SSH Key",
+		"user": frappe.session.user,
+		"ssh_public_key": pk,
+		"label": label or "mcp-issued",
+		# Auto-default if this is the user's first key (so cert tool finds it)
+		"is_default": 1 if not frappe.db.exists(
+			"User SSH Key",
+			{"user": frappe.session.user, "is_disabled": 0, "is_removed": 0},
+		) else 0,
+	}).insert(ignore_permissions=True)
+	frappe.db.commit()
+	return {
+		"name": doc.name,
+		"label": doc.label,
+		"is_default": bool(doc.is_default),
+		"already_registered": False,
+	}
+
+
+@frappe.whitelist()
 def bench_ssh_instructions(
 	bench_name: str,
 	site_name: str | None = None,
@@ -782,31 +853,27 @@ def bench_ssh_instructions(
 	"""Return human-readable SSH connection instructions for a bench.
 
 	Pure information lookup — does NOT grant access. To actually get SSH
-	in, the caller still needs `bench_ssh_cert_generate` (high-risk, gated).
-
-	Use this when an agent needs to tell a human how to manually inspect
-	a bench beyond what MCP tools allow (e.g. interactive debugging,
-	editing app source files, running long-running scripts). Returns
-	connection info, paths, dos-and-don'ts. Read-only.
+	in, the caller needs to (1) upload their pubkey via bench_ssh_register_key,
+	then (2) call bench_ssh_cert_generate to sign it.
 
 	Args:
 		bench_name: Bench docname (e.g. "bench-0015-000012-press-f1")
 		site_name: optional site name to include site-specific paths
 
 	Returns:
-		{server, port, user, paths, commands, dos, donts, requires_cert}
+		{server_ip, ssh_port, user, paths, commands, do, do_not,
+		 prerequisite, how_to_get_cert, connect_command}
 	"""
 	ensure_team_access(bench_name=bench_name)
 	bench = frappe.get_doc("Bench", bench_name)
 	server = bench.server
-	server_doc = frappe.db.get_value(
-		"Server", server, ["ip", "ssh_port"], as_dict=True
-	)
-	ip = server_doc.ip if server_doc else server
-	port = server_doc.ssh_port if server_doc and server_doc.ssh_port else 22
+	server_ip = frappe.db.get_value("Server", server, "ip") or server
+	# Real port = 22000 + bench.port_offset (per get_bench_dev_info — same
+	# logic Press uses for its own VS Code links). Hardcoded 22 was wrong.
+	ssh_port = 22000 + (bench.port_offset or 0)
 	bench_path = "/home/frappe/frappe-bench"
 	apps_path = f"{bench_path}/apps"
-	site_paths = {}
+	site_paths: dict[str, str] = {}
 	if site_name:
 		# Validate the site is on this bench
 		site_bench = frappe.db.get_value("Site", site_name, "bench")
@@ -821,21 +888,42 @@ def bench_ssh_instructions(
 			"public_files": f"{bench_path}/sites/{site_name}/public/files",
 			"private_files": f"{bench_path}/sites/{site_name}/private/files",
 		}
+	# Has the caller already registered an SSH key? Tells the agent
+	# whether they need to do step 1 first.
+	has_registered_key = bool(frappe.db.exists(
+		"User SSH Key",
+		{
+			"user": frappe.session.user,
+			"is_disabled": 0,
+			"is_removed": 0,
+		},
+	))
 	return {
 		"server": server,
-		"server_ip": ip,
-		"ssh_port": port,
+		"server_ip": server_ip,
+		"ssh_port": ssh_port,
 		"user": "frappe",
-		"requires_cert": True,
-		"how_to_get_cert": (
-			"Call MCP tool `bench_ssh_cert_generate` (high-risk; needs "
-			"risky_tools_enabled on token + System User or admin approval). "
-			"That tool returns a short-lived signed certificate you load "
-			"into your local SSH agent. Press tracks the grant in Press "
-			"SSH Certificate doctype."
+		"has_registered_key": has_registered_key,
+		"prerequisite": (
+			"You need TWO MCP calls before you can SSH in:\n"
+			"  1. bench_ssh_register_key(public_key=<your-id_ed25519.pub-content>)\n"
+			"     — registers your pubkey under your User SSH Key. Idempotent.\n"
+			"  2. bench_ssh_cert_generate(bench_name=<bench>) — signs your\n"
+			"     registered key with Press's CA. Returns a short-lived cert.\n"
+			"\n"
+			"Save the certificate string from (2) to ~/.ssh/id_ed25519-cert.pub\n"
+			"alongside your matching id_ed25519 private key. SSH will pick up\n"
+			"the cert automatically when you connect with -i ~/.ssh/id_ed25519."
+		)
+		if not has_registered_key
+		else (
+			"You already have a registered SSH key. Just call "
+			"bench_ssh_cert_generate(bench_name=<bench>) to mint a cert "
+			"signed against your registered key, save it to "
+			"~/.ssh/<your-key>-cert.pub, then ssh in with the connect_command."
 		),
 		"connect_command": (
-			f"ssh -p {port} -i ~/.ssh/<your-key-with-cert> frappe@{ip}"
+			f"ssh -p {ssh_port} -i ~/.ssh/<your-key-with-cert> frappe@{server_ip}"
 		),
 		"after_login_paths": {
 			"bench_root": bench_path,
@@ -870,12 +958,6 @@ def bench_ssh_instructions(
 			"Modify site_config.json by hand for sensitive keys (db_password, encryption_key) — those are under Press's control",
 			"Leave background processes running after disconnect (no nohup/screen for long jobs); use Press scheduled jobs instead",
 		],
-		"why_no_cert_in_response": (
-			"This tool is low-risk and read-only on purpose. Issuing the "
-			"actual SSH cert is a separate explicit step (bench_ssh_cert_generate) "
-			"so audit + risky-token gating apply. Asking 'how do I SSH' "
-			"shouldn't itself grant SSH."
-		),
 	}
 
 

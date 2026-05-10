@@ -375,9 +375,15 @@ TOOLS: dict[str, dict] = {
 	},
 	"bench_ssh_instructions": {
 		"method": "press.press.doctype.bench.bench_dev_overview.bench_ssh_instructions",
-		"description": "Get human-readable SSH connection instructions for a bench (server, port, paths, do/don't list). Does NOT grant access — use bench_ssh_cert_generate for that.",
+		"description": "Get SSH connection instructions for a bench (real port, paths, do/don't, prerequisite). Does NOT grant access — see bench_ssh_register_key + bench_ssh_cert_generate for that.",
 		"required_args": ["bench_name"],
 		"risk": "low",
+	},
+	"bench_ssh_register_key": {
+		"method": "press.press.doctype.bench.bench_dev_overview.bench_ssh_register_key",
+		"description": "Register your SSH public key with Press so bench_ssh_cert_generate can sign it. One-time setup; idempotent on re-call.",
+		"required_args": ["public_key"],
+		"risk": "medium",
 	},
 }
 

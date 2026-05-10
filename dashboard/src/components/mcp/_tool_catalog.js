@@ -38,6 +38,7 @@ export const TOOL_CATALOG = {
 	bench_read_app_file:      { category: 'readonly', risk: 'low', label: 'Bench — Read App Source File',  desc: 'Read a file from apps/<app>/ inside the bench (1 MB cap, path-validated)' },
 	bench_list_app_files:     { category: 'readonly', risk: 'low', label: 'Bench — List App Files',        desc: 'List files under apps/<app>/<dir>/ in the bench (optional glob pattern, capped at 200)' },
 	bench_ssh_instructions:   { category: 'readonly', risk: 'low', label: 'Bench — SSH Instructions',      desc: 'Get SSH connection instructions for a bench (server/port/paths/do-and-dont). Does NOT grant access.' },
+	bench_ssh_register_key:   { category: 'bench_rg', risk: 'medium', label: 'Bench — Register SSH Pubkey',  desc: 'Upload your SSH public key so bench_ssh_cert_generate can sign it. One-time setup, idempotent.' },
 
 	// BENCH / RELEASE GROUP (medium risk)
 	clone_bench:                            { category: 'bench_rg', risk: 'medium', label: 'Clone Bench',                          desc: 'Clone a Release Group on the same server with the same apps' },
