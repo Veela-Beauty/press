@@ -235,6 +235,84 @@ def revoke_token(token_id: str) -> dict[str, str]:
 	return {"status": "revoked", "name": token_id}
 
 
+@frappe.whitelist()
+def reissue_token(token_id: str, password: str, ttl_minutes: int = 60) -> dict[str, Any]:
+	"""Revoke an existing token and issue a NEW one with identical scope,
+	resource limits, label, and risky-tools flag.
+
+	Use case: user forgot to copy the original token at issue time. Reissue
+	produces a fresh plaintext + the same handover snippet so the user can
+	hand it to the agent. Old token is revoked atomically before the new
+	one is created.
+
+	Caller must own the token AND verify their password (re-auth gate, same
+	as issue_token).
+	"""
+	old = frappe.get_doc("Press MCP Token", token_id)
+	user = frappe.session.user
+	is_system = frappe.session.data.user_type == "System User"
+	if old.user != user and not is_system:
+		raise frappe.PermissionError("you can only reissue your own tokens")
+
+	# Re-auth — same gate as issue_token
+	_check_password(old.user, password)
+
+	# Revoke old
+	frappe.db.set_value(
+		"Press MCP Token",
+		token_id,
+		{
+			"revoked": 1,
+			"revoked_by": user,
+			"revoked_at": now_datetime(),
+		},
+	)
+
+	# Re-create with same scope/resources/label/risky flag
+	scope_list = safe_parse_list(old.scope)
+	allowed_rgs = safe_parse_list(old.allowed_release_groups)
+	allowed_sites_list = safe_parse_list(old.allowed_sites)
+	ttl_minutes = max(TTL_MIN, min(TTL_MAX, int(ttl_minutes)))
+
+	plaintext = secrets.token_urlsafe(TOKEN_BYTES)
+	prefix = plaintext[:TOKEN_PREFIX_LEN]
+	hashed = passlibctx.hash(plaintext)
+	expires_at = now_datetime() + timedelta(minutes=ttl_minutes)
+
+	# Risky tokens reuse old approval_status if already approved; otherwise pending
+	approval_status = "approved"
+	if old.risky_tools_enabled:
+		approval_status = "approved" if _user_is_system(old.user) else "pending"
+
+	doc = frappe.get_doc({
+		"doctype": "Press MCP Token",
+		"user": old.user,
+		"team": old.team,
+		"label": old.label,
+		"scope": json.dumps(scope_list),
+		"allowed_release_groups": json.dumps(allowed_rgs),
+		"allowed_sites": json.dumps(allowed_sites_list),
+		"risky_tools_enabled": old.risky_tools_enabled,
+		"approval_status": approval_status,
+		"token_hash": hashed,
+		"token_prefix": prefix,
+		"expires_at": expires_at,
+	}).insert(ignore_permissions=True)
+
+	return {
+		"token": plaintext,
+		"name": doc.name,
+		"scope": scope_list,
+		"label": doc.label,
+		"expires_at": expires_at.isoformat(),
+		"allowed_release_groups": allowed_rgs,
+		"allowed_sites": allowed_sites_list,
+		"risky_tools_enabled": bool(old.risky_tools_enabled),
+		"approval_status": approval_status,
+		"replaced": token_id,
+	}
+
+
 def _check_password(username: str, password: str) -> None:
 	"""Validate password via Frappe's authentication path. Raises on failure.
 
