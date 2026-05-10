@@ -2668,8 +2668,14 @@ class Site(Document, TagHelpers):
 
 	@dashboard_whitelist()
 	def set_development_mode(self, enable):
-		"""Mark site as dev or production and toggle developer_mode in site config."""
-		frappe.only_for("System Manager")
+		"""Mark site as dev or production and toggle developer_mode in site config.
+
+		Allowed for System Managers OR any team member with `allow_site_creation`
+		on the site's team.
+		"""
+		from press.press.doctype.team.press_role_bridge import require_team_role_flag
+
+		require_team_role_flag(self.team, "allow_site_creation")
 		self.is_development_site = 1 if enable else 0
 		self.save(ignore_permissions=True)
 		if enable:

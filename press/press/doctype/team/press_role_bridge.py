@@ -440,3 +440,57 @@ def audit_press_role_drift() -> dict:
 		"drift_corrected": corrected,
 		"errors": errors,
 	}
+
+
+def require_team_role_flag(team: str, flag: str) -> None:
+	"""Gate-keeper for self-hosted Press actions that should be DevOps-tier
+	but not System-Manager-tier.
+
+	System Managers always pass. For non-SM users, we look up the user's
+	Press Role memberships on `team` and require ANY of those roles to have
+	`flag` set to 1.
+
+	Used in place of `frappe.only_for("System Manager")` for actions like
+	`set_development_bench` and `set_development_mode` — these were locked
+	to SM only, which broke the DevOps Admin role (Marco/Mahmoud) since
+	they need to flip dev/prod on benches and sites without escalation.
+
+	Raises frappe.PermissionError on denial — the dashboard surfaces this
+	as inline error, NOT a session logout (unlike AuthenticationError).
+	"""
+	user = frappe.session.user
+	if "System Manager" in frappe.get_roles(user):
+		return
+
+	# Whitelist allowed flag names — guards against SQL injection on the
+	# f-string interpolation below.
+	if flag not in {
+		"admin_access", "all_servers", "all_sites", "all_release_groups",
+		"allow_apps", "allow_bench_creation", "allow_billing",
+		"allow_contribution", "allow_customer", "allow_dashboard",
+		"allow_invite_team_members", "allow_leads", "allow_manage_team_members",
+		"allow_manage_team_roles", "allow_partner", "allow_server_creation",
+		"allow_site_creation", "allow_webhook_configuration",
+	}:
+		raise ValueError(f"Unknown Press Role flag: {flag}")
+
+	# Find Press Role docs the user is a member of, on this team, that have
+	# the requested flag enabled.
+	roles_with_flag = frappe.db.sql(
+		f"""
+		SELECT pr.name
+		FROM `tabPress Role` pr
+		JOIN `tabPress Role User` pru ON pru.parent = pr.name
+		WHERE pr.team = %(team)s
+		  AND pru.user = %(user)s
+		  AND pr.`{flag}` = 1
+		LIMIT 1
+		""",
+		{"team": team, "user": user},
+	)
+	if not roles_with_flag:
+		frappe.throw(
+			f"You don't have permission for this action. "
+			f"Required role flag: {flag}. Ask a Platform Admin to grant it.",
+			frappe.PermissionError,
+		)
