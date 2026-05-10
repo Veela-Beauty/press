@@ -11,6 +11,8 @@
 			</Button>
 		</div>
 
+		<MCPHowToBox />
+
 		<section class="rounded border border-gray-200 bg-white">
 			<!-- Header: title + risk summary + search -->
 			<div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-4">
@@ -222,6 +224,7 @@ import { Button, FeatherIcon, call, toast } from 'frappe-ui';
 import { confirmDialog } from '../../../utils/components';
 import IssueTokenDialog from '../../../components/mcp/IssueTokenDialog.vue';
 import HandoverPanel from '../../../components/mcp/HandoverPanel.vue';
+import MCPHowToBox from '../../../components/mcp/MCPHowToBox.vue';
 import {
 	toolLabel,
 	TOOL_CATALOG,
