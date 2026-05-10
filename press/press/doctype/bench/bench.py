@@ -1228,13 +1228,18 @@ class Bench(Document):
 
 	@dashboard_whitelist()
 	def set_development_bench(self, enable):
-		"""Mark bench as development or production. System Manager only.
+		"""Mark bench as development or production.
+
+		Allowed for System Managers OR any team member with `allow_bench_creation`
+		on the bench's team (DevOps Admin / Platform Admin per ROLE_TO_FLAGS).
 
 		Side-effect: starts/stops `bench watch` inside the container so JS/CSS
 		edits auto-rebuild on save (only on dev benches). Failures here do not
 		fail the toggle — UI shows watch status separately and offers Restart.
 		"""
-		frappe.only_for("System Manager")
+		from press.press.doctype.team.press_role_bridge import require_team_role_flag
+
+		require_team_role_flag(self.team, "allow_bench_creation")
 		self.is_development_bench = 1 if enable else 0
 		self.save(ignore_permissions=True)
 
