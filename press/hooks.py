@@ -196,7 +196,15 @@ doc_events = {
 	},
 	"Team Member": {
 		"validate": "press.press.doctype.team.team_roles.validate_team_member_role",
-		"after_insert": "press.press.doctype.team.team_roles.ensure_session_cap",
+		"after_insert": [
+			"press.press.doctype.team.team_roles.ensure_session_cap",
+			# Bridge press_role text -> Press Role doctype + Press Role User
+			# membership so user_permissions returns the right flags. See
+			# press_role_bridge.py docstring for the conflict it fixes.
+			"press.press.doctype.team.press_role_bridge.sync_team_member",
+		],
+		"on_update": "press.press.doctype.team.press_role_bridge.sync_team_member",
+		"on_trash": "press.press.doctype.team.press_role_bridge.sync_team_member",
 	},
 }
 
