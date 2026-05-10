@@ -237,26 +237,25 @@ def revoke_token(token_id: str) -> dict[str, str]:
 
 
 @frappe.whitelist()
-def reissue_token(token_id: str, password: str, ttl_minutes: int = 60) -> dict[str, Any]:
+def reissue_token(token_id: str, password: str | None = None, ttl_minutes: int = 60) -> dict[str, Any]:
 	"""Revoke an existing token and issue a NEW one with identical scope,
 	resource limits, label, and risky-tools flag.
 
-	Use case: user forgot to copy the original token at issue time. Reissue
-	produces a fresh plaintext + the same handover snippet so the user can
-	hand it to the agent. Old token is revoked atomically before the new
-	one is created.
+	Use case: user forgot to copy the original token at issue time, or the
+	old token was issued before plaintext storage (so re-copy isn't possible).
+	Reissue produces a fresh plaintext + the same handover snippet so the
+	user can hand it to the agent. Old token is revoked atomically before
+	the new one is created.
 
-	Caller must own the token AND verify their password (re-auth gate, same
-	as issue_token).
+	Owner check enforced (same as recover_token / revoke_token); active
+	dashboard session is the auth gate. `password` arg accepted for
+	backward compat with older clients but no longer required.
 	"""
 	old = frappe.get_doc("Press MCP Token", token_id)
 	user = frappe.session.user
 	is_system = frappe.session.data.user_type == "System User"
 	if old.user != user and not is_system:
 		raise frappe.PermissionError("you can only reissue your own tokens")
-
-	# Re-auth — same gate as issue_token
-	_check_password(old.user, password)
 
 	# Revoke old
 	frappe.db.set_value(

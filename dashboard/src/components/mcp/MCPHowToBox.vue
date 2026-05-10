@@ -43,9 +43,10 @@
 				<div class="font-medium text-gray-900">3. Manage existing tokens</div>
 				<ul class="mt-0.5 list-disc space-y-1 pl-5 text-xs leading-relaxed">
 					<li><strong>Copy token</strong> — one-click reveals the original plaintext inline. Use if you forgot to copy at issue time. Token stays valid; agent isn't disrupted.</li>
-					<li><strong>Snippet</strong> — older tokens (issued before 2026-05-10) only have a placeholder. Use <strong>Reissue</strong> if you need a fresh plaintext.</li>
-					<li><strong>Reissue</strong> — revokes old + issues new with same scope, resources, and label. Existing agents lose access immediately.</li>
+					<li><strong>Reissue &amp; Copy</strong> — for older tokens (issued before 2026-05-10) whose plaintext was never stored. One click revokes the old + issues a new with the same scope and shows the fresh plaintext inline. Existing agents using the old token lose access.</li>
+					<li><strong>Reissue</strong> — same as Reissue &amp; Copy but available on newer tokens too if you want to rotate them.</li>
 					<li><strong>Revoke</strong> — kills the token. High-risk tokens prompt for confirmation.</li>
+					<li><strong>Purge expired</strong> (header) — one-click delete of all your expired tokens, instead of waiting for the daily cron.</li>
 				</ul>
 			</div>
 			<div>
