@@ -240,16 +240,22 @@ def _check_password(username: str, password: str) -> None:
 	ValidationError keeps the dashboard session intact and shows an inline
 	error message instead.
 	"""
-	# Tests inject a mock at frappe.local.login_manager (create=True).
-	mocked_lm = getattr(frappe.local, "login_manager", None)
 	try:
-		if mocked_lm is not None:
-			mocked_lm.check_password(username, password)
+		# Tests inject a MagicMock at frappe.local.login_manager via patch.object;
+		# detect via the unittest.mock marker so we DON'T accidentally pick up
+		# the real request login_manager in production (which checks against the
+		# already-authenticated session user, not the username arg, and can fail
+		# in subtle ways — see 2026-05-10 incident).
+		from unittest.mock import Mock
+		injected_lm = getattr(frappe.local, "login_manager", None)
+		if isinstance(injected_lm, Mock):
+			injected_lm.check_password(username, password)
 			return
-		# Production path: full LoginManager flow including MFA / lockout
-		from frappe.auth import LoginManager
-		lm = LoginManager()
-		lm.authenticate(user=username, pwd=password)
+		# Production path: stateless password check via frappe.utils.password.
+		# This is the same primitive frappe.auth uses internally and avoids
+		# building a full LoginManager (which has session side-effects).
+		from frappe.utils.password import check_password
+		check_password(username, password)
 	except frappe.AuthenticationError as e:
 		# Re-raise as ValidationError so the API returns HTTP 417 instead of 401,
 		# which the Vue dashboard interprets as "user error" (inline message),
