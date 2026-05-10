@@ -775,30 +775,38 @@ def bench_list_app_files(
 
 
 @frappe.whitelist()
-def bench_ssh_register_key(public_key: str, label: str | None = None) -> dict[str, Any]:
+def bench_ssh_register_key(
+	public_key: str,
+	label: str | None = None,
+	make_default: bool = True,
+) -> dict[str, Any]:
 	"""Register the caller's SSH public key with Press (one-time, before
 	bench_ssh_cert_generate can sign it).
 
-	Press signs ONLY keys that are registered for the current user under
-	`User SSH Key`. External agents (no dashboard session) must call this
-	tool to upload their pubkey before requesting a cert. The pubkey is
-	stored against frappe.session.user (the token's owner).
+	Press's bench_ssh_cert_generate signs the user's DEFAULT key. External
+	agents (no dashboard session) need this tool to upload + default their
+	pubkey in one shot. Stores against frappe.session.user (the token's
+	owner).
 
 	Args:
 		public_key: full ssh-ed25519 / ssh-rsa / ecdsa-... public key string
 			(the .pub file content, including the algorithm prefix)
-		label: optional human-readable label for the key
+		label: optional human-readable label
+		make_default: if True (default), mark this key as the user's
+			default — bench_ssh_cert_generate signs the default key.
+			Pass False to keep an existing default in place.
 
 	Returns:
-		{name, label, is_default, fingerprint}
+		{name, label, is_default, already_registered}
 
 	Idempotent: if the same key is already registered, returns the
-	existing record without raising.
+	existing record. If make_default=True and another key was previously
+	default, this also re-defaults to the registered key (so the next
+	cert tool call signs THIS key, not the previous one).
 	"""
 	if not public_key or not isinstance(public_key, str):
 		raise frappe.ValidationError("public_key must be a non-empty string")
 	pk = public_key.strip()
-	# Crude prefix check — the doctype validator does the real parsing.
 	if not pk.split(" ", 1)[0] in (
 		"ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256",
 		"ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521",
@@ -807,7 +815,6 @@ def bench_ssh_register_key(public_key: str, label: str | None = None) -> dict[st
 			"public_key must start with a supported algorithm "
 			"(ssh-ed25519, ssh-rsa, ecdsa-sha2-*)"
 		)
-	# Check for duplicate by full pubkey content — Press stores it as a Code field
 	existing = frappe.db.get_value(
 		"User SSH Key",
 		{
@@ -819,29 +826,42 @@ def bench_ssh_register_key(public_key: str, label: str | None = None) -> dict[st
 		as_dict=True,
 	)
 	if existing:
-		return {
-			"name": existing.name,
-			"label": existing.label,
-			"is_default": bool(existing.is_default),
-			"already_registered": True,
-		}
-	doc = frappe.get_doc({
-		"doctype": "User SSH Key",
-		"user": frappe.session.user,
-		"ssh_public_key": pk,
-		"label": label or "mcp-issued",
-		# Auto-default if this is the user's first key (so cert tool finds it)
-		"is_default": 1 if not frappe.db.exists(
-			"User SSH Key",
-			{"user": frappe.session.user, "is_disabled": 0, "is_removed": 0},
-		) else 0,
-	}).insert(ignore_permissions=True)
-	frappe.db.commit()
+		key_name = existing.name
+		already_registered = True
+	else:
+		# First time: insert. Frappe's User SSH Key controller handles
+		# the is_default uniqueness — only one key per user can be default.
+		doc = frappe.get_doc({
+			"doctype": "User SSH Key",
+			"user": frappe.session.user,
+			"ssh_public_key": pk,
+			"label": label or "mcp-issued",
+			"is_default": 0,  # Set after insert via _make_default helper
+		}).insert(ignore_permissions=True)
+		key_name = doc.name
+		already_registered = False
+
+	if make_default:
+		# Clear any other default for this user, then set ours
+		frappe.db.sql(
+			"UPDATE `tabUser SSH Key` SET is_default = 0 "
+			"WHERE user = %s AND name != %s",
+			(frappe.session.user, key_name),
+		)
+		frappe.db.set_value("User SSH Key", key_name, "is_default", 1)
+		frappe.db.commit()
+		final_default = True
+	else:
+		final_default = bool(
+			frappe.db.get_value("User SSH Key", key_name, "is_default")
+		)
+		frappe.db.commit()
+
 	return {
-		"name": doc.name,
-		"label": doc.label,
-		"is_default": bool(doc.is_default),
-		"already_registered": False,
+		"name": key_name,
+		"label": label or (existing.label if existing else "mcp-issued"),
+		"is_default": final_default,
+		"already_registered": already_registered,
 	}
 
 
