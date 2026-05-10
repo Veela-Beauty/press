@@ -12,54 +12,119 @@
 		</div>
 
 		<section class="rounded border border-gray-200 bg-white">
-			<div class="border-b border-gray-200 p-4 text-base font-semibold">Active Tokens</div>
-			<div class="overflow-x-auto">
-				<table class="w-full text-left text-sm">
-					<thead class="bg-gray-50 text-xs uppercase text-gray-600">
-						<tr>
-							<th class="p-3">Label</th>
-							<th class="p-3">Scope</th>
-							<th class="p-3">Resources</th>
-							<th class="p-3">Issued</th>
-							<th class="p-3">Expires</th>
-							<th class="p-3">Last Used</th>
-							<th class="p-3">Status</th>
-							<th class="p-3"></th>
-						</tr>
-					</thead>
-					<tbody>
-						<tr v-for="t in tokens" :key="t.name" class="border-t border-gray-100">
-							<td class="p-3 font-medium">{{ t.label }}</td>
-							<td class="p-3 text-xs text-gray-600" :title="(t.scope || []).join(', ') || 'all'">
-								{{ formatScope(t.scope) }}
-							</td>
-							<td class="p-3 text-xs text-gray-600">
-								<div v-if="t.allowed_release_groups?.length || t.allowed_sites?.length">
-									<div v-if="t.allowed_release_groups?.length">
-										<span class="font-medium">RGs:</span> {{ t.allowed_release_groups.join(', ') }}
-									</div>
-									<div v-if="t.allowed_sites?.length">
-										<span class="font-medium">Sites:</span> {{ t.allowed_sites.join(', ') }}
-									</div>
-								</div>
-								<span v-else class="text-gray-400">all (inherits user)</span>
-							</td>
-							<td class="p-3 text-xs text-gray-600">{{ formatDate(t.creation) }}</td>
-							<td class="p-3 text-xs text-gray-600">{{ formatDate(t.expires_at) }}</td>
-							<td class="p-3 text-xs text-gray-600">{{ formatDate(t.last_used_at) || '—' }}</td>
-							<td class="p-3">
-								<span :class="statusClass(t.status)">{{ t.status }}</span>
-							</td>
-							<td class="p-3">
-								<Button v-if="t.status === 'active'" size="sm" @click="onRevoke(t)">Revoke</Button>
-							</td>
-						</tr>
-						<tr v-if="!tokens.length">
-							<td colspan="8" class="p-6 text-center text-sm text-gray-500">No tokens yet.</td>
-						</tr>
-					</tbody>
-				</table>
+			<!-- Header: title + risk summary + search -->
+			<div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-4">
+				<div class="flex items-baseline gap-4">
+					<div class="text-base font-semibold">Active Tokens</div>
+					<div class="text-xs text-gray-600">
+						<span class="font-semibold">{{ summary.active }}</span> active
+						<span v-if="summary.highRisk > 0" class="ml-2 text-red-700">
+							· <span class="font-semibold">{{ summary.highRisk }}</span> with high-risk tools
+						</span>
+						<span v-if="summary.expiringSoon > 0" class="ml-2 text-amber-700">
+							· <span class="font-semibold">{{ summary.expiringSoon }}</span> expiring within 24h
+						</span>
+					</div>
+				</div>
+				<input
+					type="text"
+					v-model="tokenSearch"
+					placeholder="Search by label or tool..."
+					class="w-64 rounded border border-gray-300 px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+				/>
 			</div>
+
+			<!-- Token list (cards, not a wide table) -->
+			<div v-if="filteredTokens.length === 0 && tokens.length === 0" class="p-8 text-center text-sm text-gray-500">
+				No tokens yet. Click <strong>Issue Token</strong> to create one.
+			</div>
+			<div v-else-if="filteredTokens.length === 0" class="p-8 text-center text-sm text-gray-500">
+				No tokens match "{{ tokenSearch }}".
+			</div>
+			<ul v-else class="divide-y divide-gray-100">
+				<li v-for="t in filteredTokens" :key="t.name" class="p-4">
+					<div class="flex items-start justify-between gap-3">
+						<!-- Left: label + risk badges + meta -->
+						<div class="min-w-0 flex-1">
+							<div class="flex items-center gap-2">
+								<span class="text-sm font-semibold text-gray-900 truncate">{{ t.label }}</span>
+								<span :class="statusClass(t.status)">{{ t.status }}</span>
+							</div>
+							<!-- Risk badge cluster -->
+							<div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+								<button
+									v-if="(t.scope || []).length === 0"
+									type="button"
+									class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700 hover:bg-gray-200"
+									@click="toggleScopeDetail(t.name)"
+								>
+									all tools
+								</button>
+								<template v-else>
+									<button
+										v-for="bucket in scopeBuckets(t)"
+										:key="bucket.label"
+										type="button"
+										:class="bucket.cls + ' hover:opacity-80'"
+										@click="toggleScopeDetail(t.name)"
+									>
+										{{ bucket.count }} {{ bucket.label }}
+									</button>
+									<button
+										type="button"
+										class="text-[11px] text-blue-600 hover:underline"
+										@click="toggleScopeDetail(t.name)"
+									>
+										{{ expandedTokens[t.name] ? 'Hide' : 'Show' }} details
+									</button>
+								</template>
+								<span v-if="t.allowed_release_groups?.length || t.allowed_sites?.length"
+									class="ml-2 inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-800">
+									→
+									<span v-if="t.allowed_release_groups?.length" class="ml-1">
+										{{ t.allowed_release_groups.length }} RG{{ t.allowed_release_groups.length > 1 ? 's' : '' }}
+									</span>
+									<span v-if="t.allowed_release_groups?.length && t.allowed_sites?.length" class="mx-1">/</span>
+									<span v-if="t.allowed_sites?.length">
+										{{ t.allowed_sites.length }} site{{ t.allowed_sites.length > 1 ? 's' : '' }}
+									</span>
+								</span>
+							</div>
+							<!-- Meta line -->
+							<div class="mt-1.5 text-[11px] text-gray-500">
+								Issued {{ formatDate(t.creation) }} ·
+								Expires {{ formatDate(t.expires_at) }} ·
+								Last used {{ formatDate(t.last_used_at) || 'never' }}
+							</div>
+						</div>
+						<!-- Right: Revoke button -->
+						<Button v-if="t.status === 'active'" size="sm" @click="onRevoke(t)">Revoke</Button>
+					</div>
+
+					<!-- Expanded scope detail (grouped by category) -->
+					<div v-if="expandedTokens[t.name] && (t.scope || []).length > 0"
+						class="mt-3 space-y-2 rounded border border-gray-200 bg-gray-50 p-3">
+						<div v-for="cat in TOOL_CATEGORIES" :key="cat.id">
+							<div v-if="toolsInCategory(t, cat.id).length > 0">
+								<div class="mb-1 text-[11px] font-semibold uppercase text-gray-600">
+									{{ cat.label }}
+									<span class="font-normal text-gray-500">({{ toolsInCategory(t, cat.id).length }})</span>
+								</div>
+								<div class="flex flex-wrap gap-1">
+									<span v-for="tool in toolsInCategory(t, cat.id)" :key="tool"
+										class="inline-flex items-center rounded bg-white border border-gray-200 px-2 py-0.5 text-[11px] text-gray-700"
+										:title="tool">
+										{{ TOOL_CATALOG[tool]?.label || tool }}
+										<span :class="riskBadgeClass(TOOL_CATALOG[tool]?.risk) + ' ml-1'">
+											{{ TOOL_CATALOG[tool]?.risk?.[0]?.toUpperCase() || '?' }}
+										</span>
+									</span>
+								</div>
+							</div>
+						</div>
+					</div>
+				</li>
+			</ul>
 		</section>
 
 		<section class="rounded border border-gray-200 bg-white">
@@ -132,12 +197,20 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { Button, FeatherIcon, call, toast } from 'frappe-ui';
+import { confirmDialog } from '../../../utils/components';
 import IssueTokenDialog from '../../../components/mcp/IssueTokenDialog.vue';
-import { formatScope, toolLabel } from '../../../components/mcp/_tool_catalog.js';
+import {
+	toolLabel,
+	TOOL_CATALOG,
+	TOOL_CATEGORIES,
+	riskBadgeClass,
+} from '../../../components/mcp/_tool_catalog.js';
 
 const tokens = ref([]);
+const tokenSearch = ref('');
+const expandedTokens = reactive({});
 const calls = ref([]);
 const totalCalls = ref(0);
 const currentPage = ref(1);
@@ -145,6 +218,78 @@ const pageSize = ref(25);
 const latestCallTs = ref(null);
 const showIssueDialog = ref(false);
 let pollHandle = null;
+
+// ---- Tokens: bucket counts, filter, sort, summary ----
+
+function tokenRiskCount(token, risk) {
+	const scope = token.scope || [];
+	if (scope.length === 0) {
+		// Empty scope = all tools allowed; count from catalog
+		return Object.values(TOOL_CATALOG).filter((t) => t.risk === risk).length;
+	}
+	return scope.filter((id) => TOOL_CATALOG[id]?.risk === risk).length;
+}
+
+function scopeBuckets(token) {
+	const buckets = [];
+	const high = tokenRiskCount(token, 'high');
+	const medium = tokenRiskCount(token, 'medium');
+	const low = tokenRiskCount(token, 'low');
+	if (high) buckets.push({ label: 'high-risk', count: high, cls: riskBadgeClass('high') });
+	if (medium) buckets.push({ label: 'state-changing', count: medium, cls: riskBadgeClass('medium') });
+	if (low) buckets.push({ label: 'read-only', count: low, cls: riskBadgeClass('low') });
+	return buckets;
+}
+
+function toolsInCategory(token, catId) {
+	const scope = token.scope || [];
+	if (scope.length === 0) {
+		// All tools — show entire category
+		return Object.keys(TOOL_CATALOG).filter((id) => TOOL_CATALOG[id].category === catId);
+	}
+	return scope.filter((id) => TOOL_CATALOG[id]?.category === catId);
+}
+
+function toggleScopeDetail(name) {
+	expandedTokens[name] = !expandedTokens[name];
+}
+
+const filteredTokens = computed(() => {
+	const q = tokenSearch.value.trim().toLowerCase();
+	let list = tokens.value.slice();
+	if (q) {
+		list = list.filter((t) => {
+			if ((t.label || '').toLowerCase().includes(q)) return true;
+			return (t.scope || []).some((id) => {
+				if (id.toLowerCase().includes(q)) return true;
+				const label = TOOL_CATALOG[id]?.label || '';
+				return label.toLowerCase().includes(q);
+			});
+		});
+	}
+	// Sort: active first, then high-risk-count desc, then creation desc
+	return list.sort((a, b) => {
+		const aActive = a.status === 'active' ? 0 : 1;
+		const bActive = b.status === 'active' ? 0 : 1;
+		if (aActive !== bActive) return aActive - bActive;
+		const aHigh = tokenRiskCount(a, 'high');
+		const bHigh = tokenRiskCount(b, 'high');
+		if (aHigh !== bHigh) return bHigh - aHigh;
+		return (b.creation || '').localeCompare(a.creation || '');
+	});
+});
+
+const summary = computed(() => {
+	const active = tokens.value.filter((t) => t.status === 'active');
+	const highRisk = active.filter((t) => tokenRiskCount(t, 'high') > 0).length;
+	const now = Date.now();
+	const expiringSoon = active.filter((t) => {
+		if (!t.expires_at) return false;
+		const ms = new Date(t.expires_at).getTime() - now;
+		return ms > 0 && ms < 24 * 60 * 60 * 1000;
+	}).length;
+	return { active: active.length, highRisk, expiringSoon };
+});
 
 const totalPages = computed(() => Math.max(1, Math.ceil(totalCalls.value / pageSize.value)));
 const pageStart = computed(() => totalCalls.value === 0 ? 0 : (currentPage.value - 1) * pageSize.value + 1);
@@ -205,7 +350,7 @@ function onPageSizeChange() {
 	loadCalls(false);
 }
 
-async function onRevoke(token) {
+async function performRevoke(token) {
 	try {
 		await call('press.mcp_server.auth.revoke_token', { token_id: token.name });
 		toast.success(`Revoked: ${token.label}`);
@@ -213,6 +358,22 @@ async function onRevoke(token) {
 	} catch (e) {
 		toast.error('Revoke failed: ' + (e?.message || e));
 	}
+}
+
+function onRevoke(token) {
+	const high = tokenRiskCount(token, 'high');
+	if (high > 0) {
+		confirmDialog({
+			title: 'Revoke high-risk token?',
+			message: `This token has <strong>${high}</strong> high-risk tool(s) enabled (e.g. site_run_python — RCE). Any agent using it will lose access immediately.<br><br>Token: <code>${token.label}</code>`,
+			onSuccess: ({ hide }) => {
+				performRevoke(token);
+				hide();
+			},
+		});
+		return;
+	}
+	performRevoke(token);
 }
 
 function formatDate(d) {
