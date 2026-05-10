@@ -59,6 +59,12 @@ ALLOWED_WILDCARD_PATHS = [
 	"/api/method/press.press.doctype.bench.bench_dev_overview.",
 	"/api/method/press.press.doctype.bench.bench_app_management.",
 	"/api/method/press.press.doctype.bench.health_analysis.",
+	# MCP server endpoints — token holders authenticate via custom opaque
+	# token scheme inside server.handle, NOT via Frappe's standard
+	# key:secret. The auth_hook must let the request through so our token
+	# verifier can run. Auth-side enforcement lives in press/mcp_server/auth.py
+	# (verify_token + _resolve_for_builtin) which fail-closed on bad tokens.
+	"/api/method/press.mcp_server.",
 ]
 
 DENIED_PATHS = [
