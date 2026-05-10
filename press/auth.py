@@ -59,6 +59,19 @@ ALLOWED_WILDCARD_PATHS = [
 	"/api/method/press.press.doctype.bench.bench_dev_overview.",
 	"/api/method/press.press.doctype.bench.bench_app_management.",
 	"/api/method/press.press.doctype.bench.health_analysis.",
+	# Deploy Candidate Build endpoints called directly by the dashboard
+	# (DeployCandidate.vue: get_build_estimate, get_failure_details,
+	# redeploy, fail_and_redeploy, stop_and_fail). Without this allowlist
+	# entry, NON-System users get 401 from the auth_hook, which the Vue
+	# dashboard interprets as 'session expired' and force-logs-out.
+	# Reproduced 2026-05-10: Marco clicked Update Bench → Deploy → got
+	# logged out because the deploy succeeded (200) but the followup
+	# get_build_estimate call returned 401.
+	"/api/method/press.press.doctype.deploy_candidate_build.",
+	# Site Clone (called from SiteActionCell.vue: clone_site)
+	"/api/method/press.press.doctype.site.site_clone.",
+	# Partner payment payout (called from PartnerNewPayout.vue)
+	"/api/method/press.press.doctype.partner_payment_payout.",
 	# MCP server endpoints — token holders authenticate via custom opaque
 	# token scheme inside server.handle, NOT via Frappe's standard
 	# key:secret. The auth_hook must let the request through so our token
