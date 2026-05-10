@@ -786,3 +786,48 @@ WHERE user IN ('user1@example.com', 'user2@example.com');
 Plus ensure they have a Team Member row on every team that owns benches they should see (insert with `press_role='Platform Admin'` if missing).
 
 Status: **PERMANENT** (rows persist; doesn't repeat on deploy).
+
+## Press Has 3 Permission Systems — sync ALL when "user can't do X" — 2026-05-10
+
+**Symptom:** Marco + Mahmoud appeared as "DevOps Admin" in the dashboard's team panel BUT couldn't do any bench actions (Update / Restart / Deploy buttons missing/disabled).
+
+**Root cause:** Press has THREE separate permission systems and they're all named "role" or "press_role":
+
+1. **`User.roles`** (Frappe's standard) — child table on User. Values like "System Manager", "Press Member", "Press Admin". Controls Desk-level access. Used to gate `/api/method/frappe.client.*` and DocType-level perms. NOT what the Vue dashboard reads.
+
+2. **`Team Member.press_role`** (free-text Data field) — what renders as the colored badge in the team panel ("Platform Admin", "DevOps Admin", "Developer", etc.). Pure UI label. Setting this changes what the user APPEARS to be but does NOT change what they CAN DO.
+
+3. **`Press Role` doctype + `Press Role User` child table** — THE actual gate. Has 14 boolean flags (`admin_access`, `allow_apps`, `allow_bench_creation`, `allow_billing`, `allow_dashboard`, `allow_site_creation`, `allow_server_creation`, etc.). The dashboard's `press.api.account.user_permissions` endpoint queries:
+   ```python
+   SELECT * FROM `tabPress Role` pr
+   INNER JOIN `tabPress Role User` pru ON pru.parent = pr.name
+   WHERE pr.team = <current_team> AND pru.user = <session.user>
+   ```
+   Then ORs flags across all matching rows. If no Press Role doc exists for this user on this team → all flags False → no actions visible. **Result is cached 5 min** in `frappe.cache` under key `user_permissions.{team}.{user}`.
+
+**Marco + Mahmoud's case:**
+- Press Role docs existed on team `sqkn1globp` (titles "OptiFlowERP Developer" / "OptiFlow Flutter Developer") with `admin_access=1` + all flags=1. They could act on team `sqkn1globp`'s 8 RGs.
+- BUT no Press Role docs existed for them on team `uibc5n8ho1` (Mohammed's team, 1 RG). Dashboard switching to that team → user_permissions returned all False → no buttons.
+- The earlier fix that set `Team Member.press_role = "Platform Admin"` only changed the UI badge, not the actual permissions.
+
+**Fix recipe:**
+```python
+# For each user, for each team they should admin:
+# 1. Find existing Press Role they're in OR find any admin role on that team
+# 2. Either update flags to 1, or insert Press Role User row, or create new Press Role
+# 3. Clear cache: frappe.cache.delete_value(f"user_permissions.{team}.{user}")
+```
+
+After fix, calling `bench --site <site> execute press.api.account.user_permissions` as the user returns all `True`.
+
+**Verification:** the dashboard caches user_permissions for 5 min. After fixing, either wait 5 min OR call `frappe.cache.delete_value(f"user_permissions.{team}.{user}")` for every (user, team) combo, OR have the user hard-refresh + switch team.
+
+**Lesson:**
+- "User can SEE benches but can't ACT on them" = Press Role flags problem (system #3), NOT a Frappe role problem.
+- "User can't see benches at all" = Team Member missing or `press_role` field empty, OR no Press Role doc on the team.
+- "User has the right role badge but actions are missing" = `Press Role` flags are off OR no `Press Role User` row.
+- The badge color in the team panel comes from a static map in `dashboard/src/components/RoleCell.vue` keyed on the `Team Member.press_role` text — purely cosmetic.
+- Don't grant `User.roles += System Manager` to "fix" this — it's the wrong knob (gives site-wide admin access). The right knob is the Press Role doctype + its users child.
+
+Status: **PERMANENT**. Two helper scripts kept on press-ctrl at `/tmp/_press_role_diag.py` (read-only inspection) and `/tmp/_fix_press_role2.py` (idempotent ensure-admin-role + cache clear).
+
