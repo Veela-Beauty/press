@@ -13,6 +13,7 @@ import ObjectList from '../components/ObjectList.vue';
 import SiteActions from '../components/SiteActions.vue';
 import SiteDevTab from '../components/SiteDevTab.vue';
 import { getTeam, switchToTeam } from '../data/team';
+import session from '../data/session';
 import router from '../router';
 import { getRunningJobs } from '../utils/agentJob';
 import { confirmDialog, icon, renderDialog } from '../utils/components';
@@ -1819,7 +1820,12 @@ export default {
 						{
 							label: site.doc?.is_development_site ? 'Disable Dev Mode' : 'Enable Dev Mode',
 							icon: 'code',
-							condition: () => $team.doc?.is_desk_user && ['Active', 'Broken'].includes(site.doc.status),
+							// Allow desk users (System Manager) OR team members with
+							// allow_site_creation flag (Platform Admin / DevOps Admin).
+							// Mirrors backend gate in Site.set_development_mode.
+							condition: () =>
+								($team.doc?.is_desk_user || session.hasSiteCreationAccess.value) &&
+								['Active', 'Broken'].includes(site.doc.status),
 							onClick() {
 								const enabling = !site.doc.is_development_site;
 								site.setDevelopmentMode
