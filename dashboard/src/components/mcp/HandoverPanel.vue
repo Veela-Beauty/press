@@ -55,11 +55,13 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import { TOOL_CATALOG, TOOL_CATEGORIES } from './_tool_catalog.js';
 
 const props = defineProps({
 	token: { type: String, required: true },
 	label: { type: String, default: 'agent' },
 	mode: { type: String, default: 'issued' }, // 'issued' | 'existing'
+	scope: { type: Array, default: () => [] }, // tool ids this token can call; empty = all
 });
 
 const activeTab = ref('Markdown');
@@ -93,6 +95,34 @@ const configSnippet = computed(() => JSON.stringify({
 	},
 }, null, 2));
 
+// Build a markdown catalog of the tools this token can call, grouped by category.
+// Empty scope = all tools (the catalog reflects what the server allows).
+const scopedCatalog = computed(() => {
+	const allowedIds = props.scope.length === 0
+		? Object.keys(TOOL_CATALOG)
+		: props.scope.filter((id) => !!TOOL_CATALOG[id]);
+	if (allowedIds.length === 0) return '_(no tools in scope)_';
+	const lines = [];
+	for (const cat of TOOL_CATEGORIES) {
+		const inCat = allowedIds
+			.filter((id) => TOOL_CATALOG[id].category === cat.id)
+			.sort();
+		if (inCat.length === 0) continue;
+		lines.push(`\n**${cat.label}** (${inCat.length} tool${inCat.length === 1 ? '' : 's'}):`);
+		for (const id of inCat) {
+			const t = TOOL_CATALOG[id];
+			const risk = t.risk ? ` _[${t.risk}-risk]_` : '';
+			const desc = t.desc ? ` — ${t.desc}` : '';
+			lines.push(`- \`${id}\`${risk}${desc}`);
+		}
+	}
+	// Built-in tools always available regardless of scope
+	lines.push(`\n**Always available** (built-in):`);
+	lines.push(`- \`help\` — return this server's usage instructions`);
+	lines.push(`- \`list_tools\` — list every tool callable by THIS token, with descriptions`);
+	return lines.join('\n').trim();
+});
+
 const markdownSnippet = computed(() => `## Press MCP handover
 
 **Server**: \`${mcpUrl.value}\`
@@ -116,10 +146,38 @@ ${envSnippet.value}
 ${configSnippet.value}
 \`\`\`
 
+### Available tools for this token
+
+${scopedCatalog.value}
+
+### Calling a tool with arguments
+\`args\` is a JSON-encoded object. Examples:
+
+\`\`\`bash
+# Read a release group's details
+curl -X POST '${mcpUrl.value}' \\
+  --data-urlencode 'tool=release_group_get' \\
+  --data-urlencode 'args={"name":"bench-0011"}' \\
+  --data-urlencode 'token=${props.token}'
+
+# Install an app on a site
+curl -X POST '${mcpUrl.value}' \\
+  --data-urlencode 'tool=site_install_app' \\
+  --data-urlencode 'args={"site":"my-site.example.com","app":"erpnext"}' \\
+  --data-urlencode 'token=${props.token}'
+\`\`\`
+
+### Response shape
+Always \`{message: <result>}\` on success, \`{exc_type, exception}\` on error.
+Tool errors come through as HTTP 200 with \`message.error\` set; permission/auth
+errors come through as HTTP 4xx with \`exception\` describing the cause.
+
 ### Notes for the agent
 - Token in body, NOT \`Authorization\` header.
-- First call \`tool=help\` for usage, then \`tool=list_tools\` for the catalog.
-- Audit-logged. Risky tools require explicit approval per token.
+- Audit-logged: every call is recorded with status, duration, and arguments.
+- Risky tools (RCE-tier like \`site_run_python\`) require explicit per-token approval.
+- Re-fetch \`list_tools\` if you need the live catalog from the server (this snippet
+  reflects the catalog at issue time; new tools may have been added since).
 `);
 
 const activeSnippet = computed(() => {

@@ -163,7 +163,7 @@
 						:loading="loadingSites"
 					/>
 				</div>
-				<HandoverPanel v-if="newToken" :token="newToken" :label="form.label || 'agent'" mode="issued" />
+				<HandoverPanel v-if="newToken" :token="newToken" :label="form.label || 'agent'" :scope="form.scope" mode="issued" />
 				<ErrorMessage :message="errorMsg" />
 			</div>
 		</template>
