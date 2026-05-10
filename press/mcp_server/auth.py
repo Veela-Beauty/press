@@ -231,16 +231,30 @@ def _check_password(username: str, password: str) -> None:
 
 	Uses LoginManager.authenticate so MFA, expired-password, and locked-account
 	checks all run. Tests mock frappe.local.login_manager directly.
+
+	IMPORTANT: We translate frappe.AuthenticationError into ValidationError
+	before re-raising. Reason: AuthenticationError → HTTP 401, and the
+	dashboard's HTTP error handler force-logs-out the user on any 401
+	(it assumes the session expired). With a re-auth flow like token issuance,
+	a wrong password is a USER ERROR, not a session error — translating to
+	ValidationError keeps the dashboard session intact and shows an inline
+	error message instead.
 	"""
 	# Tests inject a mock at frappe.local.login_manager (create=True).
 	mocked_lm = getattr(frappe.local, "login_manager", None)
-	if mocked_lm is not None:
-		mocked_lm.check_password(username, password)
-		return
-	# Production path: full LoginManager flow including MFA / lockout
-	from frappe.auth import LoginManager
-	lm = LoginManager()
-	lm.authenticate(user=username, pwd=password)
+	try:
+		if mocked_lm is not None:
+			mocked_lm.check_password(username, password)
+			return
+		# Production path: full LoginManager flow including MFA / lockout
+		from frappe.auth import LoginManager
+		lm = LoginManager()
+		lm.authenticate(user=username, pwd=password)
+	except frappe.AuthenticationError as e:
+		# Re-raise as ValidationError so the API returns HTTP 417 instead of 401,
+		# which the Vue dashboard interprets as "user error" (inline message),
+		# not "session expired" (force logout).
+		raise frappe.ValidationError(str(e) or "Incorrect password") from e
 
 
 def _request_ip() -> str:

@@ -44,6 +44,32 @@ class TestMCPServer(FrappeTestCase):
 		self.assertFalse(result["ok"])
 		self.assertEqual(result["error_type"], "ValidationError")
 
+	def test_issue_token_with_wrong_password_raises_validation_not_auth_error(self):
+		"""Regression: wrong password used to raise AuthenticationError, which
+		Frappe maps to HTTP 401, which the Vue dashboard treats as 'session
+		expired' and force-logs-out the user. Re-auth flows like token issuance
+		must translate to ValidationError so the dashboard shows an inline
+		error instead of logging out the user.
+		"""
+		mock_lm = frappe.local.login_manager
+		mock_lm.check_password.side_effect = frappe.AuthenticationError(
+			"Incorrect User or Password"
+		)
+		try:
+			with self.assertRaises(frappe.ValidationError) as ctx:
+				issue_token(
+					username="Administrator",
+					password="wrong-password",
+					scope=["lock_status"],
+					ttl_minutes=10,
+					label="should-not-issue",
+				)
+			# AuthenticationError must NOT propagate (would map to HTTP 401)
+			self.assertNotIsInstance(ctx.exception, frappe.AuthenticationError)
+		finally:
+			mock_lm.check_password.side_effect = None
+			mock_lm.check_password.return_value = None
+
 	def test_handle_missing_token_returns_permission_error(self):
 		result = handle(tool="clone_bench", args={}, token=None)
 		self.assertFalse(result["ok"])
