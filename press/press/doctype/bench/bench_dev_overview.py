@@ -953,16 +953,36 @@ def bench_ssh_instructions(
 			**site_paths,
 		},
 		"useful_commands": {
-			"enter_bench": f"cd {bench_path}",
+			# IMPORTANT: SSH lands you in the press-f1 HOST as user `frappe`,
+			# NOT inside the bench container. To reach the container's
+			# bench/apps/sites tree, you need `docker exec` first.
+			"enter_container": (
+				f"docker exec -it -u frappe {bench_name} bash"
+			),
+			"oneshot_in_container": (
+				f"docker exec -u frappe {bench_name} <command>"
+			),
 			"site_console": (
-				f"cd {bench_path} && bench --site {site_name or '<site>'} console"
+				f"docker exec -it -u frappe {bench_name} "
+				f"bench --site {site_name or '<site>'} console"
 			),
 			"site_shell": (
-				f"cd {bench_path} && bench --site {site_name or '<site>'} mariadb"
+				f"docker exec -it -u frappe {bench_name} "
+				f"bench --site {site_name or '<site>'} mariadb"
 			),
-			"tail_log": f"tail -f {bench_path}/logs/web.log",
+			"tail_log": (
+				f"docker exec -u frappe {bench_name} "
+				f"tail -f {bench_path}/logs/web.log"
+			),
 			"app_source": (
-				f"cd {apps_path}/<app> && grep -rn '<symbol>' --include='*.py'"
+				f"docker exec -u frappe {bench_name} bash -lc "
+				f"'cd {apps_path}/<app> && grep -rn \"<symbol>\" --include=\"*.py\"'"
+			),
+			"_note": (
+				f"After ssh in, you're on the host. cd into "
+				f"{bench_path} on the HOST shows the bind-mounted volume; "
+				f"for actually running bench commands you need docker exec "
+				f"into the {bench_name} container."
 			),
 		},
 		"do": [
