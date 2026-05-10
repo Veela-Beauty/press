@@ -163,9 +163,50 @@
 						:loading="loadingSites"
 					/>
 				</div>
-				<div v-if="newToken" class="rounded border border-amber-300 bg-amber-50 p-3">
-					<div class="text-sm font-medium text-amber-900">Copy this token NOW. You won't see it again.</div>
-					<code class="mt-1 block break-all text-xs text-amber-900">{{ newToken }}</code>
+				<div v-if="newToken" class="space-y-3 rounded border border-amber-300 bg-amber-50 p-3">
+					<div class="flex items-start justify-between gap-2">
+						<div>
+							<div class="text-sm font-medium text-amber-900">
+								Token issued — copy NOW. You won't see it again.
+							</div>
+							<div class="text-xs text-amber-800">
+								Hand the snippet below to your AI agent. It contains the URL + token + how to call it.
+							</div>
+						</div>
+					</div>
+
+					<!-- Tabs -->
+					<div class="flex flex-wrap gap-1 border-b border-amber-200">
+						<button
+							v-for="tab in ['Markdown', 'Env', 'Config', 'curl']"
+							:key="tab"
+							type="button"
+							class="px-3 py-1.5 text-xs font-medium transition"
+							:class="activeTab === tab
+								? 'border-b-2 border-amber-700 text-amber-900'
+								: 'text-amber-700 hover:text-amber-900'"
+							@click="activeTab = tab"
+						>
+							{{ tab }}
+						</button>
+					</div>
+
+					<!-- Tab body -->
+					<div class="relative">
+						<button
+							type="button"
+							class="absolute right-1 top-1 rounded border border-amber-300 bg-white px-2 py-0.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
+							@click="copyActive"
+						>
+							{{ copyLabel }}
+						</button>
+						<pre class="max-h-[260px] overflow-auto rounded bg-white/70 p-3 pr-16 text-[11px] leading-snug text-amber-900 whitespace-pre-wrap break-all">{{ activeSnippet }}</pre>
+					</div>
+
+					<details class="text-xs text-amber-800">
+						<summary class="cursor-pointer font-medium">Just the raw token</summary>
+						<code class="mt-1 block break-all rounded bg-white/70 p-2">{{ newToken }}</code>
+					</details>
 				</div>
 				<ErrorMessage :message="errorMsg" />
 			</div>
@@ -207,6 +248,87 @@ const submitting = ref(false);
 const errorMsg = ref('');
 const newToken = ref('');
 const search = ref('');
+const activeTab = ref('Markdown');
+const copyLabel = ref('Copy');
+const copyResetTimer = ref(null);
+
+// Server URL is the dashboard's own origin. The MCP endpoint path is fixed.
+const mcpUrl = computed(() => `${window.location.origin}/api/method/press.mcp_server.server.handle`);
+
+const envSnippet = computed(() => `export PRESS_MCP_URL='${mcpUrl.value}'
+export PRESS_MCP_TOKEN='${newToken.value}'`);
+
+const curlSnippet = computed(() => `# Quick connectivity test (returns help text)
+curl -X POST '${mcpUrl.value}' \\
+  --data-urlencode 'tool=help' \\
+  --data-urlencode 'token=${newToken.value}'
+
+# List available tools for this token
+curl -X POST '${mcpUrl.value}' \\
+  --data-urlencode 'tool=list_tools' \\
+  --data-urlencode 'token=${newToken.value}'`);
+
+const configSnippet = computed(() => JSON.stringify({
+	mcpServers: {
+		'press-cloud': {
+			url: mcpUrl.value,
+			transport: 'http',
+			headers: {},
+			env: {
+				PRESS_MCP_TOKEN: newToken.value,
+			},
+			description: `Press MCP — issued ${new Date().toISOString().slice(0,10)} for "${form.label || 'agent'}"`,
+		},
+	},
+}, null, 2));
+
+const markdownSnippet = computed(() => `## Press MCP handover
+
+**Server**: \`${mcpUrl.value}\`
+**Token (single-use, expires soon)**: \`${newToken.value}\`
+**Label**: ${form.label || '(unnamed)'}
+**Scope**: ${form.scope.length} tools
+
+### How to call
+Send POST as form-encoded body — \`tool\` + \`token\` (+ optional \`args\` JSON):
+
+\`\`\`bash
+${curlSnippet.value}
+\`\`\`
+
+### Env vars (paste in shell or .env)
+\`\`\`bash
+${envSnippet.value}
+\`\`\`
+
+### Claude Desktop / Cursor config (\`~/.claude.json\` or \`~/.cursor/mcp.json\`)
+\`\`\`json
+${configSnippet.value}
+\`\`\`
+
+### Notes for the agent
+- Token in body, NOT \`Authorization\` header.
+- First call \`tool=help\` for usage, then \`tool=list_tools\` for the catalog.
+- Audit-logged. Risky tools require explicit approval per token.
+`);
+
+const activeSnippet = computed(() => {
+	if (activeTab.value === 'Markdown') return markdownSnippet.value;
+	if (activeTab.value === 'Env') return envSnippet.value;
+	if (activeTab.value === 'Config') return configSnippet.value;
+	return curlSnippet.value;
+});
+
+async function copyActive() {
+	try {
+		await navigator.clipboard.writeText(activeSnippet.value);
+		copyLabel.value = 'Copied!';
+	} catch {
+		copyLabel.value = 'Copy failed';
+	}
+	if (copyResetTimer.value) clearTimeout(copyResetTimer.value);
+	copyResetTimer.value = setTimeout(() => (copyLabel.value = 'Copy'), 1500);
+}
 
 // Resource picker state
 const rgOptions = ref([]);
@@ -244,6 +366,8 @@ function resetState() {
 	form.allowedSites = [];
 	form.riskyToolsEnabled = false;
 	search.value = '';
+	activeTab.value = 'Markdown';
+	copyLabel.value = 'Copy';
 }
 
 async function loadResourceOptions() {
