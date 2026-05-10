@@ -89,6 +89,13 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 			raise frappe.PermissionError("token is required")
 
 		target_doctype, target_name = _extract_target(tool, args)
+		# SECURITY: fail-closed guard against missing _extract_target entries.
+		# If the tool's args carry a known target identifier (bench_name/site/
+		# release_group/name/site_name) but extraction returned (None, None),
+		# the tool was registered without a resource-scope mapping. Block the
+		# call instead of silently bypassing the token's allowed_release_groups
+		# / allowed_sites allowlist.
+		_assert_target_extracted(tool, args, target_doctype, target_name)
 		user = verify_token(token, tool_name=tool, target_doctype=target_doctype, target_name=target_name)
 		token_doc_name = _resolve_token_docname(token)
 
@@ -261,6 +268,20 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		if site:
 			return "Site", site
 
+	# agent_job_list takes an OPTIONAL site filter. When present, scope-check
+	# it. When absent, the tool is effectively team-scoped — falls through to
+	# RESOURCELESS handling below. SECURITY (2026-05-10): previously listed in
+	# RESOURCELESS_TOOLS, which let a token scoped to site-A enumerate jobs
+	# for site-B by passing {"site": "site-B"} (information disclosure).
+	if tool == "agent_job_list":
+		filter_site = args.get("site")
+		if filter_site:
+			return "Site", filter_site
+		# No site filter → fall through; agent_job_list is in RESOURCELESS_TOOLS
+		# for the no-filter case (handled below). When no site arg, the tool's
+		# backend filters by the caller's team via Frappe perm.
+		return None, None
+
 	# Release-Group-targeted tools — arg name varies
 	rg = args.get("release_group") or args.get("name")
 	if tool in {
@@ -288,6 +309,9 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"bench_recent_logs",
 		"bench_ssh_cert_get",
 		"bench_ssh_cert_generate",
+		"bench_ssh_instructions",  # SECURITY (2026-05-10): previously missing; leaked SSH paths cross-RG
+		"bench_read_app_file",     # SECURITY (2026-05-10): previously missing; allowed cross-RG source-file reads
+		"bench_list_app_files",    # SECURITY (2026-05-10): previously missing; allowed cross-RG file listings
 		"bench_dev_info",
 		# Obj 10
 		"bench_run_repo_script",
@@ -296,15 +320,100 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		if parent_rg:
 			return "Release Group", parent_rg
 
-	# Deploy Candidate / Build → resolve to parent Release Group (Obj 10)
-	if tool in {"deploy_candidate_schedule_build", "deploy_candidate_status"}:
-		candidate_or_build = args.get("candidate_name") or args.get("name")
+	# Deploy Candidate / Build → resolve to parent Release Group (Obj 10).
+	# SECURITY (2026-05-10): deploy_failure_details added — was previously in
+	# RESOURCELESS_TOOLS, letting tokens scoped to one RG read failed-build
+	# stdout/stderr (which can contain secrets) for builds in other RGs.
+	if tool in {
+		"deploy_candidate_schedule_build",
+		"deploy_candidate_status",
+		"deploy_failure_details",
+	}:
+		candidate_or_build = args.get("candidate_name") or args.get("name") or args.get("dn")
 		if candidate_or_build:
 			rg = _candidate_to_release_group(candidate_or_build)
 			if rg:
 				return "Release Group", rg
 
 	return None, None
+
+
+# Tools that legitimately do NOT operate on a single Site/Release Group/Bench
+# resource — global listings, token self-management, audit. Resource-scope
+# checks are skipped for these by design (no target to compare allowlist to).
+# CRITICAL: any tool that takes a bench_name/site/release_group/name arg
+# MUST be in _extract_target above. The fail-closed guard
+# `_assert_target_extracted` enforces this — adding a tool here that DOES
+# carry a resource argument allows scope bypass.
+RESOURCELESS_TOOLS: set[str] = {
+	"help",
+	"list_tools",
+	"list_release_groups",  # backend handler filters by caller's team
+	"list_sites",           # backend handler filters by caller's team
+	"list_my_tokens",
+	"revoke_my_token",
+	"audit_verify_chain",
+	# bench_ssh_register_key registers a SSH pubkey on the calling USER (one-time
+	# setup). Doesn't operate on any bench — the cert sign step (bench_ssh_cert_*)
+	# is what enforces bench scope.
+	"bench_ssh_register_key",
+	# agent_job_list IS resource-scoped when its `site` arg is set — see
+	# _extract_target's special-case for that. This allowlist entry covers
+	# the fall-through case where no site is specified (team-scoped via
+	# Frappe perm).
+	"agent_job_list",
+	"app_release_approve",  # app-scoped, not RG/Site-scoped
+}
+
+# Argument names that, when present, indicate the tool operates on a specific
+# resource. If any of these are in args but _extract_target returned (None, None)
+# AND the tool is not in RESOURCELESS_TOOLS, we fail closed.
+_RESOURCE_ARG_NAMES: set[str] = {
+	"bench_name",
+	"site",
+	"site_name",
+	"release_group",
+	"name",          # ambiguous (could be doc name in any DocType) but worth checking
+	"target_name",
+	"dn",            # Deploy Candidate Build name; backstops deploy_failure_details
+	"candidate_name",
+}
+
+
+def _assert_target_extracted(
+	tool: str,
+	args: dict,
+	target_doctype: str | None,
+	target_name: str | None,
+) -> None:
+	"""Fail-closed guard: catch tools registered without _extract_target mapping.
+
+	Background: prior bug (2026-05-10) — bench_list_app_files / bench_read_app_file
+	/ bench_ssh_register_key / bench_ssh_instructions accepted bench_name args
+	but were missing from _extract_target. _check_resource_scope was skipped,
+	letting tokens with `allowed_release_groups: [bench-A]` read files from
+	bench-B unbounded.
+
+	If any future tool ships with a resource arg but no _extract_target entry,
+	this function blocks the call instead of silently authorizing it.
+	"""
+	if target_doctype and target_name:
+		return  # extraction worked — proceed to verify_token's scope check
+	if tool in RESOURCELESS_TOOLS:
+		return  # explicitly safe (no resource to check)
+	# Extraction returned (None, None) AND tool isn't allowlisted as resourceless.
+	# If it carries a resource arg, that's a bug.
+	leaks = sorted(_RESOURCE_ARG_NAMES & set(args.keys()))
+	if leaks:
+		raise frappe.PermissionError(
+			f"tool {tool!r} carries resource argument(s) {leaks!r} but is missing "
+			f"from _extract_target — refusing to bypass token resource scope. "
+			f"This is a server-side bug; please add {tool!r} to _extract_target "
+			f"or RESOURCELESS_TOOLS in press/mcp_server/server.py."
+		)
+	# No resource args at all — tool genuinely operates on nothing scopable.
+	# Add it to RESOURCELESS_TOOLS to silence this check on next deploy if
+	# you encounter it intentionally.
 
 
 def _candidate_to_release_group(name: str) -> str | None:

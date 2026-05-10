@@ -333,6 +333,62 @@ class TestMCPServer(FrappeTestCase):
 		self.assertEqual(td, "Release Group")
 		self.assertEqual(tn, "RG-Y")
 
+	def test_bench_file_tools_are_resource_scoped(self):
+		"""REGRESSION (2026-05-10): bench_list_app_files / bench_read_app_file /
+		bench_ssh_register_key / bench_ssh_instructions previously returned
+		(None, None) from _extract_target → resource-scope check skipped →
+		token scoped to bench-A could read files from bench-B unbounded.
+
+		Verify each of the 4 tools correctly resolves bench_name → parent RG.
+		"""
+		from press.mcp_server.server import _extract_target
+
+		# Create a fake Bench → Release Group mapping to test extraction
+		from unittest.mock import patch
+		with patch(
+			"press.mcp_server.server.frappe.db.get_value",
+			return_value="rg-mapped-from-bench",
+		):
+			for tool in (
+				"bench_list_app_files",
+				"bench_read_app_file",
+				"bench_ssh_register_key",
+				"bench_ssh_instructions",
+			):
+				td, tn = _extract_target(tool, {"bench_name": "bench-X-001-press-f1"})
+				self.assertEqual(
+					(td, tn),
+					("Release Group", "rg-mapped-from-bench"),
+					f"{tool!r}: expected RG resolution, got ({td!r}, {tn!r}). "
+					"Resource-scope check would be SKIPPED — token scope bypass.",
+				)
+
+	def test_assert_target_extracted_fails_closed_on_unmapped_resource_tool(self):
+		"""Defense-in-depth: a tool with bench_name/site/etc. arg but missing
+		from _extract_target must be blocked, not silently authorized.
+		"""
+		from press.mcp_server.server import _assert_target_extracted
+
+		# Simulate a future tool that takes bench_name but isn't in _extract_target
+		# AND isn't in RESOURCELESS_TOOLS — must raise PermissionError.
+		with self.assertRaises(frappe.PermissionError) as ctx:
+			_assert_target_extracted(
+				tool="some_future_unmapped_tool",
+				args={"bench_name": "bench-X"},
+				target_doctype=None,
+				target_name=None,
+			)
+		self.assertIn("missing from _extract_target", str(ctx.exception))
+
+	def test_assert_target_extracted_allows_resourceless_tools(self):
+		"""list_release_groups / list_sites etc. genuinely don't operate on a
+		single resource — _assert_target_extracted must allow them through.
+		"""
+		from press.mcp_server.server import _assert_target_extracted, RESOURCELESS_TOOLS
+		for tool in RESOURCELESS_TOOLS:
+			# Should NOT raise
+			_assert_target_extracted(tool=tool, args={}, target_doctype=None, target_name=None)
+
 	def test_log_call_truncates_oversized_payloads(self):
 		"""args/response over MAX_ARGS_LOG_LEN must be truncated, not crash the log insert."""
 		from press.mcp_server.server import MAX_ARGS_LOG_LEN
@@ -409,6 +465,7 @@ class TestMCPServer(FrappeTestCase):
 	def test_ssh_cert_generate_blocked_without_risky_flag(self):
 		"""bench_ssh_cert_generate is high-risk; basic token must be rejected."""
 		from press.mcp_server.auth import issue_token
+		from unittest.mock import patch
 		basic = issue_token(
 			username="Administrator",
 			password="ignored",
@@ -417,13 +474,20 @@ class TestMCPServer(FrappeTestCase):
 			label="ssh-no-risky",
 			risky_tools_enabled=False,
 		)
-		result = handle(
-			tool="bench_ssh_cert_generate",
-			args={"bench_name": "fake-bench"},
-			token=basic["token"],
-		)
+		# Mock Bench → group lookup so _assert_target_extracted passes and the
+		# test exercises the actual high-risk gate, not the fail-closed guard.
+		with patch(
+			"press.mcp_server.server.frappe.db.get_value",
+			return_value="fake-rg",
+		):
+			result = handle(
+				tool="bench_ssh_cert_generate",
+				args={"bench_name": "fake-bench"},
+				token=basic["token"],
+			)
 		self.assertFalse(result["ok"])
 		self.assertEqual(result["error_type"], "PermissionError")
+		self.assertIn("high-risk", result["error"])
 
 	def test_ssh_cert_get_works_with_basic_token_when_in_scope(self):
 		"""bench_ssh_cert_get is medium-risk; basic token with proper scope works."""
@@ -437,7 +501,13 @@ class TestMCPServer(FrappeTestCase):
 			label="ssh-get",
 			risky_tools_enabled=False,
 		)
+		# Mock the Bench → group lookup that _extract_target performs (the
+		# fail-closed guard requires extraction to succeed even with an empty
+		# allowed_release_groups allowlist).
 		with patch(
+			"press.mcp_server.server.frappe.db.get_value",
+			return_value="fake-rg",
+		), patch(
 			"press.press.doctype.bench.bench_dev_overview.get_ssh_certificate",
 			return_value={"certificate": "fake-cert", "expires": "2026-12-31"},
 		):
@@ -461,7 +531,11 @@ class TestMCPServer(FrappeTestCase):
 			risky_tools_enabled=True,
 		)
 		self.assertEqual(risky["approval_status"], "approved")
+		# Mock Bench → group lookup (see comment on test above).
 		with patch(
+			"press.mcp_server.server.frappe.db.get_value",
+			return_value="fake-rg",
+		), patch(
 			"press.press.doctype.bench.bench_dev_overview.generate_ssh_certificate",
 			return_value={"status": "generated"},
 		):
