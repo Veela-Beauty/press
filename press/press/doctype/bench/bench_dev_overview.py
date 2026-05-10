@@ -659,9 +659,10 @@ def bench_read_app_file(
 	ensure_team_access(bench_name=bench_name)
 	abs_path = _validate_app_path(app, relative_path)
 	bench = frappe.get_doc("Bench", bench_name)
-	# `wc -c` for size, then `cat` if under cap. Two cheap commands instead
-	# of always streaming a potentially huge file.
-	size_cmd = f"wc -c < {abs_path} 2>/dev/null || echo MISSING"
+	# Wrap in `bash -lc '...'` for the same reason as run_sql_on_site:
+	# the host shell would otherwise interpret `<` and `|` as its own
+	# redirects/pipes. See run_sql_on_site docstring for full rationale.
+	size_cmd = f"bash -lc 'wc -c < {abs_path} 2>/dev/null || echo MISSING'"
 	try:
 		size_raw = bench.docker_execute(size_cmd, create_log=False)
 	except Exception as e:
@@ -682,7 +683,7 @@ def bench_read_app_file(
 		}
 	# base64-pipe to dodge any binary content / control chars that would
 	# corrupt the stdout payload going back through Press Agent.
-	read_cmd = f"base64 -w0 {abs_path}"
+	read_cmd = f"bash -lc 'base64 -w0 {abs_path}'"
 	try:
 		raw = bench.docker_execute(read_cmd, create_log=False)
 	except Exception as e:
@@ -749,9 +750,16 @@ def bench_list_app_files(
 			raise frappe.ValidationError(
 				f"pattern {pattern!r} contains disallowed characters"
 			)
-		find_cmd = f"find {dir_abs} -name '{pattern}' -type f 2>/dev/null | head -200"
+		# Wrap in bash -lc so the | head pipe runs in the container
+		find_cmd = (
+			f"bash -lc \"find {dir_abs} -name '{pattern}' -type f "
+			f"2>/dev/null | head -200\""
+		)
 	else:
-		find_cmd = f"find {dir_abs} -maxdepth 2 -type f 2>/dev/null | head -200"
+		find_cmd = (
+			f"bash -lc 'find {dir_abs} -maxdepth 2 -type f "
+			f"2>/dev/null | head -200'"
+		)
 	try:
 		raw = bench.docker_execute(find_cmd, create_log=False)
 	except Exception as e:
