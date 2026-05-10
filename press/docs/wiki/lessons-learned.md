@@ -737,3 +737,52 @@ Commit: `26e9ce16` in `Veela-Beauty/frappe_theme_switcher` (`frappe_theme_switch
 - **This is generic Frappe**, not Watch Tower–specific. Applies to any app using Frappe's redis wrapper for TTL-based state.
 - Smoke test for any TTL-based cache code: `set 1 → get → set 2 → get`. Second get must return 2; if it returns 1 you have this bug.
 - Watch Tower's `target_doctype` causes the engine to call the alert function ONCE PER target doc (e.g. once per Site). Alert functions that do their own internal scan (over all sites) AND get fanned out by the engine will fire N×N attempts. The throttle is the only thing standing between you and 700+ inbox emails — verify it actually works.
+
+## MCP Server — 4 Bugs Fixed in 2026-05-10 Session
+
+Press now ships an MCP (Model Context Protocol) server at `/api/method/press.mcp_server.server.handle` so external AI agents can drive Press through scoped audited tokens. Four bugs surfaced + were fixed in one session. Each was subtle. Full operational guide: [`02-operations/mcp-server.md`](02-operations/mcp-server.md). Status: **PERMANENT** for all four.
+
+**Bug 1 — `auth_hook` blocks the MCP endpoint (HTTP 401 from `press/auth.py:101`)**
+- Press's `auth_hook` runs before any whitelisted method body and rejects URLs not in `ALLOWED_PATHS` or `ALLOWED_WILDCARD_PATHS`. `press.mcp_server.*` was missing.
+- **Fix**: add `/api/method/press.mcp_server.` to `ALLOWED_WILDCARD_PATHS` (commit `4b775755d0`). One line.
+- **Lesson**: Press's auth hook is gate #0 — runs before token verification. Every new whitelisted module must be allowlisted.
+
+**Bug 2 — Wrong password logs the user OUT of the dashboard**
+- `_check_password` raised `frappe.AuthenticationError`. Frappe's HTTP layer maps that to 401, which the Vue dashboard treats as "session expired" → force-logout.
+- **Fix**: catch `AuthenticationError` inside `_check_password`, re-raise as `ValidationError` (HTTP 417). Dashboard shows inline error, session intact (commit `d5b5bf6ed0`). Also replaced `frappe.local.login_manager` (request-bound, session-coupled) with stateless `frappe.utils.password.check_password` — that path was rejecting correct passwords because login_manager checks against the request's session user, not the username arg (`e95c4f8a37`).
+- **Lesson**: Re-auth flows (token mint, sensitive action confirm) inside an authenticated session must NEVER raise `AuthenticationError`. The dashboard treats any 401 as session-expired. Use `ValidationError` so it surfaces inline.
+
+**Bug 3 — Vue sends `username=""` (empty)**
+- `IssueTokenDialog.vue` reads `window.frappe?.session?.user` — undefined in the Vue dashboard context, so `username=""` was sent. Backend's `check_password("", "...")` always fails.
+- **Fix**: backend defaults blank `username` to `frappe.session.user` (commit `ff98265409`).
+- **Lesson**: `window.frappe.session.user` exists on the OLD desk pages but NOT in the Vue dashboard. Either bind from the `session` store or default server-side.
+
+**Bug 4 — `docker_execute` "bench: not found" (returncode 127)**
+- The cmd string `echo X | base64 -d | bench ...` got assembled into `docker exec <container> echo X | base64 -d | bench ...` and the HOST shell saw the `|` pipes — `bench` ran on the HOST, not in the container. On press-f1 the host's frappe user PATH doesn't include `/home/frappe/.local/bin`.
+- **Fix**: wrap the entire pipeline in `bash -lc '...'` so docker exec ships ONE arg to the container's bash, which loads the user profile (`-l`) and finds bench. Commits `6d6131c670` (run_python_on_site, run_sql_on_site), `dfaab39874` (`bench_read_app_file`'s `wc -c <` and `find | head` redirects).
+- **Lesson**: ANY shell metacharacter (`|`, `<`, `>`, `&&`, `;`, `$()`) inside a `bench.docker_execute(cmd)` string gets interpreted by the HOST shell, not the container. Always wrap multi-token pipelines in `bash -lc '...'`. Single `docker exec` calls (no pipes) are fine.
+
+## Press Team `press_role` is the Bench-Visibility Field — 2026-05-10
+
+**Symptom:** Marco Maher (`markomaher333@gmail.com`) and Mahmoud Abdelmomen (`mahmoud2580mahmoud@gmail.com`) saw an empty Benches list in the Vue dashboard despite being members of team `sqkn1globp` (which owns 8 RGs).
+
+**Root cause:** They had `Frappe role = 'Press Member'` (Frappe's User.roles), but their `Team Member.press_role` was empty/restrictive. The Vue dashboard's bench-list endpoint filters on `Team Member.press_role`, NOT on Frappe roles. `press_role` is a free-text field with values like `Platform Admin`, `Operator`, etc. used by Press's own permission layer.
+
+Eslam (the team owner) had `press_role = 'Platform Admin'` on his Team Member rows for both teams; that's what gave him visibility.
+
+**Fix:** updated `tabTeam Member` to set `press_role = 'Platform Admin'` for both users on both teams (`sqkn1globp` and `uibc5n8ho1`). They now see all 9 benches across both teams. **No System Manager role added** — the user explicitly said don't grant System Manager; `press_role = Platform Admin` on the Team Member row is enough.
+
+**Lesson:**
+- Press has TWO permission systems: Frappe's `User.roles` (System Manager, Press Member, etc.) AND Press's own `Team Member.press_role`. They are NOT the same thing.
+- "User can see benches in dashboard" is gated by `Team Member.press_role`, not by Frappe roles. Bumping someone to `System Manager` ALSO works (System Manager bypasses team filtering) but is too broad — `Platform Admin` on the Team Member row is the right tool.
+- When a user "lost access" after a deploy, the FIRST place to check is `tabTeam Member` rows for `press_role` value — not `tabHas Role`.
+
+**Quick fix recipe:**
+```sql
+UPDATE `tabTeam Member`
+SET press_role = 'Platform Admin'
+WHERE user IN ('user1@example.com', 'user2@example.com');
+```
+Plus ensure they have a Team Member row on every team that owns benches they should see (insert with `press_role='Platform Admin'` if missing).
+
+Status: **PERMANENT** (rows persist; doesn't repeat on deploy).
