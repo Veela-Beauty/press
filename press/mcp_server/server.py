@@ -19,7 +19,7 @@ from typing import Any
 import frappe
 from frappe.utils import now_datetime
 
-from press.mcp_server.auth import _authenticate_token, verify_token
+from press.mcp_server.auth import TOKEN_PREFIX_LEN, _authenticate_token, verify_token
 from press.mcp_server.help import BUILTIN_TOOLS, DISCOVERABILITY_HINT, get_tool_help
 from press.mcp_server.rate_limit import RateLimitError, check_rate_limit
 from press.mcp_server.tools import get_tool_spec, get_tool_risk, list_tool_names
