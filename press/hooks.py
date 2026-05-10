@@ -206,6 +206,13 @@ doc_events = {
 		"on_update": "press.press.doctype.team.press_role_bridge.sync_team_member",
 		"on_trash": "press.press.doctype.team.press_role_bridge.sync_team_member",
 	},
+	"Press Role": {
+		# Guard against silent flag drift — if someone unchecks 'admin_access'
+		# on a 'Platform Admin' role through the Desk UI, validate_press_role_flags
+		# soft-corrects on save and logs the attempt. Custom titles (not in
+		# ROLE_TO_FLAGS) are left alone.
+		"validate": "press.press.doctype.team.press_role_bridge.validate_press_role_flags",
+	},
 }
 
 # Scheduled Tasks
@@ -214,6 +221,11 @@ doc_events = {
 scheduler_events = {
 	"weekly_long": ["press.press.doctype.marketplace_app.events.auto_review_for_missing_steps"],
 	"daily": [
+		# Press Role bridge audit — re-syncs Team Member -> Press Role User
+		# memberships, corrects flag drift on canonical role titles. Logs to
+		# error log if drift is detected so we get a daily heartbeat.
+		# See press/press/doctype/team/press_role_bridge.py:audit_press_role_drift
+		"press.press.doctype.team.press_role_bridge.audit_press_role_drift",
 		"press.experimental.doctype.referral_bonus.referral_bonus.credit_referral_bonuses",
 		"press.press.doctype.log_counter.log_counter.record_counts",
 		"press.press.doctype.incident.incident.notify_ignored_servers",
