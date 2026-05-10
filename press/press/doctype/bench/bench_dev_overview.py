@@ -953,36 +953,47 @@ def bench_ssh_instructions(
 			**site_paths,
 		},
 		"useful_commands": {
-			# IMPORTANT: SSH lands you in the press-f1 HOST as user `frappe`,
-			# NOT inside the bench container. To reach the container's
-			# bench/apps/sites tree, you need `docker exec` first.
-			"enter_container": (
-				f"docker exec -it -u frappe {bench_name} bash"
-			),
-			"oneshot_in_container": (
-				f"docker exec -u frappe {bench_name} <command>"
+			# Verified live: SSH on port 22011 lands you DIRECTLY inside the
+			# bench container as user `frappe` at /home/frappe. The bench
+			# tree is at /home/frappe/frappe-bench. Two gotchas:
+			# 1. PATH doesn't include /home/frappe/.local/bin for non-interactive
+			#    SSH (no .bashrc loaded). Use absolute /home/frappe/.local/bin/bench
+			#    OR `bash -lc 'bench ...'` to source profile.
+			# 2. bench commands MUST be run from /home/frappe/frappe-bench (the
+			#    bench dir), not /home/frappe.
+			"interactive_shell": (
+				f"# ssh -p {ssh_port} -i ~/.ssh/<key> frappe@{server_ip}\n"
+				f"# (interactive shells DO load .bashrc — bench will be on PATH)"
 			),
 			"site_console": (
-				f"docker exec -it -u frappe {bench_name} "
-				f"bench --site {site_name or '<site>'} console"
+				f"ssh -p {ssh_port} -i ~/.ssh/<key> frappe@{server_ip} "
+				f"\"cd {bench_path} && /home/frappe/.local/bin/bench "
+				f"--site {site_name or '<site>'} console\""
 			),
-			"site_shell": (
-				f"docker exec -it -u frappe {bench_name} "
-				f"bench --site {site_name or '<site>'} mariadb"
+			"site_mariadb": (
+				f"ssh -p {ssh_port} -i ~/.ssh/<key> frappe@{server_ip} "
+				f"\"cd {bench_path} && /home/frappe/.local/bin/bench "
+				f"--site {site_name or '<site>'} mariadb\""
+			),
+			"oneshot_sql": (
+				f"ssh -p {ssh_port} -i ~/.ssh/<key> frappe@{server_ip} "
+				f"\"cd {bench_path} && /home/frappe/.local/bin/bench "
+				f"--site {site_name or '<site>'} mariadb <<< 'SELECT 1'\""
 			),
 			"tail_log": (
-				f"docker exec -u frappe {bench_name} "
-				f"tail -f {bench_path}/logs/web.log"
+				f"ssh -p {ssh_port} -i ~/.ssh/<key> frappe@{server_ip} "
+				f"\"tail -f {bench_path}/logs/web.log\""
 			),
-			"app_source": (
-				f"docker exec -u frappe {bench_name} bash -lc "
-				f"'cd {apps_path}/<app> && grep -rn \"<symbol>\" --include=\"*.py\"'"
+			"grep_app_source": (
+				f"ssh -p {ssh_port} -i ~/.ssh/<key> frappe@{server_ip} "
+				f"\"grep -rn '<symbol>' {apps_path}/<app>/ --include='*.py'\""
 			),
 			"_note": (
-				f"After ssh in, you're on the host. cd into "
-				f"{bench_path} on the HOST shows the bind-mounted volume; "
-				f"for actually running bench commands you need docker exec "
-				f"into the {bench_name} container."
+				"SSH on this port (22011) lands you INSIDE the bench container "
+				"already — no docker exec step needed. cd /home/frappe/frappe-bench "
+				"first, then use absolute /home/frappe/.local/bin/bench in non-"
+				"interactive sessions (or open an interactive shell which loads "
+				".bashrc and puts bench on PATH)."
 			),
 		},
 		"do": [
