@@ -446,13 +446,14 @@ function onReissue(token) {
 		title: 'Reissue token?',
 		message: `This will <strong>revoke</strong> <code>${token.label}</code> and create a new token with the same scope. Any agent using the old token will lose access immediately.`,
 		fields: [
-			{ label: 'New TTL (minutes)', fieldname: 'ttl', type: 'int', default: 60 },
+			{ label: 'New TTL (days, 1–90)', fieldname: 'ttl_days', type: 'int', default: 7 },
 		],
 		onSuccess: async ({ hide, values }) => {
 			try {
+				const days = Math.max(1, Math.min(90, parseInt(values.ttl_days) || 7));
 				const result = await call('press.mcp_server.auth.reissue_token', {
 					token_id: token.name,
-					ttl_minutes: parseInt(values.ttl) || 60,
+					ttl_minutes: days * 24 * 60,
 				});
 				toast.success(`Reissued: ${token.label}`);
 				hide();

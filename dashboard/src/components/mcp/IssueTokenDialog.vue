@@ -11,17 +11,52 @@
 						autocomplete="off"
 					/>
 					<FormControl
-						label="TTL (minutes, max 1440)"
+						label="TTL (days, 1–90)"
 						type="number"
-						v-model="form.ttl"
+						v-model="form.ttlDays"
+						:min="1"
+						:max="90"
 					/>
-					<FormControl
-						label="Your password (re-auth to issue)"
-						type="password"
-						v-model="form.password"
-						required
-						autocomplete="new-password"
-					/>
+					<div class="space-y-1">
+						<FormControl
+							v-if="form.authMethod === 'password'"
+							label="Your password (re-auth to issue)"
+							type="password"
+							v-model="form.password"
+							required
+							autocomplete="new-password"
+						/>
+						<div v-else class="flex items-end gap-2">
+							<FormControl
+								label="Email OTP (6 digits)"
+								type="text"
+								v-model="form.otp"
+								required
+								autocomplete="one-time-code"
+								class="flex-1"
+							/>
+							<Button
+								size="sm"
+								:loading="sendingOtp"
+								:disabled="otpCooldown > 0"
+								@click="sendOtp"
+							>
+								{{ otpCooldown > 0 ? `Resend (${otpCooldown}s)` : (otpSent ? 'Resend code' : 'Send code') }}
+							</Button>
+						</div>
+						<button
+							type="button"
+							class="text-xs text-blue-600 hover:underline"
+							@click="toggleAuthMethod"
+						>
+							{{ form.authMethod === 'password'
+								? 'Forgot password? Use email OTP instead'
+								: 'Use password instead' }}
+						</button>
+						<div v-if="otpSent && form.authMethod === 'otp'" class="text-xs text-green-700">
+							Code sent — valid for 10 minutes.
+						</div>
+					</div>
 				</div>
 
 				<!-- Risky tools enabled toggle (full width — it's important) -->
@@ -194,8 +229,10 @@ const show = computed({
 
 const form = reactive({
 	label: '',
-	ttl: 60,
+	ttlDays: 7,
+	authMethod: 'password', // 'password' | 'otp'
 	password: '',
+	otp: '',
 	scope: ['list_release_groups', 'list_sites', 'list_my_tokens'],
 	allowedRGs: [],
 	allowedSites: [],
@@ -205,6 +242,10 @@ const submitting = ref(false);
 const errorMsg = ref('');
 const newToken = ref('');
 const search = ref('');
+const sendingOtp = ref(false);
+const otpSent = ref(false);
+const otpCooldown = ref(0);
+let otpTimer = null;
 
 // Resource picker state
 const rgOptions = ref([]);
@@ -236,12 +277,45 @@ function resetState() {
 	errorMsg.value = '';
 	form.label = '';
 	form.password = '';
-	form.ttl = 60;
+	form.otp = '';
+	form.authMethod = 'password';
+	form.ttlDays = 7;
 	form.scope = ['list_release_groups', 'list_sites', 'list_my_tokens'];
 	form.allowedRGs = [];
 	form.allowedSites = [];
 	form.riskyToolsEnabled = false;
 	search.value = '';
+	otpSent.value = false;
+	otpCooldown.value = 0;
+	if (otpTimer) { clearInterval(otpTimer); otpTimer = null; }
+}
+
+function toggleAuthMethod() {
+	form.authMethod = form.authMethod === 'password' ? 'otp' : 'password';
+	form.password = '';
+	form.otp = '';
+	errorMsg.value = '';
+}
+
+async function sendOtp() {
+	if (otpCooldown.value > 0) return;
+	errorMsg.value = '';
+	sendingOtp.value = true;
+	try {
+		await call('press.mcp_server.auth.request_email_otp', {
+			username: window.frappe?.session?.user || '',
+		});
+		otpSent.value = true;
+		otpCooldown.value = 30;
+		otpTimer = setInterval(() => {
+			otpCooldown.value -= 1;
+			if (otpCooldown.value <= 0) { clearInterval(otpTimer); otpTimer = null; }
+		}, 1000);
+	} catch (e) {
+		errorMsg.value = e?.messages?.[0] || e?.message || String(e);
+	} finally {
+		sendingOtp.value = false;
+	}
 }
 
 async function loadResourceOptions() {
@@ -345,8 +419,16 @@ const scopeSummary = computed(() => {
 
 async function submit() {
 	errorMsg.value = '';
-	if (!form.label || !form.password) {
-		errorMsg.value = 'Label and password are required';
+	if (!form.label) {
+		errorMsg.value = 'Label is required';
+		return;
+	}
+	if (form.authMethod === 'password' && !form.password) {
+		errorMsg.value = 'Password is required (or switch to email OTP)';
+		return;
+	}
+	if (form.authMethod === 'otp' && !form.otp) {
+		errorMsg.value = 'Enter the 6-digit code we sent to your email';
 		return;
 	}
 	if (riskyMissingFlag.value) {
@@ -355,13 +437,15 @@ async function submit() {
 			+ riskyMissingFlag.value.join(', ');
 		return;
 	}
+	const days = Math.max(1, Math.min(90, parseInt(form.ttlDays) || 7));
 	submitting.value = true;
 	try {
 		const result = await call('press.mcp_server.auth.issue_token', {
 			username: window.frappe?.session?.user || '',
-			password: form.password,
+			password: form.authMethod === 'password' ? form.password : '',
+			otp: form.authMethod === 'otp' ? form.otp : '',
 			scope: form.scope,
-			ttl_minutes: parseInt(form.ttl) || 60,
+			ttl_minutes: days * 24 * 60,
 			label: form.label,
 			allowed_release_groups: form.allowedRGs,
 			allowed_sites: form.allowedSites,
