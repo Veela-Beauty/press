@@ -1,0 +1,25 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-05-12 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["username", "code_hash", "expires_at", "consumed"],
+ "fields": [
+  {"fieldname": "username", "fieldtype": "Data", "in_list_view": 1, "label": "Username", "search_index": 1, "reqd": 1},
+  {"fieldname": "code_hash", "fieldtype": "Data", "label": "Code Hash", "reqd": 1, "length": 255},
+  {"fieldname": "expires_at", "fieldtype": "Datetime", "in_list_view": 1, "label": "Expires At", "reqd": 1},
+  {"fieldname": "consumed", "fieldtype": "Check", "in_list_view": 1, "label": "Consumed", "default": "0"}
+ ],
+ "modified": "2026-05-12 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Press",
+ "name": "Press MCP Email OTP",
+ "owner": "Administrator",
+ "permissions": [
+  {"read": 1, "report": 1, "role": "System Manager"}
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC"
+}

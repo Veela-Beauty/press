@@ -22,25 +22,33 @@ from press.mcp_server._util import safe_parse_list
 TOKEN_BYTES = 32  # 256-bit randomness; url-safe base64 gives ~43-char string
 TOKEN_PREFIX_LEN = 8  # chars stored in token_prefix for fast lookup
 TTL_MIN = 1
-TTL_MAX = 1440  # 24 hours
+TTL_MAX = 60 * 24 * 90  # 90 days (was 24h) — long-lived agent tokens
 
 BRUTE_FORCE_THRESHOLD = 5
 BRUTE_FORCE_WINDOW_MINUTES = 5
 BRUTE_FORCE_BLOCK_MINUTES = 60
 
+OTP_TTL_MINUTES = 10
+OTP_LENGTH = 6
+
 
 @frappe.whitelist(allow_guest=True)
 def issue_token(
 	username: str,
-	password: str,
-	scope: list | str,
+	password: str = "",
+	scope: list | str = None,
 	ttl_minutes: int = 60,
 	label: str | None = None,
 	allowed_release_groups: list | str | None = None,
 	allowed_sites: list | str | None = None,
 	risky_tools_enabled: bool = False,
+	otp: str = "",
 ) -> dict[str, Any]:
-	"""Issue a fresh MCP token for `username` after verifying their password.
+	"""Issue a fresh MCP token for `username` after re-authenticating.
+
+	Re-auth accepts EITHER `password` OR `otp` (email one-time code obtained
+	via `request_email_otp`). OTP path exists so users on SSO / forgot-password
+	flows can still issue tokens without remembering their password.
 
 	Returns:
 		{token, name, expires_at, scope, label, risky_tools_enabled, approval_status}
@@ -65,9 +73,14 @@ def issue_token(
 		raise frappe.ValidationError("label is required")
 	if not username:
 		raise frappe.ValidationError("username is required")
+	if not password and not otp:
+		raise frappe.ValidationError("Either password or email OTP is required")
 
 	try:
-		_check_password(username, password)
+		if otp:
+			_verify_email_otp(username, otp)
+		else:
+			_check_password(username, password)
 	except Exception:
 		_log_attempt(username, ip, success=False)
 		raise
@@ -423,6 +436,91 @@ def _check_password(username: str, password: str) -> None:
 		# which the Vue dashboard interprets as "user error" (inline message),
 		# not "session expired" (force logout).
 		raise frappe.ValidationError(str(e) or "Incorrect password") from e
+
+
+# ---- Email OTP (password-alternative for token issuance) -------------------
+
+@frappe.whitelist(allow_guest=True)
+def request_email_otp(username: str = "") -> dict[str, Any]:
+	"""Send a 6-digit OTP to the user's email. Valid for 10 minutes.
+
+	Resolves `username` to dashboard session user if omitted (same convention
+	as issue_token). Always returns success-shape — never leaks whether the
+	user exists — but only sends mail to a real, enabled user.
+	"""
+	ip = _request_ip()
+	if _is_ip_blocked(ip):
+		raise frappe.AuthenticationError("IP blocked due to repeated failures")
+
+	if not username and frappe.session.user and frappe.session.user != "Guest":
+		username = frappe.session.user
+	if not username:
+		raise frappe.ValidationError("username is required")
+
+	email = frappe.db.get_value("User", username, "email") if frappe.db.exists("User", username) else None
+	enabled = frappe.db.get_value("User", username, "enabled") if email else 0
+
+	if email and enabled:
+		# Throttle: no more than one OTP per username per 30 seconds.
+		recent_cutoff = add_to_date(now_datetime(), seconds=-30)
+		recent = frappe.db.count(
+			"Press MCP Email OTP",
+			{"username": username, "creation": (">=", recent_cutoff)},
+		)
+		if recent:
+			raise frappe.ValidationError("OTP recently sent — wait 30 seconds before retrying")
+
+		code = "".join(secrets.choice("0123456789") for _ in range(OTP_LENGTH))
+		expires_at = now_datetime() + timedelta(minutes=OTP_TTL_MINUTES)
+		# Invalidate previous unused OTPs for this user so only the latest works.
+		frappe.db.delete("Press MCP Email OTP", {"username": username, "consumed": 0})
+		frappe.get_doc({
+			"doctype": "Press MCP Email OTP",
+			"username": username,
+			"code_hash": passlibctx.hash(code),
+			"expires_at": expires_at,
+			"consumed": 0,
+		}).insert(ignore_permissions=True)
+		frappe.sendmail(
+			recipients=[email],
+			subject="Your MCP token verification code",
+			message=(
+				f"<p>Hello,</p>"
+				f"<p>Your one-time code for issuing an MCP token is:</p>"
+				f"<p style='font-size:20px;font-weight:bold;letter-spacing:2px'>{code}</p>"
+				f"<p>This code expires in {OTP_TTL_MINUTES} minutes. If you didn't request it, ignore this email.</p>"
+			),
+			now=True,
+		)
+
+	return {"sent": True, "expires_in_minutes": OTP_TTL_MINUTES}
+
+
+def _verify_email_otp(username: str, code: str) -> None:
+	"""Consume an email OTP for `username`. Raises ValidationError on failure."""
+	code = (code or "").strip()
+	if not code:
+		raise frappe.ValidationError("OTP is required")
+
+	rows = frappe.get_all(
+		"Press MCP Email OTP",
+		filters={"username": username, "consumed": 0},
+		fields=["name", "code_hash", "expires_at"],
+		order_by="creation desc",
+		limit=1,
+	)
+	if not rows:
+		raise frappe.ValidationError("No active OTP — request a new code")
+
+	otp_row = rows[0]
+	if otp_row.expires_at and otp_row.expires_at < now_datetime():
+		raise frappe.ValidationError("OTP expired — request a new code")
+
+	if not passlibctx.verify(code, otp_row.code_hash):
+		raise frappe.ValidationError("Incorrect OTP")
+
+	# One-shot consume
+	frappe.db.set_value("Press MCP Email OTP", otp_row.name, "consumed", 1)
 
 
 def _request_ip() -> str:
