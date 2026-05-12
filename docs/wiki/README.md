@@ -20,6 +20,7 @@ Enhanced fork of Frappe Press by Accurate Systems — enterprise capabilities, C
 
 ### 03 — Integrations
 - [GitHub App User Tokens](03-integrations/github-app-user-tokens.md) — Per-user GitHub OAuth for in-bench git operations (Option C); architecture, ops, troubleshooting
+- [MCP Server — Token Issuance](03-integrations/mcp-server.md) — Token TTL (1–90 days), password OR email-OTP re-auth, Press MCP Email OTP doctype
 
 ### 03 — Backup Integration
 - [Backup Integration Guide](03-backup-integration/overview.md) — How daman_backup works: architecture, DocTypes, API, dashboard pages, scheduler, tests
