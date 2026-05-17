@@ -246,7 +246,7 @@ async function submit(benchValue) {
 	errorMsg.value = '';
 	submitting.value = true;
 	try {
-		const newName = await call(
+		const response = await call(
 			'press.press.doctype.site.site_clone.clone_site',
 			{
 				site: props.site,
@@ -255,9 +255,20 @@ async function submit(benchValue) {
 				mode: mode.value,
 			},
 		);
-		toast.success(`Cloned site created: ${newName}`);
+		// clone_site mirrors press.api.site._new, which returns {site, job}.
+		// Match NewSite.vue's pattern: route to the Site Job progress page when
+		// the provisioning job exists, otherwise the site overview.
+		const newSite = response?.site || response;
+		toast.success(`Cloned site created: ${newSite}`);
 		show.value = false;
-		router.push(`/sites/${newName}`);
+		if (response?.job) {
+			router.push({
+				name: 'Site Job',
+				params: { name: newSite, id: response.job },
+			});
+		} else {
+			router.push(`/sites/${newSite}`);
+		}
 	} catch (e) {
 		errorMsg.value = e?.messages?.[0] || e?.message || String(e);
 	} finally {

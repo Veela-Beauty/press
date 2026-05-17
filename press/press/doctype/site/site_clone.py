@@ -16,10 +16,10 @@ def clone_site(
 	new_subdomain: str,
 	mode: str = "latest_backup",
 	plan: str | None = None,
-) -> str:
+) -> dict:
 	"""Clone a Site onto target_bench with three data-source modes.
 
-	Returns the name of the new Site.
+	Returns the dict that press.api.site._new produces: {"site": <name>, "job": <agent_job>}.
 	"""
 	if mode not in VALID_MODES:
 		frappe.throw(
