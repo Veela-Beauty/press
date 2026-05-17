@@ -125,6 +125,63 @@ def list_compatible_benches(site: str) -> list[dict]:
 	return out
 
 
+@frappe.whitelist()
+def get_clone_options(site: str) -> dict:
+	"""Single-shot data fetch for the Clone Site dialog.
+
+	Returns compatible benches, available Site Plans, the source's current
+	disk usage (used by check_bench_space), and the source's plan so the
+	dialog can preselect it. Saves the frontend from making 3 separate calls.
+	"""
+	source = frappe.get_doc("Site", site)
+	_check_team_access(source)
+
+	plans = frappe.get_all(
+		"Site Plan",
+		filters={"enabled": 1, "document_type": "Site"},
+		fields=["name", "plan_title", "price_usd", "max_storage_usage"],
+		order_by="price_usd asc",
+	)
+
+	return {
+		"compatible_benches": list_compatible_benches(site),
+		"plans": plans,
+		"source_disk_usage": int(getattr(source, "current_disk_usage", 0) or 0),
+		"source_plan": source.plan,
+	}
+
+
+@frappe.whitelist()
+def check_bench_space(target_bench: str, required_bytes: int = 0) -> dict:
+	"""Check whether the target bench's app server has enough free space.
+
+	Mirrors the validation done in press.api.site.validate_restoration_space_requirements
+	but keyed by bench instead of pre-existing site. Public servers report -1 for
+	free space since Press auto-extends them on demand.
+	"""
+	required_bytes = int(required_bytes or 0)
+	bench = frappe.get_doc("Bench", target_bench)
+	server = frappe.get_cached_doc("Server", bench.server)
+
+	if server.public:
+		return {
+			"server": bench.server,
+			"free_bytes": -1,
+			"required_bytes": required_bytes,
+			"sufficient": True,
+			"is_public_server": True,
+		}
+
+	free = int(server.free_space(server.guess_data_disk_mountpoint()) or 0)
+	return {
+		"server": bench.server,
+		"free_bytes": free,
+		"required_bytes": required_bytes,
+		"sufficient": free >= required_bytes,
+		"is_public_server": False,
+	}
+
+
 def _call_press_new(payload: dict) -> str:
 	return _new(payload)
 

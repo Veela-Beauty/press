@@ -7,7 +7,12 @@ from unittest.mock import patch
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from press.press.doctype.site.site_clone import clone_site, list_compatible_benches
+from press.press.doctype.site.site_clone import (
+	check_bench_space,
+	clone_site,
+	get_clone_options,
+	list_compatible_benches,
+)
 from press.press.doctype.site.test_site import create_test_site
 from press.press.doctype.site_backup.test_site_backup import create_test_site_backup
 
@@ -133,6 +138,28 @@ class TestSiteClone(FrappeTestCase):
 		result = list_compatible_benches(self.source_site.name)
 		names = {row["value"] for row in result}
 		self.assertNotIn(stub_name, names)
+
+	def test_get_clone_options_returns_expected_shape(self):
+		result = get_clone_options(self.source_site.name)
+		self.assertIn("compatible_benches", result)
+		self.assertIn("plans", result)
+		self.assertIn("source_plan", result)
+		self.assertIn("source_disk_usage", result)
+		# compatible_benches should at least contain the source's own bench
+		names = {b["value"] for b in result["compatible_benches"]}
+		self.assertIn(self.target_bench, names)
+		# plans is a list (may be empty in test fixture)
+		self.assertIsInstance(result["plans"], list)
+		# source_disk_usage is an int (0 if untracked)
+		self.assertIsInstance(result["source_disk_usage"], int)
+
+	def test_check_bench_space_returns_sufficiency_flag(self):
+		# Required = 0 → always sufficient regardless of free space
+		result = check_bench_space(self.target_bench, required_bytes=0)
+		self.assertEqual(result["server"], frappe.db.get_value("Bench", self.target_bench, "server"))
+		self.assertTrue(result["sufficient"])
+		self.assertIn("free_bytes", result)
+		self.assertIn("is_public_server", result)
 
 	def test_clone_fresh_backup_triggers_backup_then_raises(self):
 		# fresh_backup mode is async-by-design: it triggers the backup
