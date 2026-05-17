@@ -831,3 +831,70 @@ After fix, calling `bench --site <site> execute press.api.account.user_permissio
 
 Status: **PERMANENT**. Two helper scripts kept on press-ctrl at `/tmp/_press_role_diag.py` (read-only inspection) and `/tmp/_fix_press_role2.py` (idempotent ensure-admin-role + cache clear).
 
+
+## MinIO Offsite Backups — Agent Drops `endpoint_url` Silently — 2026-05-17
+
+**Symptom:** Click Clone Site → "Latest backup" mode → red `No usable offsite backup found for site X`. Or trigger offsite backup directly → agent records `Upload Site Backup to S3` as Failure with `botocore.exceptions.ClientError: An error occurred (InvalidAccessKeyId) when calling the CreateMultipartUpload operation: The AWS Access Key Id you provided does not exist in our records.`
+
+**The clue is the error message phrasing**: `"in our records"` is real AWS S3 wording. Whenever you see `InvalidAccessKeyId` against MinIO, the agent is actually talking to real AWS — meaning `endpoint_url` never reached the boto3 client.
+
+**Three places must all agree for MinIO offsite backups to work:**
+
+1. **`Press Settings`** must carry `offsite_backups_access_key_id`, `offsite_backups_secret_access_key` (in `__Auth`), `aws_s3_bucket`, `backup_region`. Different from `remote_uploads_*` — Press has two independent S3-credential pairs and configuring one doesn't auto-configure the other.
+
+2. **`Backup Bucket` doctype row** must exist with `bucket_name` (autoname field — pass `bucket_name=` NOT `name=`, otherwise Frappe throws `Bucket Name is required`), `endpoint_url`, `region`, `cluster`. Bug we hit: `get_backup_bucket()` in `site_backup.py` was selecting only `["name", "region"]` — even with the agent.py fix, `endpoint_url` never propagated. Fixed in commit `462ef02133`.
+
+3. **Agent must be ≥ commit `809e9c2`** on `Veela-Beauty/press-agent`. Upstream `frappe/agent` does NOT consume `auth["ENDPOINT_URL"]` in `upload_offsite_backup` — it only reads `REGION`. Our fork reads `ENDPOINT_URL` and passes it to `boto3.client("s3", endpoint_url=...)`.
+
+**Smoke test for "does the agent payload include ENDPOINT_URL":**
+```python
+rd = frappe.db.get_value("Agent Job", "<recent-Backup-Site-job>", "request_data")
+# expect "ENDPOINT_URL": "http://..." inside the offsite.auth dict
+```
+If the field is missing, Press is on a build before `462ef02133`. If the field is present but the agent still fails with `InvalidAccessKeyId`, the agent on that server is pre-`809e9c2` — git pull + restart `agent:web agent:worker-0 agent:worker-1`.
+
+Status: **PERMANENT** on press-f1 (Press patched, agent fork deployed). **PENDING** on u4 and u5 — same agent fork commit must be deployed there before their hosted sites can offsite-back-up to MinIO.
+
+
+## Clone Site Bench Picker — `confirmDialog` Field Type Casing Trap — 2026-05-17
+
+**Symptom:** A `confirmDialog({fields: [...]})` dialog renders dropdown fields as plain text inputs instead.
+
+**Root cause:** The old `onCloneSite()` used `fieldtype: 'Select'` (Frappe DocType field-style casing) on the mode field. But frappe-ui's `<FormControl v-bind="field">` expects `type: 'select'` (lowercase, HTML-style) — `fieldtype` is silently ignored. Field falls through to default text input.
+
+**Lesson — frappe-ui FormControl uses HTML-input type names, not Frappe DocType field names:**
+- ❌ `fieldtype: 'Select'`, `fieldtype: 'Link'`, `fieldtype: 'Check'`
+- ✅ `type: 'select'`, `type: 'combobox'`, `type: 'checkbox'`, `type: 'text'`
+
+The `ConfirmDialog.vue` template branches on `field.type === 'link'` for a custom `<LinkControl>`, otherwise spreads to `<FormControl v-bind="field">`. So if you forget to set `type` OR you use the wrong casing, you silently get a text input. No warning, no error.
+
+**Bench-picker pattern (preferred — proper SFC, not `confirmDialog`):** when the field needs a custom data fetch (e.g. "benches whose app set ⊇ source apps"), don't bolt onto `confirmDialog`. Build a proper SFC like `CloneSiteDialog.vue`:
+```vue
+<FormControl
+  label="Target Bench"
+  type="combobox"
+  :options="benchOptions"
+  v-model="targetBench"
+/>
+```
+Pre-fetch options via `createResource({url: 'press.press.doctype.site.site_clone.get_clone_options', auto: true})`. Live availability checks and reactive cross-field validation work normally with `watch()` and `computed()`.
+
+Status: **PERMANENT**. New dialog at `dashboard/src/components/site/CloneSiteDialog.vue`. The wider lesson — search the codebase for any other call site using `fieldtype:` inside a `confirmDialog({fields: [...]})` and fix to `type:`:
+```bash
+grep -rn "fieldtype:" dashboard/src/ | grep -v doctype | head
+```
+
+
+## Press API Method Returning Dict, Frontend Treating as String — 2026-05-17
+
+**Symptom:** Clone Site dialog → click Clone → site IS created → redirect lands on `/sites/[object Object]` → 404 from `press.api.client.get` because no site is named `[object Object]`.
+
+**Root cause:** `clone_site()` was declared `-> str` but returned whatever `press.api.site._new()` returns: a dict `{"site": site.name, "job": <agent_job_name>}`. The type hint is just documentation — Python doesn't coerce. The dashboard did `router.push(\`/sites/${newName}\`)` and JS stringified the dict to `"[object Object]"`.
+
+**Lesson:**
+- **Python return-type hints are non-binding.** A function declared `-> str` that returns a dict will pass static analysis but break every JS consumer that assumed a string.
+- **When proxying through Press's `_new`, return what `_new` returns AND read it as a dict on the frontend.** Reference: `NewSite.vue:onSuccess(response) { router.push({name: 'Site Job', params: {name: response.site, id: response.job}}) }`.
+- **Defensive pattern in the consumer:** `const newSite = response?.site || response;` handles both shapes (dict-with-site OR bare string) without crashing.
+
+Status: **PERMANENT**. Fixed in `5eb0a94f4a`. Hint to spot the pattern fast: when a dashboard call ends up at `/sites/[object Object]` or `/x/[object Object]`, the server returned a dict and the frontend stringified it. Browser network tab will show the actual response shape; match the consumer.
+

@@ -182,3 +182,103 @@ frappe.db.commit()
 # On press-f1 — find and clean old backups
 find /home/frappe/frappe-bench/sites/*/private/backups/ -mtime +7 -delete
 ```
+
+---
+
+## Offsite backups to MinIO (or any S3-compatible store)
+
+Press supports any S3-compatible object store — MinIO, Backblaze B2, Wasabi, Alibaba OSS — via a per-bucket `endpoint_url` on the `Backup Bucket` doctype. This is what wires our self-hosted MinIO at `http://89.167.116.92:9002` to act as the offsite store.
+
+### Required configuration (3 places)
+
+**1. Press Settings** — credentials and default bucket:
+
+| Field | Value |
+|-------|-------|
+| `offsite_backups_access_key_id` | MinIO access key (e.g. `pressadmin`) |
+| `offsite_backups_secret_access_key` | MinIO secret key (encrypted, written via `set_encrypted_password`) |
+| `aws_s3_bucket` | Default bucket name (e.g. `press-uploads`) |
+| `backup_region` | A non-empty placeholder (e.g. `us-east-1`) — MinIO ignores it but boto3 requires it |
+
+**2. Backup Bucket row** — per-bucket endpoint override:
+
+```python
+frappe.get_doc({
+    "doctype": "Backup Bucket",
+    "bucket_name": "press-uploads",      # autoname = field:bucket_name
+    "endpoint_url": "http://89.167.116.92:9002",
+    "region": "us-east-1",
+    "cluster": "Default",
+}).insert(ignore_permissions=True)
+```
+
+**3. Agent fork must be ≥ commit `809e9c2`** — upstream `frappe/agent` does NOT pass `endpoint_url` to its boto3 client, so uploads silently default to real AWS S3 and fail with `InvalidAccessKeyId`. Our fork at `Veela-Beauty/press-agent` reads `auth["ENDPOINT_URL"]` in `agent/site.py:upload_offsite_backup`.
+
+### Verifying the full path works
+
+```python
+# 1. Press Settings carries the credentials
+import frappe
+from frappe.utils.password import get_decrypted_password
+ps = frappe.get_single("Press Settings")
+print(ps.offsite_backups_access_key_id)
+print(get_decrypted_password("Press Settings", "Press Settings", "offsite_backups_secret_access_key"))
+
+# 2. boto3 round-trip against MinIO
+import boto3
+s3 = boto3.client(
+    "s3",
+    aws_access_key_id=ps.offsite_backups_access_key_id,
+    aws_secret_access_key=get_decrypted_password("Press Settings", "Press Settings", "offsite_backups_secret_access_key"),
+    endpoint_url="http://89.167.116.92:9002",
+    region_name="us-east-1",
+)
+s3.head_bucket(Bucket="press-uploads")           # → 200
+s3.put_object(Bucket="press-uploads", Key="smoke-test.txt", Body=b"ok")
+s3.delete_object(Bucket="press-uploads", Key="smoke-test.txt")
+
+# 3. Press → agent payload should include ENDPOINT_URL
+job_row = frappe.db.get_value("Agent Job", "<recent-backup-site-job>", "request_data")
+print(job_row)
+# expect: "offsite": {"auth": {..., "ENDPOINT_URL": "http://89.167.116.92:9002", ...}}
+```
+
+### Symptom → cause map
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `Password not found for Press Settings offsite_backups_secret_access_key` | Field never set in `__Auth` | `set_encrypted_password("Press Settings", "Press Settings", value, fieldname="offsite_backups_secret_access_key")` |
+| Agent step `Upload Site Backup to S3` fails with `InvalidAccessKeyId` and the message ends `"in our records"` | Agent's boto3 client is hitting real AWS, not MinIO — `endpoint_url` is not flowing through | Verify Press ≥ commit `462ef02133` (sends ENDPOINT_URL) AND agent fork ≥ `809e9c2` (consumes it). Restart agent web + workers after agent update |
+| `Too many pending backups` when triggering | Pending/Running Site Backup in last 2h blocking new insert | Mark the stuck row Failure (Press's poll catches up usually; if truly stuck, `frappe.db.set_value("Site Backup", name, "status", "Failure")`) |
+| Clone Site dialog "No usable offsite backup found" | No `Site Backup` exists with `status=Success AND files_availability=Available AND offsite=1` | Take a fresh offsite backup first (Clone dialog's `fresh_backup` mode does this, then re-run with `latest_backup` once it lands) |
+
+### Files involved
+
+- `press/agent.py:_get_offsite_backup_config` — builds the payload Press sends to agent (adds ENDPOINT_URL since `462ef02133`)
+- `press/press/doctype/site_backup/site_backup.py:get_backup_bucket` — fetches `name`, `region`, `endpoint_url` from `Backup Bucket` rows
+- `press/press/doctype/remote_file/remote_file.py` — already supports `endpoint_url` for downloads / deletes (the pattern we mirrored for uploads)
+- `agent/site.py:upload_offsite_backup` (in `Veela-Beauty/press-agent`) — consumes `auth["ENDPOINT_URL"]`
+
+---
+
+## Clone Site dialog
+
+Dashboard → Site → Actions → **Clone site**. Replaces the old text-input prompt with a proper dialog (since commit `63c5a0d5fc`, refined by `462ef02133` + `5eb0a94f4a` + `cc417f2cc7`).
+
+### What the dialog does
+
+1. **Target Bench** — combobox listing only benches whose app set is a superset of the source site's apps. First option is `➕ Create a new bench` which pivots to `CloneBenchPrompt` against the source's release group.
+2. **New subdomain** — live availability check on blur via `press.api.site.exists` (rate-limited 10/min). Green/red inline feedback.
+3. **Site Plan** — preselected to the source site's plan; dropdown of enabled `Site Plan` rows ordered by `price_usd`. Without this, Press's `_new` would silently drop unknown plan values and leave `Site.plan = None`.
+4. **Disk-space pre-check** — once a real bench is picked, calls `check_bench_space(target_bench, required_bytes)` where `required_bytes = source.current_disk_usage * 1.2`. Public servers auto-extend so the check short-circuits to OK. Submit is blocked on insufficient space.
+5. **Data mode** — `latest_backup` (default), `fresh_backup`, or `empty`.
+
+### Backend methods (`press/press/doctype/site/site_clone.py`)
+
+| Method | Purpose |
+|---|---|
+| `clone_site(site, target_bench, new_subdomain, mode, plan=None)` | Main entrypoint. Returns `{site, job}` (the standard `_new` response shape). |
+| `list_compatible_benches(site)` | Returns benches whose app set ⊇ source apps. Team-scoped for non-System Users. |
+| `get_clone_options(site)` | Single-shot fetch for the dialog (benches + plans + source_plan + source_disk_usage). |
+| `check_bench_space(target_bench, required_bytes)` | Returns `{server, free_bytes, required_bytes, sufficient, is_public_server}`. Mirrors `press.api.site.validate_restoration_space_requirements`. |
+
