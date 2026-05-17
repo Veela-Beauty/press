@@ -1924,6 +1924,7 @@ Response: {reason or getattr(result, "text", "Unknown")}
 			"ACCESS_KEY": settings.offsite_backups_access_key_id,
 			"SECRET_KEY": settings.get_password("offsite_backups_secret_access_key"),
 			"REGION": backup_bucket.get("region") if isinstance(backup_bucket, dict) else "",
+			"ENDPOINT_URL": backup_bucket.get("endpoint_url") if isinstance(backup_bucket, dict) else "",
 		}
 
 		return {
