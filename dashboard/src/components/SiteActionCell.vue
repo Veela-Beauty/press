@@ -62,6 +62,9 @@ function getSiteActionHandler(action) {
 		'Schedule backup': defineAsyncComponent(
 			() => import('./site/SiteScheduleBackup.vue'),
 		),
+		'Clone site': defineAsyncComponent(
+			() => import('./site/CloneSiteDialog.vue'),
+		),
 	};
 	if (actionDialogs[action]) {
 		const dialog = h(actionDialogs[action], { site: site.doc.name });
@@ -75,7 +78,6 @@ function getSiteActionHandler(action) {
 		'Deactivate site': onDeactivateSite,
 		'Drop site': onDropSite,
 		'Migrate site': onMigrateSite,
-		'Clone site': onCloneSite,
 		'Lock site': onLockSite,
 		'Move to Release Group': onMoveToReleaseGroup,
 		'Transfer site': onTransferSite,
@@ -181,63 +183,6 @@ function onMigrateSite() {
 					.submit({ skip_failing_patches: values.skipFailingPatches })
 					.then(hide);
 			},
-		},
-	});
-}
-
-function onCloneSite() {
-	confirmDialog({
-		title: 'Clone Site',
-		message:
-			'Create a copy of this site onto a target bench. Three data modes are supported: latest_backup (use most recent offsite backup, fast), fresh_backup (trigger a new backup first, slowest), or empty (no data, just install apps).',
-		fields: [
-			{
-				label: 'Target Bench (the Bench to host the cloned site)',
-				fieldname: 'target_bench',
-			},
-			{
-				label: 'New subdomain (without the root domain)',
-				fieldname: 'new_subdomain',
-			},
-			{
-				label: 'Data mode',
-				fieldname: 'mode',
-				fieldtype: 'Select',
-				options: [
-					{ label: 'Latest backup (fast, uses most recent offsite backup)', value: 'latest_backup' },
-					{ label: 'Fresh backup (slow, triggers new backup first)', value: 'fresh_backup' },
-					{ label: 'Empty (no data, just install apps)', value: 'empty' },
-				],
-				default: 'latest_backup',
-			},
-		],
-		primaryAction: {
-			label: 'Clone',
-			variant: 'solid',
-		},
-		onSuccess({ hide, values }) {
-			if (!values.target_bench || !values.new_subdomain) {
-				toast.error('Target bench and new subdomain are required');
-				return;
-			}
-			toast.promise(
-				call('press.press.doctype.site.site_clone.clone_site', {
-					site: props.siteName,
-					target_bench: values.target_bench,
-					new_subdomain: values.new_subdomain,
-					mode: values.mode || 'latest_backup',
-				}).then((newName) => {
-					hide();
-					router.push(`/sites/${newName}`);
-					return newName;
-				}),
-				{
-					loading: 'Cloning site...',
-					success: (newName) => `Cloned site created: ${newName}`,
-					error: (e) =>
-						`Failed to clone site: ${e?.messages?.[0] || e?.message || e}`,
-				},
-			);
 		},
 	});
 }

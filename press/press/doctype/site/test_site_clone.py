@@ -7,7 +7,7 @@ from unittest.mock import patch
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from press.press.doctype.site.site_clone import clone_site
+from press.press.doctype.site.site_clone import clone_site, list_compatible_benches
 from press.press.doctype.site.test_site import create_test_site
 from press.press.doctype.site_backup.test_site_backup import create_test_site_backup
 
@@ -98,6 +98,41 @@ class TestSiteClone(FrappeTestCase):
 				new_subdomain="taken-sub",
 				mode="empty",
 			)
+
+	def test_list_compatible_benches_includes_same_app_set(self):
+		# The bench created with the source site shares its app set,
+		# so list_compatible_benches must include it.
+		result = list_compatible_benches(self.source_site.name)
+		names = {row["value"] for row in result}
+		self.assertIn(self.target_bench, names)
+
+	def test_list_compatible_benches_excludes_missing_apps(self):
+		# A bench that is missing one of the source site's apps must be excluded.
+		# We simulate this by inserting a stub Bench row with an empty apps list.
+		stub_name = "Test Empty Apps Bench"
+		bench_doc = frappe.get_doc("Bench", self.target_bench)
+		frappe.get_doc(
+			{
+				"doctype": "Bench",
+				"name": stub_name,
+				"status": "Active",
+				"background_workers": 1,
+				"gunicorn_workers": 2,
+				"group": bench_doc.group,
+				"apps": [],  # zero apps → incompatible with any non-empty site
+				"candidate": bench_doc.candidate,
+				"build": bench_doc.build,
+				"server": bench_doc.server,
+				"docker_image": bench_doc.docker_image,
+			}
+		).insert(ignore_if_duplicate=True, ignore_permissions=True)
+		self.addCleanup(
+			lambda: frappe.delete_doc("Bench", stub_name, force=True, ignore_permissions=True)
+		)
+
+		result = list_compatible_benches(self.source_site.name)
+		names = {row["value"] for row in result}
+		self.assertNotIn(stub_name, names)
 
 	def test_clone_fresh_backup_triggers_backup_then_raises(self):
 		# fresh_backup mode is async-by-design: it triggers the backup

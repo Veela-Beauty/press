@@ -15,6 +15,7 @@ def clone_site(
 	target_bench: str,
 	new_subdomain: str,
 	mode: str = "latest_backup",
+	plan: str | None = None,
 ) -> str:
 	"""Clone a Site onto target_bench with three data-source modes.
 
@@ -50,7 +51,7 @@ def clone_site(
 		"apps": [a.app for a in source.apps],
 		"group": bench.group,
 		"cluster": source.cluster,
-		"plan": source.plan,
+		"plan": plan or source.plan or "Free",
 		"bench": target_bench,
 	}
 
@@ -73,6 +74,55 @@ def clone_site(
 	# else mode == "empty": no files key added
 
 	return _call_press_new(payload)
+
+
+@frappe.whitelist()
+def list_compatible_benches(site: str) -> list[dict]:
+	"""Return active benches whose app set is a superset of the source site's apps.
+
+	Used by the dashboard 'Clone Site' dialog to populate the Target Bench picker —
+	only shows benches that can actually host this site without missing-app errors.
+	A bench qualifies if every app the source site needs is also installed on it.
+	Team users only see benches owned by their team; System Users see all.
+	"""
+	source = frappe.get_doc("Site", site)
+	_check_team_access(source)
+	source_apps = {a.app for a in source.apps}
+
+	bench_filters: dict = {"status": "Active"}
+	if frappe.session.data.user_type != "System User":
+		from press.utils import get_current_team
+
+		bench_filters["team"] = get_current_team()
+
+	candidates = frappe.get_all(
+		"Bench",
+		filters=bench_filters,
+		fields=["name", "group", "server", "cluster"],
+		order_by="creation desc",
+		limit=200,
+	)
+
+	out: list[dict] = []
+	for b in candidates:
+		bench_apps = {
+			r.app
+			for r in frappe.get_all(
+				"Bench App",
+				filters={"parent": b.name},
+				fields=["app"],
+			)
+		}
+		if source_apps.issubset(bench_apps):
+			out.append(
+				{
+					"value": b.name,
+					"label": f"{b.name} ({b.server})",
+					"group": b.group,
+					"server": b.server,
+				}
+			)
+	return out
 
 
 def _call_press_new(payload: dict) -> str:
