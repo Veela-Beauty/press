@@ -59,6 +59,14 @@ ALLOWED_WILDCARD_PATHS = [
 	"/api/method/press.press.doctype.bench.bench_dev_overview.",
 	"/api/method/press.press.doctype.bench.bench_app_management.",
 	"/api/method/press.press.doctype.bench.health_analysis.",
+	# Bench Code Health — quality scan API. Called from BenchCodeHealth.vue,
+	# CodeHealth.vue, HealthAdvanced.vue (3 frontend mounts: Site Dev tab
+	# Health panel + /dashboard/code-health full page). 10+ whitelisted
+	# methods (scan_bench, get_summary, get_files, get_file_detail, etc.).
+	# Audit 2026-05-18: caught during bench_dev_watch fix follow-up
+	# (same logout-on-poll symptom would fire whenever a non-System user
+	# expanded the Health panel or visited /dashboard/code-health).
+	"/api/method/press.press.doctype.bench.bench_code_health.",
 	# Bench Dev Watch — get_watch_status polls every ~10s from the
 	# BenchWatchStatus panel on /groups/<bench>/actions. Without this
 	# entry, every poll returns 401 for non-System users; the Vue
