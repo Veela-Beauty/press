@@ -135,3 +135,47 @@ supervisorctl restart all
 **What it fixes:** `hostnames;` directive (template + live proxy.conf)
 **Log:** `/var/log/agent-post-merge.log`
 **Note:** Docker login patch (server.py) is NOT in the hook — must be reapplied manually if agent is updated.
+
+### Non-System users force-logged-out when Vue dashboard hits a 401
+**Status:** Recurring — 3 incidents in 8 days (2026-05-10 × 2, 2026-05-18 × 2). Mandatory check on every PR that adds a whitelisted method.
+**Symptom:** A non-System user (Website User / Team Member) clicks something on the dashboard (Launch Code Server, Deploy, Open Code Health, etc.) and the next page load bounces them to `/dashboard/login`. Sometimes the click is incidental — a background poll firing right after is the real trigger.
+**Cause:** Press has its own auth hook at `apps/press/press/auth.py` that runs BEFORE Frappe's whitelist check. It rejects any URL not in `ALLOWED_PATHS` (exact) or `ALLOWED_WILDCARD_PATHS` (prefix). System Users short-circuit on line 107; everyone else must match. When a whitelisted method is called via its dotted Python path (`press.press.doctype.<x>.<y>.<method>`) but that path is not in the allowlist, the request returns HTTP 401. The Vue dashboard (`router.js` → `waitUntilTeamLoaded`) maps any 401 to "session expired", clears `localStorage.current_team`, and force-redirects to login.
+**Diagnostic:**
+```bash
+# 1. Tail the auth log on press-ctrl
+ssh press-ctrl
+sudo -u frappe tail -F /home/frappe/frappe-bench/logs/press.auth.json.log
+
+# 2. Look for transitions: same email -> Guest on a repeating endpoint
+#    e.g. user "marco@x.com" appears, then 10s later "user": "Guest"
+#    The path field is the missing allowlist entry.
+
+# 3. Audit script — find every dashboard-called whitelisted method NOT in the allowlist
+cd ~/data/erpnext-app-repos/press_local
+for f in $(grep -rl "@frappe.whitelist" press/press/doctype/ --include="*.py" | grep -v test_); do
+  module=$(echo "$f" | sed 's|press/press/doctype/||; s|\.py$||; s|/|.|g')
+  prefix="press.press.doctype.$module."
+  if grep -qrE "$(echo "$prefix" | sed 's/\./\\./g')" dashboard/src/ 2>/dev/null; then
+    if ! grep -q "$prefix" press/auth.py; then
+      echo "MISSING: $prefix"
+    fi
+  fi
+done
+```
+**Fix:** add one line to `ALLOWED_WILDCARD_PATHS` in `press/auth.py`:
+```python
+"/api/method/press.press.doctype.<x>.<y>.",   # trailing dot mandatory
+```
+Then on press-ctrl: cherry-pick + `supervisorctl restart frappe-bench-web:` (no rebuild needed — pure Python).
+**Verify the fix is live:**
+```bash
+ssh press-ctrl 'curl -k -X POST "https://demo.mvpstorm.com/api/method/press.press.doctype.<x>.<y>.<method>" --data "x=y"'
+# Expect: "PermissionError: ... is not whitelisted" (auth_hook PASSED, hit whitelist gate)
+# Before fix: "AuthenticationError: Access not allowed for this URL" (auth_hook BLOCKED)
+```
+**Prevention:** every PR that adds `@frappe.whitelist()` at a `press.press.doctype.*` path MUST add the matching allowlist entry in the SAME commit. Run the audit script above before merging.
+**Incident history:**
+- 2026-05-10 `cb55aebf6e` — `deploy_candidate_build.` + `site_clone.` + `partner_payment_payout.`
+- 2026-05-10 `4b775755d0` — `press.mcp_server.`
+- 2026-05-18 `cb22ec0d53` — `bench_dev_watch.` (BenchWatchStatus poll every 10s logged users out within seconds)
+- 2026-05-18 `6e18abbbfb` — `bench_code_health.` (audit follow-up — would have logged out anyone visiting `/dashboard/code-health`)

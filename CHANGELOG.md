@@ -5,6 +5,36 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 18-05-2026 — Dashboard pull/push UX gaps + auth allowlist audit (2 logout fixes)
+
+### Fixed
+- **Non-System users force-logged-out after clicking Launch Code Server.** Symptom: `markomaher333@gmail.com` opens `/dashboard/groups/<bench>/actions`, clicks Launch Code Server, gets bounced to `/dashboard/login` within ~10 s. Logs showed the user transitioning logged-in → Guest on `press.press.doctype.bench.bench_dev_watch.get_watch_status` (221 Guest hits in 2k log lines). Root cause: `BenchWatchStatus` Vue panel polls `bench_dev_watch.get_watch_status` every 10 s on the bench Actions page and Site Dev tab. `bench_dev_watch` was added in `2719f44c5c` but never added to `ALLOWED_WILDCARD_PATHS` in `press/auth.py`. The Press auth hook rejected every poll with HTTP 401, the Vue dashboard mapped 401 → "session expired" → force-logout. The click itself was incidental — the next poll tick is what killed the session, but users associated the logout with the click.
+- **`/dashboard/code-health` would have logged out non-admin users.** Audit follow-up after fixing `bench_dev_watch`: grep'd every `@frappe.whitelist` under `press/press/doctype/bench/` and cross-referenced against Vue dashboard call sites. Found `bench_code_health.*` (10+ whitelisted methods called from `BenchCodeHealth.vue`, `CodeHealth.vue`, `HealthAdvanced.vue`) also missing from the allowlist. Same 401 → logout pattern would have fired on first visit to the Code Health page or expanding the Site Dev Health panel.
+- **Dashboard "How to pull and push code" panel had 3 blocking gaps.** Real-world session (Mahmoud on `bench-0022-000015-press-f1` for `eltarek_dist_app`) showed the panel was wrong on:
+  1. **Token lifetime: panel said `~60 min`, actual is `~8 hours`** (`bench-git-setup` issues 480-min tokens — Mahmoud's session showed "token valid ~479 min")
+  2. **No `origin` remote check.** Fresh bench containers ship apps with only an `upstream` remote pointing at `file:///home/frappe/context/apps/<app>` — not GitHub. Panel jumped straight to `git pull` which fails with `fatal: 'origin' does not appear to be a git repository`.
+  3. **No detached-HEAD check.** Fresh containers come in detached HEAD. Panel said `git pull` would just work — actually fails with `You are not currently on a branch`.
+- **Misleading line in SSH tab removed.** Old copy: *"Don't run `git remote add origin` manually — the existing remote is set up by Press"*. In fresh containers there literally is no `origin` to begin with, so the advice was actively wrong.
+
+### Added
+- **`DevFlowsGuide.vue`** — Dashboard tab now has a blue Prerequisite callout up front + "If Push fails — common fixes" section covering the 3 real errors users hit (`'origin' does not appear`, detached HEAD, 403). Code Server + SSH tabs got two new steps: **3.5 Make sure `origin` points to GitHub** (with `git remote -v` + `git remote add origin`) and **3.6 Get on a real branch** (with `git status` + `git checkout`/`git switch -c`). Migrate-after-pull reminder. Shared yellow callout now differentiates `bench restart` (recycles processes — files survive) from container *rebuild* (wipes uncommitted work).
+- **`ReleaseGroupActions.vue`** — Dev Bench panel ("How to use a Dev Bench") got a blue "Before you push" callout pointing devs at steps 3.5 + 3.6 in the tabs below, so they don't hit the gap blind.
+- **Wiki**: `docs/wiki/06-deployment-ops/known-issues-and-fixes.md` got a new "Non-System users force-logged-out when Vue dashboard hits a 401" section — diagnostic playbook (auth.json.log tail + audit script), curl verify procedure, prevention rule, and incident history (3 incidents in 8 days).
+- **Audit script** in the wiki — one-shot check that finds every dashboard-called whitelisted method NOT in the allowlist. Run before any PR that adds `@frappe.whitelist()` at a `press.press.doctype.*` path.
+
+### Notes
+- **Rule for future PRs:** every PR that adds `@frappe.whitelist()` at a `press.press.doctype.<x>.<y>.<method>` path MUST add `/api/method/press.press.doctype.<x>.<y>.` to `ALLOWED_WILDCARD_PATHS` in `press/auth.py` in the SAME commit. The audit script in the wiki enforces this — zero output = safe.
+- **3 incidents in 8 days of the identical 401-allowlist bug pattern**: `cb55aebf6e` (deploy_candidate_build / site_clone / partner_payment_payout, 2026-05-10), `4b775755d0` (press.mcp_server., 2026-05-10), `cb22ec0d53` (bench_dev_watch., today), `6e18abbbfb` (bench_code_health., today audit follow-up). Adding the rule to the runbook + memory file makes this the last one.
+- **Audited and confirmed safe** (no allowlist entry needed): `bench.py` controller (Vue uses `press.api.*` wrappers — already covered by `press.api.` wildcard), `bench_vscode.py` (Vue calls via `bench_dev_overview.get_vscode_remote_url` wrapper — already covered), `health_inventory.py` (the `@frappe.whitelist` text is inside a string literal, not a decorator).
+- **press-ctrl `.git/objects/` permission gotcha**: during deploy, `sudo -u frappe git fetch` failed with `insufficient permission for adding an object to repository database .git/objects` because 43 object files were owned by `root:root` (someone ran git as root earlier). Fixed with `chown -R frappe:frappe .git`. Rule: ALWAYS use `sudo -u frappe git` on press-ctrl, never bare `git` as root.
+
+### Commits
+- `95827c5f48` — `docs(dashboard): close gaps in DevFlowsGuide + Dev Bench panel`
+- `cb22ec0d53` — `fix(auth-hook): allowlist bench_dev_watch.* to stop force-logout on Dev pages`
+- `6e18abbbfb` — `fix(auth-hook): allowlist bench_code_health.* (audit follow-up to bench_dev_watch)`
+
+
+
 ## 17-05-2026 — Clone Site dialog rewrite + offsite backups to MinIO end-to-end
 
 ### Fixed
