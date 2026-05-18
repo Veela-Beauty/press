@@ -76,6 +76,17 @@
 						Step 4 — pulling and pushing code — has its own guide right below
 						(<strong>How to pull and push code</strong>): Dashboard, Code Server, and SSH flows.
 					</p>
+					<div class="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-[11.5px] leading-relaxed text-blue-900">
+						<strong>Before you push:</strong> inside the bench, every app needs (a) a GitHub
+						<code class="rounded bg-blue-100 px-1 py-0.5">origin</code> remote and (b) a current
+						<strong>branch</strong> — not detached HEAD. Fresh containers ship with only a local
+						<code class="rounded bg-blue-100 px-1 py-0.5">upstream</code> remote and HEAD pinned to a
+						commit. Run <code class="rounded bg-blue-100 px-1 py-0.5">bench-git-setup</code> for auth
+						(token valid ~8 h), then check
+						<code class="rounded bg-blue-100 px-1 py-0.5">git remote -v</code>
+						and <code class="rounded bg-blue-100 px-1 py-0.5">git status</code>. Steps 3.5 + 3.6 in the
+						<strong>Code Server</strong> and <strong>SSH</strong> tabs below walk through the fix.
+					</div>
 				</div>
 				</div>
 			</div>
