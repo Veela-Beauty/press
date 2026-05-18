@@ -59,6 +59,16 @@ ALLOWED_WILDCARD_PATHS = [
 	"/api/method/press.press.doctype.bench.bench_dev_overview.",
 	"/api/method/press.press.doctype.bench.bench_app_management.",
 	"/api/method/press.press.doctype.bench.health_analysis.",
+	# Bench Dev Watch — get_watch_status polls every ~10s from the
+	# BenchWatchStatus panel on /groups/<bench>/actions. Without this
+	# entry, every poll returns 401 for non-System users; the Vue
+	# dashboard maps 401 → "session expired" and force-logs them out.
+	# Symptom users report: "clicking Launch Code Server logs me out"
+	# (the click is incidental — the next Watch poll is what kills the
+	# session). Reproduced 2026-05-18 via press.auth.json.log: 221 Guest
+	# transitions on bench_dev_watch.* in 2k log lines. Same fix pattern
+	# as the 2026-05-10 deploy_candidate_build / site_clone allowlist add.
+	"/api/method/press.press.doctype.bench.bench_dev_watch.",
 	# Deploy Candidate Build endpoints called directly by the dashboard
 	# (DeployCandidate.vue: get_build_estimate, get_failure_details,
 	# redeploy, fail_and_redeploy, stop_and_fail). Without this allowlist
