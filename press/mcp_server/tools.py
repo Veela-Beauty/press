@@ -50,8 +50,19 @@ _ARG_FRAGMENTS: dict[str, dict] = {
 	"code": {"type": "string", "description": "Python source to execute in the site's bench console"},
 	"query": {"type": "string", "description": "SQL query string. Default is read-only — pass commit=true to allow writes."},
 	"dn": {"type": "string", "description": "Deploy Candidate Build docname (sometimes called 'dcb name')"},
-	"apps": {"type": "array", "items": {"type": "string"},
-		"description": "List of app names to include in the deploy"},
+	"apps": {
+		"type": "array",
+		"items": {
+			"type": "object",
+			"properties": {
+				"app": {"type": "string", "description": "App name, e.g. 'accubuild_core'"},
+				"release": {"type": "string", "description": "App Release docname (from bench_deploy_information next_release)"},
+				"hash": {"type": "string", "description": "Commit hash for that release (from bench_deploy_information releases[].hash)"},
+			},
+			"required": ["app", "release", "hash"],
+		},
+		"description": "List of {app, release, hash} dicts. Get release+hash from bench_deploy_information(name).apps[*].releases[0] or .next_release + matching releases[] entry. NOT a flat list of app names — each entry must be a dict.",
+	},
 	"domain": {"type": "string", "description": "Custom domain name, e.g. 'app.example.com'"},
 	"config": {"type": "object", "description": "Dict of config keys → values to merge"},
 	"key": {"type": "string", "description": "site_config.json key to set"},
@@ -247,8 +258,8 @@ TOOLS: dict[str, dict] = {
 		"required_args": ["bench_name"],
 		"args_schema": _schema(["bench_name"],
 			{
-				"log": {"type": "string", "description": "Log file name, e.g. 'frappe.log', 'scheduler.log', 'error.log'"},
-				"lines": {"type": "integer", "minimum": 1, "maximum": 5000,
+				"log_type": {"type": "string", "description": "Log file name, e.g. 'frappe.log', 'scheduler.log', 'error.log'"},
+				"limit": {"type": "integer", "minimum": 1, "maximum": 5000,
 					"description": "Number of trailing lines to return (default 200, max 5000)"},
 			}),
 		"risk": "low",
@@ -270,7 +281,7 @@ TOOLS: dict[str, dict] = {
 	# Bench / Release Group lifecycle
 	"bench_deploy": {
 		"method": "press.api.bench.deploy",
-		"description": "Trigger a deploy for a Release Group's apps",
+		"description": "Trigger a deploy for a Release Group. Args: name (Release Group docname, e.g. 'bench-0005'); apps (list of DICTS, NOT strings — each item {app, release, hash}). Get release+hash from bench_deploy_information(name).apps[*].releases[0]. Returns the Deploy Candidate docname — pass it to wait_for_bench_flip's target_candidate.",
 		"required_args": ["name", "apps"],
 		"args_schema": _schema(["name", "apps"]),
 		"risk": "medium",
@@ -308,12 +319,11 @@ TOOLS: dict[str, dict] = {
 	},
 	"site_backup": {
 		"method": "press.api.site.backup",
-		"description": "Trigger a site backup",
+		"description": "Trigger a site backup. Note: this endpoint does NOT take an `offsite` flag — site backups via this API are always local + offsite per the team's configured backup schedule. For an explicit offsite-only backup, use Site.backup() directly via console.",
 		"required_args": ["name"],
 		"args_schema": _schema(["name"],
 			{
 				"with_files": {"type": "boolean", "description": "Include public + private files in the backup"},
-				"offsite": {"type": "boolean", "description": "Upload to offsite S3-compatible store"},
 			}),
 		"risk": "medium",
 	},
@@ -504,17 +514,19 @@ TOOLS: dict[str, dict] = {
 		"required_args": [],
 		"args_schema": _schema([],
 			{
-				"site_name": None,
+				"site": {"type": "string", "description": "Site name (FQDN) — filter to jobs for this site only"},
 				"status": {"type": "string", "enum": ["Pending", "Running", "Success", "Failure", "Undelivered"],
 					"description": "Filter by job status"},
-				"hours": {"type": "integer", "minimum": 1, "maximum": 168,
-					"description": "Window in hours to look back (default 24)"},
+				"since_minutes": {"type": "integer", "minimum": 1, "maximum": 10080,
+					"description": "Window in minutes to look back (default 1440 = 24h, max 10080 = 7d)"},
+				"limit": {"type": "integer", "minimum": 1, "maximum": 200,
+					"description": "Max rows to return (default 50)"},
 			}),
 		"risk": "low",
 	},
 	"wait_for_bench_flip": {
 		"method": "press.mcp_server.deploy_flow.wait_for_bench_flip",
-		"description": "Async-style poll: returns flipped|pending for a site against a target Deploy Candidate",
+		"description": "Single-shot poll (NOT a blocking wait — call it again to re-poll). Returns {status: 'flipped'|'pending', current_bench, current_candidate, target_candidate, site}. Args: site_name (site FQDN, NOT the bench docname); target_candidate (Deploy Candidate docname returned by bench_deploy). NO timeout arg — caller decides cadence.",
 		"required_args": ["site_name", "target_candidate"],
 		"args_schema": _schema(["site_name", "target_candidate"]),
 		"risk": "low",
@@ -550,7 +562,7 @@ TOOLS: dict[str, dict] = {
 		"args_schema": _schema(["bench_name", "app"],
 			{
 				"relative_path": None,
-				"glob": {"type": "string", "description": "Optional glob pattern, e.g. '*.py'"},
+				"pattern": {"type": "string", "description": "Optional glob pattern, e.g. '*.py'"},
 			}),
 		"risk": "low",
 	},

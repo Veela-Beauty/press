@@ -1040,3 +1040,20 @@ Status: **PERMANENT**. Audit script in `scripts/audit_dashboard_allowlist.py`. T
 **Lesson 3 — audit scripts ship with EXCLUSION lists, not skip flags.** Each known-broken case goes into `KNOWN_DYNAMIC` (or equivalent) with a comment naming the ticket. The exclusion list is normal; growing the exclusion list without a comment is the failure mode to catch in code review.
 
 Status: **PERMANENT**. 5 scripts in `scripts/audit_*.py`, all wrapped by `press/test_auth.py:TestDashboardContracts`. Combined runtime <2s. Each script is independently invocable for local dev (no `bench run-tests` ceremony needed).
+
+## MCP args_schema Must Match the Python Signature — 2026-05-19
+
+A live agent (running `bench_deploy` against the wazin-build flow) hit a 3-error chain because the published `args_schema` lied about the method's actual signature:
+
+- `bench_deploy` schema said `apps: array<string>`; method iterates `apps` expecting dicts with `{app, release, hash}`. Caller's first call → `'str' object has no attribute 'get'`.
+- `wait_for_bench_flip` schema accepts `site_name` + `target_candidate`; caller guessed `candidate` + `timeout` from the description. Two errors before the right args.
+
+The bare catalog-parity audit (`audit_mcp_catalog_parity.py`) only checks that tool NAMES match between Python and JS. It doesn't validate that each tool's `args_schema` matches the method's actual `inspect.signature()`.
+
+**Fix:** added `scripts/audit_mcp_schema_vs_signature.py` — imports each tool's Python method, compares its `inspect.signature()` parameters to the schema's declared properties, fails if schema documents an arg the method doesn't accept OR marks a required arg optional. CI-enforced via `press/test_auth.py:test_audit_mcp_schema_vs_signature`. Caught 4 additional drift cases beyond the live failure: `agent_job_list`, `bench_list_app_files`, `bench_recent_logs`, `site_backup`.
+
+**Lesson — when documenting an API for an LLM client, BOTH the description and the schema must be precise.** A correct schema + vague description still produces wrong calls (the LLM guesses arg names from the description). A vague schema + correct description still produces wrong calls (the LLM trusts the schema). Both pieces are the contract.
+
+**Side-lesson — every audit so far has caught bugs that were already shipping in production.** The allowlist audit caught 4 gaps. The method-exists audit caught 5 broken Vue→Python links. The schema-vs-signature audit caught 5 drifts. Pattern: write the audit, find bugs, fix bugs, set baseline, CI keeps it clean. Each audit pays for itself on the first run.
+
+Status: **PERMANENT**. 6 audit scripts under `scripts/audit_*.py`; 6/6 tests pass in `press.test_auth.TestDashboardContracts`. Total runtime <5s.

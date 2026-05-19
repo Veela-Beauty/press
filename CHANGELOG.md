@@ -5,6 +5,50 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 19-05-2026 — MCP audit 6: args_schema must match the Python method's actual signature
+
+### Fixed
+A real-world MCP agent (running `bench_deploy` against the `wazin-build` flow) hit a 3-error chain in a row:
+
+1. `bench_deploy(name="bench-0005", apps=["accubuild_core", "wazin_re"])` → `'str' object has no attribute 'get'`. **Schema said `apps: array of string`, method iterates expecting dicts** with `{app, release, hash}`.
+2. `wait_for_bench_flip(candidate="2m82cdqceb", timeout=1800)` → `missing required args: ['site_name', 'target_candidate']`. Caller guessed names from the description.
+3. `wait_for_bench_flip(site_name=..., target_candidate=..., timeout=1800)` → `unexpected keyword argument 'timeout'`. There IS no timeout — the method is single-shot poll, caller decides cadence.
+
+The bare schema audit (`audit_mcp_catalog_parity.py`) didn't catch the drift because it only checks tool-name parity between Python and JS. The new audit catches each tool's `args_schema` vs the actual Python `inspect.signature()`.
+
+### Added
+- **`scripts/audit_mcp_schema_vs_signature.py`** — new audit that iterates every tool in `tools.py`, imports the underlying Python method, and flags drift between the published `args_schema` and the real signature. Two failure modes caught:
+  - Schema documents an arg the method doesn't accept (caller sends it, dispatcher 500s)
+  - Schema marks an arg optional that the method requires (caller omits it, dispatcher 500s)
+- **`press/test_auth.py:test_audit_mcp_schema_vs_signature`** — wraps the audit in a bench test. Runs in-process (not via subprocess) because the audit needs Frappe context to import Press modules. CI fails if drift recurs.
+
+### Fixed schemas
+The audit found **4 additional schema drifts** (beyond the 2 the live error chain exposed):
+
+| Tool | Schema said | Method actually takes |
+|---|---|---|
+| `bench_deploy` | `apps: array<string>` | `apps: array<{app, release, hash}>` ← caused the live failure |
+| `agent_job_list` | `hours`, `site_name` | `site`, `since_minutes`, `status`, `limit` |
+| `bench_list_app_files` | `glob` | `pattern` |
+| `bench_recent_logs` | `lines`, `log` | `limit`, `log_type` |
+| `site_backup` | `offsite`, `with_files` | `with_files` only (no `offsite`) |
+
+### Description enrichments
+Tightened two descriptions where LLM clients had been guessing arg names from natural-language ("candidate", "timeout"):
+
+- `bench_deploy.description` now says "apps (list of DICTS, NOT strings — each item {app, release, hash})" with the exact source pointer for hash+release.
+- `wait_for_bench_flip.description` now says "Single-shot poll (NOT a blocking wait)... NO timeout arg — caller decides cadence" with the exact arg names spelled out.
+
+### Notes
+- 6/6 `press.test_auth.TestDashboardContracts` tests pass after the fixes (5 → 6).
+- The wider lesson: when an LLM client builds calls from `description` + `args_schema`, BOTH must be precise. A correct schema with a vague description still produces wrong calls. The schema-vs-signature audit catches the "schema lies" half; the next audit candidate is "description matches the schema's required args" — defer until we hit it.
+- `audit_mcp_schema_vs_signature.py` can't run standalone like the other 5 (needs Frappe context to import modules). Run via `bench --site demo.mvpstorm.com run-tests --module press.test_auth` instead.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `<this-commit>` — feat(audit): args_schema vs Python signature; fixes for 5 drift cases
+
+
 ## 19-05-2026 — Day index (6 commits, see entries below)
 
 A long day. Listed top-to-bottom in commit order so each entry is followed

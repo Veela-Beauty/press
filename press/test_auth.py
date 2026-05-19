@@ -67,3 +67,30 @@ class TestDashboardContracts(FrappeTestCase):
 	def test_audit_mcp_catalog_parity(self):
 		"""tools.py and _tool_catalog.js list exactly the same MCP tools."""
 		self._assert_audit_passes("audit_mcp_catalog_parity.py")
+
+	def test_audit_mcp_schema_vs_signature(self):
+		"""Every MCP tool's args_schema matches the underlying Python signature.
+
+		Catches: schema documents an arg the method doesn't accept (bench_deploy
+		2026-05-19 — `apps` was list[str] in schema but list[dict] in the method).
+		Runs in-process because the audit needs to import Press modules, which
+		need a live Frappe context — can't run via subprocess like the others.
+		"""
+		import sys
+
+		audit_script = REPO_ROOT / "scripts" / "audit_mcp_schema_vs_signature.py"
+		self.assertTrue(audit_script.exists(), f"audit script missing: {audit_script}")
+		# Run the audit's collect_drift() in-process so frappe imports work
+		sys.path.insert(0, str(REPO_ROOT / "scripts"))
+		try:
+			from audit_mcp_schema_vs_signature import collect_drift
+		finally:
+			pass
+		drift = collect_drift()
+		if drift:
+			msg = "\n".join(f"  -- {tool}: {reason}" for tool, reason in sorted(drift))
+			self.fail(
+				f"{len(drift)} MCP tools have schema/signature drift:\n{msg}\n"
+				f"Fix: edit press/mcp_server/tools.py — update args_schema to "
+				f"match the actual Python method's signature.",
+			)
