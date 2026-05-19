@@ -5,6 +5,25 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 19-05-2026 — Press Settings: preserve Password fields on save (stop wiping `__Auth`)
+
+### Fixed
+- **Saving Press Settings was wiping every Password field that came in falsy.** Frappe's `Document._save_passwords()` calls `remove_encrypted_password()` on any Password field whose in-memory value is falsy at save time. The desk UI shows `••••` placeholders but doesn't always re-send them — and `frappe.get_single("Press Settings").save()` from console doesn't auto-load passwords into the doc, so the in-memory value is `None` even when `__Auth` has a real encrypted value. Result: any unrelated save (via desk OR console) wiped `offsite_backups_secret_access_key`, `aws_secret_access_key`, and every other Password field on Press Settings. We hit this twice in 48h on `offsite_backups_secret_access_key` — both times the symptom was the same: Clone Site `latest_backup` mode → `Password not found for Press Settings Press Settings offsite_backups_secret_access_key`.
+- **Fix: `before_save()` override on `PressSettings`.** Walks every Password field on the doctype, collects fieldnames whose in-memory value is falsy, and adds them to `self.flags.ignore_save_passwords`. Frappe's `_save_passwords()` honours that flag and skips both `remove_encrypted_password()` and `set_encrypted_password()` for those fields, leaving the existing `__Auth` rows untouched. Applies to ALL 15 Password fields on Press Settings (`offsite_backups_secret_access_key`, `aws_secret_access_key`, `twilio_api_key_secret`, `stripe_secret_key`, `razorpay_key_secret`, `remote_secret_access_key`, etc.) so the trap never bites again.
+
+### Added
+- **`test_password_preservation_on_save_without_password_resubmit`** in `test_press_settings.py`. Seeds a known secret, re-fetches the Single, changes a non-Password field, calls `.save()`, then asserts the secret is STILL decryptable. Would fail on the pre-fix code (secret wiped) and passes on the new code (secret preserved). 1/1 new test green.
+
+### Notes
+- Caveat: if a sysadmin genuinely wants to CLEAR a Press Settings password, they must now do it via `frappe.utils.password.remove_encrypted_password("Press Settings", "Press Settings", fieldname)` directly — saving Press Settings with an empty Password field will no longer wipe the row. For a system-config singleton the tradeoff is correct: cost of accidental wipe (broken offsite backups, restore by hand) >>> cost of needing a console one-liner to clear a credential.
+- This is a Frappe-wide UX trap, not just Press Settings. The same risk exists on any DocType with Password fields (User, Email Account, anything with API keys). Fix is generic — copy the `before_save()` pattern to any other Single / singleton-ish doctype where field preservation matters.
+- Live incident this morning: `accubuild-stg-qimma.sandbox.mvpstorm.com` clone blocked because the offsite secret got wiped between yesterday's fix and today. Restored via console (copied from `remote_secret_access_key`) — same MinIO user `pressadmin` is shared between the uploads and offsite codepaths so they share the secret.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `<this-commit>` — fix(press-settings): preserve Password fields on save so __Auth rows don't get wiped
+
+
 ## 19-05-2026 — Clone Site `fresh_backup` mode now actually persists
 
 ### Fixed

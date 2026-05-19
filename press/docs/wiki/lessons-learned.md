@@ -921,3 +921,52 @@ Both run inside the same HTTP request's DB transaction. `frappe.throw` rolls the
 
 Status: **PERMANENT**. Fixed in <commit-this-pr>. The new regression test would have caught this on day one if it had existed. Lesson for future test authors: prefer real fixtures over mocks when the unit-under-test does database side-effects — mocks hide transactional bugs.
 
+
+## Frappe Password Fields Wipe on Save When In-Memory Value Is Falsy — 2026-05-19
+
+**Symptom:** Press operations that depend on encrypted credentials (offsite backups, Twilio, Stripe, etc.) suddenly start failing with `Password not found for Press Settings Press Settings <fieldname>` even though the credentials were configured and worked yesterday. Re-writing the credential fixes it. A few days later it breaks again.
+
+**Root cause:** Frappe's `Document._save_passwords()` (in `frappe/model/base_document.py:1125`) does this on every `.save()`:
+```python
+for df in self.meta.get("fields", {"fieldtype": ("=", "Password")}):
+    new_password = self.get(df.fieldname)
+    if not new_password:
+        remove_encrypted_password(self.doctype, self.name, df.fieldname)
+    if new_password and not self.is_dummy_password(new_password):
+        set_encrypted_password(...)
+```
+
+If the in-memory Password field is falsy at save time → DELETE the `__Auth` row, unconditionally. There are three common ways the in-memory value becomes falsy:
+
+1. **Desk save without re-typing the password.** Desk renders Password fields as `••••` (a dummy mask). Some flows DO re-send the dummy back (preserved); some flows DON'T (e.g. if the password field is collapsed inside a tab that wasn't expanded → form submits empty for it). Then it's wiped.
+2. **Console save (`frappe.get_doc("Press Settings").save()`).** `get_doc` does NOT auto-load Password values from `__Auth` into the doc. The in-memory value is `None`. Save → wipe.
+3. **Patch / migration code that creates a fresh doc instance and saves it.** Same as console.
+
+**Fix (one of two):**
+- **(A) Per-doctype `before_save()` override that adds falsy Password fieldnames to `self.flags.ignore_save_passwords`.** This is what Press Settings does as of 2026-05-19:
+  ```python
+  def before_save(self):
+      password_fields_to_preserve = [
+          df.fieldname
+          for df in self.meta.get("fields", {"fieldtype": ("=", "Password")})
+          if not self.get(df.fieldname)
+      ]
+      if password_fields_to_preserve:
+          existing = self.flags.get("ignore_save_passwords") or []
+          if existing is True:
+              return
+          self.flags.ignore_save_passwords = list({*existing, *password_fields_to_preserve})
+  ```
+- **(B) Explicitly `set_encrypted_password()` after `.save()` instead of via the doc.** Bypass the password-field mechanism entirely. Verbose but absolute.
+
+**When to use which:**
+- Singletons holding system credentials (Press Settings, Email Account, integrations) → option (A), always-on protection. Tradeoff: clearing a password now requires `remove_encrypted_password()` explicitly, can't be done from desk.
+- One-off config doctypes with rare saves → option (B) where the save happens.
+
+**Test discipline:** test by seeding a known secret with `set_encrypted_password()`, calling `frappe.get_single(...).save()` after changing a non-password field, then calling `get_decrypted_password()` again. If the secret is gone, save is wiping. See `test_press_settings.py:test_password_preservation_on_save_without_password_resubmit`.
+
+**The wider rule:** any DocType with Password fields used for system integrations needs option (A). On Press Settings alone there are 15 Password fields (offsite_backups_secret_access_key, aws_secret_access_key, twilio_api_key_secret, stripe_secret_key, razorpay_key_secret, remote_secret_access_key, asset_store_secret_access_key, docker_s3_secret_key, erpnext_api_secret, frappeio_api_secret, ic_key, plausible_api_key, press_monitoring_password, school_api_secret, spamd_api_secret). The fix is one `before_save()` that protects all of them at once.
+
+Status: **PERMANENT** on Press Settings. **OPEN** elsewhere — any other Single or sysadmin-edited doctype with Password fields is still vulnerable. Audit candidates: `Email Account`, `Stripe Settings`, `Razorpay Settings`, `Twilio Settings`, any `*Settings` Single. Replicate the same `before_save()` to each.
+
+
