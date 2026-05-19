@@ -250,7 +250,7 @@ print(job_row)
 | `Password not found for Press Settings offsite_backups_secret_access_key` | Field never set in `__Auth` | `set_encrypted_password("Press Settings", "Press Settings", value, fieldname="offsite_backups_secret_access_key")` |
 | Agent step `Upload Site Backup to S3` fails with `InvalidAccessKeyId` and the message ends `"in our records"` | Agent's boto3 client is hitting real AWS, not MinIO — `endpoint_url` is not flowing through | Verify Press ≥ commit `462ef02133` (sends ENDPOINT_URL) AND agent fork ≥ `809e9c2` (consumes it). Restart agent web + workers after agent update |
 | `Too many pending backups` when triggering | Pending/Running Site Backup in last 2h blocking new insert | Mark the stuck row Failure (Press's poll catches up usually; if truly stuck, `frappe.db.set_value("Site Backup", name, "status", "Failure")`) |
-| Clone Site dialog "No usable offsite backup found" | No `Site Backup` exists with `status=Success AND files_availability=Available AND offsite=1` | Take a fresh offsite backup first (Clone dialog's `fresh_backup` mode does this, then re-run with `latest_backup` once it lands) |
+| Clone Site dialog "No usable offsite backup found" | No `Site Backup` exists with `status=Success AND files_availability=Available AND offsite=1` | Take a fresh offsite backup first (Clone dialog's `fresh_backup` mode does this, then re-run with `latest_backup` once it lands). Requires Press ≥ commit fixing the `frappe.db.commit()` gap (see lesson "Clone Site fresh_backup mode silently rolled back" — without that fix, `fresh_backup` mode says "queued" but persists nothing) |
 
 ### Files involved
 

@@ -176,3 +176,31 @@ class TestSiteClone(FrappeTestCase):
 				)
 			self.assertIn("queued", str(ctx.exception).lower())
 			mock_backup.assert_called_once_with(with_files=True, offsite=True)
+
+	def test_clone_fresh_backup_persists_site_backup_row(self):
+		# REGRESSION: clone_site fresh_backup mode does source.backup(...).insert()
+		# then frappe.throw(...). Without an explicit commit between the two, the
+		# throw rolls back the transaction and the Site Backup row vanishes,
+		# leaving the user with a "queued" message but no actual backup queued.
+		# The fix in site_clone.py inserts an explicit frappe.db.commit() before
+		# the throw — this test locks that behavior in.
+		existing = frappe.db.count(
+			"Site Backup", filters={"site": self.source_site.name, "offsite": 1}
+		)
+
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			clone_site(
+				site=self.source_site.name,
+				target_bench=self.target_bench,
+				new_subdomain="copy-fresh-persist",
+				mode="fresh_backup",
+			)
+		self.assertIn("queued", str(ctx.exception).lower())
+
+		# After the throw rolled back the request transaction, the explicit
+		# commit above the throw should have persisted exactly one new
+		# offsite Site Backup row for this site.
+		after = frappe.db.count(
+			"Site Backup", filters={"site": self.source_site.name, "offsite": 1}
+		)
+		self.assertEqual(after, existing + 1, "fresh_backup did not persist a Site Backup row")

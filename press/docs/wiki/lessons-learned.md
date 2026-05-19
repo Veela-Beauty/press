@@ -898,3 +898,26 @@ grep -rn "fieldtype:" dashboard/src/ | grep -v doctype | head
 
 Status: **PERMANENT**. Fixed in `5eb0a94f4a`. Hint to spot the pattern fast: when a dashboard call ends up at `/sites/[object Object]` or `/x/[object Object]`, the server returned a dict and the frontend stringified it. Browser network tab will show the actual response shape; match the consumer.
 
+
+## Clone Site `fresh_backup` Mode Silently Rolled Back — 2026-05-19
+
+**Symptom:** Clone Site dialog in `fresh_backup` mode → click Clone → red toast "Fresh backup queued for source site. Wait for it to complete, then retry with mode='latest_backup'." → user waits 10 minutes → re-opens dialog in `latest_backup` mode → "No usable offsite backup found". Looks like the backup never ran.
+
+**The check that proves it:** filter `Site Backup` for the source site with `offsite=1` after the click. If `count: 0`, the row was rolled back. The user got the "queued" message because it's a hard-coded `frappe.throw()` that fires regardless of whether the insert before it actually persisted.
+
+**Root cause:** `clone_site()` in `press/press/doctype/site/site_clone.py`:
+```python
+elif mode == "fresh_backup":
+    source.backup(with_files=True, offsite=True)  # inserts Site Backup row
+    frappe.throw(...)                              # rolls back the request transaction
+```
+Both run inside the same HTTP request's DB transaction. `frappe.throw` rolls the whole transaction back — including the freshly-inserted `Site Backup` row and any side-effects fired by its `after_insert` hook (the Agent Job dispatch).
+
+**Lesson — `frappe.throw()` after `.insert()` in the same request is destructive unless you commit first:**
+- The fix is one line: `frappe.db.commit()` between the insert and the throw.
+- The reference pattern is `press/press/doctype/site/backups.py:357` (`schedule_logical_backups_for_sites_with_backup_time` commits between each per-site backup call so a later failure doesn't unqueue earlier successes).
+- Test discipline: mocking `Site.backup` in the unit test (as the original `test_clone_fresh_backup_triggers_backup_then_raises` did) hides this bug — the mock returns happily, the throw fires, the test passes. To catch transaction rollback you MUST run with real `Site.backup` and assert that the row count went up by exactly one. That's what the new `test_clone_fresh_backup_persists_site_backup_row` does.
+- Wider rule: anywhere in Press's codebase that calls `.insert()` then `frappe.throw()` without an intervening commit is suspect. Search `grep -rnB3 'frappe.throw' press/ | grep -B1 'insert()'` and audit.
+
+Status: **PERMANENT**. Fixed in <commit-this-pr>. The new regression test would have caught this on day one if it had existed. Lesson for future test authors: prefer real fixtures over mocks when the unit-under-test does database side-effects — mocks hide transactional bugs.
+

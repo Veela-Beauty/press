@@ -5,6 +5,24 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 19-05-2026 — Clone Site `fresh_backup` mode now actually persists
+
+### Fixed
+- **`fresh_backup` mode created the Site Backup row, then `frappe.throw()` rolled it back.** The dialog showed "Fresh backup queued for source site. Wait for it to complete, then retry…" but no Site Backup row appeared, no Agent Job ran, and the user waited forever. Symptom: clone in `fresh_backup` mode → red toast looks right → re-open in `latest_backup` mode after 10 minutes → "No usable offsite backup found". Root cause: `clone_site()` in `site_clone.py` does `source.backup(...)` (which inserts a Site Backup doc) immediately followed by `frappe.throw(...)`. Both run inside the same HTTP request's DB transaction, and `frappe.throw` rolls the whole transaction back — the insert vanishes. Fix is one line: explicit `frappe.db.commit()` between the insert and the throw. Matches the canonical pattern in `press/press/doctype/site/backups.py:357` (`schedule_logical_backups_for_sites_with_backup_time` commits between each per-site backup call).
+
+### Added
+- **Regression test `test_clone_fresh_backup_persists_site_backup_row`** in `test_site_clone.py`. Calls `clone_site(mode='fresh_backup')` against a real source (no Site.backup mock — the original test mocked it and so wouldn't catch the rollback), asserts the throw fires, then counts `Site Backup` rows with `offsite=1` for the source site to confirm exactly one new row landed. Fails on the pre-fix code path; passes after the commit is added. Locks the behaviour in.
+
+### Notes
+- 11/11 unit tests pass in `test_site_clone.py` (was 10/10 yesterday; +1 for the persistence regression).
+- Live impact: `accubuild-stg-qimma.sandbox.mvpstorm.com` had this issue today. Manually triggered an offsite backup via `bench --site demo.mvpstorm.com execute press._clone_trigger.run` (one-off wrapper at `/home/frappe/frappe-bench/apps/press/press/_clone_trigger.py`) to unblock the user; backup `9547t8b5vk` is in flight against MinIO at the time of this commit.
+- The original mock-based test (`test_clone_fresh_backup_triggers_backup_then_raises`) kept its place — it documents the INTENT (backup called with the right args, throw fires with right message) but doesn't exercise the transaction. The new test exercises the transaction. Both stay.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `<this-commit>` — fix(clone-site): commit fresh-backup row before throw so it actually persists
+
+
 ## 18-05-2026 — Dashboard pull/push UX gaps + auth allowlist audit (2 logout fixes)
 
 ### Fixed

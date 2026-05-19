@@ -65,6 +65,12 @@ def clone_site(
 		payload["files"] = files
 	elif mode == "fresh_backup":
 		source.backup(with_files=True, offsite=True)
+		# The throw below rolls back the request transaction. Without an explicit
+		# commit, the Site Backup row created above (and its after_insert agent
+		# dispatch) gets discarded — the user sees "queued" but nothing runs.
+		# Pattern matches schedule_logical_backups_for_sites_with_backup_time
+		# in site/backups.py:357.
+		frappe.db.commit()
 		frappe.throw(
 			"Fresh backup queued for source site. "
 			"Wait for it to complete (check Backups tab on the source site), "
