@@ -105,7 +105,20 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 		# Validate required args present
 		missing = [a for a in spec["required_args"] if a not in args]
 		if missing:
-			raise frappe.ValidationError(f"missing required args: {missing}")
+			# Hint the caller at the canonical arg names AND whether they sent a
+			# close miss (e.g. 'site' vs 'site_name', 'sql' vs 'query'). The most
+			# common cause of "missing required args" is an LLM client inferring
+			# a natural-language name from the description instead of the schema.
+			sent = sorted(args.keys()) if isinstance(args, dict) else []
+			hint = ""
+			if sent:
+				hint = (
+					f" Got: {sent}. Expected: {spec['required_args']}. "
+					f"For the full args_schema, call {{tool: 'help', args: {{tool: {tool!r}}}}}."
+				)
+			raise frappe.ValidationError(
+				f"missing required args: {missing}.{hint}"
+			)
 
 		# Dry-run support for high-risk tools
 		if args.get("dry_run") and get_tool_risk(tool) == "high":

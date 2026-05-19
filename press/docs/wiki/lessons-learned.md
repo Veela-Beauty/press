@@ -970,3 +970,30 @@ If the in-memory Password field is falsy at save time → DELETE the `__Auth` ro
 Status: **PERMANENT** on Press Settings. **OPEN** elsewhere — any other Single or sysadmin-edited doctype with Password fields is still vulnerable. Audit candidates: `Email Account`, `Stripe Settings`, `Razorpay Settings`, `Twilio Settings`, any `*Settings` Single. Replicate the same `before_save()` to each.
 
 
+## MCP Tools Without JSON Schema = Clients Guess Arg Names — 2026-05-19
+
+**Symptom:** MCP tools fail with `ValidationError: missing required args: ['query']` (or `['site_name']`) even though the caller swears they sent those names. Multiple users hit the same failure across `site_run_sql` and `site_status`.
+
+**The proof:** the actual JSON payloads in the call log:
+```
+site_run_sql: sent {"site_name": "...", "sql": "..."}  → required ["site_name", "query"]
+site_status:  sent {"site": "..."}                      → required ["site_name"]
+```
+Callers used the SHORTER natural names (`sql`, `site`) instead of the canonical longer ones. Server's `description` field uses natural language ("Run SQL on the site database", "Site bench + status + recent agent jobs") — LLM clients (Claude Code, Cursor) inferred arg names from those descriptions and got it wrong every time.
+
+**Root cause:** the MCP catalog published `required_args: [list of names]` but **no JSON Schema for parameters**. There was no machine-readable contract telling clients "the param name is exactly `site_name`". Clients had no choice but to guess.
+
+**Lesson — for any MCP/RPC catalog accessible to LLM clients, publish a JSON Schema, not just a name list:**
+- Per-tool `args_schema: {type: 'object', properties: {...}, required: [...]}` with arg descriptions and types.
+- The `description` field is for humans; the `args_schema` is the contract.
+- Use a shared fragment dict for common args (`site_name`, `bench_name`, etc.) so descriptions stay consistent across tools.
+- Add a **registration-time consistency check** that fires on import: every `required_args` entry MUST appear in `args_schema.properties`. Without that, schemas drift from reality and you're back to clients guessing.
+- Enrich the dispatcher's "missing args" error: show `Got: [keys sent]. Expected: [canonical names]. Call help for the schema.` Turns a black-box failure into self-explaining feedback.
+- Add a test-call form to your admin UI (here: `/dashboard/dev-tools/mcp`) that reads the schema at runtime and renders typed inputs. Cures "I have to keep typing curl commands to test this" pain.
+
+**Wider rule:** any time you expose a function to an LLM (via MCP or otherwise), assume the LLM will read the human-language description as the spec. Publish a typed schema — JSON Schema, Pydantic model, dataclass — that the LLM can introspect. If your tool's contract is "trust me, the param is called X", clients will infer Y and fail until they trial-and-error.
+
+Status: **PERMANENT**. All 58 Press MCP tools now have `args_schema`; consistency enforced at module load; dashboard has a Test Tool Call form. Audit candidates: any other RPC surface in Press that LLMs hit (the GraphQL-ish dashboard API resources are mostly Frappe-validated already, but custom-built helpers like `bench_dev_overview.*` could benefit from explicit param-shape declarations too).
+
+
+

@@ -5,6 +5,32 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 19-05-2026 — MCP: publish JSON Schema per tool + in-dashboard Test Tool Call form
+
+### Fixed
+- **`missing required args: ['query']` / `['site_name']` from `site_run_sql` and `site_status`.** Real call-log evidence: callers sent `{"site": "..."}` and `{"sql": "..."}` instead of the canonical `site_name` / `query`. Root cause: the MCP catalog only published `required_args` as a flat list of names — clients (Claude Code, Cursor, etc.) inferring args from the natural-language `description` field guessed the shorter natural names. No JSON Schema = no contract. Multiple users hit this (call log shows `eng.elgogary@gmail.com`, `markomaher333@gmail.com`).
+
+### Added
+- **`args_schema` (JSON Schema fragment) per tool in `press/mcp_server/tools.py`.** All 58 tools now declare `{type: "object", properties: {...}, required: [...]}` with per-arg type + description. Authored via a `_schema()` helper + shared `_ARG_FRAGMENTS` dict so common args (`site_name`, `bench_name`, etc.) have one canonical declaration reused everywhere.
+- **Import-time consistency check** (`_assert_schema_covers_required_args`) fires at module load if any `required_args` entry is missing from its `args_schema.properties`. Prevents drift — every future tool added to TOOLS must keep the two in lockstep.
+- **`get_tool_help()` now returns `args_schema` in the single-tool response.** MCP-compliant clients can now read the exact param names + types + descriptions without guessing.
+- **Enriched dispatcher error message.** When required args are missing, the error now includes `Got: [keys you sent]. Expected: [canonical names]. For the full args_schema, call {tool: 'help', args: {tool: '<name>'}}.` so a misnamed-arg failure is self-explaining instead of "you got it wrong, figure it out".
+- **In-dashboard "Test Tool Call" form** on `/dashboard/dev-tools/mcp`. Pick a token, pick a tool from a dropdown of every tool in the catalog, the form reads `args_schema` from the help endpoint and renders one input per arg (text/select for `enum`, checkbox for booleans, textarea for code/sql/objects). Required args are marked with `*`. Submit calls `press.mcp_server.server.handle` directly — same path as external clients — and shows the JSON response inline. Refreshes the Recent Calls table on completion so the user sees their test land.
+- **2 new unit tests** in `test_help.py`:
+  - `test_every_tool_has_args_schema_covering_required_args` — locks in the registration contract for every tool
+  - `test_single_tool_detail_includes_args_schema` — locks in the `site_status` + `site_run_sql` regression specifically
+
+### Notes
+- 15/15 `test_help.py` tests pass (was 13/13; +2 new).
+- Pre-existing `test_server.py` 4-test failure (SSH cert tests) is unrelated — verified by running on pre-patch tree. Tracked separately.
+- The catalog mirror at `dashboard/src/components/mcp/_tool_catalog.js` still only lists tool metadata (category, risk, label, description) — it does NOT carry the schema. That's intentional: the schema source of truth is the backend; the frontend asks `help` at runtime. Avoids duplication and drift.
+- `args_schema` is purely additive. External clients that only read `required_args` keep working. No breaking changes.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `<this-commit>` — feat(mcp): publish JSON Schema per tool + in-dashboard Test Tool Call form
+
+
 ## 19-05-2026 — Press Settings: preserve Password fields on save (stop wiping `__Auth`)
 
 ### Fixed

@@ -56,6 +56,52 @@ class TestHelp(FrappeTestCase):
 		self.assertEqual(result["example_call"]["tool"], "clone_bench")
 		self.assertTrue(result["in_scope"])  # empty scope = all
 
+	def test_every_tool_has_args_schema_covering_required_args(self):
+		# Lockstep contract: every tool's `required_args` list must be a subset
+		# of the keys in args_schema.properties, AND every required entry must
+		# also be listed in args_schema.required. The import-time check
+		# `_assert_schema_covers_required_args` enforces the first half — this
+		# test exercises both halves end-to-end.
+		for tool_name, spec in TOOLS.items():
+			required = spec.get("required_args", [])
+			schema = spec.get("args_schema", {})
+			props = schema.get("properties", {})
+			schema_required = schema.get("required", [])
+			for arg in required:
+				self.assertIn(
+					arg, props,
+					f"tool {tool_name!r}: required arg {arg!r} not in args_schema.properties",
+				)
+				self.assertIn(
+					arg, schema_required,
+					f"tool {tool_name!r}: required arg {arg!r} not in args_schema.required",
+				)
+
+	def test_single_tool_detail_includes_args_schema(self):
+		# REGRESSION: site_run_sql + site_status used to fail with
+		# "missing required args" because clients sent natural short names
+		# (sql, site) inferred from the description. Fix is to publish a
+		# JSON Schema so clients route to the canonical names (query,
+		# site_name). This test locks the schema-publishing contract in.
+		result = get_tool_help(tool="site_status", caller_scope=[])
+		schema = result.get("args_schema")
+		self.assertIsInstance(schema, dict)
+		self.assertEqual(schema.get("type"), "object")
+		self.assertIn("site_name", schema.get("properties", {}))
+		self.assertIn("site_name", schema.get("required", []))
+		# site_name property should have a string type + a description
+		site_name_prop = schema["properties"]["site_name"]
+		self.assertEqual(site_name_prop.get("type"), "string")
+		self.assertTrue(site_name_prop.get("description"))
+
+		# site_run_sql has 2 required args + optional `commit` boolean
+		sql_result = get_tool_help(tool="site_run_sql", caller_scope=[])
+		sql_schema = sql_result["args_schema"]
+		self.assertEqual(set(sql_schema["required"]), {"site_name", "query"})
+		self.assertIn("query", sql_schema["properties"])
+		self.assertIn("commit", sql_schema["properties"])  # documented optional
+		self.assertEqual(sql_schema["properties"]["commit"]["type"], "boolean")
+
 	def test_single_tool_detail_unknown_tool_returns_error(self):
 		result = get_tool_help(tool="not_a_tool", caller_scope=[])
 		self.assertIn("error", result)

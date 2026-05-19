@@ -158,6 +158,7 @@ def get_tool_help(
 			"tool": tool,
 			"description": spec.get("description", ""),
 			"required_args": spec.get("required_args", []),
+			"args_schema": spec.get("args_schema", {"type": "object", "properties": {}, "required": []}),
 			"risk": spec.get("risk", "medium"),
 			"category": cat_id,
 			"category_label": CATEGORIES.get(cat_id, {}).get("label", cat_id),
