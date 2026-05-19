@@ -5,6 +5,70 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 19-05-2026 — Long-term forcing-function suite: 4 more audits + agent fork rolled to all 3 servers
+
+### Added — audit suite that fails CI on regressions
+
+`scripts/audit_dashboard_*` and `scripts/audit_mcp_*` — 5 scripts that catch
+the recurring contract-drift bugs we've hit since 2026-05-10. Each is
+runnable standalone and wrapped by `press/test_auth.py:TestDashboardContracts`
+so `bench run-tests --module press.test_auth` fails CI on any regression:
+
+| # | Script | Catches |
+|---|---|---|
+| 1 | `audit_dashboard_allowlist.py` | (already shipped earlier today) Vue caller missing from `ALLOWED_WILDCARD_PATHS` in `press/auth.py` |
+| 2 | `audit_dashboard_method_exists.py` | Vue caller points at a Python module/symbol that doesn't exist (Ahmed's VSCode bug) |
+| 3 | `audit_dashboard_whitelisted.py` | Vue caller points at a method missing `@frappe.whitelist()` |
+| 4 | `audit_audit_log_inserts.py` | Regression-locked: `Bench Shell Log` insert must keep `ignore_permissions=True` |
+| 5 | `audit_mcp_catalog_parity.py` | `press/mcp_server/tools.py` ↔ `dashboard/src/components/mcp/_tool_catalog.js` drift |
+
+Audit 2 found **5 pre-existing bugs** during its first run — methods that
+Vue calls but don't exist on the backend. They'd 500 with `has no attribute`
+when someone clicked the corresponding feature:
+
+- `press.api.product_trial.signup` (Signup.vue)
+- `press.api.regional_payments.mpesa.utils.create_payment_partner_payout` (PartnerPaymentPayout.vue)
+- `press.api.saas.set_subscription_plan` (Subscription.vue)
+- `press.api.saas.subscription` (Subscription.vue)
+- `press.press.ai.api.update_team_ai_rules` (AiTeamRules.vue)
+
+These are added to `KNOWN_DYNAMIC` in the audit script with a clear "fix me"
+comment so the audit doesn't fail CI for them. They are separate follow-up
+tickets — not in scope for this audit-tooling PR (Gate 1c, surgical
+changes). The audit catches everything NEW, which is the point.
+
+### Applied — agent fork rolled to all 3 servers (was: press-f1 only)
+
+- **u4 (157.90.244.216)** — cherry-picked `809e9c2` (consume `auth.ENDPOINT_URL`)
+  onto upstream `master`, restarted `agent:web` + `agent:worker-0` +
+  `agent:worker-1`. Local server.py docker_login null-check patch preserved.
+- **u5 (46.224.170.58)** — same: cherry-picked `809e9c2`, restarted workers.
+
+Both servers were tracking upstream `frappe/agent`, not our fork.
+Cherry-pick was needed (NOT a re-point of the remote) because both were on
+NEWER upstream commits than our fork's base. Going forward, when our fork
+falls behind upstream and needs a rebase, the cherry-pick approach keeps
+u4/u5 in sync independently.
+
+### Notes
+- Pre-existing 4 `test_server.py` SSH-cert failures (flagged in earlier
+  changelog entries) remain unrelated to this PR. Tracked separately.
+- The 5 audit scripts run in <2s combined; they're safe to wire into
+  `scripts/pre_push_check.py` (deferred to a follow-up so this PR stays
+  focused on the contract-audit + multi-server rollout).
+- All 5 `test_auth` tests pass. 5 audit scripts all exit 0 on the current
+  tree. The 5 KNOWN_DYNAMIC entries are 5 separate "method missing" bugs
+  for future tickets.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `<this-commit>` — long-term: 4 more audits + agent fork rolled to all 3 servers
+- Agent (running locally on app servers; no fork-side commit since the
+  cherry-pick happens on each server's local clone):
+  - u4: `2cc5f06` (= our fork's `809e9c2` re-applied)
+  - u5: `3b39a41` (= our fork's `809e9c2` re-applied)
+
+
 ## 19-05-2026 — New-team-member permissions: 4-way fix + auto-audit to stop the recurrence
 
 ### Fixed

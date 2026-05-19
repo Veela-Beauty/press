@@ -1022,3 +1022,21 @@ Status: **PERMANENT**. Audit script in `scripts/audit_dashboard_allowlist.py`. T
 
 
 
+
+## Contract-Drift Audit Suite — 2026-05-19
+
+**Symptom (compound):** Multiple recurring bug families share the same root cause — implicit contracts between the Vue dashboard and the Python backend that drift over time without anything checking. Today's incident with Ahmed exposed four contracts that were ALL broken:
+
+1. allowlist coverage (auth.py allowlist missing Vue caller's path)
+2. method exists (Vue calls a method that's not in the named module)
+3. whitelist decorator (Vue calls a method without `@frappe.whitelist`)
+4. audit-log perm gate (`Bench Shell Log` blocked non-System users)
+5. MCP catalog parity (`tools.py` ↔ `_tool_catalog.js` drift — flagged in `tools.py` header but unenforced)
+
+**Lesson — when you find ONE instance of "contract X is documented but unenforced", invest the day to write the audit script.** Five audits authored in one afternoon: ~200 lines each, all under 2 seconds runtime combined, all wrapped by one bench test. Drift now fails CI before merge instead of in production for the next new team member.
+
+**Lesson 2 — audit scripts find BUGS as a side effect.** The "method exists" audit caught 5 pre-existing broken Vue → Python links that would 500 on click. Those are tickets for follow-up. The audit itself is the deliverable; the bugs it discovers are bonus value.
+
+**Lesson 3 — audit scripts ship with EXCLUSION lists, not skip flags.** Each known-broken case goes into `KNOWN_DYNAMIC` (or equivalent) with a comment naming the ticket. The exclusion list is normal; growing the exclusion list without a comment is the failure mode to catch in code review.
+
+Status: **PERMANENT**. 5 scripts in `scripts/audit_*.py`, all wrapped by `press/test_auth.py:TestDashboardContracts`. Combined runtime <2s. Each script is independently invocable for local dev (no `bench run-tests` ceremony needed).
