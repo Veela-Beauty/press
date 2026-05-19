@@ -20,6 +20,7 @@ Self-hosted Frappe Press deployment on `demo.mvpstorm.com` with Cloudflare DNS.
 - [Adding Apps](02-operations/adding-apps.md) — Register apps, create benches, build & deploy
 - [Adding Servers](02-operations/adding-servers.md) — How to add more servers
 - [Backups & Restore](02-operations/backups.md) — Backup configuration and restore flow
+- [Contract-Audit Suite](02-operations/contract-audit-suite.md) — 5 CI-enforced scripts that catch Vue↔Python contract drift before it ships
 - [Troubleshooting](02-operations/troubleshooting.md) — Common errors and fixes
 
 ### 03 — Demo System

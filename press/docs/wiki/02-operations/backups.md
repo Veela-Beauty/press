@@ -212,7 +212,23 @@ frappe.get_doc({
 }).insert(ignore_permissions=True)
 ```
 
-**3. Agent fork must be ≥ commit `809e9c2`** — upstream `frappe/agent` does NOT pass `endpoint_url` to its boto3 client, so uploads silently default to real AWS S3 and fail with `InvalidAccessKeyId`. Our fork at `Veela-Beauty/press-agent` reads `auth["ENDPOINT_URL"]` in `agent/site.py:upload_offsite_backup`.
+**3. Agent must carry the `auth.ENDPOINT_URL` patch** — upstream `frappe/agent` does NOT pass `endpoint_url` to its boto3 client, so uploads silently default to real AWS S3 and fail with `InvalidAccessKeyId`. Our fork at `Veela-Beauty/press-agent` reads `auth["ENDPOINT_URL"]` in `agent/site.py:upload_offsite_backup`.
+
+**As of 2026-05-19 this patch is live on all 3 app servers:**
+
+| Server | Agent HEAD | Status | Commit |
+|---|---|---|---|
+| press-f1 | tracks our fork directly (Veela-Beauty/press-agent master) | ✓ live | `809e9c2` |
+| u4 (157.90.244.216) | tracks upstream frappe/agent + cherry-picked `809e9c2` | ✓ live | `2cc5f06` |
+| u5 (46.224.170.58) | tracks upstream frappe/agent + cherry-picked `809e9c2` | ✓ live | `3b39a41` |
+
+**u4 and u5 cherry-pick, not remote-repoint:** both servers were on NEWER upstream commits than our fork's base when we rolled the patch. Going forward, when upstream lands a new feature we want, the safe play is to cherry-pick on each server (preserves their upstream HEAD + any local hotfixes — e.g. u4/u5 both have a local `docker_login` null-check on `agent/server.py` that we intentionally leave alone). When our fork falls too far behind upstream, rebase the fork separately and document the cherry-pick set.
+
+**Verification commands (run on each server):**
+```bash
+# Should print the cherry-pick commit + the consumed env var
+sudo -u frappe bash -c 'cd /home/frappe/agent/repo && git log --oneline -1 && grep "auth.get(\"ENDPOINT_URL\")" agent/site.py'
+```
 
 ### Verifying the full path works
 

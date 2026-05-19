@@ -5,6 +5,26 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 19-05-2026 — Day index (6 commits, see entries below)
+
+A long day. Listed top-to-bottom in commit order so each entry is followed
+by its successor:
+
+1. `962d1e4acb` — `fix(clone-site)`: commit fresh-backup row before throw
+2. `89943bedc6` — `fix(press-settings)`: preserve Password fields on save
+3. `154b30d537` — `feat(mcp)`: publish JSON Schema per tool + Test Tool Call form
+4. `755f9c8111` — `fix(auth+bench)`: 4-bug perm fix for new team members + first audit script
+5. `621aad98e4` — `feat(audit)`: 4 more audits + agent fork rolled to u4 + u5
+6. `47d27d3095` — `fix(api)`: 5 missing Vue→Python methods the audits surfaced
+
+Net effect: Ahmed (new on Marko's team) went from "every button I click logs
+me out" to a working dashboard. The trap that caused him pain (and the
+3 incidents in 8 days before him) is now CI-enforced via 5 audit scripts.
+All 5 audits exit 0 with zero exclusions; combined runtime <2s.
+
+New wiki page: `press/docs/wiki/02-operations/contract-audit-suite.md`.
+
+
 ## 19-05-2026 — Fix the 5 broken Vue→Python links the audit just surfaced
 
 ### Fixed
