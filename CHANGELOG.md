@@ -5,6 +5,31 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 19-05-2026 — New-team-member permissions: 4-way fix + auto-audit to stop the recurrence
+
+### Fixed
+- **`Access not allowed for this URL` on Clone Bench / Release Group.** Clicking *Clone + Deploy* or *Clone RG only* from `CloneBenchPrompt.vue` 401'd for non-System team users because `release_group_clone.*` was never added to `ALLOWED_WILDCARD_PATHS` in `press/auth.py`. The dialog was wired up in commit `63c5a0d5fc` as the "Create a new bench" pivot inside the Clone Site flow; Marko's teammate `ahmedmowafy74@gmail.com` was the first non-System user to exercise the path.
+- **`No permission for Bench Shell Log` flooding every bench Actions page.** `Bench.docker_execute()` (called by bench dev watch, bench dev overview, app management, etc.) writes an audit log via `create_bench_shell_log()` on every call. The doctype grants `create` only to System Manager; non-System team users threw `PermissionError` on each `.insert()`. The Bench Watch panel polls every 10s → users saw the error every 10s. Fix: insert with `ignore_permissions=True` — the `owner` field still captures the real session user so the audit trail stays intact, and the user can no longer be blocked from triggering a shell that they're already authorised to trigger via `_check_team_access`.
+- **`Failed to get method for command ... has no attribute 'get_vscode_remote_url'`.** `VSCodeLaunchDialog.vue:311` called `press.press.doctype.bench.bench_dev_overview.get_vscode_remote_url` — but the method actually lives at `press.press.doctype.bench.bench_vscode.get_vscode_remote_url` (sibling file). Stale path from a refactor. Two-line fix: corrected the dotted path AND added `bench_vscode.*` to the auth allowlist (without both, fixing the path alone would still 401 for team users).
+
+### Audit follow-ups (caught BY the new audit script in the same PR)
+- **`press.press.ai.api.*` was missing from the allowlist** — `AiPolicyGate.vue:acknowledge_policy` and `AiTeamRules.vue:update_team_ai_rules` would have force-logged-out any non-System user who acknowledged the AI policy or edited per-team AI rules. Added preemptively before anyone hit it.
+
+### Added
+- **`scripts/audit_dashboard_allowlist.py`** — runnable audit that diffs every dotted-path caller in `dashboard/src/**/*.{vue,js,ts}` against `ALLOWED_WILDCARD_PATHS` in `press/auth.py`. Exit code 0 = all covered; 1 = missing entries listed with the files that reference them. 311 callers audited; all now covered after this PR.
+- **`press/test_auth.py:TestAuthAllowlistCoverage`** — wraps the audit script in `bench run-tests` so any future PR that adds a whitelisted method without the allowlist entry fails CI. Stops the recurring trap (this is the third time we've hit it in 2 weeks: 2026-05-10 deploy_candidate_build, 2026-05-18 bench_dev_watch + bench_code_health, today's quadruple).
+- **`press/press/doctype/bench_shell_log/test_bench_shell_log.py`** — regression test that calls `create_bench_shell_log` as a non-System Website User and asserts the row inserts with `owner` set to the real user. Would fail on pre-fix code (PermissionError) and passes on the new code.
+
+### Notes
+- All four fixes deployed in one commit because they affect the same user (Ahmed) trying to do his first day of work. The audit script + test are the long-term forcing function — without them we will keep hitting this trap.
+- The `bench_dev_overview.*` and `bench_code_health.*` allowlist entries already existed (added in earlier sessions). Today's gaps were `release_group_clone.*`, `bench_vscode.*`, and `press.ai.api.*`.
+- `Bench Shell Log` is now writeable via `ignore_permissions=True` from `create_bench_shell_log`. This is the ONLY code path that creates these rows — all callers funnel through `Bench.docker_execute(create_log=True)`. The team-access check on the parent bench remains the real authorisation gate; the audit log is now audit-complete instead of audit-blocked.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `<this-commit>` — fix(auth+bench): 4-bug perm fix for new team members + dashboard allowlist audit script
+
+
 ## 19-05-2026 — MCP: publish JSON Schema per tool + in-dashboard Test Tool Call form
 
 ### Fixed

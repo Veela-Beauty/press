@@ -996,4 +996,29 @@ Callers used the SHORTER natural names (`sql`, `site`) instead of the canonical 
 Status: **PERMANENT**. All 58 Press MCP tools now have `args_schema`; consistency enforced at module load; dashboard has a Test Tool Call form. Audit candidates: any other RPC surface in Press that LLMs hit (the GraphQL-ish dashboard API resources are mostly Frappe-validated already, but custom-built helpers like `bench_dev_overview.*` could benefit from explicit param-shape declarations too).
 
 
+## Auth Allowlist Gap Keeps Recurring → Build the Audit Script — 2026-05-19
+
+**Symptom (third time in two weeks):** Non-System team user clicks a dashboard button → "Access not allowed for this URL" or instant force-logout. Today's incident hit `ahmedmowafy74@gmail.com` on three different flows at once:
+1. Clone Bench dialog → `release_group_clone.clone_release_group` not in allowlist → 401
+2. Bench page → `Bench Shell Log` perm denial flooding every 10s (separate but compounding)
+3. Open in VS Code → wrong dotted path AND `bench_vscode.*` not in allowlist
+
+**Pattern:** every time we add a new whitelisted method under `press.press.doctype.<x>.<y>.<method>` and wire the Vue dashboard to call it, if we forget to add `press.press.doctype.<x>.<y>.` to `ALLOWED_WILDCARD_PATHS` in `press/auth.py`, non-System team users get a 401. Vue's auth handler maps 401 → "session expired" → force-logout. Documented previously in lesson 64 and `feedback_press-auth-allowlist.md`. The lesson was written. People still forgot. Documentation alone is not enough.
+
+**Root-of-root cause:** there was no automated check. The lesson said "remember to add the allowlist entry" but humans forget. The fix has to be enforcement, not memory.
+
+**The fix that should stop the recurrence:** ship a `scripts/audit_dashboard_allowlist.py` that walks every `dashboard/src/**/*.{vue,js,ts}` file, extracts every `press.api.*` / `press.press.*` / `press.saas.*` / `press.mcp_server.*` dotted-path call, diffs against the allowlist, fails with exit 1 if anything is missing. Then wrap it in a `bench run-tests` test (`press/test_auth.py:TestAuthAllowlistCoverage`) so CI fails before the bug ships.
+
+**Lesson — when the same documented mistake happens 3+ times, write the linter instead of writing the doc:**
+- Documentation tells humans what to do. Humans forget under deadline pressure.
+- A test that fails CI is forcing. No commit goes through with the gap.
+- The audit script took 30 minutes to write; the four 401-logout incidents cost more than that in user-frustration time.
+- Make the linter cheap to run (`python3 scripts/audit_dashboard_allowlist.py` exits 0 in <1s on a healthy tree) so devs run it before pushing.
+
+**Side lesson — audit logs must not gate on actor's perms:** the `Bench Shell Log` part of today's incident was caused by `create_bench_shell_log()` calling `.insert()` without `ignore_permissions=True`. Bench Shell Log's `create` perm is System-Manager-only, but every dashboard dev feature that uses `Bench.docker_execute` writes one of these rows on every call. Result: non-System team users blocked from triggering operations they're already authorised to trigger via the parent bench's team-access check. The audit log was BLOCKING the action it was supposed to OBSERVE. Audit logs should always `ignore_permissions=True` and rely on the parent operation's auth check — the `owner` field captures who did it for the audit trail.
+
+Status: **PERMANENT**. Audit script in `scripts/audit_dashboard_allowlist.py`. Test in `press/test_auth.py`. Fix to `Bench Shell Log` insert in `press/press/doctype/bench_shell_log/bench_shell_log.py`. Going forward: when adding a new whitelisted method, the test will fail until you also add the allowlist entry. Documentation-only lessons get this status: **DOCUMENTED-NOT-ENFORCED** until paired with a test that fails CI.
+
+
+
 

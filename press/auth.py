@@ -88,6 +88,26 @@ ALLOWED_WILDCARD_PATHS = [
 	"/api/method/press.press.doctype.deploy_candidate_build.",
 	# Site Clone (called from SiteActionCell.vue: clone_site)
 	"/api/method/press.press.doctype.site.site_clone.",
+	# Release Group Clone (called from CloneBenchPrompt.vue: clone_release_group,
+	# clone_release_group_only). Wired up in commit 63c5a0d5fc as the "Create a
+	# new bench" pivot in the Clone Site dialog. Without this entry, non-System
+	# team users get "Access not allowed for this URL" the moment they click
+	# Clone + Deploy or Clone RG only. Reported 2026-05-19 by ahmedmowafy74@gmail.com
+	# (Marko's team) — first new team member to exercise the flow.
+	"/api/method/press.press.doctype.release_group.release_group_clone.",
+	# Bench VSCode launcher (called from VSCodeLaunchDialog.vue:
+	# get_vscode_remote_url). Method lives at bench.bench_vscode, not
+	# bench.bench_dev_overview as a stale Vue caller assumed. Once the Vue
+	# caller is fixed to use the right path (commit fixing this allowlist),
+	# the request still needs to clear auth_hook — hence this entry.
+	"/api/method/press.press.doctype.bench.bench_vscode.",
+	# AI governance API (called from AiPolicyGate.vue: acknowledge_policy,
+	# AiTeamRules.vue: update_team_ai_rules). Same 401-logout pattern would
+	# fire for any non-System user who accepted the AI policy or edited
+	# per-team AI rules. Caught by the dashboard-allowlist audit script
+	# (scripts/audit_dashboard_allowlist.py) on 2026-05-19 — these two callers
+	# had been live for weeks without anyone non-System hitting them.
+	"/api/method/press.press.ai.api.",
 	# Partner payment payout (called from PartnerNewPayout.vue)
 	"/api/method/press.press.doctype.partner_payment_payout.",
 	# MCP server endpoints — token holders authenticate via custom opaque

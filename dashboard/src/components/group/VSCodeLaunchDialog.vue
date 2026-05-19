@@ -308,7 +308,7 @@ export default {
 			this.vscodeUrlError = null;
 			try {
 				this.vscodeUrl = await call(
-					'press.press.doctype.bench.bench_dev_overview.get_vscode_remote_url',
+					'press.press.doctype.bench.bench_vscode.get_vscode_remote_url',
 					{ bench_name: this.bench },
 				);
 			} catch (e) {
