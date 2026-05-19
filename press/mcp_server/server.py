@@ -136,8 +136,11 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 			)
 			return _wrap_success(response, args)
 
-		# Strip dry_run from dispatch args (it's a meta-arg, not a tool arg)
-		dispatch_args = {k: v for k, v in args.items() if k != "dry_run"}
+		# Strip meta-args from dispatch (they're for the MCP layer, not the tool).
+		# - dry_run: high-risk dry-run gate
+		# - suppress_hints: silence the _hint key in successful responses
+		_META_ARGS = {"dry_run", "suppress_hints"}
+		dispatch_args = {k: v for k, v in args.items() if k not in _META_ARGS}
 
 		# Run tool as the resolved user
 		with _as_user(user):

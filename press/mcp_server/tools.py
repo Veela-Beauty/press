@@ -526,10 +526,33 @@ TOOLS: dict[str, dict] = {
 	},
 	"wait_for_bench_flip": {
 		"method": "press.mcp_server.deploy_flow.wait_for_bench_flip",
-		"description": "Single-shot poll (NOT a blocking wait — call it again to re-poll). Returns {status: 'flipped'|'pending', current_bench, current_candidate, target_candidate, site}. Args: site_name (site FQDN, NOT the bench docname); target_candidate (Deploy Candidate docname returned by bench_deploy). NO timeout arg — caller decides cadence.",
+		"description": "Single-shot poll (NOT a blocking wait — call it again to re-poll). Returns {status: 'flipped'|'pending', current_bench, current_candidate, target_candidate, site}. Args: site_name (site FQDN, NOT the bench docname); target_candidate (Deploy Candidate docname returned by bench_deploy). NO timeout arg — caller decides cadence. For a single-call blocking wait, use bench_deploy_and_wait instead.",
 		"required_args": ["site_name", "target_candidate"],
 		"args_schema": _schema(["site_name", "target_candidate"]),
 		"risk": "low",
+	},
+	"bench_deploy_and_wait": {
+		"method": "press.mcp_server.deploy_flow.bench_deploy_and_wait",
+		"description": "ONE-SHOT deploy + wait. Triggers bench_deploy and BLOCKS until the site flips to the new Deploy Candidate, or until max_wait_seconds expires (default 25 min). Use this instead of bench_deploy + a manual wait_for_bench_flip loop. Returns {candidate, status: 'flipped'|'timeout', elapsed_seconds, ...}. Args: name (Release Group docname); apps (list of {app, release, hash} dicts from bench_deploy_information); site_name (one site on the RG to watch — multiple sites can be on the RG but this only waits for the named one).",
+		"required_args": ["name", "apps", "site_name"],
+		"args_schema": _schema(
+			["name", "apps", "site_name"],
+			{
+				"max_wait_seconds": {
+					"type": "integer",
+					"minimum": 30,
+					"maximum": 1700,
+					"description": "Hard cap on the wait (default 1500 = 25 min; max 1700 to stay under Press's 1800s gunicorn timeout)",
+				},
+				"poll_interval_seconds": {
+					"type": "integer",
+					"minimum": 5,
+					"maximum": 300,
+					"description": "How often to re-check (default 30s, min 5s)",
+				},
+			},
+		),
+		"risk": "medium",
 	},
 	"bench_run_repo_script": {
 		"method": "press.mcp_server.script_runner.bench_run_repo_script",

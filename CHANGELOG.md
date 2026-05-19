@@ -5,6 +5,29 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 19-05-2026 — MCP: `bench_deploy_and_wait` blocking tool + fix `suppress_hints` arg leak
+
+### Fixed
+- **`wait_for_bench_flip() got an unexpected keyword argument 'suppress_hints'`.** Hit by a live agent at 17:44 sending `{site_name, target_candidate, suppress_hints: true}`. `suppress_hints` is a META-arg documented in the `_hint` block of every successful response ("Pass args.suppress_hints=true to silence this") — meant for the MCP layer to filter, not the underlying tool method. But the dispatcher only stripped `dry_run`, not `suppress_hints`. Method got the extra kwarg, blew up with `TypeError`. Fix: dispatcher now strips both as `_META_ARGS`.
+
+### Added
+- **`bench_deploy_and_wait` MCP tool.** Single-shot deploy + block until the site's bench flips to the new Deploy Candidate (or `max_wait_seconds` expires, default 25 min). Use INSTEAD of the previous `bench_deploy + manual loop on wait_for_bench_flip` two-step. The agent doesn't need its own timer / re-poll. Long-running HTTP request stays safely under Press's 1800s gunicorn timeout (we cap at 1500s default, 1700s max).
+  - Args: `name` (RG docname), `apps` (list of `{app, release, hash}` dicts), `site_name` (one site on the RG to watch — multiple sites can be on the same RG, but this only waits for the named one).
+  - Returns: `{candidate, status: 'flipped'|'timeout', elapsed_seconds, current_bench, current_candidate, target_candidate, site}`.
+  - Accepts `apps` as either list-of-dicts OR JSON-string (MCP HTTP layers sometimes stringify lists).
+  - Polls every 30s by default (`poll_interval_seconds` 5-300).
+  - Commits between polls so reads pick up the agent's writes when the bench flips.
+
+### Notes
+- 6/6 `press.test_auth` tests pass. Catalog-parity audit confirms the JS mirror has the new tool. Schema-vs-signature audit confirms args_schema matches `inspect.signature(bench_deploy_and_wait)`.
+- The `wait_for_bench_flip` description was updated to point at `bench_deploy_and_wait` for the blocking variant — guides LLM clients away from the 3-step trap.
+- This is the **second meta-arg** we've shipped (`dry_run`, `suppress_hints`). If we add a third, refactor to a single `_META_ARGS` constant at module top instead of two stripping passes.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `<this-commit>` — feat(mcp): bench_deploy_and_wait + suppress_hints meta-arg fix
+
+
 ## 19-05-2026 — MCP audit 6: args_schema must match the Python method's actual signature
 
 ### Fixed

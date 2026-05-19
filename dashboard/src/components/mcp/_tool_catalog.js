@@ -43,6 +43,7 @@ export const TOOL_CATALOG = {
 	// BENCH / RELEASE GROUP (medium risk)
 	clone_bench:                            { category: 'bench_rg', risk: 'medium', label: 'Clone Bench',                          desc: 'Clone a Release Group on the same server with the same apps' },
 	bench_deploy:                           { category: 'bench_rg', risk: 'medium', label: 'Bench — Deploy',                       desc: "Trigger a deploy for a Release Group's apps" },
+	bench_deploy_and_wait:                  { category: 'bench_rg', risk: 'medium', label: 'Bench — Deploy and Wait',              desc: 'One-shot deploy + block until site flips to new candidate (or timeout)' },
 	bench_restart:                          { category: 'bench_rg', risk: 'medium', label: 'Bench — Restart',                      desc: 'Restart a Bench (gunicorn + workers)' },
 	bench_update_config:                    { category: 'bench_rg', risk: 'medium', label: 'Bench — Update Config',                desc: 'Bulk-update bench common_site_config keys' },
 	bench_ssh_cert_get:                     { category: 'bench_rg', risk: 'medium', label: 'Bench — Get SSH Certificate',          desc: 'Get the existing SSH certificate for a bench' },

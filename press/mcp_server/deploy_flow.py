@@ -222,3 +222,94 @@ def wait_for_bench_flip(
 		"current_candidate": bench_candidate,
 		"target_candidate": target_candidate,
 	}
+
+
+@frappe.whitelist()
+def bench_deploy_and_wait(
+	name: str,
+	apps: list[dict] | str,
+	site_name: str,
+	max_wait_seconds: int = 1500,
+	poll_interval_seconds: int = 30,
+) -> dict[str, Any]:
+	"""Trigger a deploy + block until the site's bench flips to the new
+	Deploy Candidate, or timeout. Single MCP call covers the entire wait.
+
+	Args:
+		name: Release Group docname, e.g. 'bench-0005'
+		apps: list of {app, release, hash} dicts (same shape as bench_deploy).
+			Get from bench_deploy_information(name).apps[*].releases[0].
+			Accepts a JSON string too — MCP HTTP layer sometimes stringifies lists.
+		site_name: Site FQDN to watch. The deploy may affect multiple sites
+			on the same RG; this method only waits for the named one to flip.
+		max_wait_seconds: hard cap (default 1500 = 25 min; leaves 5 min headroom
+			under Press's 1800s gunicorn timeout). Returns status='timeout'
+			beyond this — agent can re-call to keep waiting.
+		poll_interval_seconds: how often to re-check (default 30s). Min 5s.
+
+	Returns:
+		{
+			"candidate": <Deploy Candidate docname>,   # always set
+			"status": "flipped" | "timeout",
+			"elapsed_seconds": <int>,
+			"site": <site_name>,
+			"current_bench": <bench docname after flip / when polled last>,
+			"current_candidate": <its candidate>,
+			"target_candidate": <the new candidate we waited for>,
+		}
+
+	Use this INSTEAD of bench_deploy + a manual loop on wait_for_bench_flip.
+	The single-call shape means the agent doesn't have to manage its own
+	timer + re-poll. Long-running HTTP request (up to max_wait_seconds) — safe
+	within Press's gunicorn 1800s timeout.
+	"""
+	import json
+	import time
+
+	from press.api.bench import deploy as _bench_deploy
+
+	# Accept apps as JSON string (some MCP HTTP layers stringify lists)
+	if isinstance(apps, str):
+		apps = json.loads(apps)
+	if not isinstance(apps, list) or not all(isinstance(a, dict) for a in apps):
+		frappe.throw(
+			"apps must be a list of dicts with {app, release, hash} keys; "
+			f"got {type(apps).__name__}",
+			frappe.ValidationError,
+		)
+
+	poll_interval = max(5, int(poll_interval_seconds))
+	max_wait = max(poll_interval, int(max_wait_seconds))
+
+	# Step 1 — trigger the deploy. Returns the Deploy Candidate docname.
+	candidate = _bench_deploy(name=name, apps=apps)
+	if isinstance(candidate, dict):
+		# defensive — _bench_deploy normally returns a string but in case
+		candidate = candidate.get("name") or candidate.get("candidate") or str(candidate)
+
+	# Step 2 — poll until flip or timeout. Frappe HTTP requests are blocked
+	# from sleeping inside a transaction; commit each iteration so reads
+	# pick up the agent's writes when the bench flips.
+	start = time.monotonic()
+	deadline = start + max_wait
+	last_poll: dict[str, Any] = {}
+	while time.monotonic() < deadline:
+		frappe.db.commit()
+		last_poll = wait_for_bench_flip(site_name=site_name, target_candidate=candidate)
+		if last_poll["status"] == "flipped":
+			elapsed = int(time.monotonic() - start)
+			return {
+				"candidate": candidate,
+				"status": "flipped",
+				"elapsed_seconds": elapsed,
+				**{k: v for k, v in last_poll.items() if k != "status"},
+			}
+		time.sleep(poll_interval)
+
+	elapsed = int(time.monotonic() - start)
+	return {
+		"candidate": candidate,
+		"status": "timeout",
+		"elapsed_seconds": elapsed,
+		**{k: v for k, v in last_poll.items() if k != "status"},
+	}
