@@ -354,6 +354,58 @@ def get_site_status(key, app=None):
 	return {"status": "Pending"}
 
 
+@frappe.whitelist()
+def subscription(site: str) -> dict:
+	"""Return the current site's plan + the team's available plans.
+
+	Called by dashboard/src/pages/Subscription.vue. Returns:
+	  {current_plan: <Site Plan name or None>, plans: [{name, ...}, ...]}
+
+	On this self-hosted Press we don't run public marketplace subscriptions,
+	but the Subscription.vue page is still reachable. Return a safe shape:
+	current plan from the Site doc, and the team-accessible Site Plan list.
+	Without this method the page 500s with "has no attribute 'subscription'".
+	Caught by scripts/audit_dashboard_method_exists.py on 2026-05-19.
+	"""
+	from press.utils import get_current_team
+
+	team = get_current_team(get_doc=True)
+	site_doc = frappe.get_doc("Site", site)
+	if site_doc.team != team.name and frappe.session.data.user_type != "System User":
+		frappe.throw(f"You don't have access to site {site}", frappe.PermissionError)
+
+	plans = frappe.get_all(
+		"Site Plan",
+		filters={"enabled": 1, "document_type": "Site"},
+		fields=["name", "plan_title", "price_usd", "max_storage_usage"],
+		order_by="price_usd asc",
+	)
+	return {"current_plan": site_doc.plan, "plans": plans}
+
+
+@frappe.whitelist()
+def set_subscription_plan(site: str, plan: str) -> dict:
+	"""Change the site's plan to `plan`.
+
+	Called by dashboard/src/pages/Subscription.vue. Delegates to
+	Site.change_plan which handles billing-cycle math + Subscription
+	doctype updates. Without this method the page 500s with
+	"has no attribute 'set_subscription_plan'". Caught by
+	scripts/audit_dashboard_method_exists.py on 2026-05-19.
+	"""
+	from press.utils import get_current_team
+
+	team = get_current_team(get_doc=True)
+	site_doc = frappe.get_doc("Site", site)
+	if site_doc.team != team.name and frappe.session.data.user_type != "System User":
+		frappe.throw(f"You don't have access to site {site}", frappe.PermissionError)
+	if not frappe.db.exists("Site Plan", plan):
+		frappe.throw(f"Plan {plan} does not exist", frappe.DoesNotExistError)
+
+	site_doc.change_plan(plan, ignore_card_setup=True)
+	return {"site": site, "plan": plan}
+
+
 @frappe.whitelist(allow_guest=True)
 def get_site_url_and_sid(key, app=None):
 	"""

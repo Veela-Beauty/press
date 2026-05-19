@@ -496,3 +496,50 @@ def fetch_payouts():
 
 def convert_string_to_date(date_string):
 	return datetime.strptime(date_string, "%Y-%m-%d").date()
+
+
+@frappe.whitelist()
+def create_payment_partner_payout(
+	payment_gateway: str,
+	payment_partner: str,
+	from_date: str,
+	to_date: str,
+	payments: list | str,
+):
+	"""Shim called by dashboard/src/components/billing/mpesa/PartnerPaymentPayout.vue.
+
+	Translates Vue's parameter names + looks up partner_commission from the
+	Team doctype, then delegates to submit_payment_payout. Vue sends:
+	  - payment_partner  →  partner (renamed)
+	  - payments         →  transactions (renamed)
+	  - partner_commission is NOT sent by Vue — fetched from Team.partner_commission
+
+	Without this shim PartnerPaymentPayout.vue 500s with "has no attribute
+	'create_payment_partner_payout'". Caught by
+	scripts/audit_dashboard_method_exists.py on 2026-05-19.
+	"""
+	from press.press.doctype.partner_payment_payout.partner_payment_payout import (
+		submit_payment_payout,
+	)
+
+	# Vue may send payments as a JSON string when going through the resource
+	# layer's POST encoder — accept both list and str
+	if isinstance(payments, str):
+		payments = json.loads(payments)
+
+	# Resolve partner_commission from the Team's partner record
+	partner_name = (
+		payment_partner
+		if frappe.db.exists("Team", payment_partner)
+		else frappe.get_value("Team", {"user": payment_partner}, "name")
+	)
+	partner_commission = frappe.db.get_value("Team", partner_name, "partner_commission") or 0
+
+	return submit_payment_payout(
+		partner=payment_partner,
+		payment_gateway=payment_gateway,
+		from_date=from_date,
+		to_date=to_date,
+		partner_commission=partner_commission,
+		transactions=payments,
+	)

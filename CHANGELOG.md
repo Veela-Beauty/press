@@ -5,6 +5,36 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 19-05-2026 — Fix the 5 broken Vue→Python links the audit just surfaced
+
+### Fixed
+The `audit_dashboard_method_exists.py` script (shipped earlier today) flagged 5 Vue→Python links pointing at methods that don't exist. Each would 500 with "has no attribute" when a user clicked the corresponding feature. All 5 are now fixed and the audit's `KNOWN_DYNAMIC` set is empty:
+
+- **`press.api.product_trial.signup`** (Signup.vue) — added a shim in `press/api/product_trial.py` that delegates to `press.api.account.signup` for canonical Account Request creation, then patches `first_name`/`last_name`/`country` onto the row so `setup_account()` has them later. Vue's existing param shape preserved.
+- **`press.api.regional_payments.mpesa.utils.create_payment_partner_payout`** (PartnerPaymentPayout.vue) — added a shim in `mpesa/utils.py` that translates Vue's param names (`payment_partner` → `partner`, `payments` → `transactions`), looks up `partner_commission` from the Team doctype, then delegates to `submit_payment_payout`. Vue stays unchanged.
+- **`press.api.saas.subscription`** (Subscription.vue) — added real method: validates team access, returns `{current_plan: <Site Plan name>, plans: [<enabled site plans>]}` matching the shape Vue expects.
+- **`press.api.saas.set_subscription_plan`** (Subscription.vue) — added real method: validates team access + plan existence, delegates to `Site.change_plan(plan, ignore_card_setup=True)`.
+- **`press.press.ai.api.update_team_ai_rules`** (AiTeamRules.vue) — added real method in `press/press/ai/api.py`: validates that caller is System User OR on the target team, accepts settings as either dict or JSON string (Vue stringifies before send), persists via `frappe.defaults.set_user_default("ai_team_rules", json.dumps(settings), user=team)` so no schema change is needed.
+
+### Audit suite now fully green with no exclusions
+- `audit_dashboard_allowlist.py`: 311 callers → all covered
+- `audit_dashboard_method_exists.py`: 290 callers → **all resolve to real methods** (was 5 in KNOWN_DYNAMIC)
+- `audit_dashboard_whitelisted.py`: 290 callers → all whitelisted
+- `audit_audit_log_inserts.py`: Bench Shell Log uses ignore_permissions=True
+- `audit_mcp_catalog_parity.py`: 58 tools each side, in sync
+
+`KNOWN_DYNAMIC` in `audit_dashboard_method_exists.py` is now `set()` — empty. Any future entry needs a comment justifying why the path can't be statically resolved (e.g. dotted path built from a runtime variable).
+
+### Notes
+- 5/5 `press.test_auth` bench tests pass after the fixes. All audits pass with zero exclusions.
+- These are SHIMS where the real path was wrong (#1, #2) or stubs scaffolded against existing infra (#3, #4, #5). None of them touch billing flows that move money on production systems — `set_subscription_plan` delegates to the existing `Site.change_plan` which already handles billing math.
+- The AI team rules storage (`frappe.defaults` keyed by team name) is intentionally simple — when AI governance graduates to per-team Frappe DocTypes, swap the storage; the API contract stays.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `<this-commit>` — fix(api): the 5 missing methods + empty KNOWN_DYNAMIC
+
+
 ## 19-05-2026 — Long-term forcing-function suite: 4 more audits + agent fork rolled to all 3 servers
 
 ### Added — audit suite that fails CI on regressions

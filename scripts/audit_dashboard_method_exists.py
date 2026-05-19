@@ -54,23 +54,11 @@ CALL_SHAPE_PATTERN = re.compile(
 	re.IGNORECASE | re.VERBOSE,
 )
 
-# Callers that legitimately can't be statically resolved OR are known broken
-# but out-of-scope for the current PR. Each entry MUST carry a comment.
-# Net-new misses must be FIXED, not added here — the whole point is to keep
-# the set from growing.
-KNOWN_DYNAMIC: set[str] = {
-	# 2026-05-19 audit pass — these 5 were already broken before this PR.
-	# Each calls a method that doesn't exist in its named module. Each will
-	# 500 with "has no attribute" when the corresponding feature is exercised.
-	# Fix in a follow-up: either rename the Vue caller to the right module, or
-	# add the missing whitelisted method. DO NOT add new entries here without
-	# a tracking ticket.
-	"press.api.product_trial.signup",                                   # Signup.vue
-	"press.api.regional_payments.mpesa.utils.create_payment_partner_payout",  # PartnerPaymentPayout.vue
-	"press.api.saas.set_subscription_plan",                             # Subscription.vue
-	"press.api.saas.subscription",                                      # Subscription.vue
-	"press.press.ai.api.update_team_ai_rules",                          # AiTeamRules.vue
-}
+# Callers that legitimately can't be statically resolved (e.g. dotted path
+# built from a runtime variable). Each entry MUST carry a comment.
+# DO NOT add net-new misses here — fix them instead. The whole point of
+# this audit is to prevent the set from growing.
+KNOWN_DYNAMIC: set[str] = set()
 
 
 def collect_callers() -> dict[str, list[Path]]:
