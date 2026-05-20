@@ -1057,3 +1057,34 @@ The bare catalog-parity audit (`audit_mcp_catalog_parity.py`) only checks that t
 **Side-lesson — every audit so far has caught bugs that were already shipping in production.** The allowlist audit caught 4 gaps. The method-exists audit caught 5 broken Vue→Python links. The schema-vs-signature audit caught 5 drifts. Pattern: write the audit, find bugs, fix bugs, set baseline, CI keeps it clean. Each audit pays for itself on the first run.
 
 Status: **PERMANENT**. 6 audit scripts under `scripts/audit_*.py`; 6/6 tests pass in `press.test_auth.TestDashboardContracts`. Total runtime <5s.
+
+## LLM Agents in Tight Retry Loops Will Burst Your Rate Limit — 2026-05-20
+
+A real agent ran a 30-iteration polling loop sending `wait_for_bench_flip(...timeout=25)` to the MCP server. The method doesn't accept `timeout`, so each call `TypeError`'d in <1ms. **30 errors in ~3 seconds blew through the per-token rate limit before the agent made any real progress.** Same pattern would fire for any kwarg-typo in any loop.
+
+**The root cause isn't the typo — it's that microsecond-fast validation rejections give the loop no natural back-pressure.** A successful call takes ~50ms-2s; a validation rejection takes <1ms. So a broken loop spins 50-100x faster than a working one. By the time the agent's prompt-side LLM realises something's wrong, the budget is gone.
+
+**Two server-side guardrails fix it at the source:**
+
+### Guard 1 — Filter unknown args at the dispatcher
+
+The MCP dispatcher now only forwards args declared in the tool's `args_schema.properties` (plus the meta-args `dry_run`/`suppress_hints`). Unknown args are dropped, logged via `frappe.log_error`, and never reach the Python method. The same `wait_for_bench_flip(..., timeout=25, bogus="x")` call now succeeds with `status: pending`; the extras are silently ignored.
+
+Why this is better than per-method `**kwargs`: tool methods stay strict (good for human readers + the schema audit), all 60+ tools benefit from one fix, and the `audit_mcp_schema_vs_signature` audit keeps the schema honest so the filter never drops a real arg.
+
+### Guard 2 — Fail-fast burst guard
+
+Same `(token, tool, rejection_kind, signature)` rejected 3 times in <10 seconds → return `BURST-GUARD: ... Fix the call before retrying` and reset the counter so the agent can retry once it fixes the args. Tracks two rejection kinds today: `missing_required_args`, `unknown_args`. The Redis-backed rate limiter is still the cross-worker enforcement; this is a tighter local gate that fires earlier.
+
+**Lesson — any RPC surface exposed to LLM agents needs both guards:**
+- **Filter at the dispatcher**, not at the method. Method signatures should stay typed and strict. The dispatcher absorbs LLM noise.
+- **Detect and halt burst-failure loops** before they exhaust the rate budget. A loop that fires the same error 3 times in 10 seconds is broken — return a hard-stop with a clear "fix before retrying" message instead of letting it continue.
+
+**Anti-patterns to avoid:**
+- Adding `**kwargs` to every whitelisted method (invasive, scattered, no central audit point).
+- Logging a warning and forwarding the bad args anyway (the method still TypeError's).
+- Raising 429 on a single bad call (false positives hurt more than they help).
+
+**Wider rule — when an LLM client and a human typed-method-signature meet, the impedance mismatch lives at the dispatcher, not at the method.** Build the LLM-tolerance layer once, in front of the strict layer. Don't try to retrain the LLM.
+
+Status: **PERMANENT**. Shipped 2026-05-20 in commit `1d7972a03c`. Verified live: a `wait_for_bench_flip(..., timeout=25, bogus="x")` call now returns `status: pending` cleanly. Three identical missing-args rejections trigger `BURST-GUARD`; 4th call back to normal. Combined runtime impact: <1ms per call for the filter, negligible memory for the burst dict (capped at 1000 entries with auto-prune).
