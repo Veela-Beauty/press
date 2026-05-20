@@ -1088,3 +1088,51 @@ Same `(token, tool, rejection_kind, signature)` rejected 3 times in <10 seconds 
 **Wider rule — when an LLM client and a human typed-method-signature meet, the impedance mismatch lives at the dispatcher, not at the method.** Build the LLM-tolerance layer once, in front of the strict layer. Don't try to retrain the LLM.
 
 Status: **PERMANENT**. Shipped 2026-05-20 in commit `1d7972a03c`. Verified live: a `wait_for_bench_flip(..., timeout=25, bogus="x")` call now returns `status: pending` cleanly. Three identical missing-args rejections trigger `BURST-GUARD`; 4th call back to normal. Combined runtime impact: <1ms per call for the filter, negligible memory for the burst dict (capped at 1000 entries with auto-prune).
+
+## Press Deploy: Two-Stage Trap — Build Succeeds, Site Never Flips — 2026-05-20
+
+On Press's standalone-bench architecture, a successful Deploy Candidate Build does NOT automatically flip live sites to the new bench. The build produces a ready-but-empty bench container; existing sites keep running on the OLD bench until you explicitly call `site_update` per site.
+
+The trap: `bench_deploy_and_wait` polls `wait_for_bench_flip` after the build, but `wait_for_bench_flip` only checks whether the site's `bench` field has changed — Press doesn't change it on its own. The wait loop returns `status: pending` forever.
+
+**Recipe to actually complete a deploy:**
+1. `bench_deploy_and_wait` — triggers build, polls wait (will time out at default `max_wait_seconds=1500`)
+2. After build = `Success`, call `site_update` for each site you want flipped
+3. Re-poll `wait_for_bench_flip` until `status: flipped`
+
+Or short-circuit: set `max_wait_seconds=120` on the deploy call to skip the futile wait, then call `site_update` immediately, then poll.
+
+**Hardening candidate**: `bench_deploy_and_wait` should optionally call `site_update` mid-flow after the build hits `Success`, before entering the flip-poll loop. Single MCP call covers the full chain. Deferred until we hit this a third time (this is the first documented incident).
+
+## Press Deploy: Draft App Releases Get Skipped — Build Succeeds With Old Code — 2026-05-20
+
+Sister trap to the two-stage flip. When you push a new commit, Press auto-creates an `App Release` row with `status='Draft'`. Deploy Candidate Builds ONLY include `Approved` releases — so an immediate post-push build succeeds against the LATEST APPROVED release (potentially many commits behind HEAD), not your fresh commit.
+
+The build's `Success` indicator is misleading: container deployed, site flipped, everything green — but the code is from a week ago.
+
+**Verification before any deploy:**
+```python
+info = mcp("bench_deploy_information", {"name": "bench-X"})
+for app in info["message"]["data"]["apps"]:
+    drafts = [r for r in app.get("releases", []) if r.get("status") == "Draft"]
+    if drafts:
+        print(f"!! {app['app']} has Draft releases — approve before deploy:")
+        for d in drafts:
+            print(f"   - {d['name']} {d['hash'][:7]} {d['message'][:60]}")
+```
+
+**Fix:** `app_release_approve(release_name)` per Draft release, then create a new Deploy Candidate. The old candidate is still pointed at pre-approval state.
+
+**Why this happens**: Drafts are Press's manual-review queue. The default-to-Draft behavior is conservative — Press would rather deploy old-known-good code than new-untested code. From the agent's perspective, this looks like silent staleness.
+
+**Status indicator agents should check, but don't:**
+
+| `bench_deploy_information.apps[].releases[].status` | Meaning |
+|---|---|
+| `Approved` | Will be included in the next Deploy Candidate Build |
+| `Draft` | Sits in queue. Needs `app_release_approve()` before being deployed |
+| `Yanked` | Blacklisted. Build will refuse to use it |
+
+**Wider lesson — a "Success" status from a deploy tool tells you the build pipeline didn't error. It does NOT tell you which code is now running.** Always verify the deployed commit hash post-flip by running `git log -1` inside the bench container (via `site_run_python` or SSH). The build log doesn't include the commit hash, and `deploy_candidate_status` doesn't include it either.
+
+Status: **DOCUMENTED**. Both traps recorded; hardening candidates flagged. Today's deploy was bitten by both: first build shipped old code (Draft trap), then second build's site wouldn't flip (two-stage trap).
