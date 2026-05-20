@@ -338,6 +338,141 @@ def bench_set_app_branch(
 
 
 @frappe.whitelist()
+def agent_health(server: str, lookback_minutes: int = 10) -> dict[str, Any]:
+	"""Diagnose whether an app server's agent is healthy, slow, or stuck.
+
+	Derived from Press-side Agent Job records (no agent-side polling needed).
+	Stops the "every job is Pending so agent must be dead" misdiagnosis that
+	led to multiple unnecessary agent restarts in May 2026.
+
+	Args:
+		server: App server docname, e.g. 'press-f1.sandbox.mvpstorm.com'.
+		lookback_minutes: Window to consider for activity (default 10, max 60).
+
+	Returns:
+		{
+			"server": <server>,
+			"verdict": "healthy" | "slow" | "stuck" | "no_activity",
+			"reason": <human-readable>,
+			"recent_jobs": {
+				"total": N,
+				"by_status": {"Pending": X, "Running": Y, "Success": Z, "Failure": W, "Undelivered": V},
+			},
+			"last_success_seconds_ago": <int or null>,
+			"last_modified_seconds_ago": <int or null>,
+			"running_jobs": [{name, job_type, site, age_seconds}, ...],
+			"undelivered_jobs": [{name, job_type, site, age_seconds}, ...],
+		}
+
+	Verdict rules:
+		healthy        — at least one Success in lookback window
+		slow           — Running jobs exist + their modified is fresh (<2min ago)
+		                 OR last Success >lookback but a Running job's modified
+		                 is fresh — agent IS working, just on a long task
+		stuck          — Undelivered jobs >2min old AND no recent modified
+		                 activity — Press queued but agent isn't pulling
+		no_activity    — lookback window is empty (agent may be idle, or this
+		                 server has nothing scheduled — don't assume broken)
+
+	Don't restart the agent on a "slow" verdict — restarting a busy worker
+	mid-migrate corrupts the live DB. Wait on "slow"; investigate on "stuck".
+	"""
+	from frappe.utils import add_to_date, now_datetime
+
+	lookback_minutes = max(1, min(60, int(lookback_minutes)))
+	cutoff = add_to_date(None, minutes=-lookback_minutes)
+	now = now_datetime()
+
+	jobs = frappe.get_all(
+		"Agent Job",
+		filters={"server": server, "creation": (">", cutoff)},
+		fields=["name", "job_type", "site", "status", "creation", "modified"],
+		order_by="modified desc",
+		limit=200,
+	)
+
+	by_status: dict[str, int] = {}
+	last_success: Any = None
+	last_modified: Any = None
+	running_jobs: list[dict] = []
+	undelivered_jobs: list[dict] = []
+
+	for j in jobs:
+		by_status[j.status] = by_status.get(j.status, 0) + 1
+		if j.status == "Success" and (last_success is None or j.modified > last_success):
+			last_success = j.modified
+		if last_modified is None or j.modified > last_modified:
+			last_modified = j.modified
+		if j.status == "Running":
+			running_jobs.append({
+				"name": j.name,
+				"job_type": j.job_type,
+				"site": j.site,
+				"age_seconds": int((now - j.modified).total_seconds()),
+			})
+		elif j.status == "Undelivered":
+			undelivered_jobs.append({
+				"name": j.name,
+				"job_type": j.job_type,
+				"site": j.site,
+				"age_seconds": int((now - j.creation).total_seconds()),
+			})
+
+	# Derive verdict
+	verdict: str
+	reason: str
+	last_success_age = int((now - last_success).total_seconds()) if last_success else None
+	last_modified_age = int((now - last_modified).total_seconds()) if last_modified else None
+
+	if not jobs:
+		verdict = "no_activity"
+		reason = (
+			f"No Agent Job rows in the last {lookback_minutes} min for {server!r}. "
+			f"Could mean idle server (no scheduled work) — NOT necessarily broken. "
+			f"Try a longer lookback or check Press scheduler."
+		)
+	elif last_success_age is not None and last_success_age < lookback_minutes * 60:
+		verdict = "healthy"
+		reason = (
+			f"Last Success was {last_success_age}s ago. Agent is processing jobs."
+		)
+	elif running_jobs and min(j["age_seconds"] for j in running_jobs) < 120:
+		verdict = "slow"
+		reason = (
+			f"Agent has {len(running_jobs)} Running job(s) with fresh modified "
+			f"(youngest {min(j['age_seconds'] for j in running_jobs)}s). "
+			f"It's working — likely a long-running task (migrate, large backup, build). "
+			f"DO NOT restart — wait for current job to finish."
+		)
+	elif undelivered_jobs and min(j["age_seconds"] for j in undelivered_jobs) > 120:
+		verdict = "stuck"
+		reason = (
+			f"{len(undelivered_jobs)} Undelivered job(s) older than 2min and no "
+			f"recent Success/Running activity. Press queued these but the agent "
+			f"isn't pulling them. Check agent process: "
+			f"`ssh root@<server> supervisorctl status agent:`"
+		)
+	else:
+		verdict = "slow"
+		reason = (
+			f"No Success in window, no obvious stuck pattern. Last modified "
+			f"{last_modified_age}s ago. Probably mid-job — wait before restarting."
+		)
+
+	return {
+		"server": server,
+		"verdict": verdict,
+		"reason": reason,
+		"recent_jobs": {"total": len(jobs), "by_status": by_status},
+		"last_success_seconds_ago": last_success_age,
+		"last_modified_seconds_ago": last_modified_age,
+		"running_jobs": running_jobs,
+		"undelivered_jobs": undelivered_jobs[:10],  # cap noise
+		"lookback_minutes": lookback_minutes,
+	}
+
+
+@frappe.whitelist()
 def bench_deploy_and_wait(
 	name: str,
 	apps: list[dict] | str,

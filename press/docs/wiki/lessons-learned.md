@@ -1136,3 +1136,49 @@ for app in info["message"]["data"]["apps"]:
 **Wider lesson — a "Success" status from a deploy tool tells you the build pipeline didn't error. It does NOT tell you which code is now running.** Always verify the deployed commit hash post-flip by running `git log -1` inside the bench container (via `site_run_python` or SSH). The build log doesn't include the commit hash, and `deploy_candidate_status` doesn't include it either.
 
 Status: **DOCUMENTED**. Both traps recorded; hardening candidates flagged. Today's deploy was bitten by both: first build shipped old code (Draft trap), then second build's site wouldn't flip (two-stage trap).
+
+## "Agent is Stuck" — Almost Always a Misdiagnosis — 2026-05-20
+
+LLM agents looking at Press's Agent Job table see rows piling up as `Pending`/`Undelivered` and conclude "the press-f1 agent has frozen, restart it." This is **almost always wrong** and the recommended restart can corrupt in-flight migrations.
+
+**Real diagnostic before any restart:**
+
+1. **Check RQ worker state on the agent (via SSH, no MCP tool exposes this today):**
+   - Workers `busy` with fresh heartbeat (<60s) → agent IS working, just on a long job (3-8min for v14+AI app migrates is legit).
+   - Workers `idle` + queues=0 + heartbeats fresh → agent is HEALTHY, the pile-up is on Press's side.
+   - Workers absent or heartbeats >5min stale → agent IS dead, restart is appropriate.
+
+2. **Check `Scheduled Job Log` for `poll_pending_jobs` cadence:**
+   - Normal: ~60s between runs.
+   - Pathological: gaps of 5+ minutes. The scheduler stalled and jobs piled up DURING the gap.
+   - Already recovered? Then ONE manual `bench execute press.press.doctype.agent_job.agent_job.poll_pending_jobs` syncs the backlog.
+
+3. **Check the "stuck" Agent Job's `modified` timestamp:**
+   - Recent (last few min) + `output` non-empty → job is still progressing.
+   - Stale + no output → may genuinely be stuck.
+
+**The trap**: today's incident had ALL of:
+- Multiple `Pending` jobs (looked stuck)
+- 9+ minutes since last `Success` (looked stuck)
+- New jobs piling up (looked very stuck)
+
+But the RQ workers were idle with fresh heartbeats and empty queues. The agent had ALREADY RUN the migrate; Press just hadn't synced the status callback. ONE manual `poll_pending_jobs` call flipped everything to Success/Failure within seconds.
+
+**Side-finding from the manual poll**: the migrate flipped to `Failure` with a real traceback — `frappe.db.has_column("Storage Unit Move Process", "notes")` raised `TableMissingError` because the DocType didn't exist on the site. That's a real bug in the patch (needs `frappe.db.exists("DocType", X)` guard before `has_column`). The "stuck agent" misdiagnosis was HIDING this bug — agents looking at "Pending" can't see traceback content. The poll surfaced it.
+
+**Anti-patterns:**
+- `supervisorctl restart agent` on heuristics — kills in-flight migrate workers, corrupts data.
+- `bench_restart` via MCP "to be safe" — same problem.
+- Waiting forever — the scheduler may have recovered but in-flight jobs need explicit sync.
+
+**Recipe:**
+```bash
+# Safe kick — runs ONE poll, doesn't touch the agent
+ssh root@press-ctrl "sudo -u frappe bash -lc \
+  'cd /home/frappe/frappe-bench && bench --site demo.mvpstorm.com execute \
+   press.press.doctype.agent_job.agent_job.poll_pending_jobs'"
+```
+
+**Hardening candidate (deferred to next incident)**: an `agent_health(server)` MCP tool that derives `healthy/slow/stuck/no_activity` from Press-side Agent Job data alone. Skeleton drafted in `press/mcp_server/deploy_flow.py:agent_health` but not yet registered. Logic: any Success in window → healthy; Running with fresh `modified` → slow (wait); Undelivered >2min + no activity → stuck. Would have stopped today's misdiagnosis at the MCP layer.
+
+Status: **DOCUMENTED**. Recipe known. Hardening candidate noted. Anti-restart wisdom encoded for the next agent that sees a "stuck" pattern.
