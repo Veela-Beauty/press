@@ -221,8 +221,22 @@ def wait_for_bench_flip(
 	the target Deploy Candidate. Returns immediately. Caller re-polls.
 
 	Status values:
-		flipped: site is now on a bench produced by target_candidate
-		pending: site is still on an older bench
+		flipped              site is now on a bench produced by target_candidate
+		pending              site is on older bench AND Update Site Migrate
+		                     job is in-flight — keep polling
+		no_build             target_candidate has no Deploy Candidate Build —
+		                     the build was never triggered. STOP polling.
+		flip_not_triggered   build succeeded but no Update Site Migrate job
+		                     exists in the last 30 min — site_update was
+		                     never called. STOP polling, call
+		                     site_update_and_wait instead.
+
+	Safety gates (server-enforced, can't be bypassed by agent):
+		Gate B (no_build)            return early with hint instead of looping
+		Gate C (flip_not_triggered)  detect missing site_update trigger
+		Gate D (scheduler auto-kick) if Undelivered jobs >2min old exist for
+		                             this site, run poll_pending_jobs ONCE
+		                             before returning. Idempotent.
 	"""
 	current_bench = frappe.db.get_value("Site", site_name, "bench")
 	if not current_bench:
@@ -232,8 +246,119 @@ def wait_for_bench_flip(
 		)
 	bench_candidate = frappe.db.get_value("Bench", current_bench, "candidate")
 	flipped = bench_candidate == target_candidate
+
+	# Already flipped — short-circuit. No gate checks needed.
+	if flipped:
+		return {
+			"status": "flipped",
+			"site": site_name,
+			"current_bench": current_bench,
+			"current_candidate": bench_candidate,
+			"target_candidate": target_candidate,
+		}
+
+	# Gate B: does the target candidate even have a Build?
+	# If no Deploy Candidate Build row exists, the agent is waiting on a
+	# phantom — the build was never triggered. Return early with the fix.
+	build_exists = frappe.db.exists("Deploy Candidate Build", {"deploy_candidate": target_candidate})
+	if not build_exists:
+		# Could be: candidate doesn't exist OR exists but no build scheduled
+		cand_exists = frappe.db.exists("Deploy Candidate", target_candidate)
+		return {
+			"status": "no_build",
+			"site": site_name,
+			"current_bench": current_bench,
+			"current_candidate": bench_candidate,
+			"target_candidate": target_candidate,
+			"hint": (
+				f"No Deploy Candidate Build exists for {target_candidate!r}. "
+				+ (
+					"The candidate exists but no build was scheduled — call "
+					"deploy_candidate_schedule_build(candidate_name=...) or "
+					"bench_deploy_and_wait(...)."
+					if cand_exists
+					else "The Deploy Candidate itself does not exist — check "
+					"the target_candidate name."
+				)
+			),
+		}
+
+	# Gate D (auto-kick): if Undelivered jobs older than 2min exist for this
+	# site, the poll_pending_jobs scheduler likely stalled. Fire ONE manual
+	# poll to sync the backlog. Idempotent — Press's own scheduler does this
+	# every 60s, so we're just helping it catch up.
+	stale_undelivered = frappe.db.count(
+		"Agent Job",
+		filters={
+			"site": site_name,
+			"status": "Undelivered",
+			"creation": ("<", add_to_date(None, minutes=-2)),
+		},
+	)
+	if stale_undelivered > 0:
+		try:
+			from press.press.doctype.agent_job.agent_job import poll_pending_jobs as _ppj
+			_ppj()
+			frappe.db.commit()
+		except Exception as e:  # noqa: BLE001 — best-effort, never fail the poll
+			frappe.log_error(
+				title="wait_for_bench_flip: Gate D poll_pending_jobs kick failed",
+				message=str(e),
+			)
+		# Re-read in case the kick already flipped the site
+		current_bench = frappe.db.get_value("Site", site_name, "bench")
+		bench_candidate = frappe.db.get_value("Bench", current_bench, "candidate")
+		if bench_candidate == target_candidate:
+			return {
+				"status": "flipped",
+				"site": site_name,
+				"current_bench": current_bench,
+				"current_candidate": bench_candidate,
+				"target_candidate": target_candidate,
+				"gate_d_triggered": True,
+				"hint": "Gate D auto-kicked poll_pending_jobs and the flip resolved.",
+			}
+
+	# Gate C: build is Success but no Update Site Migrate job exists.
+	# On standalone Press, sites don't auto-flip — the agent must call
+	# site_update explicitly. If we see no migrate job in the last 30min,
+	# the trigger step was skipped.
+	build_row = frappe.db.get_value(
+		"Deploy Candidate Build",
+		{"deploy_candidate": target_candidate},
+		["name", "status"],
+		order_by="creation desc",
+		as_dict=True,
+	)
+	if build_row and build_row.status == "Success":
+		recent_migrate_count = frappe.db.count(
+			"Agent Job",
+			filters={
+				"site": site_name,
+				"job_type": ("in", ["Update Site Migrate", "Update Site Recover", "Update Site Migrate Steps"]),
+				"creation": (">", add_to_date(None, minutes=-30)),
+			},
+		)
+		if recent_migrate_count == 0:
+			return {
+				"status": "flip_not_triggered",
+				"site": site_name,
+				"current_bench": current_bench,
+				"current_candidate": bench_candidate,
+				"target_candidate": target_candidate,
+				"build_status": build_row.status,
+				"hint": (
+					f"Build {build_row.name} for {target_candidate} is Success but "
+					f"no Update Site Migrate job exists for {site_name} in the "
+					f"last 30 min. On standalone Press, sites don't auto-flip — "
+					f"call site_update_and_wait(site_name={site_name!r}, "
+					f"target_candidate={target_candidate!r}) to trigger the flip."
+				),
+			}
+
+	# Normal pending — flip is in-flight or scheduled
 	return {
-		"status": "flipped" if flipped else "pending",
+		"status": "pending",
 		"site": site_name,
 		"current_bench": current_bench,
 		"current_candidate": bench_candidate,
