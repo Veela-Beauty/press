@@ -5,6 +5,49 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 20-05-2026 — MCP: 4 new agent tools + 4 safety gates on wait_for_bench_flip
+
+A live agent driving the dmg-erp deploy got stuck polling `wait_for_bench_flip` indefinitely because the call returned `pending` even though the most recent Update Site Migrate had FAILED and been rolled back at 06:55 → 07:06. Same agent had no way to see in-flight job output the way the dashboard's job page does. This session ships the four MCP enhancements that fix BOTH gaps + the four server-side safety gates that prevent the misdiagnosis from happening at the source.
+
+### Added — new tools
+- **`agent_health(server, lookback_minutes=10)`** — verdict `healthy | slow | stuck | no_activity` from Press-side Agent Job rows. Stops the "every job Pending so the agent is dead → restart it" misdiagnosis that almost killed a busy migrate worker this morning. Verdict `slow` explicitly says DO NOT restart.
+- **`agent_job_traceback(job_name, output_chars=4000)`** — one-shot post-mortem returning `{status, job_type, site, output_tail, traceback_tail, age_seconds}`. Replaces the 4-roundtrip "ssh press-ctrl + bench console + get_doc + print" dance.
+- **`agent_job_progress(job_name, step_output_chars=1500, job_output_chars=4000)`** — **Cursor-style live in-flight stream**. Returns `{status, current_step, steps[], steps_summary, output_tail, dashboard_url}`. Each step has its own status + output_tail + duration. Mirrors the dashboard's `/dashboard/sites/<site>/jobs/<job>` page so the agent can poll every few seconds and SEE the live step pointer move. Verified live against `pll399vmj4` — full per-step output + traceback returned as structured JSON.
+- **`site_update_and_wait(site_name, target_candidate, ...)`** — blocking companion to `bench_deploy_and_wait`. On standalone Press, a successful Deploy Candidate Build does NOT auto-flip sites onto the new bench; each site needs an explicit site_update. This wraps `schedule_update` + poll into one blocking call so the agent doesn't have to manage the two-step dance.
+
+### Added — 4 safety gates inside `wait_for_bench_flip`
+All server-enforced, no agent opt-out, all verified live on dmg-erp:
+- **Gate B (`no_build`)** — target_candidate has no Deploy Candidate Build → return early with hint pointing at `deploy_candidate_schedule_build` or `bench_deploy_and_wait`. Hint distinguishes "candidate missing" from "candidate exists but build never scheduled".
+- **Gate C (`flip_not_triggered`)** — Build is Success but no Update Site Migrate job exists in the last 60 min → return status with hint to call `site_update_and_wait`. Without this gate, agents poll indefinitely for an auto-flip standalone Press never performs.
+- **Gate D (auto-poll-pending-jobs)** — stale Undelivered jobs >2min old for this site → fire ONE `poll_pending_jobs` call before returning. Idempotent — Press's own scheduler does this every 60s, we just help it catch up. Recovers from scheduler hiccups (the 2026-05-20 selfstorage-stg incident) automatically.
+- **Gate E (`flip_failed`)** — the most recent Update Site Migrate FAILED and (optionally) was rolled back by Recover Failed Site Migrate → return early with `failed_migrate_job` + `recover_job` + hint to call `agent_job_traceback`. Catches dmg-erp's exact symptom.
+
+The `flipped` fast path short-circuits BEFORE the gate checks so a healthy poll stays cheap (one Site read, one Bench read).
+
+### Tests
+- `test_gate_b_no_build_for_target_candidate`
+- `test_gate_b_no_candidate_at_all`
+- `test_gate_c_flip_not_triggered_when_build_success_but_no_migrate`
+- `test_gate_d_kicks_poll_pending_jobs_when_stale_undelivered`
+- `test_gate_e_flip_failed_with_recover`
+- Existing `test_wait_for_bench_flip_*` updated to mock the new exists/count/get_all paths.
+
+### Notes
+- Catalog parity verified: 65/65 tools in `tools.py` and `_tool_catalog.js`.
+- Token-side: Master tokens (`MCPT-2465`, `MCPT-3028`) now carry 62 scopes including the 4 new tools.
+- Live evidence the design works: same `wait_for_bench_flip(dmg-erp, deploy-0017-000014)` call that returned `pending` for ~9 minutes this morning now returns `flip_failed` with both job names + an actionable next-step hint.
+- Live evidence Cursor-style streaming works: calling `agent_job_progress("pll399vmj4")` returns 13 steps including the failed `Migrate Site` (duration `0:03:48`) with its output tail + traceback tail — same data the dashboard page renders, as structured JSON.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `f9d4efd0b` — feat(mcp): agent_health + agent_job_traceback + site_update_and_wait
+  - `6586cd43b3` — feat(mcp): safety gates B/C/D inside wait_for_bench_flip
+  - `b8727ea098` — feat(mcp): Gate E — detect failed migrate + rollback in wait_for_bench_flip
+  - `664828efda` — fix(mcp): extend migrate-job lookback to 60min + document Gate E
+  - `2651672025` — fix(mcp): include 'Recover Failed Site Migrate' in Gate E job filter
+  - `e8b92d3488` — feat(mcp): agent_job_progress — Cursor-style live in-flight job stream
+
+
 ## 20-05-2026 — MCP dispatcher: drop unknown args + fail-fast burst guard
 
 ### Fixed

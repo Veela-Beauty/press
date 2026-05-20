@@ -259,6 +259,70 @@ ssh -i ~/.ssh/id_ed25519_old root@89.167.116.92 \
 
 For Vue/dashboard changes, also `bench build --app press --force && bench --site demo.mvpstorm.com clear-cache` between cherry-pick and restart.
 
+## Deploy workflow tools (shipped 2026-05-20)
+
+Four new tools + four safety gates that close the "agent polls forever / restarts a busy worker" failure modes. Read this section if you're driving Press deploys/migrations from an LLM agent.
+
+### The 4 new tools
+
+| Tool | Use it when |
+|---|---|
+| `agent_health(server, lookback_minutes=10)` | BEFORE any "restart agent" thought. Verdict `healthy / slow / stuck / no_activity`. `slow` explicitly says DO NOT restart — the worker is mid-job and restarting will corrupt a live migrate. |
+| `agent_job_traceback(job_name, output_chars=4000)` | Post-mortem on a Failure / Pending / Undelivered row. One-shot return of `{status, job_type, site, output_tail, traceback_tail, age_seconds}`. Replaces the 4-roundtrip ssh + bench console + get_doc dance. |
+| `agent_job_progress(job_name, step_output_chars=1500)` | **Cursor-style live in-flight stream**. Poll every 3-10s while a job is running. Returns `{status, current_step, steps[], steps_summary, dashboard_url}` — same data the dashboard's `/dashboard/sites/<site>/jobs/<job>` page renders. Each step has its own status + output tail + duration. |
+| `site_update_and_wait(site_name, target_candidate, ...)` | After `bench_deploy_and_wait` reports build Success, sites on **standalone Press** don't auto-flip. Call this per site to trigger the migrate + block until the site's bench == target_candidate. |
+
+### The 4 safety gates inside `wait_for_bench_flip`
+
+Server-enforced, no agent opt-out. Each gate returns a structured status + a `hint` field telling the agent exactly what to call next.
+
+| Status | Meaning | Fix the gate hints at |
+|---|---|---|
+| `flipped` | Normal success — site is on `target_candidate`. | — |
+| `pending` | Real in-flight pending (migrate is running or just queued). | Keep polling, or switch to `agent_job_progress` for step-level visibility. |
+| `no_build` | The candidate has no Deploy Candidate Build. | Call `deploy_candidate_schedule_build` or `bench_deploy_and_wait`. |
+| `flip_not_triggered` | Build is Success but no Update Site Migrate job exists in the last 60 min. | Call `site_update_and_wait(site_name=..., target_candidate=...)`. |
+| `flip_failed` | The most recent Update Site Migrate FAILED (and optionally was rolled back by Recover Failed Site Migrate). Response includes `failed_migrate_job` + `recover_job`. | Call `agent_job_traceback(job_name=<failed_migrate_job>)` to see the error. |
+
+Gate D is invisible — if Undelivered jobs >2min old exist for the site, the gate runs ONE `poll_pending_jobs` call before returning (idempotent, same thing Press's scheduler does every 60s). If the auto-kick resolves the flip, response includes `gate_d_triggered: true`.
+
+### Canonical deploy chain (LLM-safe)
+
+```
+1. bench_deploy_information(name=<RG>)              # what's deployable?
+2. app_release_approve(release_name=<rel>)          # if any apps[].releases[].status == 'Draft'
+3. bench_deploy_and_wait(name=<RG>, apps=[...], site_name=<site>, max_wait_seconds=120)
+   # short wait — this only watches the build; site won't auto-flip on standalone
+
+4. (while building) agent_job_progress(job_name=<build job>)  # OPTIONAL — live stream
+5. deploy_candidate_status(name=<candidate>)        # confirm Success
+
+6. site_update_and_wait(site_name=<site>, target_candidate=<candidate>)
+   # trigger the per-site migrate + block until the bench actually flips
+
+7. wait_for_bench_flip(site_name=<site>, target_candidate=<candidate>)
+   # If status != 'flipped': read the hint. Gates will tell you exactly what's wrong.
+
+8. (on flip_failed) agent_job_traceback(job_name=<failed_migrate_job>)
+   # See the migrate error → fix the underlying bug → redeploy.
+```
+
+### Anti-pattern: "many Undelivered jobs → agent is dead → restart"
+
+This is **almost always wrong**. Restarting an agent mid-migrate corrupts the live DB. Check `agent_health` first:
+
+```bash
+curl ... --data-urlencode 'tool=agent_health' --data-urlencode 'args={"server":"press-f1.sandbox.mvpstorm.com"}'
+```
+
+If verdict is `slow` (worker has a Running job with fresh `modified`), wait. If `stuck` (Undelivered >2min and no recent activity), call `poll_pending_jobs` ONCE — the watchdog script does this safely:
+
+```bash
+ssh root@press-ctrl "sudo -u frappe /home/frappe/poll_watchdog.sh"
+# or:
+sudo -u frappe bench --site demo.mvpstorm.com execute press.press.doctype.agent_job.agent_job.poll_pending_jobs
+```
+
 ## Related docs
 
 - `press/docs/wiki/01-setup/` — getting Press running
