@@ -561,3 +561,95 @@ def bench_deploy_and_wait(
 		"elapsed_seconds": elapsed,
 		**{k: v for k, v in last_poll.items() if k != "status"},
 	}
+
+
+@frappe.whitelist()
+def agent_job_traceback(job_name: str, output_chars: int = 4000) -> dict[str, Any]:
+	"""One-shot diagnostic for a stuck/failed Agent Job.
+
+	Returns status + tail of output + tail of traceback in a single call —
+	replaces the 4-roundtrip "ssh press-ctrl, bench console, get_doc, print"
+	dance an agent otherwise has to do. Use whenever an Agent Job lands in
+	Failure / Pending / Undelivered for more than a couple of minutes and the
+	agent needs to see the actual error before deciding to restart anything.
+	"""
+	output_chars = max(500, min(20000, int(output_chars)))
+	if not frappe.db.exists("Agent Job", job_name):
+		frappe.throw(
+			f"Agent Job {job_name!r} does not exist",
+			frappe.DoesNotExistError,
+		)
+	doc = frappe.get_doc("Agent Job", job_name)
+	output = doc.output or ""
+	traceback = doc.traceback or ""
+	now = now_datetime()
+	return {
+		"name": doc.name,
+		"status": doc.status,
+		"job_type": doc.job_type,
+		"site": doc.site,
+		"server": doc.server,
+		"creation": doc.creation.isoformat() if doc.creation else None,
+		"modified": doc.modified.isoformat() if doc.modified else None,
+		"age_seconds": int((now - doc.creation).total_seconds()) if doc.creation else None,
+		"output_tail": output[-output_chars:],
+		"traceback_tail": traceback[-output_chars:],
+		"output_truncated": len(output) > output_chars,
+		"traceback_truncated": len(traceback) > output_chars,
+	}
+
+
+@frappe.whitelist()
+def site_update_and_wait(
+	site_name: str,
+	target_candidate: str,
+	skip_failing_patches: bool = False,
+	skip_backups: bool = False,
+	max_wait_seconds: int = 1500,
+	poll_interval_seconds: int = 30,
+) -> dict[str, Any]:
+	"""Trigger a Site Update (migrate to latest bench) + block until flipped.
+
+	On standalone Press setups, a successful Deploy Candidate Build does NOT
+	auto-flip sites onto the new bench — each site needs an explicit
+	site_update call. This wraps schedule_update + poll into one blocking
+	call so an agent doesn't have to manage the two-step dance manually.
+	Companion to bench_deploy_and_wait: build → then call this per site.
+	"""
+	import time
+
+	poll_interval = max(5, int(poll_interval_seconds))
+	max_wait = max(poll_interval, int(max_wait_seconds))
+
+	site = frappe.get_doc("Site", site_name)
+	job_name = site.schedule_update(
+		skip_failing_patches=skip_failing_patches,
+		skip_backups=skip_backups,
+	)
+	frappe.db.commit()
+
+	start = time.monotonic()
+	deadline = start + max_wait
+	last_poll: dict[str, Any] = {}
+	while time.monotonic() < deadline:
+		frappe.db.commit()
+		last_poll = wait_for_bench_flip(site_name=site_name, target_candidate=target_candidate)
+		if last_poll["status"] == "flipped":
+			elapsed = int(time.monotonic() - start)
+			return {
+				"site": site_name,
+				"status": "flipped",
+				"site_update_job": job_name,
+				"elapsed_seconds": elapsed,
+				**{k: v for k, v in last_poll.items() if k not in ("status", "site")},
+			}
+		time.sleep(poll_interval)
+
+	elapsed = int(time.monotonic() - start)
+	return {
+		"site": site_name,
+		"status": "timeout",
+		"site_update_job": job_name,
+		"elapsed_seconds": elapsed,
+		**{k: v for k, v in last_poll.items() if k not in ("status", "site")},
+	}

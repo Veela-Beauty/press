@@ -34,6 +34,8 @@ export const TOOL_CATALOG = {
 	deploy_candidate_status:  { category: 'readonly', risk: 'low', label: 'Deploy — Candidate Status',     desc: 'Status of a Deploy Candidate Build OR Candidate' },
 	site_status:              { category: 'readonly', risk: 'low', label: 'Site — Status',                 desc: 'Site bench + status + recent agent jobs' },
 	agent_job_list:           { category: 'readonly', risk: 'low', label: 'Agent Jobs — List',             desc: 'List recent Agent Jobs filtered by site / status / window' },
+	agent_job_traceback:      { category: 'readonly', risk: 'low', label: 'Agent Job — Traceback',         desc: 'One-shot diagnostic: returns status + output_tail + traceback_tail for an Agent Job. Use before deciding to restart anything.' },
+	agent_health:             { category: 'readonly', risk: 'low', label: 'Agent — Health Verdict',         desc: 'Derive healthy/slow/stuck/no_activity verdict for an app server. Check BEFORE recommending an agent restart.' },
 	wait_for_bench_flip:      { category: 'readonly', risk: 'low', label: 'Wait for Bench Flip',           desc: 'Async-style poll: returns flipped|pending for a site / candidate' },
 	audit_verify_chain:       { category: 'readonly', risk: 'low', label: 'Audit — Verify Hash Chain',     desc: 'System-User-only: verify MCP Call Log hash chain' },
 	bench_read_app_file:      { category: 'readonly', risk: 'low', label: 'Bench — Read App Source File',  desc: 'Read a file from apps/<app>/ inside the bench (1 MB cap, path-validated)' },
@@ -68,6 +70,7 @@ export const TOOL_CATALOG = {
 	site_remove_domain:          { category: 'site_lifecycle', risk: 'medium', label: 'Site — Remove Domain',             desc: 'Detach a custom domain from a site' },
 	site_set_host_name:          { category: 'site_lifecycle', risk: 'medium', label: 'Site — Set Host Name',             desc: 'Set the primary domain (host name) for a site' },
 	site_schedule_update:        { category: 'site_lifecycle', risk: 'medium', label: 'Site — Schedule Update',           desc: 'Schedule a Site Update (migrate to latest bench)' },
+	site_update_and_wait:        { category: 'site_lifecycle', risk: 'medium', label: 'Site — Update and Wait',           desc: 'One-shot site_update + block until site flips onto target_candidate (or timeout). Companion to bench_deploy_and_wait.' },
 	revoke_my_token:             { category: 'site_lifecycle', risk: 'medium', label: 'Revoke My Token',                  desc: 'Revoke an MCP token by docname' },
 
 	// FILE / CONFIG (medium risk)

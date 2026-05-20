@@ -77,6 +77,8 @@ _ARG_FRAGMENTS: dict[str, dict] = {
 	"branch": {"type": "string", "description": "Git branch or commit SHA"},
 	"script_path": {"type": "string", "description": "Repo-relative path to the Python script to execute"},
 	"public_key": {"type": "string", "description": "OpenSSH-format public key (e.g. 'ssh-ed25519 AAAA... user@host')"},
+	"server": {"type": "string", "description": "App server docname, e.g. 'press-f1.sandbox.mvpstorm.com'"},
+	"job_name": {"type": "string", "description": "Agent Job docname (10-char ID), e.g. 'jqc727far7'"},
 }
 
 
@@ -561,6 +563,71 @@ TOOLS: dict[str, dict] = {
 		"args_schema": _schema(
 			["name", "apps", "site_name"],
 			{
+				"max_wait_seconds": {
+					"type": "integer",
+					"minimum": 30,
+					"maximum": 1700,
+					"description": "Hard cap on the wait (default 1500 = 25 min; max 1700 to stay under Press's 1800s gunicorn timeout)",
+				},
+				"poll_interval_seconds": {
+					"type": "integer",
+					"minimum": 5,
+					"maximum": 300,
+					"description": "How often to re-check (default 30s, min 5s)",
+				},
+			},
+		),
+		"risk": "medium",
+	},
+	"agent_health": {
+		"method": "press.mcp_server.deploy_flow.agent_health",
+		"description": "Diagnose whether an app server's agent is healthy/slow/stuck/no_activity from Press-side Agent Job records. Use BEFORE recommending an agent restart — restarting a busy worker mid-migrate can corrupt the live DB. Verdict 'slow' = worker is on a long job, DO NOT restart. Verdict 'stuck' = Undelivered jobs piling up with no recent activity, investigate. Returns {verdict, reason, recent_jobs, last_success_seconds_ago, running_jobs, undelivered_jobs}. Args: server (app server docname); lookback_minutes (default 10, max 60).",
+		"required_args": ["server"],
+		"args_schema": _schema(
+			["server"],
+			{
+				"lookback_minutes": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 60,
+					"description": "Window in minutes to consider for activity (default 10, max 60)",
+				},
+			},
+		),
+		"risk": "low",
+	},
+	"agent_job_traceback": {
+		"method": "press.mcp_server.deploy_flow.agent_job_traceback",
+		"description": "One-shot diagnostic: returns {status, job_type, site, output_tail, traceback_tail, age_seconds} for an Agent Job. Use this whenever a job lands in Failure/Pending/Undelivered for >2 min and you need to see the actual error before deciding to restart anything. Replaces the 4-roundtrip ssh+console+get_doc dance.",
+		"required_args": ["job_name"],
+		"args_schema": _schema(
+			["job_name"],
+			{
+				"output_chars": {
+					"type": "integer",
+					"minimum": 500,
+					"maximum": 20000,
+					"description": "Chars of output + traceback tail to return (default 4000, max 20000)",
+				},
+			},
+		),
+		"risk": "low",
+	},
+	"site_update_and_wait": {
+		"method": "press.mcp_server.deploy_flow.site_update_and_wait",
+		"description": "ONE-SHOT site_update + wait. Triggers Site Update Migrate and BLOCKS until the site flips onto target_candidate or max_wait_seconds expires. Use AFTER bench_deploy_and_wait reports build Success but the site still hasn't flipped (standalone Press doesn't auto-flip — each site needs an explicit site_update). Returns {site, status: 'flipped'|'timeout', site_update_job, elapsed_seconds, current_bench, current_candidate}. Args: site_name (site FQDN); target_candidate (Deploy Candidate the site should end up on).",
+		"required_args": ["site_name", "target_candidate"],
+		"args_schema": _schema(
+			["site_name", "target_candidate"],
+			{
+				"skip_failing_patches": {
+					"type": "boolean",
+					"description": "Pass through to schedule_update; rarely needed (default false)",
+				},
+				"skip_backups": {
+					"type": "boolean",
+					"description": "Pass through to schedule_update; speeds up dev flips (default false)",
+				},
 				"max_wait_seconds": {
 					"type": "integer",
 					"minimum": 30,
