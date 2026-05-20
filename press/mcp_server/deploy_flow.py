@@ -338,7 +338,14 @@ def wait_for_bench_flip(
 			"Agent Job",
 			filters={
 				"site": site_name,
-				"job_type": ("in", ["Update Site Migrate", "Update Site Recover", "Update Site Migrate Steps"]),
+				"job_type": (
+					"in",
+					[
+						"Update Site Migrate",
+						"Update Site Migrate Steps",
+						"Recover Failed Site Migrate",
+					],
+				),
 				"creation": (">", add_to_date(None, minutes=-60)),
 			},
 			fields=["name", "job_type", "status", "creation"],
