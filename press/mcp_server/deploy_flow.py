@@ -837,3 +837,125 @@ def site_update_and_wait(
 		"elapsed_seconds": elapsed,
 		**{k: v for k, v in last_poll.items() if k not in ("status", "site")},
 	}
+
+
+@frappe.whitelist()
+def agent_job_progress(
+	job_name: str,
+	step_output_chars: int = 1500,
+	job_output_chars: int = 4000,
+) -> dict[str, Any]:
+	"""LIVE in-flight progress for an Agent Job — Cursor-style streaming.
+
+	Returns the job's current status PLUS its per-step status and output tails,
+	so an agent can poll this every few seconds during a deploy/migrate and
+	see exactly which step is running and what it's printing. Mirrors what the
+	dashboard's /dashboard/sites/<site>/jobs/<job_name> page renders.
+
+	Unlike agent_job_traceback (which is for post-mortem on Failure rows),
+	this is for IN-FLIGHT jobs you're watching. Call it on a loop.
+
+	Args:
+		job_name: Agent Job docname, e.g. 'sgc0i98rvm'.
+		step_output_chars: chars of each step's output tail (default 1500,
+			max 5000 — keeps response under MCP cap when 10+ steps).
+		job_output_chars: chars of the parent job's output/traceback tail
+			(default 4000, max 20000).
+
+	Returns:
+		{
+			"name": <job_name>,
+			"status": "Pending" | "Running" | "Success" | "Failure" | "Undelivered",
+			"job_type": <e.g. "Update Site Migrate">,
+			"site": <site or null>,
+			"server": <server or null>,
+			"bench": <bench or null>,
+			"creation": <iso>,
+			"modified": <iso>,
+			"age_seconds": <int>,
+			"current_step": <step_name of first Running/Failure step, or null>,
+			"steps": [
+				{
+					"step_name": ..., "status": ...,
+					"start": <iso or null>, "end": <iso or null>,
+					"duration": <iso 'HH:MM:SS' or null>,
+					"output_tail": <last N chars or empty>,
+					"traceback_tail": <last N chars or empty>,
+					"output_truncated": <bool>, "traceback_truncated": <bool>,
+				}, ...
+			],
+			"steps_summary": {"Pending": N, "Running": M, "Success": X, "Failure": Y},
+			"output_tail": <parent job output>,
+			"traceback_tail": <parent job traceback>,
+			"output_truncated": <bool>, "traceback_truncated": <bool>,
+			"dashboard_url": <link to the dashboard job page>,
+		}
+	"""
+	step_chars = max(200, min(5000, int(step_output_chars)))
+	job_chars = max(500, min(20000, int(job_output_chars)))
+
+	if not frappe.db.exists("Agent Job", job_name):
+		frappe.throw(
+			f"Agent Job {job_name!r} does not exist",
+			frappe.DoesNotExistError,
+		)
+	doc = frappe.get_doc("Agent Job", job_name)
+	now = now_datetime()
+
+	step_rows = frappe.get_all(
+		"Agent Job Step",
+		filters={"agent_job": job_name},
+		fields=["name", "step_name", "status", "start", "end", "duration", "output", "traceback"],
+		order_by="creation asc, name asc",
+		limit=100,
+	)
+
+	steps: list[dict] = []
+	summary: dict[str, int] = {}
+	current_step: str | None = None
+	for s in step_rows:
+		summary[s.status] = summary.get(s.status, 0) + 1
+		if current_step is None and s.status in ("Running", "Failure"):
+			current_step = s.step_name
+		output = s.output or ""
+		tb = s.traceback or ""
+		steps.append({
+			"step_name": s.step_name,
+			"status": s.status,
+			"start": s.start.isoformat() if s.start else None,
+			"end": s.end.isoformat() if s.end else None,
+			"duration": str(s.duration) if s.duration else None,
+			"output_tail": output[-step_chars:],
+			"traceback_tail": tb[-step_chars:],
+			"output_truncated": len(output) > step_chars,
+			"traceback_truncated": len(tb) > step_chars,
+		})
+
+	job_output = doc.output or ""
+	job_tb = doc.traceback or ""
+
+	dashboard_url = None
+	if doc.site:
+		dashboard_url = (
+			f"{frappe.utils.get_url()}/dashboard/sites/{doc.site}/jobs/{job_name}"
+		)
+
+	return {
+		"name": doc.name,
+		"status": doc.status,
+		"job_type": doc.job_type,
+		"site": doc.site,
+		"server": doc.server,
+		"bench": doc.bench,
+		"creation": doc.creation.isoformat() if doc.creation else None,
+		"modified": doc.modified.isoformat() if doc.modified else None,
+		"age_seconds": int((now - doc.creation).total_seconds()) if doc.creation else None,
+		"current_step": current_step,
+		"steps": steps,
+		"steps_summary": summary,
+		"output_tail": job_output[-job_chars:],
+		"traceback_tail": job_tb[-job_chars:],
+		"output_truncated": len(job_output) > job_chars,
+		"traceback_truncated": len(job_tb) > job_chars,
+		"dashboard_url": dashboard_url,
+	}

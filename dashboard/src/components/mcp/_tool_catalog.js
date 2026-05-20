@@ -35,6 +35,7 @@ export const TOOL_CATALOG = {
 	site_status:              { category: 'readonly', risk: 'low', label: 'Site — Status',                 desc: 'Site bench + status + recent agent jobs' },
 	agent_job_list:           { category: 'readonly', risk: 'low', label: 'Agent Jobs — List',             desc: 'List recent Agent Jobs filtered by site / status / window' },
 	agent_job_traceback:      { category: 'readonly', risk: 'low', label: 'Agent Job — Traceback',         desc: 'One-shot diagnostic: returns status + output_tail + traceback_tail for an Agent Job. Use before deciding to restart anything.' },
+	agent_job_progress:       { category: 'readonly', risk: 'low', label: 'Agent Job — Live Progress',     desc: 'Cursor-style live stream: status + per-step output + current_step. Mirrors the dashboard job page. Poll in a loop while jobs are in-flight.' },
 	agent_health:             { category: 'readonly', risk: 'low', label: 'Agent — Health Verdict',         desc: 'Derive healthy/slow/stuck/no_activity verdict for an app server. Check BEFORE recommending an agent restart.' },
 	wait_for_bench_flip:      { category: 'readonly', risk: 'low', label: 'Wait for Bench Flip',           desc: 'Async-style poll: returns flipped|pending|no_build|flip_not_triggered|flip_failed. Safety gates B/C/D/E embedded — never poll forever on a phantom build, skipped site_update, or rolled-back migrate.' },
 	audit_verify_chain:       { category: 'readonly', risk: 'low', label: 'Audit — Verify Hash Chain',     desc: 'System-User-only: verify MCP Call Log hash chain' },

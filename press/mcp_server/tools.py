@@ -613,6 +613,29 @@ TOOLS: dict[str, dict] = {
 		),
 		"risk": "low",
 	},
+	"agent_job_progress": {
+		"method": "press.mcp_server.deploy_flow.agent_job_progress",
+		"description": "LIVE in-flight progress for an Agent Job — Cursor-style streaming. Returns {status, current_step, steps[], steps_summary, output_tail, dashboard_url}. Each step has its own status + output_tail + duration. Mirrors the dashboard's /dashboard/sites/<site>/jobs/<job> page. Call this in a loop (every 3-10s) while a deploy/migrate is in-flight to see exactly which step is running and what it's printing. Use agent_job_traceback for post-mortem on Failure rows; use THIS for live watching.",
+		"required_args": ["job_name"],
+		"args_schema": _schema(
+			["job_name"],
+			{
+				"step_output_chars": {
+					"type": "integer",
+					"minimum": 200,
+					"maximum": 5000,
+					"description": "Chars of each step's output tail (default 1500, max 5000 — keeps response under cap)",
+				},
+				"job_output_chars": {
+					"type": "integer",
+					"minimum": 500,
+					"maximum": 20000,
+					"description": "Chars of the parent job's output/traceback tail (default 4000, max 20000)",
+				},
+			},
+		),
+		"risk": "low",
+	},
 	"site_update_and_wait": {
 		"method": "press.mcp_server.deploy_flow.site_update_and_wait",
 		"description": "ONE-SHOT site_update + wait. Triggers Site Update Migrate and BLOCKS until the site flips onto target_candidate or max_wait_seconds expires. Use AFTER bench_deploy_and_wait reports build Success but the site still hasn't flipped (standalone Press doesn't auto-flip — each site needs an explicit site_update). Returns {site, status: 'flipped'|'timeout', site_update_job, elapsed_seconds, current_bench, current_candidate}. Args: site_name (site FQDN); target_candidate (Deploy Candidate the site should end up on).",
