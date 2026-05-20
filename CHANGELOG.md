@@ -5,6 +5,25 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 20-05-2026 — MCP dispatcher: drop unknown args + fail-fast burst guard
+
+### Fixed
+- **Repeated `wait_for_bench_flip() got an unexpected keyword argument 'timeout'`.** A live agent ran a 30-iteration polling loop sending `{timeout: 25}` (which `wait_for_bench_flip` doesn't accept). Each call rejected in <1ms → no server-side delay → bursted the rate limit in seconds. Same failure mode would fire for any kwarg-typo'd loop. Two server-side guardrails now stop this at the source.
+
+### Added
+- **Dispatcher: schema-based arg filtering.** `press/mcp_server/server.py` now filters incoming `args` to ONLY the names declared in the tool's `args_schema.properties` (plus the meta-args `dry_run` + `suppress_hints`). Unknown args are dropped, logged via `frappe.log_error`, and never reach the Python method. A `wait_for_bench_flip(site_name=..., target_candidate=..., timeout=25, bogus="x")` call now succeeds — the unknown `timeout` and `bogus` are silently ignored. The classic "agent guessed an arg from the description" failure mode can no longer 500 the method.
+- **Fail-fast burst guard.** Same `(token, tool, rejection_kind, signature)` rejection 3x in <10s → guard fires with `BURST-GUARD: same X rejection on Y fired 3x in <10s. Fix the call before retrying.` Counter resets on guard-fire so the agent can retry once it fixes the call. Stored in-process per gunicorn worker; rate limiter (Redis-backed) is the cross-worker enforcement, this is the local "stop hammering" gate. Tracks two kinds today: `missing_required_args` and `unknown_args`.
+
+### Notes
+- 6/6 `press.test_auth` audit tests still pass.
+- Verified live: (1) `wait_for_bench_flip` with `{timeout, bogus}` extras returns `status: pending` cleanly. (2) Three identical missing-args rejections triggers `BURST-GUARD` on the 3rd; 4th call goes back to the normal error path (counter auto-reset).
+- The unknown-args drop is at the **MCP layer**, not the Python method. Methods don't change. This lets all 60+ tools benefit without per-method `**kwargs` plumbing.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `<this-commit>` — feat(mcp): drop unknown args + burst guard
+
+
 ## 20-05-2026 — MCP: 3 more methods + 1 SQL fix surfaced by a live agent run
 
 A real agent driving the erp_selfstorage Phase-0+1 deploy to `bench-0006` hit three workflow gaps. Each is now a tool:

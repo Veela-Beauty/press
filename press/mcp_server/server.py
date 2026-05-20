@@ -116,6 +116,7 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 					f" Got: {sent}. Expected: {spec['required_args']}. "
 					f"For the full args_schema, call {{tool: 'help', args: {{tool: {tool!r}}}}}."
 				)
+			_track_rejection(token_doc_name, tool, "missing_required_args", str(missing))
 			raise frappe.ValidationError(
 				f"missing required args: {missing}.{hint}"
 			)
@@ -136,11 +137,36 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 			)
 			return _wrap_success(response, args)
 
-		# Strip meta-args from dispatch (they're for the MCP layer, not the tool).
-		# - dry_run: high-risk dry-run gate
-		# - suppress_hints: silence the _hint key in successful responses
+		# Build dispatch_args by FILTERING to only schema-declared properties.
+		# Args the schema doesn't know about are dropped at the MCP layer with
+		# a logged warning — they don't reach the Python method (which would
+		# TypeError on the unexpected kwarg). Meta-args (dry_run, suppress_hints)
+		# are MCP-layer concerns and stripped here too.
+		# This stops the classic "agent guessed `timeout` from the description,
+		# blasts the rate limit because each call rejects in <1ms" failure mode.
 		_META_ARGS = {"dry_run", "suppress_hints"}
-		dispatch_args = {k: v for k, v in args.items() if k not in _META_ARGS}
+		schema_props = set(spec.get("args_schema", {}).get("properties", {}).keys())
+		# If the tool has no args_schema (legacy), fall back to required_args only
+		known_args = schema_props or set(spec.get("required_args", []))
+		dispatch_args = {}
+		ignored = []
+		for k, v in args.items():
+			if k in _META_ARGS:
+				continue
+			if k in known_args:
+				dispatch_args[k] = v
+			else:
+				ignored.append(k)
+		if ignored:
+			frappe.log_error(
+				title=f"MCP: dropped unknown args from {tool}",
+				message=f"token={token_doc_name} ignored={ignored} known={sorted(known_args)}",
+			)
+			# Track for fail-fast — agent that keeps sending unknown args
+			# in a tight loop should be stopped before it bursts the rate limit
+			_track_rejection(
+				token_doc_name, tool, "unknown_args", ",".join(sorted(ignored))
+			)
 
 		# Run tool as the resolved user
 		with _as_user(user):
@@ -457,6 +483,56 @@ def _candidate_to_release_group(name: str) -> str | None:
 		)
 	# Maybe the name IS a Deploy Candidate
 	return frappe.db.get_value("Deploy Candidate", name, "group")
+
+
+# Fail-fast burst guard: track per-token "same rejection N times in a row".
+# Stops agents that loop a malformed call from blasting the rate limit.
+# Stored in-process (single gunicorn worker) — if the same token hits a
+# different worker, the counter resets; that's acceptable since rate limit
+# itself is per-token across workers via Redis.
+_REJECTION_HISTORY: dict[str, dict[str, Any]] = {}
+_REJECTION_BURST_LIMIT = 3  # consecutive identical rejections before backoff
+_REJECTION_BURST_WINDOW_SECONDS = 10  # rejections within this window count as "in a row"
+
+
+def _track_rejection(
+	token_name: str | None, tool: str, kind: str, signature: str
+) -> None:
+	"""Track a rejection. Raises ValidationError with a clear back-off message
+	once the same token hits the same kind+signature {LIMIT} times in a row
+	within the burst window. Caller still raises its own ValidationError on
+	the first {LIMIT-1} attempts.
+	"""
+	if not token_name:
+		return
+	key = f"{token_name}::{tool}::{kind}::{signature}"
+	now = time.monotonic()
+	entry = _REJECTION_HISTORY.get(key)
+	if entry and now - entry["last_at"] < _REJECTION_BURST_WINDOW_SECONDS:
+		entry["count"] += 1
+		entry["last_at"] = now
+	else:
+		entry = {"count": 1, "last_at": now}
+	_REJECTION_HISTORY[key] = entry
+
+	# Prune anything older than 5x the window to keep dict tiny
+	if len(_REJECTION_HISTORY) > 1000:
+		cutoff = now - _REJECTION_BURST_WINDOW_SECONDS * 5
+		_REJECTION_HISTORY.clear()
+		# Re-add the live entry so the current request still sees it
+		_REJECTION_HISTORY[key] = entry
+
+	if entry["count"] >= _REJECTION_BURST_LIMIT:
+		# Reset so caller can retry after fixing — don't trap them forever
+		_REJECTION_HISTORY.pop(key, None)
+		raise frappe.ValidationError(
+			f"BURST-GUARD: same {kind} rejection on tool {tool!r} fired "
+			f"{_REJECTION_BURST_LIMIT}x in <{_REJECTION_BURST_WINDOW_SECONDS}s. "
+			f"Fix the call before retrying — likely your loop sends the same "
+			f"bad args repeatedly. Call {{tool: 'help', args: {{tool: {tool!r}}}}} "
+			f"for the correct args_schema. Counter reset; next call will be "
+			f"evaluated normally."
+		)
 
 
 def _log_call(
