@@ -5,6 +5,27 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 20-05-2026 — MCP: 3 more methods + 1 SQL fix surfaced by a live agent run
+
+A real agent driving the erp_selfstorage Phase-0+1 deploy to `bench-0006` hit three workflow gaps. Each is now a tool:
+
+### Fixed
+- **`deploy_candidate_status(name=<DC>)` → `Unknown column 'status' in 'SELECT'`.** The Deploy Candidate doctype has no `status` column (only Deploy Candidate Build does). Our SELECT included `status` for both branches. Fix: drop `status` from the Deploy Candidate SELECT and derive it from the **most recent Deploy Candidate Build** for that candidate (falls back to `'Draft'` if no build has been scheduled). Response also gains `latest_build`, `build_start`, `build_end` for the Deploy Candidate kind so the agent can poll progress without a second call.
+
+### Added
+- **`list_sites_on_release_group(release_group, status?)`** — `press.api.site.all()` only accepts status/tag/team filters, so an agent asking "which sites would be touched by a bench rebuild of RG X" had to fall back to client-side filtering of ALL sites. New tool does the join server-side: `frappe.get_all("Site", filters={"group": rg, ...})` with team-scoping. Returns `[{name, status, bench, team, host_name, group}, ...]`. Risk: low.
+- **`bench_set_app_branch(release_group, app, branch)`** — flips the App Source's git branch so the next Deploy Candidate Build pulls from a different branch. Use BEFORE `release_group_create_deploy_candidate` when you want to deploy a feature branch instead of whatever Press is currently pointed at. Without this, an agent has to either (a) merge the feature branch into Press's configured branch (lossy — destroys audit trail of the feature branch), or (b) ask a human to change the branch in the Desk UI. Risk: medium. The branch must exist on the configured repository — no pre-validation against GitHub (no token plumbing in MCP context).
+
+### Notes
+- 6/6 `press.test_auth` audits pass. Catalog parity audit shows 61 tools each side (was 59). Schema-vs-signature audit validates the 3 new tools.
+- The agent's deploy is in flight as of this commit: `bench-0006` Deploy Candidate Build for the Phase-0+1 erp_selfstorage release (`hc56udu00t`) is `Running`. Only `selfstorage-stg.sandbox.mvpstorm.com` has erp_selfstorage installed of the 13 sites on bench-0006; the other 12 won't run the migration patches.
+- `bench_set_app_branch` affects every Release Group that shares the same App Source. For per-RG branch isolation, the agent should create a new App Source in the Desk first. Documented in the tool's description.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `<this-commit>` — feat(mcp): deploy_candidate_status SQL fix + list_sites_on_release_group + bench_set_app_branch
+
+
 ## 19-05-2026 — MCP: `bench_deploy_and_wait` blocking tool + fix `suppress_hints` arg leak
 
 ### Fixed

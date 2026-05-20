@@ -89,17 +89,34 @@ def deploy_candidate_status(name: str) -> dict[str, Any]:
 			"build_end": row.build_end.isoformat() if row.build_end else None,
 		}
 	if frappe.db.exists("Deploy Candidate", name):
+		# Deploy Candidate doctype has no `status` column — derive it from the
+		# most recent Deploy Candidate Build (which IS the runtime entity).
+		# If no build has been scheduled, the candidate sits in 'Draft'.
 		row = frappe.db.get_value(
 			"Deploy Candidate",
 			name,
-			["name", "status", "group"],
+			["name", "group"],
+			as_dict=True,
+		)
+		latest_build = frappe.db.get_value(
+			"Deploy Candidate Build",
+			{"deploy_candidate": name},
+			["name", "status", "build_start", "build_end"],
+			order_by="creation desc",
 			as_dict=True,
 		)
 		return {
 			"kind": "candidate",
 			"name": row.name,
 			"release_group": row.group,
-			"status": row.status,
+			"status": latest_build.status if latest_build else "Draft",
+			"latest_build": latest_build.name if latest_build else None,
+			"build_start": latest_build.build_start.isoformat()
+			if latest_build and latest_build.build_start
+			else None,
+			"build_end": latest_build.build_end.isoformat()
+			if latest_build and latest_build.build_end
+			else None,
 		}
 	frappe.throw(
 		f"No Deploy Candidate or Deploy Candidate Build found with name {name!r}",
@@ -221,6 +238,102 @@ def wait_for_bench_flip(
 		"current_bench": current_bench,
 		"current_candidate": bench_candidate,
 		"target_candidate": target_candidate,
+	}
+
+
+@frappe.whitelist()
+def list_sites_on_release_group(release_group: str, status: str | None = None) -> list[dict[str, Any]]:
+	"""List sites whose bench belongs to the given Release Group, team-scoped.
+
+	`press.api.site.all()` doesn't accept a `release_group` filter — it filters
+	by status/tag/team. This shim does the cluster->bench->site join for you.
+	Useful for agents wanting "show me every site that'd be touched by a bench
+	rebuild of RG X" without manually iterating press.api.site.all().
+
+	Returns list of {name, status, bench, team, host_name}. Team-scoped:
+	non-System users only see sites owned by their team.
+	"""
+	from press.utils import get_current_team
+
+	filters: dict[str, Any] = {"group": release_group}
+	if status:
+		filters["status"] = status
+	if frappe.session.data.user_type != "System User":
+		filters["team"] = get_current_team()
+	return frappe.get_all(
+		"Site",
+		filters=filters,
+		fields=["name", "status", "bench", "team", "host_name", "group"],
+		order_by="creation desc",
+		limit=200,
+	)
+
+
+@frappe.whitelist()
+def bench_set_app_branch(
+	release_group: str,
+	app: str,
+	branch: str,
+) -> dict[str, Any]:
+	"""Change the Git branch the App Source uses for a Release Group.
+
+	This is what an operator does in the Desk to point an app at a feature
+	branch before triggering a new Deploy Candidate. Without this tool an
+	agent has to either (a) merge the feature branch into whatever branch
+	Press is configured for, or (b) ask a human to change the branch in
+	the Desk UI.
+
+	Args:
+		release_group: Release Group docname, e.g. 'bench-0006'
+		app: app name, e.g. 'erp_selfstorage'
+		branch: target git branch name, e.g. 'refactor/usage-type-as-license'
+
+	Returns:
+		{release_group, app, source, old_branch, new_branch}.
+
+	Notes:
+		- The branch must exist on the configured repository — if it doesn't,
+		  the next Deploy Candidate Build will fail at git-fetch time. We don't
+		  pre-validate against GitHub here (no token plumbing in MCP context).
+		- After calling this, trigger release_group_create_deploy_candidate +
+		  deploy_candidate_schedule_build to actually deploy the new branch.
+		  Or use bench_deploy_and_wait once you have the candidate.
+	"""
+	# Find the App Source for this (RG, app) pair. RG → ReleaseGroupApp child
+	# → source. We use the source's `branch` field; changing it affects every
+	# RG that shares this source. If you want per-RG branch isolation, create
+	# a new App Source first (out of scope for this tool).
+	source = frappe.db.get_value(
+		"Release Group App",
+		{"parent": release_group, "app": app},
+		"source",
+	)
+	if not source:
+		frappe.throw(
+			f"App {app!r} is not in Release Group {release_group!r}",
+			frappe.DoesNotExistError,
+		)
+	src_doc = frappe.get_doc("App Source", source)
+	old_branch = src_doc.branch
+	if old_branch == branch:
+		return {
+			"release_group": release_group,
+			"app": app,
+			"source": source,
+			"old_branch": old_branch,
+			"new_branch": branch,
+			"unchanged": True,
+		}
+	src_doc.branch = branch
+	src_doc.save(ignore_permissions=False)  # respects user's permissions on App Source
+	frappe.db.commit()
+	return {
+		"release_group": release_group,
+		"app": app,
+		"source": source,
+		"old_branch": old_branch,
+		"new_branch": branch,
+		"unchanged": False,
 	}
 
 

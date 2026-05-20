@@ -185,10 +185,33 @@ TOOLS: dict[str, dict] = {
 	},
 	"list_sites": {
 		"method": "press.api.site.all",
-		"description": "List Sites visible to the calling user",
+		"description": "List Sites visible to the calling user. Note: this is the broad team-scoped list with status/tag filters only — does NOT accept a release_group arg. Use list_sites_on_release_group to filter by RG.",
 		"required_args": [],
 		"args_schema": _schema([]),
 		"risk": "low",
+	},
+	"list_sites_on_release_group": {
+		"method": "press.mcp_server.deploy_flow.list_sites_on_release_group",
+		"description": "List sites belonging to a specific Release Group (team-scoped for non-System users). Use this when you want to know 'which sites would be touched by a bench rebuild of RG X'. Returns {name, status, bench, team, host_name, group} per site.",
+		"required_args": ["release_group"],
+		"args_schema": _schema(
+			["release_group"],
+			{
+				"status": {
+					"type": "string",
+					"enum": ["Active", "Inactive", "Suspended", "Pending", "Broken", "Archived"],
+					"description": "Optional status filter (default: all statuses)",
+				},
+			},
+		),
+		"risk": "low",
+	},
+	"bench_set_app_branch": {
+		"method": "press.mcp_server.deploy_flow.bench_set_app_branch",
+		"description": "Change the Git branch an App Source uses for a Release Group. Use BEFORE triggering a deploy candidate when you want to deploy a feature branch instead of whatever Press is currently pointed at. Args: release_group, app, branch. After this call, use release_group_create_deploy_candidate + deploy_candidate_schedule_build (or bench_deploy_and_wait). The branch must exist on the configured repository — no pre-validation here. Affects every RG that shares this App Source; for per-RG isolation, create a new App Source first via the Desk.",
+		"required_args": ["release_group", "app", "branch"],
+		"args_schema": _schema(["release_group", "app", "branch"]),
+		"risk": "medium",
 	},
 	# Token self-management
 	"list_my_tokens": {
