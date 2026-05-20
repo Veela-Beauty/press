@@ -319,10 +319,9 @@ def wait_for_bench_flip(
 				"hint": "Gate D auto-kicked poll_pending_jobs and the flip resolved.",
 			}
 
-	# Gate C: build is Success but no Update Site Migrate job exists.
-	# On standalone Press, sites don't auto-flip — the agent must call
-	# site_update explicitly. If we see no migrate job in the last 30min,
-	# the trigger step was skipped.
+	# Gate C/E: inspect site_update history for this site
+	# C: build Success but no migrate job → flip_not_triggered
+	# E: migrate FAILED and Recover rolled back → flip_failed (don't poll)
 	build_row = frappe.db.get_value(
 		"Deploy Candidate Build",
 		{"deploy_candidate": target_candidate},
@@ -331,15 +330,19 @@ def wait_for_bench_flip(
 		as_dict=True,
 	)
 	if build_row and build_row.status == "Success":
-		recent_migrate_count = frappe.db.count(
+		recent_migrate_jobs = frappe.get_all(
 			"Agent Job",
 			filters={
 				"site": site_name,
 				"job_type": ("in", ["Update Site Migrate", "Update Site Recover", "Update Site Migrate Steps"]),
 				"creation": (">", add_to_date(None, minutes=-30)),
 			},
+			fields=["name", "job_type", "status", "creation"],
+			order_by="creation desc",
+			limit=20,
 		)
-		if recent_migrate_count == 0:
+		# Gate C: no migrate job exists for this site
+		if not recent_migrate_jobs:
 			return {
 				"status": "flip_not_triggered",
 				"site": site_name,
@@ -355,6 +358,51 @@ def wait_for_bench_flip(
 					f"target_candidate={target_candidate!r}) to trigger the flip."
 				),
 			}
+		# Gate E: most recent migrate run finished (Failure or Recover Success)
+		# and site is STILL on old bench → flip failed and rolled back.
+		# Look for the most recent Update Site Migrate result.
+		migrate_results = [j for j in recent_migrate_jobs if j.job_type == "Update Site Migrate"]
+		if migrate_results:
+			last_migrate = migrate_results[0]
+			recover_after = [
+				j for j in recent_migrate_jobs
+				if j.job_type == "Recover Failed Site Migrate" and j.creation > last_migrate.creation
+			]
+			if last_migrate.status == "Failure" and recover_after:
+				return {
+					"status": "flip_failed",
+					"site": site_name,
+					"current_bench": current_bench,
+					"current_candidate": bench_candidate,
+					"target_candidate": target_candidate,
+					"build_status": build_row.status,
+					"failed_migrate_job": last_migrate.name,
+					"recover_job": recover_after[0].name,
+					"hint": (
+						f"Most recent Update Site Migrate for {site_name} "
+						f"({last_migrate.name}) FAILED at "
+						f"{last_migrate.creation.isoformat()}. Site was rolled "
+						f"back to old bench by Recover job {recover_after[0].name}. "
+						f"Call agent_job_traceback(job_name={last_migrate.name!r}) "
+						f"to see the migrate error before retrying."
+					),
+				}
+			if last_migrate.status == "Failure" and not recover_after:
+				return {
+					"status": "flip_failed",
+					"site": site_name,
+					"current_bench": current_bench,
+					"current_candidate": bench_candidate,
+					"target_candidate": target_candidate,
+					"build_status": build_row.status,
+					"failed_migrate_job": last_migrate.name,
+					"hint": (
+						f"Update Site Migrate {last_migrate.name} for {site_name} "
+						f"FAILED. No Recover job has run yet — site may be in a "
+						f"half-migrated state. Call agent_job_traceback("
+						f"job_name={last_migrate.name!r}) to see the error."
+					),
+				}
 
 	# Normal pending — flip is in-flight or scheduled
 	return {

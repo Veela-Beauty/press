@@ -189,11 +189,14 @@ class TestDeployFlow(FrappeTestCase):
 
 		with patch("press.mcp_server.deploy_flow.frappe.db.get_value", side_effect=fake_get_value), \
 				patch("press.mcp_server.deploy_flow.frappe.db.exists", return_value=True), \
-				patch("press.mcp_server.deploy_flow.frappe.db.count", return_value=0):
+				patch("press.mcp_server.deploy_flow.frappe.db.count", return_value=0), \
+				patch("press.mcp_server.deploy_flow.frappe.get_all", return_value=[]):
 			result = wait_for_bench_flip(
 				site_name="x.example.com",
 				target_candidate="deploy-NEW",
 			)
+		# Build is 'Building' (not Success) so Gates C/E don't fire; falls
+		# through to normal 'pending'.
 		self.assertEqual(result["status"], "pending")
 		self.assertEqual(result["current_candidate"], "deploy-OLD")
 		self.assertEqual(result["target_candidate"], "deploy-NEW")
@@ -261,10 +264,11 @@ class TestDeployFlow(FrappeTestCase):
 				return MagicMock(name="build-success", status="Success")
 			return None
 
-		# count=0 for both stale-Undelivered (Gate D) AND recent-migrate (Gate C)
+		# count=0 for stale-Undelivered (Gate D); get_all=[] for migrate (Gate C)
 		with patch("press.mcp_server.deploy_flow.frappe.db.get_value", side_effect=fake_get_value), \
 				patch("press.mcp_server.deploy_flow.frappe.db.exists", return_value=True), \
-				patch("press.mcp_server.deploy_flow.frappe.db.count", return_value=0):
+				patch("press.mcp_server.deploy_flow.frappe.db.count", return_value=0), \
+				patch("press.mcp_server.deploy_flow.frappe.get_all", return_value=[]):
 			result = wait_for_bench_flip(
 				site_name="x.example.com",
 				target_candidate="deploy-NEW",
@@ -272,6 +276,49 @@ class TestDeployFlow(FrappeTestCase):
 		self.assertEqual(result["status"], "flip_not_triggered")
 		self.assertEqual(result["build_status"], "Success")
 		self.assertIn("site_update_and_wait", result["hint"])
+
+	def test_gate_e_flip_failed_with_recover(self):
+		"""Gate E: Update Site Migrate FAILED and Recover Failed Site Migrate
+		ran after it → status='flip_failed'. This catches dmg-erp's exact
+		2026-05-20 state: agent was polling forever but the migrate already
+		failed at 06:55 and was rolled back at 07:06."""
+		from frappe.utils import now_datetime, add_to_date as _add
+		def fake_get_value(doctype, name, fieldname=None, *a, **kw):
+			if doctype == "Site":
+				return "bench-OLD-press-f1"
+			if doctype == "Bench":
+				return "deploy-OLD"
+			if doctype == "Deploy Candidate Build":
+				return MagicMock(name="build-success", status="Success")
+			return None
+
+		now = now_datetime()
+		fake_jobs = [
+			MagicMock(
+				name="recover-1", job_type="Recover Failed Site Migrate",
+				status="Success", creation=now,
+			),
+			MagicMock(
+				name="migrate-1", job_type="Update Site Migrate",
+				status="Failure", creation=_add(now, minutes=-11),
+			),
+		]
+		# Override the .name attr because MagicMock(name=...) sets the mock's name, not its .name attr
+		fake_jobs[0].name = "recover-1"
+		fake_jobs[1].name = "migrate-1"
+
+		with patch("press.mcp_server.deploy_flow.frappe.db.get_value", side_effect=fake_get_value), \
+				patch("press.mcp_server.deploy_flow.frappe.db.exists", return_value=True), \
+				patch("press.mcp_server.deploy_flow.frappe.db.count", return_value=0), \
+				patch("press.mcp_server.deploy_flow.frappe.get_all", return_value=fake_jobs):
+			result = wait_for_bench_flip(
+				site_name="x.example.com",
+				target_candidate="deploy-NEW",
+			)
+		self.assertEqual(result["status"], "flip_failed")
+		self.assertEqual(result["failed_migrate_job"], "migrate-1")
+		self.assertEqual(result["recover_job"], "recover-1")
+		self.assertIn("agent_job_traceback", result["hint"])
 
 	def test_gate_d_kicks_poll_pending_jobs_when_stale_undelivered(self):
 		"""Gate D: stale Undelivered jobs >2min old trigger ONE
@@ -301,6 +348,7 @@ class TestDeployFlow(FrappeTestCase):
 		with patch("press.mcp_server.deploy_flow.frappe.db.get_value", side_effect=fake_get_value), \
 				patch("press.mcp_server.deploy_flow.frappe.db.exists", return_value=True), \
 				patch("press.mcp_server.deploy_flow.frappe.db.count", side_effect=fake_count), \
+				patch("press.mcp_server.deploy_flow.frappe.get_all", return_value=[]), \
 				patch("press.press.doctype.agent_job.agent_job.poll_pending_jobs", side_effect=fake_poll), \
 				patch("press.mcp_server.deploy_flow.frappe.db.commit"):
 			result = wait_for_bench_flip(

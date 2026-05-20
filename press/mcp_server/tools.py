@@ -551,7 +551,7 @@ TOOLS: dict[str, dict] = {
 	},
 	"wait_for_bench_flip": {
 		"method": "press.mcp_server.deploy_flow.wait_for_bench_flip",
-		"description": "Single-shot poll (NOT a blocking wait — call it again to re-poll). Returns {status: 'flipped'|'pending'|'no_build'|'flip_not_triggered', current_bench, current_candidate, target_candidate, site, hint?}. Args: site_name (site FQDN, NOT the bench docname); target_candidate (Deploy Candidate docname returned by bench_deploy). NO timeout arg — caller decides cadence. SAFETY GATES: 'no_build' = the candidate has no Deploy Candidate Build, STOP polling. 'flip_not_triggered' = build succeeded but no Update Site Migrate job exists, STOP polling and call site_update_and_wait. Returned hint tells you exactly what to do next. For a single-call blocking wait, use bench_deploy_and_wait instead.",
+		"description": "Single-shot poll (NOT a blocking wait — call it again to re-poll). Returns {status: 'flipped'|'pending'|'no_build'|'flip_not_triggered'|'flip_failed', current_bench, current_candidate, target_candidate, site, hint?}. Args: site_name (site FQDN, NOT the bench docname); target_candidate (Deploy Candidate docname returned by bench_deploy). NO timeout arg — caller decides cadence. SAFETY GATES: 'no_build' = the candidate has no Deploy Candidate Build, STOP polling. 'flip_not_triggered' = build succeeded but no Update Site Migrate job exists, STOP polling and call site_update_and_wait. 'flip_failed' = the Update Site Migrate FAILED and was rolled back; call agent_job_traceback on the failed_migrate_job to see the error. Returned hint tells you exactly what to do next.",
 		"required_args": ["site_name", "target_candidate"],
 		"args_schema": _schema(["site_name", "target_candidate"]),
 		"risk": "low",
