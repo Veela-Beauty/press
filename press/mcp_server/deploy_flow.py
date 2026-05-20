@@ -227,9 +227,13 @@ def wait_for_bench_flip(
 		no_build             target_candidate has no Deploy Candidate Build —
 		                     the build was never triggered. STOP polling.
 		flip_not_triggered   build succeeded but no Update Site Migrate job
-		                     exists in the last 30 min — site_update was
+		                     exists in the last 60 min — site_update was
 		                     never called. STOP polling, call
 		                     site_update_and_wait instead.
+		flip_failed          most recent Update Site Migrate FAILED (and was
+		                     rolled back by Recover Failed Site Migrate, if
+		                     that ran). STOP polling, call agent_job_traceback
+		                     on the failed_migrate_job to see the error.
 
 	Safety gates (server-enforced, can't be bypassed by agent):
 		Gate B (no_build)            return early with hint instead of looping
@@ -335,7 +339,7 @@ def wait_for_bench_flip(
 			filters={
 				"site": site_name,
 				"job_type": ("in", ["Update Site Migrate", "Update Site Recover", "Update Site Migrate Steps"]),
-				"creation": (">", add_to_date(None, minutes=-30)),
+				"creation": (">", add_to_date(None, minutes=-60)),
 			},
 			fields=["name", "job_type", "status", "creation"],
 			order_by="creation desc",
@@ -353,7 +357,7 @@ def wait_for_bench_flip(
 				"hint": (
 					f"Build {build_row.name} for {target_candidate} is Success but "
 					f"no Update Site Migrate job exists for {site_name} in the "
-					f"last 30 min. On standalone Press, sites don't auto-flip — "
+					f"last 60 min. On standalone Press, sites don't auto-flip — "
 					f"call site_update_and_wait(site_name={site_name!r}, "
 					f"target_candidate={target_candidate!r}) to trigger the flip."
 				),
