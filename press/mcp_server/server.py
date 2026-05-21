@@ -26,6 +26,57 @@ from press.mcp_server.tools import get_tool_spec, get_tool_risk, list_tool_names
 
 MAX_ARGS_LOG_LEN = 5000  # truncate long arg payloads in audit log
 
+# Gate A — tools that can corrupt in-flight work if the agent is mid-job.
+# These get refused when agent_health(server) verdict == 'slow' unless the
+# caller passes args.force=true. The arg key used to find the bench/server.
+_GATE_A_GUARDED_TOOLS: dict[str, str] = {
+	# tool_name → arg_key holding the bench docname
+	"bench_restart": "name",
+	"bench_update": "name",
+}
+
+
+def _check_busy_worker_guard(tool: str, dispatch_args: dict) -> dict | None:
+	"""Return a dict {server, error} if Gate A should refuse the call, else None.
+
+	Best-effort: if anything in the check raises (bench not found, agent_health
+	import fails, etc.), we allow the call through — guards must never break
+	legitimate ops. The audit log captures both the refusal and the bypass.
+	"""
+	try:
+		from press.mcp_server.deploy_flow import agent_health
+
+		arg_key = _GATE_A_GUARDED_TOOLS[tool]
+		bench_name = dispatch_args.get(arg_key)
+		if not bench_name:
+			return None
+		server = frappe.db.get_value("Bench", bench_name, "server")
+		if not server:
+			return None
+		verdict = agent_health(server=server, lookback_minutes=5)
+		if verdict.get("verdict") == "slow":
+			reason = verdict.get("reason", "agent is mid-job")
+			running = verdict.get("running_jobs", [])
+			running_summary = ", ".join(
+				f"{j.get('job_type', '?')} ({j.get('age_seconds', '?')}s old)"
+				for j in running[:3]
+			)
+			return {
+				"server": server,
+				"error": (
+					f"Gate A refusal: {tool!r} blocked because {server!r} agent is "
+					f"verdict='slow'. {reason} Running jobs: {running_summary}. "
+					f"Restarting now would kill mid-flight work and may corrupt the "
+					f"live DB. Pass args.force=true to override (audit-logged)."
+				),
+			}
+	except Exception as e:  # noqa: BLE001 — guard must never block legitimate ops
+		frappe.log_error(
+			title=f"MCP Gate A: check failed for {tool}",
+			message=f"args={dispatch_args} err={e}",
+		)
+	return None
+
 
 @contextmanager
 def _as_user(user: str):
@@ -167,6 +218,19 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 			_track_rejection(
 				token_doc_name, tool, "unknown_args", ",".join(sorted(ignored))
 			)
+
+		# Gate A — busy-worker restart guard.
+		# Restarting an agent (bench_restart) or rebuilding a bench (bench_update)
+		# while the agent has a Running migrate/backup job mid-flight will kill
+		# the job mid-write and can corrupt the live DB. This guard refuses
+		# those tools when agent_health(server) returns verdict='slow'.
+		# Bypass with args.force=true (logged in audit). The verdict source is
+		# Press-side Agent Job records, no agent-side polling needed.
+		if tool in _GATE_A_GUARDED_TOOLS and not args.get("force"):
+			gate_a_block = _check_busy_worker_guard(tool, dispatch_args)
+			if gate_a_block is not None:
+				_track_rejection(token_doc_name, tool, "busy_worker_guard", gate_a_block["server"])
+				raise frappe.ValidationError(gate_a_block["error"])
 
 		# Run tool as the resolved user
 		with _as_user(user):
