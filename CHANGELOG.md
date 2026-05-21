@@ -5,6 +5,46 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 21-05-2026 — Decom sweep Session 2: 7 more crons + intentional skips
+
+Continuation of Session 1 (`3b7d613651`). Audit identified **17 unpatched crons** total. Session 1 fixed the top 3; Session 2 finishes the sweep with 7 more, leaving 2 intentionally unpatched (with documented reasoning).
+
+### Patched (all use existing helpers from `press/utils/decom.py`)
+
+| Cron | File | Pattern |
+|---|---|---|
+| `sync_binlogs_info` | database_server.py:2428 | `is_database_server_in_decommissioned_cluster()` |
+| `remove_uploaded_binlogs_from_disk` | database_server.py:2454 | same |
+| `remove_uploaded_binlogs_from_s3` | database_server.py:2474 | same |
+| `schedule_updates` | site_update.py:855 | `is_decommissioned: 0` in filter |
+| `scale_workers` | server.py:3560 | `is_decommissioned: 0` in filter |
+| `update_cpu_usages` | site/site_usages.py:35 | `is_decommissioned: 0` in filter |
+| `sync_benches` | bench.py:1635 | `is_bench_on_decommissioned_server()` |
+| `fetch_stalks` | mariadb_stalk.py:67 | `is_database_server_in_decommissioned_cluster()` |
+| `add_public_servers_to_public_groups` | release_group.py:1930 | `is_decommissioned: 0` in filter |
+
+### Two patterns used
+- **Direct tabServer fetches** → add `"is_decommissioned": 0` to the existing filter dict. Cheapest fix, no helper call.
+- **Indirect (Database Server / Bench) fetches** → import helper, skip in Python loop. Database Server doctype has no flag of its own; the helper walks the link.
+
+### NOT patched (intentional)
+- **`fail_old_jobs`** (agent_job.py:649) — marks 2+-day-old jobs as Failure. This is CLEANUP of existing stuck jobs. Skipping decom-server jobs here would leave them stuck in Pending forever — worse than the status quo.
+- **`archive_broken_benches`** (bench.py:1533) — same logic. Even on dead servers, marking the bench as Archived prevents pile-up. The archive job timeout is the right failure mode.
+
+Both decisions documented in `feedback_dead-server-cleanup-audit-first.md` so a future engineer doesn't "fix" them and accidentally break the cleanup path.
+
+### Coverage after Sessions 1+2
+- 5 snapshot crons (`f6087e11e0`)
+- 8 schedule/sync crons (`3b7d613651` + `2ff6fd2a99`)
+- 2 cleanup crons left running on decom servers (intentional)
+
+**= 15 of 17 audited crons protected; 2 intentionally not.**
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `2ff6fd2a99` — feat(decom): Session 2 sweep — 7 more crons
+
+
 ## 21-05-2026 — Decom sweep Session 1: shared helpers + 3 highest-waste crons patched
 
 Cron audit (after the snapshot fix) identified **17 unpatched crons** with the same class of bug — picking targets from lower-level doctypes (VM, Site, Bench, Agent Job) without checking the linked `tabServer.is_decommissioned`. This commit ships Session 1: the shared helpers + the top 3 by waste rate.
