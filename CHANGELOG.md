@@ -5,6 +5,49 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 21-05-2026 — StatCard + statCardClasses.js + dashboard design-system wiki
+
+Sibling to the tabs unification earlier today. Audit found **31 stat cards across 7 files** with drifting font-weight (bold vs semibold), label transform (UPPERCASE vs none), label size (text-xs vs text-sm vs text-[10px]). User feedback: "too many number cards have same icon in left padding/border — audit them and unify."
+
+### Added — shared primitives
+- **`dashboard/src/components/_shared/statCardClasses.js`** — `STAT_CARD_BASE`, `STAT_LABEL`, `STAT_NUMBER`, `STAT_SUBLINE`, `STAT_NUMBER_COLORS` (intent tokens: `default` / `good` / `warn` / `bad` / `info` / `muted`), `statNumberClass()` helper.
+- **`dashboard/src/components/_shared/StatCard.vue`** — props `{label, number, subline, color}` with slots for `#number` (custom formatting) and `#sub` (custom subline rendering).
+
+### Retrofitted — 5 files, 21 cards
+- `AdminPanel.vue` (5 cards: Teams / Sites / Benches / Monthly Cost / Servers)
+- `ServerBackups.vue` (4 cards: Total / Enabled / Scheduled / Last Failed)
+- `BackupServers.vue` (4 cards: Total / Enabled / Connected / Disconnected)
+- `BackupClients.vue` (4 cards: Total / Healthy / Warning / Critical)
+- `BackupRunLog.vue` (4 cards: Total Runs / Success Rate / Avg Duration / Total Data) — `successRateColor` refactored to `successRateColorToken` returning intent tokens (`good`/`warn`/`bad`) instead of raw CSS classes.
+
+All 21 cards now share **identical** styling. New stat cards on the dashboard MUST use `<StatCard>` or import from `statCardClasses.js`.
+
+### Anti-patterns explicitly forbidden (per user feedback + audit)
+- **Left-padding icon** inside a stat card (preventive — audit found NONE currently exist, user wants to keep it that way).
+- **Left-border-color accent** (preventive — same reason).
+- Custom font-weight, padding, label size, raw color classes — use the tokens.
+
+### Added — developer-facing wiki page
+`press/docs/wiki/02-operations/dashboard-design-system.md` documents both tabs + cards with copy-pasteable examples + the anti-patterns audit found. New design primitives (chips, badges, button groups) should follow the same pattern: extract to `_shared/`, add a memory rule, document on this wiki page.
+
+### Memory rule
+`feedback_dashboard-card-style-shared-source.md` added + indexed in MEMORY.md Critical Rules. Next agent (and me next session) will see it before adding a new stat card.
+
+### Deferred (auditor flagged for Phase 2)
+- `CodeHealth.vue` — health-score cards with color-coded ranges + sub-stats. Needs a multi-line variant before retrofit.
+- `BackupClientDetail.vue` — has a storage-with-progress-bar card. Use inline `STAT_CARD_BASE` + classes; full component refactor not worth the slot complexity.
+
+### Live verified (Playwright on /dashboard/admin)
+- 5 stat cards rendered via `<StatCard>`
+- "Monthly Cost" number color = `rgb(0, 123, 224)` (blue, confirms `color="info"` → `text-blue-600` token mapping works)
+- 16px padding (`p-4`) consistent across all cards
+- Screenshot: `.playwright-mcp/admin_stat_cards_unified.png`
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `740cb95119` — feat(dashboard): StatCard + statCardClasses.js + design-system wiki
+
+
 ## 21-05-2026 — tabClasses.js: single source of truth for dashboard tab styling
 
 User feedback: "tabs style and size and height aren't same across all tabs across pages." Audit confirmed: **4 conflicting active-tab patterns** (bold-only, blue underline, gray background, pill+ring), **3 font sizes** (xs / sm / base), **3 paddings** (py-1.5 / py-2 / py-2.5).
