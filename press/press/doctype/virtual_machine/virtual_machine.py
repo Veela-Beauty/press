@@ -2663,6 +2663,14 @@ def snapshot_aws_servers():
 		app_server = frappe.get_value("Server", {"virtual_machine": machine}, "name")
 		try:
 			server: "Server" = frappe.get_doc("Server", app_server)
+			# Skip decommissioned servers — their VM may still be Running but
+			# the operator has signalled "stop spending compute on this".
+			# Without this guard, 1798 Snapshot Disk jobs accumulated against
+			# 4 decommissioned test servers in 2 days (2026-05-21 incident).
+			# Database Server doesn't have its own is_decommissioned flag —
+			# the app server's flag is authoritative for the cluster.
+			if server.is_decommissioned:
+				continue
 			servers = [
 				["Server", server.name],
 				["Database Server", server.database_server],
