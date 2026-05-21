@@ -5,6 +5,48 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 21-05-2026 — MCP page restructure: 4 tabs (Active Tokens default) + style polish
+
+Long-stacked layout replaced with tabs at the top of `/dashboard/dev-tools/mcp`. Less scroll, clearer mental model. Multiple user-feedback iterations consolidated here.
+
+### Final layout
+```
+[ Active Tokens (default) | MCP Guide | Quickstart | Recent Calls ]
+   ↑ bold-only active style, no underline / pill / shape change
+[ active tab body ]
+[ Test Tool Call section ]
+```
+
+### Tab contents
+- **Active Tokens** (default) — token cards + Copy/Reissue/Revoke + summary chips + Issue + Purge expired + scope-details expand. Extracted to `MCPActiveTokensBody.vue` (~250 lines). Search by label or tool. Auto-refreshes after Issue Token dialog completes.
+- **MCP Guide** — catalog of all 66 tools. Search + risk filter. Per-tool: args table, Copy curl button, expandable example call. Catalog-driven (`tools.py` + `args_schema`) — never drifts.
+- **Quickstart** (renamed from "How to use MCP") — token-issuance walkthrough + canonical recipes (Playwright passwordless login, deploy chain, agent diagnostics).
+- **Recent Calls** — paginated audit log with 10s background poll, page size selector, status pills.
+
+### MCPPanel.vue cleanup
+Removed ~200 lines of token-card template + scopeBuckets, toolsInCategory, toggleScopeDetail, filteredTokens, summary, onPurgeExpired, performRevoke, onShowHandover, onReissue, onRevoke, tokenRiskCount, statusClass, formatDate (all moved into MCPActiveTokensBody.vue). Kept `loadTokens` because the Test Tool Call dropdown still needs the list.
+
+### Wire mechanism (Issue → tab refresh)
+- MCPPanel: `ref="topTabs"` on MCPTopTabs + `@issue="showIssueDialog=true"`
+- MCPTopTabs: `defineExpose({ refreshTokens })` — switches to Active Tokens tab + reloads body
+- IssueTokenDialog `@issued` → `onTokenIssued()` refreshes BOTH the local list (Test Tool Call) AND the body (cards)
+
+### Style fixes from user feedback
+- **Tool name pill invisible** (text-emerald-300 on bg-gray-900 rendered as black-on-black in production CSS): switched to inline `style="background-color: #1f2937; color: #6ee7b7"` — survives any Tailwind purge.
+- **Active-tab underline removed**: original `border-b-2 border-blue-600` matched Frappe Press patterns (e.g. HandoverPanel) but didn't match user's preferred design language. Replaced with bold-only: active = `font-bold text-gray-900`, inactive = `font-medium text-gray-500`.
+
+### Live verified (Playwright)
+- All 4 tab buttons render with correct labels
+- Active Tokens default-open with summary chips + Master token row + Issue + Purge expired
+- MCP Guide tool name pill computed colors: `rgb(31,41,55)` bg + `rgb(110,231,183)` text (visible contrast)
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `6d8c9537b1` — feat(mcp): top tabs — How to use | MCP Guide | Recent Calls
+  - `571b418c5c` — feat(mcp): 4-tab layout + Active Tokens default + invisible-pill fix
+  - `f9b43c4863` — fix(mcp): drop active-tab underline (bold-only)
+
+
 ## 21-05-2026 — MCP Guide: dashboard tool catalog (catalog-driven, never drifts)
 
 Closes the "humans can't browse what MCP tools exist and what they do" gap. New collapsible **MCP Guide** box on `/dashboard/dev-tools/mcp` renders every tool from `tools.py` as a card with: name, risk badge, 1-line description, args table (name | type | required | description), and a copy-pasteable curl example. Search box + risk filter at the top.
