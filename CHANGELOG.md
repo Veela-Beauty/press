@@ -5,6 +5,40 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 21-05-2026 — Admin: hide decommissioned / IP-less servers + decommission 4 dead test servers
+
+User asked "why all these servers appear — only 3 are working?" After full dependency audit:
+- 4 `f-000*` (app), 4 `m29*` (DB), 4 `n00000*` (proxy) = 12 dead test rows from 2026-05-19
+- All 4 clusters were **coupled** (app → DB + proxy via FK link columns). NOT orphans.
+- 1798 `tabPress Job` rows (Snapshot Disk) + 30 Site Backups + 44 Agent Jobs reference them as history.
+
+### Done — safe cleanup only
+- **Decommissioned 4 f-000\* app servers** via UI Decommission button (Playwright). `is_decommissioned=1`. Reversible. Zero data loss.
+- **NO row deletion.** All 12 dead rows + their history stay in the DB.
+
+### Added — UI filter (5a2cd96b00)
+`ServerAdmin.vue` `displayServers` computed now:
+- Hides decommissioned by default (`!s.is_decommissioned`)
+- Hides IP-less servers by default (`s.ip`) — catches the m29*/n00000* that don't have an `is_decommissioned` field on their parent doctype
+- Toggle: `Show decommissioned (N)` checkbox in the header reveals all 15
+
+### Result on /dashboard/admin → Servers tab
+- **Default**: 3 rows visible (u4, u5, press-f1 — the 3 real production servers)
+- **Toggle ticked**: 15 rows (3 real + 12 dead test rows)
+- Summary cards: Total 15 / Active 11 / Decommissioned 4 / Effective Cost €36
+
+### Near-miss + the lesson
+My initial audit said "m29* and n00000* have zero deps — safe to DELETE." A paranoid re-check before the DELETE caught that they were FK-linked to the f-000* app servers via `tabBench.database_server` and `tabServer.proxy_server` columns. **Press has 3 server doctypes that cross-link; the obvious `WHERE server = X` audit misses these joins.** Memory rule `feedback_dead-server-cleanup-audit-first.md` documents the right audit template + the "decommission first, UI filter second, delete never inline" rule.
+
+### Out of scope (deferred)
+- **`server_snapshot.move_pending_snapshots_to_processing` cron** is still firing Snapshot Disk jobs against the decommissioned f-000* servers (1798 jobs in 2 days). The cron may not respect `is_decommissioned`. Separate followup: read `press/press/doctype/server_snapshot/server_snapshot.py` and confirm/patch the scheduler skips decommissioned servers.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `7ff53d9c9c` — feat(admin): hide decommissioned servers by default (with toggle)
+  - `5a2cd96b00` — fix(admin): also hide IP-less servers (test/incomplete provision rows)
+
+
 ## 21-05-2026 — StatCard + statCardClasses.js + dashboard design-system wiki
 
 Sibling to the tabs unification earlier today. Audit found **31 stat cards across 7 files** with drifting font-weight (bold vs semibold), label transform (UPPERCASE vs none), label size (text-xs vs text-sm vs text-[10px]). User feedback: "too many number cards have same icon in left padding/border — audit them and unify."
