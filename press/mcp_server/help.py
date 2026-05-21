@@ -327,3 +327,52 @@ def get_server_recipes() -> list[dict]:
 	recipes without going through the MCP token dispatch path.
 	"""
 	return SERVER_RECIPES
+
+
+@frappe.whitelist()
+def get_tool_catalog_for_guide() -> dict[str, Any]:
+	"""Return the full MCP tool catalog grouped by category for the
+	dashboard's MCP Guide tab.
+
+	Catalog-driven docs — every tool's title, description, args_schema, risk
+	level, and a copy-pasteable example call. Reading this is equivalent to
+	reading tools.py. Updates automatically when tools.py changes.
+
+	Different from `get_tool_help` (called via MCP token dispatch) because:
+	- No token required (dashboard guide is for browsing, not calling).
+	- Always returns ALL tools (not scope-filtered) — humans want to see the
+	  full menu, including tools they'd need to request scope for.
+	- Returns example_call inline for every tool, not just on detail requests.
+	"""
+	categories_out = []
+	for cid, meta in CATEGORIES.items():
+		tools_in_cat = []
+		for tool_name in list_tool_names():
+			if TOOL_CATEGORY.get(tool_name, "readonly") != cid:
+				continue
+			spec = TOOLS[tool_name]
+			tools_in_cat.append({
+				"name": tool_name,
+				"description": spec.get("description", ""),
+				"risk": spec.get("risk", "medium"),
+				"required_args": spec.get("required_args", []),
+				"args_schema": spec.get("args_schema", {"type": "object", "properties": {}, "required": []}),
+				"method": spec.get("method"),
+				"example_call": _example_call(tool_name, spec),
+			})
+		if not tools_in_cat:
+			continue
+		# Stable alpha order within each category
+		tools_in_cat.sort(key=lambda t: t["name"])
+		categories_out.append({
+			"id": cid,
+			"label": meta["label"],
+			"tone": meta["tone"],
+			"tools": tools_in_cat,
+			"count": len(tools_in_cat),
+		})
+	return {
+		"categories": categories_out,
+		"total": sum(c["count"] for c in categories_out),
+		"recipes": SERVER_RECIPES,
+	}

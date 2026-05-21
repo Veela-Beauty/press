@@ -12,6 +12,7 @@
 		</div>
 
 		<MCPHowToBox />
+		<MCPGuideBox />
 
 		<section class="rounded border border-gray-200 bg-white">
 			<!-- Header: title + risk summary + search -->
@@ -339,6 +340,7 @@ import { confirmDialog } from '../../../utils/components';
 import IssueTokenDialog from '../../../components/mcp/IssueTokenDialog.vue';
 import HandoverPanel from '../../../components/mcp/HandoverPanel.vue';
 import MCPHowToBox from '../../../components/mcp/MCPHowToBox.vue';
+import MCPGuideBox from '../../../components/mcp/MCPGuideBox.vue';
 import {
 	toolLabel,
 	TOOL_CATALOG,
