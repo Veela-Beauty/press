@@ -5,6 +5,32 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 20-05-2026 — Gate A: dispatcher-level busy-worker restart guard
+
+Closes the "restart a busy migrate worker → corrupt the live DB" failure mode that nearly hit selfstorage-stg on 2026-05-20 (the agent recommended `supervisorctl restart agent:` while the worker was 8min into a migrate).
+
+### Added
+- **`press/mcp_server/server.py:_check_busy_worker_guard`** — server-side refusal of `bench_restart` and `bench_update` when the target bench's agent verdict (via `agent_health(server, lookback_minutes=5)`) is `'slow'`. Error message names the running jobs + their ages so the caller knows what they were about to kill.
+- **`_GATE_A_GUARDED_TOOLS`** registry — explicit list of tools the guard fires on. Today: `{bench_restart, bench_update}`. Add tools here as the catalog grows.
+- **`args.force=true` bypass** — for genuine emergencies the agent can override the guard. The bypass is audit-logged via the existing `_track_rejection` path (`rejection_kind='busy_worker_guard'`).
+- **Fail-open**: any exception in the guard itself (bench not found, agent_health import broken, db down) logs to `frappe.log_error` and **allows the call through**. Guards must never block legitimate ops because of their own bugs.
+
+### Tests (4)
+- `test_refuses_bench_restart_when_agent_is_slow` — happy refusal path
+- `test_allows_bench_restart_when_agent_is_healthy` — pass-through
+- `test_allows_when_bench_not_found` — fail-open for unknown bench
+- `test_allows_when_agent_health_raises` — fail-open + log_error verified
+
+### Notes
+- Verified live on autodeploypanel: with `press-f1` verdict='healthy' (last Success 46s ago), a real `bench_restart` call passed the guard and created agent job `f2lgpjcume`.
+- Independent of `wait_for_bench_flip` gates B/C/D/E (those are read-side; Gate A is write-side).
+- Repair: discovered `agent_health` had not landed cleanly on press-ctrl from the earlier `f9d4efd0b` patch (the function was missing from the live file even though it was on origin). Re-synced `deploy_flow.py` directly via scp; all 4 functions (`agent_health`, `agent_job_traceback`, `agent_job_progress`, `site_update_and_wait`) now confirmed live at lines 525/751/843/787.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `8a65106003` — feat(mcp): Gate A busy-worker guard
+
+
 ## 20-05-2026 — Platform fix: refresh destination bench nginx after site_update flip
 
 Closes the "stale CSS 404 after site_update" trap that bit the gulf-corner-precast demo (2026-05-13) and again the wazin-mx-demo (2026-05-20, 75 minutes burned before a memory check found the workaround).
