@@ -13,9 +13,6 @@
 			</div>
 		</div>
 
-		<!-- AI-built UI warning -->
-		<AISlopBanner class="mb-4" />
-
 		<!-- Top Navigation Tabs — unified style: bold-only active, no underline -->
 		<div class="mb-4 flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-1">
 			<button
@@ -215,13 +212,12 @@ import AiEscalations from '../components/admin/AiEscalations.vue';
 import AiUsageCost from '../components/admin/AiUsageCost.vue';
 import AiPolicyGate from '../components/admin/AiPolicyGate.vue';
 import AdminPanelMcp from './admin/AdminPanelMcp.vue';
-import AISlopBanner from '../components/_shared/AISlopBanner.vue';
 
 const API = 'press.api.admin_panel';
 
 export default {
 	name: 'AdminPanel',
-	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate, AdminPanelMcp, AISlopBanner },
+	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate, AdminPanelMcp },
 	data() {
 		return {
 			loading: false,
