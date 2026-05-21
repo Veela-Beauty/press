@@ -613,6 +613,21 @@ TOOLS: dict[str, dict] = {
 		),
 		"risk": "low",
 	},
+	"mint_dashboard_login_url": {
+		"method": "press.mcp_server.deploy_flow.mint_dashboard_login_url",
+		"description": "Mint a one-shot ?sid= URL that logs the browser in as the MCP token's user on the Press dashboard. Designed for Playwright / E2E tests — no password typing, no password rotation. Default redirect is /dashboard; pass redirect_to for any other path. The login is audit-logged.",
+		"required_args": [],
+		"args_schema": _schema(
+			[],
+			{
+				"redirect_to": {
+					"type": "string",
+					"description": "Dashboard path to land on (default '/dashboard'). Examples: '/dashboard/devtools/mcp', '/dashboard/sites/<site>/overview'",
+				},
+			},
+		),
+		"risk": "medium",
+	},
 	"agent_job_progress": {
 		"method": "press.mcp_server.deploy_flow.agent_job_progress",
 		"description": "LIVE in-flight progress for an Agent Job — Cursor-style streaming. Returns {status, current_step, steps[], steps_summary, output_tail, dashboard_url}. Each step has its own status + output_tail + duration. Mirrors the dashboard's /dashboard/sites/<site>/jobs/<job> page. Call this in a loop (every 3-10s) while a deploy/migrate is in-flight to see exactly which step is running and what it's printing. Use agent_job_traceback for post-mortem on Failure rows; use THIS for live watching.",

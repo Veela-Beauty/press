@@ -959,3 +959,76 @@ def agent_job_progress(
 		"traceback_truncated": len(job_tb) > job_chars,
 		"dashboard_url": dashboard_url,
 	}
+
+
+@frappe.whitelist()
+def mint_dashboard_login_url(redirect_to: str = "/dashboard") -> dict[str, Any]:
+	"""Mint a one-shot ?sid= URL that logs the browser in as the MCP token's
+	user on the Press dashboard. Designed for Playwright / E2E tests so they
+	don't have to handle password typing or password rotation.
+
+	The token's user (Administrator for the Master token) is logged in via
+	Frappe's LoginManager, a real Session row is created, and a URL is
+	returned that Frappe's `?sid=<sid>` handler will pick up as the session
+	cookie. No password is ever transmitted by the caller.
+
+	Args:
+		redirect_to: dashboard path to land on after auth, default
+			'/dashboard'. Common choices: '/dashboard/devtools/mcp',
+			'/dashboard/sites/<site>/overview'.
+
+	Returns:
+		{
+			"url": "https://<press-host>/<redirect>?sid=<sid>",
+			"sid": <sid>,
+			"user": <user that owns the session>,
+			"expires_in_seconds": <int — inherits the Press session TTL>,
+		}
+
+	Audit: the login is recorded in Frappe's standard Activity Log + the MCP
+	Call Log (via the dispatcher's _log_call). Anyone with bench console can
+	revoke the SID via `frappe.local.session.sid = None` + db.commit().
+	"""
+	from frappe.auth import LoginManager
+
+	target_user = frappe.session.user
+	if not target_user or target_user == "Guest":
+		frappe.throw(
+			"mint_dashboard_login_url: token does not resolve to a Press user",
+			frappe.PermissionError,
+		)
+
+	# Mint a real session via LoginManager (creates the Sessions row +
+	# rotates frappe.session.sid). Frappe's CookieManager handles the
+	# rest when the browser hits ?sid=<sid>.
+	lm = LoginManager()
+	lm.login_as(target_user)
+	sid = frappe.session.sid
+	if not sid or sid == "Guest":
+		frappe.throw(
+			"mint_dashboard_login_url: LoginManager did not produce a usable SID",
+			frappe.ValidationError,
+		)
+	frappe.db.commit()
+
+	# Press session lifetime — Frappe defaults to 6 hours unless overridden
+	# in System Settings.session_expiry. Best-effort: don't fail if missing.
+	try:
+		expiry = frappe.db.get_single_value("System Settings", "session_expiry") or "06:00:00"
+		h, m, *_ = (str(expiry).split(":") + ["0"])[:2]
+		expires_in_seconds = int(h) * 3600 + int(m) * 60
+	except Exception:  # noqa: BLE001
+		expires_in_seconds = 21600
+
+	# Normalize redirect path
+	if not redirect_to.startswith("/"):
+		redirect_to = "/" + redirect_to
+
+	base = frappe.utils.get_url().rstrip("/")
+	url = f"{base}{redirect_to}?sid={sid}"
+	return {
+		"url": url,
+		"sid": sid,
+		"user": target_user,
+		"expires_in_seconds": expires_in_seconds,
+	}
