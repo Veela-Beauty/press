@@ -5,6 +5,38 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 21-05-2026 — Snapshot cron now respects is_decommissioned
+
+Follow-up to the dead-server cleanup. The `snapshot_aws_servers` scheduled job in `press/press/doctype/virtual_machine/virtual_machine.py` was creating ~37 Snapshot Disk Press Jobs per hour against 4 decommissioned test servers (`f-000*`). Over 2 days that's **1798 wasted jobs**.
+
+### Root cause
+`snapshot_aws_servers` selects targets via:
+```python
+frappe.get_all("Virtual Machine", {
+    "status": "Running", "series": "f",
+    "skip_automated_snapshot": 0, "disable_server_snapshot": 0,
+})
+```
+That filter operates on the **Virtual Machine** doctype. It does NOT check the linked **Server** doctype's `is_decommissioned` flag. So decommissioning a Server via the admin panel had **no effect on the snapshot cron** — the VM stayed `Running` and the cron kept picking it.
+
+### Fixed
+- Added a `server.is_decommissioned` check at the loop body, right next to the existing "skip if Press Job in flight" guard. One-line surgical fix.
+- Note: Database Server doctype doesn't have its own `is_decommissioned` field. The app Server's flag is treated as authoritative for the whole cluster.
+
+### Quick-fix applied to stop the bleeding immediately
+Before the code patch landed, set `skip_automated_snapshot=1` AND `disable_server_snapshot=1` on the 8 affected VMs (4 f-mumbai + 4 m-mumbai) via SQL. The flags are belt+suspenders for the different snapshot crons.
+
+### Live verification
+Worker scheduler restarted at 11:25Z so the patched code is loaded. Next 5 min of `tabPress Job WHERE server LIKE 'f-000%' AND status IN ('Pending','Running')` should stay at zero.
+
+### Memory rule
+`feedback_dead-server-cleanup-audit-first.md` updated to document this exact failure mode.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `6414bd9ad9` — fix(snapshots): skip decommissioned servers in snapshot_aws_servers
+
+
 ## 21-05-2026 — Admin: hide decommissioned / IP-less servers + decommission 4 dead test servers
 
 User asked "why all these servers appear — only 3 are working?" After full dependency audit:
