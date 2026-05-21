@@ -22,7 +22,11 @@
 				:class="tabClass(activeMainTab === tab.id)"
 				@click="activeMainTab = tab.id"
 			>
-				<i :class="tab.icon" class="text-xs" :style="activeMainTab === tab.id ? '' : 'opacity:0.6'"></i>
+				<i
+					:class="tab.icon"
+					class="text-sm inline-flex items-center justify-center"
+					:style="{ width: '1rem', height: '1rem', opacity: activeMainTab === tab.id ? 1 : 0.6 }"
+				></i>
 				<span>{{ tab.label }}</span>
 				<span
 					v-if="tab.badge"
