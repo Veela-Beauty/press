@@ -4,6 +4,58 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 21-05-2026 — Schema fix: is_decommissioned on Database Server + Proxy Server (commit `82abdb535c`)
+
+Closes the gap behind Sessions 1+2. Before this commit, only `tabServer` had the flag — DB/Proxy crons had to walk the link to know decom state. Now both lower doctypes have their own flag, plus an `on_update` sync hook on `tabServer` to keep them in lockstep.
+
+### Schema (Custom Fields via `*_admin_setup.py`)
+- `tabDatabase Server.is_decommissioned` (Check, default 0, after `is_self_hosted`)
+- `tabProxy Server.is_decommissioned` (Check, default 0, after `is_self_hosted`)
+
+### Sync (one-way, app Server is authoritative)
+- `Server.on_update` → `sync_decommissioned_to_cluster()` runs when `has_value_changed('is_decommissioned')`.
+- DB Server (1:1): mirror directly.
+- Proxy Server (N:1): set 1 **only when ALL linked app Servers** are decom; clear if ANY sibling is still active. Prevents accidental decom of a shared proxy.
+- Skips writes when target already matches (no event spam).
+
+### Backfill (`patches.v0_0_5.add_is_decommissioned_to_db_and_proxy_servers`)
+- Installs Custom Fields (idempotent).
+- Backfills DB Server flag from linked decommissioned app Servers.
+- Backfills Proxy Server flag using the same ALL-decom rule.
+
+### Why
+- Sessions 1+2 patched 15 crons with **indirect** helpers (walk-the-link). That works but is a workaround. With direct flags on DB+Proxy, future crons filter naturally: `frappe.get_all('Database Server', {'is_decommissioned': 0}, ...)`.
+- Closes the architectural gap that caused the 2026-05-21 incident (1798 wasted snapshot jobs against decommissioned test servers).
+
+### Risk profile (deploy = low)
+- Custom Field install: ALTER TABLE on 2 tiny tables (~15 rows each). Instant.
+- Backfill UPDATE: ≤8 rows total.
+- on_update hook: 1-2 extra `set_value` calls per Server save. Servers aren't hot-saved.
+- Idempotent throughout (re-running migrate is safe).
+
+### Deploy (deferred — not urgent)
+
+```bash
+sudo -u frappe bash -lc 'cd /home/frappe/frappe-bench/apps/press && git pull origin cloudflare-dns'
+sudo -u frappe bash -lc 'cd /home/frappe/frappe-bench && bench --site demo.mvpstorm.com migrate 2>&1 | tail -30'
+sudo supervisorctl restart frappe-bench-web:
+```
+
+### Rollback (if needed)
+```bash
+sudo -u frappe bash -lc 'cd /home/frappe/frappe-bench/apps/press && git reset --hard dea8ec3dfc'
+bench --site demo.mvpstorm.com execute frappe.client.delete_doc --args '["Custom Field","Database Server-is_decommissioned"]'
+bench --site demo.mvpstorm.com execute frappe.client.delete_doc --args '["Custom Field","Proxy Server-is_decommissioned"]'
+bench --site demo.mvpstorm.com mariadb -e "DELETE FROM \`tabPatch Log\` WHERE patch LIKE '%add_is_decommissioned_to_db_and_proxy%';"
+sudo supervisorctl restart frappe-bench-web:
+```
+
+### Follow-ups (next session)
+- UI: add Decommission button to DB Server + Proxy Server admin pages.
+- Cron cleanup: replace indirect helpers with direct `is_decommissioned: 0` filters once schema is live.
+- Tests: extend `test_decom.py` with cases for the on_update sync hook.
+
+---
 
 ## 21-05-2026 — Decom sweep Session 2: 7 more crons + intentional skips
 
