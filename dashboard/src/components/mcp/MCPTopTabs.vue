@@ -1,15 +1,16 @@
 <template>
 	<div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-		<!-- Tab strip — clicking the active tab again collapses the body -->
+		<!-- Tab strip — clicking the active tab again collapses the body.
+		     Active tab = bold + darker text (no underline, no pill bg). -->
 		<div class="flex items-center bg-gray-50" :class="active ? 'border-b border-gray-200' : ''">
 			<button
 				v-for="t in tabs"
 				:key="t.id"
 				type="button"
-				class="relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition"
+				class="relative flex items-center gap-2 px-4 py-2.5 text-sm transition"
 				:class="active === t.id
-					? 'bg-white text-gray-900 border-b-2 border-blue-600 -mb-px'
-					: 'text-gray-600 hover:text-gray-900 hover:bg-white/60'"
+					? 'font-bold text-gray-900'
+					: 'font-medium text-gray-500 hover:text-gray-900'"
 				@click="toggle(t.id)"
 			>
 				<FeatherIcon :name="t.icon" class="h-4 w-4" :class="active === t.id ? t.iconActiveClass : 'text-gray-400'" />
