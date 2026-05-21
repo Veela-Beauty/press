@@ -11,6 +11,8 @@
 			</Button>
 		</div>
 
+		<AISlopBanner />
+
 		<MCPTopTabs ref="topTabs" @issue="showIssueDialog = true" />
 
 		<!-- Test Tool Call — pick a tool, fill canonical args from schema, run -->
@@ -124,6 +126,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { Button, FeatherIcon, call, toast } from 'frappe-ui';
 import IssueTokenDialog from '../../../components/mcp/IssueTokenDialog.vue';
 import MCPTopTabs from '../../../components/mcp/MCPTopTabs.vue';
+import AISlopBanner from '../../../components/_shared/AISlopBanner.vue';
 import { TOOL_CATALOG } from '../../../components/mcp/_tool_catalog.js';
 
 // Token list — still needed locally for the Test Tool Call dropdown.

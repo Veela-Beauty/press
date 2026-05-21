@@ -13,18 +13,21 @@
 			</div>
 		</div>
 
-		<!-- Top Navigation Tabs -->
-		<div class="mb-4 flex items-center gap-1 border-b border-gray-200">
+		<!-- AI-built UI warning -->
+		<AISlopBanner class="mb-4" />
+
+		<!-- Top Navigation Tabs — unified style: bold-only active, no underline -->
+		<div class="mb-4 flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-1">
 			<button
 				v-for="tab in mainTabs"
 				:key="tab.id"
-				class="flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors"
+				class="flex items-center gap-1.5 px-3 py-2 text-sm transition"
 				:class="activeMainTab === tab.id
-					? 'border-blue-500 text-blue-700'
-					: 'border-transparent text-gray-500 hover:text-gray-700'"
+					? 'font-bold text-gray-900'
+					: 'font-medium text-gray-500 hover:text-gray-900'"
 				@click="activeMainTab = tab.id"
 			>
-				<i :class="tab.icon" class="text-xs"></i>
+				<i :class="tab.icon" class="text-xs" :style="activeMainTab === tab.id ? '' : 'opacity:0.6'"></i>
 				<span>{{ tab.label }}</span>
 				<span
 					v-if="tab.badge"
@@ -212,12 +215,13 @@ import AiEscalations from '../components/admin/AiEscalations.vue';
 import AiUsageCost from '../components/admin/AiUsageCost.vue';
 import AiPolicyGate from '../components/admin/AiPolicyGate.vue';
 import AdminPanelMcp from './admin/AdminPanelMcp.vue';
+import AISlopBanner from '../components/_shared/AISlopBanner.vue';
 
 const API = 'press.api.admin_panel';
 
 export default {
 	name: 'AdminPanel',
-	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate, AdminPanelMcp },
+	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate, AdminPanelMcp, AISlopBanner },
 	data() {
 		return {
 			loading: false,
