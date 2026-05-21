@@ -65,9 +65,15 @@ class MariaDBStalk(Document):
 
 
 def fetch_stalks():
+	# Skip DB servers whose linked app server is decommissioned
+	# (2026-05-21 cluster-decom rule).
+	from press.utils.decom import is_database_server_in_decommissioned_cluster
+
 	for server in frappe.get_all(
 		"Database Server", {"status": "Active", "is_stalk_setup": True}, pluck="name"
 	):
+		if is_database_server_in_decommissioned_cluster(server):
+			continue
 		frappe.enqueue(
 			"press.press.doctype.mariadb_stalk.mariadb_stalk.fetch_server_stalks",
 			server=server,

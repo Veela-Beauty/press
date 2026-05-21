@@ -1937,9 +1937,15 @@ def add_public_servers_to_public_groups():
 		filters={"public": 1, "enabled": 1, "central_bench": 0},
 		fields=["name"],
 	)
+	# Skip decommissioned public servers (2026-05-21 cluster-decom rule).
 	public_servers = frappe.get_all(
 		"Server",
-		filters={"public": 1, "status": "Active", "provider": ["!=", "Hetzner"]},
+		filters={
+			"public": 1,
+			"status": "Active",
+			"provider": ["!=", "Hetzner"],
+			"is_decommissioned": 0,
+		},
 		pluck="name",
 	)
 

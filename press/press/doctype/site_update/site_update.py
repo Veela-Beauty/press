@@ -853,7 +853,11 @@ def sites_with_available_update(server=None):
 
 
 def schedule_updates():
-	servers = frappe.get_all("Server", {"status": "Active"}, pluck="name")
+	# Skip decommissioned servers — Site Update jobs would just sit Undelivered
+	# (2026-05-21 cluster-decom rule).
+	servers = frappe.get_all(
+		"Server", {"status": "Active", "is_decommissioned": 0}, pluck="name"
+	)
 	for server in servers:
 		frappe.enqueue(
 			"press.press.doctype.site_update.site_update.schedule_updates_server",

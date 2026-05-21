@@ -3558,7 +3558,10 @@ class Server(BaseServer):
 
 
 def scale_workers(now=False):
-	servers = frappe.get_all("Server", {"status": "Active", "is_primary": True})
+	# Skip decommissioned servers (2026-05-21 cluster-decom rule).
+	servers = frappe.get_all(
+		"Server", {"status": "Active", "is_primary": True, "is_decommissioned": 0}
+	)
 	for server in servers:
 		try:
 			if now:

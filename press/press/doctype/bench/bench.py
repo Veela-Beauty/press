@@ -1633,8 +1633,13 @@ def archive_obsolete_benches_for_server(benches: Iterable[BenchesToArchive]):
 
 
 def sync_benches():
+	# Skip benches on decommissioned servers (2026-05-21 cluster-decom rule).
+	from press.utils.decom import is_bench_on_decommissioned_server
+
 	benches = frappe.get_all("Bench", {"status": "Active"}, pluck="name")
 	for bench in benches:
+		if is_bench_on_decommissioned_server(bench):
+			continue
 		frappe.enqueue(
 			"press.press.doctype.bench.bench.sync_bench",
 			queue="sync",
