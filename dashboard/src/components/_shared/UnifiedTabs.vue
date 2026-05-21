@@ -1,16 +1,13 @@
 <template>
 	<div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-		<!-- Tab strip — bold-only active style (no underline, no pill, no shape change).
+		<!-- Tab strip — bold-only active style via shared tabClasses.js.
 		     Click active tab again to collapse the body. -->
-		<div class="flex items-center bg-gray-50" :class="active ? 'border-b border-gray-200' : ''">
+		<div :class="[TAB_STRIP_PANEL_TOP, active ? TAB_STRIP_DIVIDER : '']">
 			<button
 				v-for="t in tabs"
 				:key="t.id"
 				type="button"
-				class="relative flex items-center gap-2 px-4 py-2.5 text-sm transition"
-				:class="active === t.id
-					? 'font-bold text-gray-900'
-					: 'font-medium text-gray-500 hover:text-gray-900'"
+				:class="['relative', tabClass(active === t.id)]"
 				@click="toggle(t.id)"
 			>
 				<FeatherIcon
@@ -38,6 +35,7 @@
 <script setup>
 import { computed, watch } from 'vue';
 import { FeatherIcon } from 'frappe-ui';
+import { TAB_STRIP_PANEL_TOP, TAB_STRIP_DIVIDER, tabClass } from './tabClasses.js';
 
 const props = defineProps({
 	// [{id, label, tagline?, icon?, iconActiveClass?, badge?}]

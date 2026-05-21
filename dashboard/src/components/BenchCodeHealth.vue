@@ -58,11 +58,14 @@
 			</div>
 		</div>
 
-		<!-- Tabs -->
-		<div class="flex border-b border-gray-200 dark:border-gray-700" v-if="summary">
-			<button v-for="t in tabs" :key="t.id" @click="activeTab = t.id"
-				class="px-4 py-2 text-sm font-semibold border-b-2 transition-colors"
-				:class="activeTab === t.id ? 'text-blue-500 border-blue-500' : 'text-gray-500 border-transparent hover:text-gray-700'">
+		<!-- Tabs — shared style via tabClasses.js -->
+		<div :class="TAB_STRIP_BASE" class="mb-4 gap-1" v-if="summary">
+			<button
+				v-for="t in tabs"
+				:key="t.id"
+				:class="tabClass(activeTab === t.id)"
+				@click="activeTab = t.id"
+			>
 				{{ t.label }}
 			</button>
 		</div>
@@ -364,6 +367,7 @@ import { call } from 'frappe-ui';
 import * as d3 from 'd3';
 import { renderCirclePack, drawRadar, drawSparkline } from './health-d3.js';
 import HealthAdvanced from './HealthAdvanced.vue';
+import { TAB_STRIP_BASE, tabClass } from './_shared/tabClasses.js';
 
 const API = 'press.press.doctype.bench.bench_code_health';
 const DIMS = ['CLAUDE', 'README', 'Docs', 'Tests', 'Clean', 'Patterns', 'Lessons', 'Security'];
@@ -372,6 +376,9 @@ const DIM_KEYS = ['claude_md', 'readme', 'documentation', 'tests', 'clean_code',
 export default {
 	name: 'BenchCodeHealth',
 	components: { HealthAdvanced },
+	setup() {
+		return { TAB_STRIP_BASE, tabClass };
+	},
 	props: {
 		benchName: { type: String, required: true },
 		autoScan: { type: Boolean, default: false },

@@ -13,15 +13,13 @@
 			</div>
 		</div>
 
-		<!-- Top Navigation Tabs — unified style: bold-only active, no underline -->
-		<div class="mb-4 flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-1">
+		<!-- Top Navigation Tabs — uses shared tabClasses.js so style stays
+		     identical across the dashboard (see _shared/tabClasses.js). -->
+		<div :class="TAB_STRIP_BASE" class="mb-4 gap-1">
 			<button
 				v-for="tab in mainTabs"
 				:key="tab.id"
-				class="flex items-center gap-1.5 px-3 py-2 text-sm transition"
-				:class="activeMainTab === tab.id
-					? 'font-bold text-gray-900'
-					: 'font-medium text-gray-500 hover:text-gray-900'"
+				:class="tabClass(activeMainTab === tab.id)"
 				@click="activeMainTab = tab.id"
 			>
 				<i :class="tab.icon" class="text-xs" :style="activeMainTab === tab.id ? '' : 'opacity:0.6'"></i>
@@ -212,12 +210,17 @@ import AiEscalations from '../components/admin/AiEscalations.vue';
 import AiUsageCost from '../components/admin/AiUsageCost.vue';
 import AiPolicyGate from '../components/admin/AiPolicyGate.vue';
 import AdminPanelMcp from './admin/AdminPanelMcp.vue';
+import { TAB_STRIP_BASE, tabClass } from '../components/_shared/tabClasses.js';
 
 const API = 'press.api.admin_panel';
 
 export default {
 	name: 'AdminPanel',
 	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate, AdminPanelMcp },
+	setup() {
+		// Expose shared tab constants to the template
+		return { TAB_STRIP_BASE, tabClass };
+	},
 	data() {
 		return {
 			loading: false,

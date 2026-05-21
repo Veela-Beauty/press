@@ -11,15 +11,12 @@
 			</Header>
 		</div>
 		<div class="p-5">
-			<!-- Tabs -->
-			<div class="mb-4 flex gap-2 border-b">
+			<!-- Tabs — shared style via tabClasses.js -->
+			<div :class="TAB_STRIP_BASE" class="mb-4 gap-1">
 				<button
 					v-for="tab in tabs"
 					:key="tab.value"
-					class="border-b-2 px-4 py-2 text-sm font-medium transition-colors"
-					:class="activeTab === tab.value
-						? 'border-blue-500 text-blue-600'
-						: 'border-transparent text-gray-500 hover:text-gray-700'"
+					:class="tabClass(activeTab === tab.value)"
 					@click="activeTab = tab.value"
 				>
 					{{ tab.label }}
@@ -211,10 +208,14 @@ import { Button, Dialog, Badge, createResource } from 'frappe-ui';
 import { defineAsyncComponent, h } from 'vue';
 import { date } from '../../utils/format';
 import { renderDialog } from '../../utils/components';
+import { TAB_STRIP_BASE, tabClass } from '../../components/_shared/tabClasses.js';
 
 export default {
 	name: 'BackupRunLog',
 	components: { ObjectList, Button, Dialog, Badge },
+	setup() {
+		return { TAB_STRIP_BASE, tabClass };
+	},
 	data() {
 		return {
 			activeTab: 'history',
