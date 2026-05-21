@@ -5,6 +5,37 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 21-05-2026 — Revert: remove user-facing AI banner
+
+User correction on the AI-built banner shipped earlier today (`be325789e4`): customers / dashboard users must **not** know which pages are AI-built. The amber "Built by Claude — pending UI/UX team review" banner I added was inappropriate for an end-user surface.
+
+### Removed
+- `<AISlopBanner />` usage from `/dashboard/admin` and `/dashboard/dev-tools/mcp`.
+- `AISlopBanner.vue` component file deleted from the repo.
+- Imports + Vue component registrations cleaned up in both pages.
+
+### Kept (still good — separate concern from AI marker)
+- The bold-only active-tab style change in both pages (no underline, no pill).
+- `UnifiedTabs.vue` shared component — has nothing to do with AI marker, useful for future tabbed pages.
+
+### New rule (documented in memory)
+`feedback_no-user-facing-ai-marker.md` added to `~/.claude/projects/-home-eslam/memory/` and indexed in MEMORY.md Critical Rules. Future agents (and me next session) will see it and avoid this pattern.
+
+**Internal team awareness of AI involvement** should happen via:
+- `CHANGELOG.md` entries (already standard)
+- This repo's commit `Co-Authored-By: Claude Opus 4.7` trailers (already auto)
+- Per-feature memory entries
+
+NOT via rendered UI text.
+
+### Live verified (Playwright)
+- `/dashboard/admin`: no "Built by Claude" / "AI-generated" / "pending UI/UX" text in body. Tab style preserved (Teams tab `font-weight: 700`, `border-bottom: 0px`, color `rgb(23,23,23)`).
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `ea02556248` — revert: remove user-facing AI banner from dashboard pages
+
+
 ## 21-05-2026 — Unify tab style + AI-built warning banner across AI pages
 
 User feedback drove two changes:
