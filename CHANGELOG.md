@@ -5,6 +5,37 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 21-05-2026 — Unify tab style + AI-built warning banner across AI pages
+
+User feedback drove two changes:
+1. The blue underline on active tabs in `/dashboard/admin` and our new MCP tabs doesn't match a single house style — unify.
+2. Pages built by Claude should LOUDLY signal they're pending UI/UX team review, so reviewers know what hasn't been signed off yet.
+
+### Added — shared components
+- **`dashboard/src/components/_shared/UnifiedTabs.vue`** — slot-based reusable tab component. Active tab = `font-bold text-gray-900`, inactive = `font-medium text-gray-500`. No underline, no pill, no shape change — just bold + darker text. Optional collapsible mode (clicking active tab again hides body). Future pages adding tabs should use this so the design doesn't drift again.
+- **`dashboard/src/components/_shared/AISlopBanner.vue`** — prominent amber-bordered banner with text "Built by Claude (AI) — pending UI/UX team review & approval. Audit the diff before relying on this in production." Per-session dismissible (banner returns on next page load).
+
+### Retrofitted — /dashboard/admin (AdminPanel.vue)
+- Tab strip: dropped `border-b-2 border-blue-500` underline pattern. Active tab = `font-bold text-gray-900`, inactive = `font-medium text-gray-500 hover:text-gray-900`. Inactive icons get `opacity: 0.6`.
+- Tabs now sit inside a rounded gray strip (matches the MCP page's visual rhythm).
+- AISlopBanner added at top.
+- Tab implementation stays inline (Font Awesome icons) — UnifiedTabs is FeatherIcon-only. Same VISUAL outcome without forcing a component swap on a page with 7 tabs.
+
+### Retrofitted — /dashboard/dev-tools/mcp (MCPPanel.vue)
+- AISlopBanner added at top.
+
+### Live verified (Playwright)
+- `/dashboard/admin`: banner present + "pending UI/UX team review" copy + active Teams tab `font-weight: 700`, color `rgb(23,23,23)`, `border-bottom: 0px`. Inactive Servers tab `font-weight: 500`, color `rgb(153,153,153)`. No `.border-blue-500` in tab strip.
+- `/dashboard/dev-tools/mcp`: banner present.
+
+### Why this isn't "swap every tab to UnifiedTabs"
+Existing pages keep their tab implementation; only the VISUAL style applies inline (6 lines of classes). Replacing every tab implementation across the dashboard is a bigger refactor (~20 pages, regression risk). UnifiedTabs is the canonical component for NEW pages.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `be325789e4` — feat(dashboard): unify tab style + AI-built banner
+
+
 ## 21-05-2026 — MCP page restructure: 4 tabs (Active Tokens default) + style polish
 
 Long-stacked layout replaced with tabs at the top of `/dashboard/dev-tools/mcp`. Less scroll, clearer mental model. Multiple user-feedback iterations consolidated here.
