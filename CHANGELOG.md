@@ -5,6 +5,41 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 21-05-2026 — mint_dashboard_login_url: passwordless admin login for Playwright/E2E
+
+Closes the "change password every Playwright test" anti-pattern. The MCP token IS the auth; this new tool bridges it into a real Press dashboard session cookie via Frappe's LoginManager + Frappe's `?sid=` query handler.
+
+### Added
+- **`press/mcp_server/deploy_flow.py:mint_dashboard_login_url(redirect_to='/dashboard')`** — mints a real Frappe Session for the MCP token's user (Administrator for the Master token, or any team user). Returns `{url, sid, user, expires_in_seconds}`. The `url` embeds `?sid=<sid>` which Frappe's CookieManager picks up on first request — Playwright just calls `browser_navigate(url)` and lands authenticated. No password ever transmitted.
+- Tool registered in `tools.py` (`risk='medium'`) + mirrored in `_tool_catalog.js`. Catalog parity: **66/66**.
+
+### Flow
+```python
+# 1. Mint a URL via MCP
+mcp("mint_dashboard_login_url", {"redirect_to": "/dashboard/devtools/mcp"})
+# → { "url": "https://autodeploypanel.mvpstorm.com/dashboard/devtools/mcp?sid=<60-char-sid>",
+#     "user": "eng.elgogary@gmail.com", "expires_in_seconds": 21600 }
+
+# 2. Playwright opens it
+mcp__playwright__browser_navigate(url=<the url above>)
+# → authenticated, on /dashboard/devtools/mcp, no login form
+```
+
+### Live verification (just shipped)
+- Master token (`MCPT-2465`) added scope; mint call returned `?sid=da66686033...785c467a2df02bce` for `eng.elgogary@gmail.com`.
+- Playwright navigated → page title "Accurate Systems Cloud", `has_login_form: false`, user text "elgogary" rendered in dashboard chrome.
+- `sid` cookie is HttpOnly (not visible to JS — correct security); auth confirmed by Vue API calls succeeding + user name rendering.
+
+### Notes
+- TTL: inherits from `System Settings.session_expiry` (Frappe default 6h; deploy showed 612000s = 170h on this Press because session_expiry is overridden).
+- User: bound to the MCP token's owner. No `mint_as` override yet — add when multi-user impersonation is needed.
+- Audit: login is recorded in Frappe's Activity Log + the MCP Call Log via the dispatcher's `_log_call`.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `db892d8ce6` — feat(mcp): mint_dashboard_login_url
+
+
 ## 20-05-2026 — Gate A: dispatcher-level busy-worker restart guard
 
 Closes the "restart a busy migrate worker → corrupt the live DB" failure mode that nearly hit selfstorage-stg on 2026-05-20 (the agent recommended `supervisorctl restart agent:` while the worker was 8min into a migrate).
