@@ -162,3 +162,4 @@ press.patches.v0_0_4.normalize_team_member_press_role
 press.patches.v0_0_5.bump_team_member_session_cap
 press.patches.v0_0_5.disable_team_member_session_cap
 press.patches.v0_0_5.sync_team_member_to_press_role
+press.patches.v0_0_5.add_is_decommissioned_to_db_and_proxy_servers

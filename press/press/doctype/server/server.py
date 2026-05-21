@@ -2584,6 +2584,28 @@ class Server(BaseServer):
 				"Cannot enable logical replication during site update if multiple sites are present on the server"
 			)
 
+		if not self.is_new() and self.has_value_changed("is_decommissioned"):
+			self.sync_decommissioned_to_cluster()
+
+	def sync_decommissioned_to_cluster(self):
+		# Propagate is_decommissioned to the linked Database Server and Proxy Server.
+		# DB: 1:1 with app Server — mirror directly.
+		# Proxy: N:1 — only set 1 when ALL linked app Servers are decom; clear if ANY active.
+		flag = 1 if self.is_decommissioned else 0
+		if self.database_server and frappe.db.exists("Database Server", self.database_server):
+			current = frappe.db.get_value("Database Server", self.database_server, "is_decommissioned")
+			if (current or 0) != flag:
+				frappe.db.set_value("Database Server", self.database_server, "is_decommissioned", flag)
+
+		if self.proxy_server and frappe.db.exists("Proxy Server", self.proxy_server):
+			siblings = frappe.get_all(
+				"Server", {"proxy_server": self.proxy_server}, ["is_decommissioned"]
+			)
+			proxy_flag = 1 if siblings and all(s.is_decommissioned for s in siblings) else 0
+			current = frappe.db.get_value("Proxy Server", self.proxy_server, "is_decommissioned")
+			if (current or 0) != proxy_flag:
+				frappe.db.set_value("Proxy Server", self.proxy_server, "is_decommissioned", proxy_flag)
+
 	def update_db_server(self):
 		if not self.database_server:
 			return
