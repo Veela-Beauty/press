@@ -8,24 +8,12 @@
 			</Header>
 		</div>
 		<div class="p-5">
-			<!-- Summary Cards -->
+			<!-- Summary Cards — shared style via StatCard -->
 			<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
-				<div class="rounded-lg border bg-white p-4">
-					<div class="text-sm text-gray-500">Total Jobs</div>
-					<div class="text-2xl font-semibold">{{ stats.total || 0 }}</div>
-				</div>
-				<div class="rounded-lg border bg-white p-4">
-					<div class="text-sm text-gray-500">Enabled</div>
-					<div class="text-2xl font-semibold text-green-600">{{ stats.enabled || 0 }}</div>
-				</div>
-				<div class="rounded-lg border bg-white p-4">
-					<div class="text-sm text-gray-500">Scheduled</div>
-					<div class="text-2xl font-semibold text-blue-600">{{ stats.scheduled || 0 }}</div>
-				</div>
-				<div class="rounded-lg border bg-white p-4">
-					<div class="text-sm text-gray-500">Last Failed</div>
-					<div class="text-2xl font-semibold text-red-600">{{ stats.failed || 0 }}</div>
-				</div>
+				<StatCard label="Total Jobs" :number="stats.total || 0" />
+				<StatCard label="Enabled" :number="stats.enabled || 0" color="good" />
+				<StatCard label="Scheduled" :number="stats.scheduled || 0" color="info" />
+				<StatCard label="Last Failed" :number="stats.failed || 0" color="bad" />
 			</div>
 
 			<ObjectList ref="jobList" :options="listOptions" />
@@ -353,6 +341,7 @@
 import ObjectList from '../../components/ObjectList.vue';
 import { Button, Dialog, Badge, createResource } from 'frappe-ui';
 import { date } from '../../utils/format';
+import StatCard from '../../components/_shared/StatCard.vue';
 import {
 	runBackupJob,
 	toggleJobStatus,
@@ -365,7 +354,7 @@ import {
 
 export default {
 	name: 'ServerBackups',
-	components: { ObjectList, Button, Dialog, Badge },
+	components: { ObjectList, Button, Dialog, Badge, StatCard },
 	data() {
 		return {
 			stats: {},

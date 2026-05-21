@@ -30,29 +30,20 @@
 
 			<!-- Tab 2: Analytics -->
 			<div v-show="activeTab === 'analytics'">
-				<!-- Summary Cards -->
+				<!-- Summary Cards — shared style via StatCard -->
 				<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
-					<div class="rounded-lg border bg-white p-4">
-						<div class="text-sm text-gray-500">{{ 'Total Runs (30d)' }}</div>
-						<div class="text-2xl font-semibold">{{ analytics.total_runs || 0 }}</div>
-					</div>
-					<div class="rounded-lg border bg-white p-4">
-						<div class="text-sm text-gray-500">{{ 'Success Rate' }}</div>
-						<div
-							class="text-2xl font-semibold"
-							:class="successRateColor"
-						>
+					<StatCard label="Total Runs (30d)" :number="analytics.total_runs || 0" />
+					<StatCard label="Success Rate" :color="successRateColorToken">
+						<template #number>
 							{{ analytics.success_rate != null ? analytics.success_rate + '%' : '-' }}
-						</div>
-					</div>
-					<div class="rounded-lg border bg-white p-4">
-						<div class="text-sm text-gray-500">{{ 'Avg Duration' }}</div>
-						<div class="text-2xl font-semibold">{{ formatDuration(analytics.avg_duration) }}</div>
-					</div>
-					<div class="rounded-lg border bg-white p-4">
-						<div class="text-sm text-gray-500">{{ 'Total Data (MB)' }}</div>
-						<div class="text-2xl font-semibold">{{ formatNumber(analytics.total_data_mb) }}</div>
-					</div>
+						</template>
+					</StatCard>
+					<StatCard label="Avg Duration">
+						<template #number>{{ formatDuration(analytics.avg_duration) }}</template>
+					</StatCard>
+					<StatCard label="Total Data (MB)">
+						<template #number>{{ formatNumber(analytics.total_data_mb) }}</template>
+					</StatCard>
 				</div>
 
 				<!-- Charts 2x2 Grid -->
@@ -209,10 +200,11 @@ import { defineAsyncComponent, h } from 'vue';
 import { date } from '../../utils/format';
 import { renderDialog } from '../../utils/components';
 import { TAB_STRIP_BASE, tabClass } from '../../components/_shared/tabClasses.js';
+import StatCard from '../../components/_shared/StatCard.vue';
 
 export default {
 	name: 'BackupRunLog',
-	components: { ObjectList, Button, Dialog, Badge },
+	components: { ObjectList, Button, Dialog, Badge, StatCard },
 	setup() {
 		return { TAB_STRIP_BASE, tabClass };
 	},
@@ -232,12 +224,12 @@ export default {
 				{ label: 'Analytics', value: 'analytics' },
 			];
 		},
-		successRateColor() {
+		successRateColorToken() {
 			const rate = this.analytics.success_rate;
-			if (rate == null) return '';
-			if (rate > 90) return 'text-green-600';
-			if (rate > 70) return 'text-yellow-600';
-			return 'text-red-600';
+			if (rate == null) return 'default';
+			if (rate > 90) return 'good';
+			if (rate > 70) return 'warn';
+			return 'bad';
 		},
 		listOptions() {
 			return {

@@ -11,24 +11,12 @@
 			</Header>
 		</div>
 		<div class="p-5">
-			<!-- Summary Cards -->
+			<!-- Summary Cards — shared style via StatCard -->
 			<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
-				<div class="rounded-lg border bg-white p-4">
-					<div class="text-sm text-gray-500">{{ 'Total Clients' }}</div>
-					<div class="text-2xl font-semibold">{{ stats.total || 0 }}</div>
-				</div>
-				<div class="rounded-lg border bg-white p-4">
-					<div class="text-sm text-gray-500">{{ 'Healthy' }}</div>
-					<div class="text-2xl font-semibold text-green-600">{{ stats.healthy || 0 }}</div>
-				</div>
-				<div class="rounded-lg border bg-white p-4">
-					<div class="text-sm text-gray-500">{{ 'Warning' }}</div>
-					<div class="text-2xl font-semibold text-yellow-600">{{ stats.warning || 0 }}</div>
-				</div>
-				<div class="rounded-lg border bg-white p-4">
-					<div class="text-sm text-gray-500">{{ 'Critical' }}</div>
-					<div class="text-2xl font-semibold text-red-600">{{ stats.critical || 0 }}</div>
-				</div>
+				<StatCard label="Total Clients" :number="stats.total || 0" />
+				<StatCard label="Healthy" :number="stats.healthy || 0" color="good" />
+				<StatCard label="Warning" :number="stats.warning || 0" color="warn" />
+				<StatCard label="Critical" :number="stats.critical || 0" color="bad" />
 			</div>
 
 			<ObjectList ref="clientList" :options="listOptions" />
@@ -40,12 +28,13 @@
 import ObjectList from '../../components/ObjectList.vue';
 import { Badge, createResource } from 'frappe-ui';
 import { date } from '../../utils/format';
+import StatCard from '../../components/_shared/StatCard.vue';
 
 const BASE_API = 'daman_backup.daman_backup.press_api';
 
 export default {
 	name: 'BackupClients',
-	components: { ObjectList, Badge },
+	components: { ObjectList, Badge, StatCard },
 	data() {
 		return {
 			stats: {},

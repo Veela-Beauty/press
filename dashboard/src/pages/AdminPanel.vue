@@ -38,29 +38,20 @@
 
 		<!-- TAB: Teams (default) -->
 		<template v-if="activeMainTab === 'teams'">
-			<!-- Stats -->
+			<!-- Stats — shared style via StatCard component -->
 			<div v-if="stats" class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-				<div class="rounded-lg border border-gray-200 bg-white p-4">
-					<p class="text-xs font-medium uppercase text-gray-500">Teams</p>
-					<p class="mt-1 text-2xl font-bold">{{ stats.total_teams }}</p>
-				</div>
-				<div class="rounded-lg border border-gray-200 bg-white p-4">
-					<p class="text-xs font-medium uppercase text-gray-500">Sites</p>
-					<p class="mt-1 text-2xl font-bold">{{ stats.total_sites }}</p>
-				</div>
-				<div class="rounded-lg border border-gray-200 bg-white p-4">
-					<p class="text-xs font-medium uppercase text-gray-500">Benches</p>
-					<p class="mt-1 text-2xl font-bold">{{ stats.total_benches }}</p>
-				</div>
-				<div class="rounded-lg border border-gray-200 bg-white p-4">
-					<p class="text-xs font-medium uppercase text-gray-500">Monthly Cost</p>
-					<p class="mt-1 text-2xl font-bold text-blue-600">&euro;{{ stats.total_cost }}</p>
-				</div>
-				<div class="rounded-lg border border-gray-200 bg-white p-4 sm:col-span-2">
-					<p class="text-xs font-medium uppercase text-gray-500">Servers</p>
-					<p class="mt-1 text-2xl font-bold">{{ serverCosts.length }}</p>
-					<p class="text-xs text-gray-400">{{ serverCosts.map(s => s.name.split('.')[0]).join(', ') }}</p>
-				</div>
+				<StatCard label="Teams" :number="stats.total_teams" />
+				<StatCard label="Sites" :number="stats.total_sites" />
+				<StatCard label="Benches" :number="stats.total_benches" />
+				<StatCard label="Monthly Cost" color="info">
+					<template #number>&euro;{{ stats.total_cost }}</template>
+				</StatCard>
+				<StatCard
+					label="Servers"
+					:number="serverCosts.length"
+					:subline="serverCosts.map(s => s.name.split('.')[0]).join(', ')"
+					class="sm:col-span-2"
+				/>
 			</div>
 
 			<!-- Server Costs -->
@@ -215,12 +206,13 @@ import AiUsageCost from '../components/admin/AiUsageCost.vue';
 import AiPolicyGate from '../components/admin/AiPolicyGate.vue';
 import AdminPanelMcp from './admin/AdminPanelMcp.vue';
 import { TAB_STRIP_BASE, tabClass } from '../components/_shared/tabClasses.js';
+import StatCard from '../components/_shared/StatCard.vue';
 
 const API = 'press.api.admin_panel';
 
 export default {
 	name: 'AdminPanel',
-	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate, AdminPanelMcp },
+	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate, AdminPanelMcp, StatCard },
 	setup() {
 		// Expose shared tab constants to the template
 		return { TAB_STRIP_BASE, tabClass };
