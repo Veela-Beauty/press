@@ -2511,6 +2511,52 @@ class VirtualMachine(Document):
 get_permission_query_conditions = get_permission_query_conditions_for_doctype("Virtual Machine")
 
 
+def is_vm_for_decommissioned_server(vm_name: str) -> bool:
+	"""True if this Virtual Machine is the backing for a decommissioned Server,
+	OR backs the Database Server of a decommissioned Server (i.e. the DB half
+	of a decommissioned cluster).
+
+	The `is_decommissioned` flag lives ONLY on tabServer — Database Server and
+	Proxy Server doctypes do NOT have their own flag. The app Server's flag is
+	therefore authoritative for the whole cluster (app + DB + proxy).
+
+	Every snapshot cron that picks targets by Virtual Machine MUST call this
+	helper before triggering a snapshot. Without it, decommissioning a server
+	has no effect on the snapshot scheduler — see 2026-05-21 incident where
+	1798 wasted Snapshot Disk jobs accumulated against 4 decommissioned test
+	servers in 2 days.
+	"""
+	# Direct: this VM IS an app server's VM
+	server = frappe.db.get_value(
+		"Server",
+		{"virtual_machine": vm_name},
+		["name", "is_decommissioned"],
+		as_dict=True,
+	)
+	if server and server.is_decommissioned:
+		return True
+	# Indirect: this VM is the DB server's VM, and the linked app server is decommissioned
+	db_server = frappe.db.get_value("Database Server", {"virtual_machine": vm_name}, "name")
+	if db_server:
+		app_decom = frappe.db.get_value(
+			"Server",
+			{"database_server": db_server, "is_decommissioned": 1},
+			"name",
+		)
+		if app_decom:
+			return True
+	# Indirect: this VM is the Proxy server's VM, and any app server linked to it is decommissioned
+	proxy_server = frappe.db.get_value("Proxy Server", {"virtual_machine": vm_name}, "name")
+	if proxy_server:
+		# A proxy can be linked to many app servers; if ALL of them are decommissioned, skip
+		linked_app_servers = frappe.get_all(
+			"Server", {"proxy_server": proxy_server}, ["name", "is_decommissioned"]
+		)
+		if linked_app_servers and all(s.is_decommissioned for s in linked_app_servers):
+			return True
+	return False
+
+
 def sync_virtual_machines_hetzner():
 	for machine in frappe.get_all(
 		"Virtual Machine",
@@ -2539,6 +2585,9 @@ def snapshot_oci_virtual_machines():
 		"Virtual Machine", {"status": "Running", "skip_automated_snapshot": 0, "cloud_provider": "OCI"}
 	)
 	for machine in machines:
+		# Skip VMs backing decommissioned servers (2026-05-21 cluster-decom guard)
+		if is_vm_for_decommissioned_server(machine.name):
+			continue
 		# Skip if a snapshot has already been created today
 		if frappe.get_all(
 			"Virtual Disk Snapshot",
@@ -2564,6 +2613,9 @@ def snapshot_hetzner_virtual_machines():
 		"Virtual Machine", {"status": "Running", "skip_automated_snapshot": 0, "cloud_provider": "Hetzner"}
 	)
 	for machine in machines:
+		# Skip VMs backing decommissioned servers (2026-05-21 cluster-decom guard)
+		if is_vm_for_decommissioned_server(machine.name):
+			continue
 		# Skip if a snapshot has already been created today
 		if frappe.get_all(
 			"Virtual Disk Snapshot",
@@ -2609,6 +2661,9 @@ def snapshot_aws_internal_virtual_machines():
 	machines.extend(server_snapshot_disabled_vms)
 
 	for machine in machines:
+		# Skip VMs backing decommissioned servers (2026-05-21 cluster-decom guard)
+		if is_vm_for_decommissioned_server(machine):
+			continue
 		# Skip if a snapshot has already been created today
 		if frappe.get_all(
 			"Virtual Disk Snapshot",
@@ -2660,17 +2715,12 @@ def snapshot_aws_servers():
 	for machine in machines:
 		if has_job_timeout_exceeded():
 			return
+		# Skip VMs backing decommissioned servers (2026-05-21 cluster-decom guard)
+		if is_vm_for_decommissioned_server(machine):
+			continue
 		app_server = frappe.get_value("Server", {"virtual_machine": machine}, "name")
 		try:
 			server: "Server" = frappe.get_doc("Server", app_server)
-			# Skip decommissioned servers — their VM may still be Running but
-			# the operator has signalled "stop spending compute on this".
-			# Without this guard, 1798 Snapshot Disk jobs accumulated against
-			# 4 decommissioned test servers in 2 days (2026-05-21 incident).
-			# Database Server doesn't have its own is_decommissioned flag —
-			# the app server's flag is authoritative for the cluster.
-			if server.is_decommissioned:
-				continue
 			servers = [
 				["Server", server.name],
 				["Database Server", server.database_server],
@@ -2730,6 +2780,10 @@ def rolling_snapshot_database_server_virtual_machines():
 			break
 
 		if virtual_machine_name in ignorable_virtual_machines:
+			continue
+
+		# Skip VMs backing decommissioned servers (2026-05-21 cluster-decom guard)
+		if is_vm_for_decommissioned_server(virtual_machine_name):
 			continue
 
 		# Skip if a valid snapshot has already existed within last 2 hours
