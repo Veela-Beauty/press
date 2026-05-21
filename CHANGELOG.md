@@ -5,6 +5,61 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 21-05-2026 — Decom sweep Session 1: shared helpers + 3 highest-waste crons patched
+
+Cron audit (after the snapshot fix) identified **17 unpatched crons** with the same class of bug — picking targets from lower-level doctypes (VM, Site, Bench, Agent Job) without checking the linked `tabServer.is_decommissioned`. This commit ships Session 1: the shared helpers + the top 3 by waste rate.
+
+### Added — shared helper module
+**`press/utils/decom.py`** with 4 helpers + fail-open contract:
+- `is_server_decommissioned(name)` — direct tabServer check
+- `is_database_server_in_decommissioned_cluster(name)` — walks Database Server → linked app Server (no flag on DB doctype)
+- `is_site_on_decommissioned_server(name)` — walks Site.server + Site.bench → cluster
+- `is_bench_on_decommissioned_server(name)` — walks Bench.{server,database_server} → cluster
+
+All helpers fail OPEN: missing input → False, lookup error → False. False-negative = one wasted job; false-positive = silently broken scheduling.
+
+### Patched — 3 highest-waste crons
+
+**1. `poll_pending_jobs`** (`agent_job.py:filter_active_servers`)
+- Runs every 5 seconds. THE worst offender (was generating Undelivered Backup Site jobs on dmg-erp that triggered yesterday's "agent stuck" misdiagnosis).
+- Fix: `filter_active_servers()` now skips servers whose decom flag is set OR whose Database Server cluster is decommissioned.
+
+**2. `Site.get_sites_for_backup`** (`site.py:3362`)
+- Powers BOTH `schedule_logical_backups` AND `schedule_physical_backups` — **single fix, two crons.**
+- Fix: added `is_decommissioned: 0` to the existing Server filter.
+
+**3. `archive_obsolete_benches`** (`bench.py:1556`)
+- Hourly + per-bench archive jobs to dead servers.
+- Fix: `LEFT JOIN tabServer + WHERE is_decommissioned IS NULL OR = 0` (NULL handles benches without a Server link).
+
+### Tests
+`press/utils/test_decom.py` — 9 unit tests covering happy paths, fail-open contract (None / DB error → False), indirect links (Site → Bench → DB Server), bench traversal.
+
+### Live verified
+```
+is_server_decommissioned('f-0001.fc.dev')                          → True   (decom)
+is_server_decommissioned('press-f1.sandbox.mvpstorm.com')          → False  (real)
+is_database_server_in_decommissioned_cluster('m2927.fc.dev')       → True   (DB of decom)
+is_site_on_decommissioned_server('test-site-00001.fc.dev')         → True   (on decom)
+is_bench_on_decommissioned_server('bench-0024-000001-f-0001')      → True   (on decom)
+is_server_decommissioned(None) / ''                                → False  (fail-open)
+```
+
+### Bug caught in live verification
+First deploy returned `False` for `is_site_on_decommissioned_server('test-site-00001')` because the helper queried `tabSite.database_server` — a column that doesn't exist on tabSite (only on tabBench). Fixed by walking `Site → Bench → cluster` instead of `Site → DB Server` directly. Reminder: **always live-verify schema assumptions, don't trust column-name patterns.**
+
+### Not in this commit (Session 2)
+8 more HIGH-risk + 4 MEDIUM-risk crons identified by the audit. All follow the same pattern; can be batched in a follow-up using the same helpers. Remaining list documented in `feedback_dead-server-cleanup-audit-first.md`.
+
+### Risk note
+`poll_pending_jobs` is Press's heartbeat (every 5s, drives all agent communication). The fix is purely subtractive (skip-if-decom) with a fail-open helper. Worst case: helper errors → no skips happen, behaviour identical to today. Belt-and-suspenders SQL flags on 8 dead VMs remain set so the snapshot path is doubly guarded.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `3b7d613651` — feat(decom): shared helpers + 3 cron patches + tests
+  - `8b8a7f7e90` — fix(decom): tabSite has no database_server column — walk via Bench
+
+
 ## 21-05-2026 — Snapshot guard: shared helper applied to ALL 5 snapshot crons + 4 unit tests
 
 Follow-up to 6414bd9ad9. The one-line fix only covered `snapshot_aws_servers`. There are **4 other snapshot crons** in `virtual_machine.py` (oci, hetzner, aws_internal, rolling_db) that had the SAME bug — they pick targets by `tabVirtualMachine` without checking the linked `tabServer.is_decommissioned`. If anyone decommissioned a Hetzner or OCI test server tomorrow, the same wasted-jobs pattern would repeat there.
