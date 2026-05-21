@@ -64,22 +64,22 @@ def is_database_server_in_decommissioned_cluster(db_server_name: str | None) -> 
 def is_site_on_decommissioned_server(site_name: str | None) -> bool:
 	"""True if the named Site is hosted on a decommissioned server.
 
-	A site can be reached via two link columns on tabSite:
-	  - `server` (the app server)
-	  - `database_server` (the DB server's cluster)
-	Either link being decommissioned means the site is unreachable.
+	tabSite has `server` (app) and `bench` link columns — NO direct
+	`database_server` column. The DB-server check goes through the bench:
+	Site → Bench → (server, database_server) → decom check on the cluster.
 	"""
 	if not site_name:
 		return False
 	try:
 		row = frappe.db.get_value(
-			"Site", site_name, ["server", "database_server"], as_dict=True
+			"Site", site_name, ["server", "bench"], as_dict=True
 		)
 		if not row:
 			return False
 		if is_server_decommissioned(row.server):
 			return True
-		if is_database_server_in_decommissioned_cluster(row.database_server):
+		# Indirect: walk via Bench to catch DB-server-only decom (rare but possible)
+		if row.bench and is_bench_on_decommissioned_server(row.bench):
 			return True
 		return False
 	except Exception:  # noqa: BLE001
@@ -89,8 +89,7 @@ def is_site_on_decommissioned_server(site_name: str | None) -> bool:
 def is_bench_on_decommissioned_server(bench_name: str | None) -> bool:
 	"""True if the named Bench is hosted on a decommissioned server.
 
-	Same logic as is_site_on_decommissioned_server but on tabBench
-	(`server` + `database_server`).
+	tabBench has both `server` and `database_server` columns.
 	"""
 	if not bench_name:
 		return False
@@ -107,3 +106,5 @@ def is_bench_on_decommissioned_server(bench_name: str | None) -> bool:
 		return False
 	except Exception:  # noqa: BLE001
 		return False
+
+
