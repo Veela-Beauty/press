@@ -62,6 +62,40 @@
 					<li><strong>Recent Calls</strong> below shows every API call (paginated). Status, duration, error — full audit trail.</li>
 				</ul>
 			</div>
+			<div class="rounded border border-blue-200 bg-blue-50 p-3">
+				<div class="mb-2 flex items-center gap-2">
+					<FeatherIcon name="book-open" class="h-4 w-4 text-blue-700" />
+					<div class="text-sm font-semibold text-blue-900">Canonical Recipes</div>
+					<span class="text-[11px] text-blue-700">— copy-paste flows that work first try</span>
+				</div>
+				<p class="mb-2 text-[11px] leading-relaxed text-blue-800">
+					Same recipes the MCP <code class="rounded bg-blue-100 px-1 py-0.5 text-[10px]">help</code> command returns to AI agents.
+					Read these before building a multi-tool flow — they prevent the "agent polls forever / restarts a busy worker" failure modes.
+				</p>
+				<div v-if="recipesLoading" class="text-[11px] text-blue-700">Loading recipes…</div>
+				<div v-else-if="recipesError" class="text-[11px] text-red-700">Failed to load recipes: {{ recipesError }}</div>
+				<div v-else class="space-y-3">
+					<div
+						v-for="r in recipes"
+						:key="r.id"
+						class="rounded border border-blue-100 bg-white p-2"
+					>
+						<div class="flex items-start justify-between gap-2">
+							<div class="font-medium text-gray-900 text-xs">{{ r.title }}</div>
+							<button
+								type="button"
+								class="shrink-0 rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] text-gray-600 hover:bg-gray-100"
+								@click="copyRecipe(r)"
+							>
+								{{ copiedId === r.id ? 'Copied!' : 'Copy' }}
+							</button>
+						</div>
+						<p class="mt-1 text-[11px] leading-relaxed text-gray-600">{{ r.purpose }}</p>
+						<pre class="mt-1.5 overflow-x-auto rounded bg-gray-900 px-2 py-1.5 text-[10.5px] leading-snug text-gray-100"><code>{{ r.steps.join('\n') }}</code></pre>
+						<p v-if="r.caveats" class="mt-1 text-[10.5px] italic leading-relaxed text-amber-700">⚠ {{ r.caveats }}</p>
+					</div>
+				</div>
+			</div>
 			<p class="text-xs leading-relaxed text-gray-500">
 				<strong>Security note:</strong> tokens are encrypted at rest (Frappe's standard <code class="rounded bg-gray-200 px-1 py-0.5 text-[11px]">__Auth</code>).
 				Keep them out of public repos and shared chat history. Revoke if leaked.
@@ -71,9 +105,39 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { FeatherIcon } from 'frappe-ui';
+import { ref, onMounted } from 'vue';
+import { FeatherIcon, createResource } from 'frappe-ui';
 import { riskBadgeClass } from './_tool_catalog.js';
 
 const open = ref(false);
+const recipes = ref([]);
+const recipesLoading = ref(false);
+const recipesError = ref('');
+const copiedId = ref('');
+
+const recipesResource = createResource({
+	url: 'press.mcp_server.help.get_server_recipes',
+	auto: false,
+	onSuccess(data) {
+		recipes.value = Array.isArray(data) ? data : [];
+		recipesLoading.value = false;
+	},
+	onError(err) {
+		recipesError.value = err?.messages?.[0] || err?.message || String(err);
+		recipesLoading.value = false;
+	},
+});
+
+onMounted(() => {
+	recipesLoading.value = true;
+	recipesResource.fetch();
+});
+
+function copyRecipe(r) {
+	const text = `# ${r.title}\n# ${r.purpose}\n\n${r.steps.join('\n')}` + (r.caveats ? `\n\n# Caveats: ${r.caveats}` : '');
+	navigator.clipboard.writeText(text).then(() => {
+		copiedId.value = r.id;
+		setTimeout(() => { if (copiedId.value === r.id) copiedId.value = ''; }, 1500);
+	});
+}
 </script>
