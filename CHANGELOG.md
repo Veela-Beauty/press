@@ -5,6 +5,34 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 21-05-2026 — Canonical Recipes: twin-surface (MCP help + dashboard UI)
+
+Both AI agents (via `mcp 'help'`) and humans (via `/dashboard/dev-tools/mcp`) now see the same 3 canonical recipes today's incidents revealed:
+
+1. **`playwright_admin_login`** — passwordless Playwright auth via `mint_dashboard_login_url`
+2. **`canonical_deploy`** — 8-step build → flip → verify chain that avoids "agent polls forever" traps
+3. **`agent_diagnostics`** — don't restart busy agents; check `agent_health` first
+
+### Added
+- **`SERVER_RECIPES`** list in `help.py`. Each recipe is `{id, title, purpose, steps[], caveats}`.
+- **`help` index response** now includes `.recipes` array. `DISCOVERABILITY_HINT` updated to point at it.
+- **`get_server_recipes()`** whitelisted method so the Vue UI can fetch the same list without going through MCP token dispatch (auth allowlist already covers `press.mcp_server.*`).
+- **`MCPHowToBox.vue` Recipes panel** under the "How to use MCP" expandable. Each recipe has a Copy button that formats it as markdown + code block. Loads via `createResource` on mount; graceful loading/error states.
+
+### Single source of truth
+Add a new recipe by appending to `SERVER_RECIPES` in `help.py`. Both the MCP `help` command and the dashboard UI pick it up on next deploy — no drift possible.
+
+### Live verification (just shipped + Playwright-verified)
+- `mcp("help")` returned all 3 recipes.
+- Browser at `/dashboard/dev-tools/mcp` rendered "Canonical Recipes" header, all 3 recipe titles, Copy buttons, and code blocks containing `mint_dashboard_login_url`, `agent_health`, `bench_deploy_and_wait`.
+- Initial recipe had wrong URL path (`/devtools/mcp` instead of `/dev-tools/mcp`); fixed in follow-up commit `a5e4ef183f`.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `2711c0a9ed` — feat(mcp): canonical recipes in help command + UI panel
+  - `a5e4ef183f` — fix(mcp): correct recipe URL path /devtools → /dev-tools
+
+
 ## 21-05-2026 — mint_dashboard_login_url: passwordless admin login for Playwright/E2E
 
 Closes the "change password every Playwright test" anti-pattern. The MCP token IS the auth; this new tool bridges it into a real Press dashboard session cookie via Frappe's LoginManager + Frappe's `?sid=` query handler.
