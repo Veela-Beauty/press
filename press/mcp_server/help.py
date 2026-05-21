@@ -59,7 +59,7 @@ SERVER_RECIPES: list[dict[str, Any]] = [
 			"Frappe session cookie."
 		),
 		"steps": [
-			"1. mcp('mint_dashboard_login_url', {redirect_to: '/dashboard/devtools/mcp'})",
+			"1. mcp('mint_dashboard_login_url', {redirect_to: '/dashboard/dev-tools/mcp'})",
 			"2. Read .data.url from response (embeds ?sid=<sid>)",
 			"3. mcp__playwright__browser_navigate(url=<that url>)",
 			"4. You're authenticated. No login form, no rotation, no password.",
