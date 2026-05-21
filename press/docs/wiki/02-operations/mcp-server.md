@@ -323,6 +323,16 @@ ssh root@press-ctrl "sudo -u frappe /home/frappe/poll_watchdog.sh"
 sudo -u frappe bench --site demo.mvpstorm.com execute press.press.doctype.agent_job.agent_job.poll_pending_jobs
 ```
 
+## Asset stale-CSS-after-flip fix (shipped 2026-05-20)
+
+If `/assets/<app>/dist/*.css` returns 404 immediately after a `site_update` flip — that **used to be** a known bug requiring a full Release Group rebuild to recover. As of commit `d326445bdf` on `cloudflare-dns`, `site_update.handle_success` automatically fires `Bench(destination_bench).generate_nginx_config()` after every successful flip, which regenerates the app-server bench nginx config with the correct asset alias on the new bench.
+
+Source: `press/press/doctype/site_update/site_update.py:handle_success`. Tests: `test_handle_success_refreshes_destination_bench_nginx`, `test_handle_success_swallows_nginx_refresh_failure`.
+
+The fix is best-effort (errors logged via `frappe.log_error`, not propagated) — the site IS on the new bench either way; the worst-case fallback is the proxy's 2-min `proxy_cache_valid` TTL self-healing.
+
+If you still see stale CSS after a flip on a Press instance that pre-dates `d326445bdf`, the workarounds in [feedback_press-asset-deploy-time-mount.md](https://github.com/Veela-Beauty/press/blob/cloudflare-dns/.claude/memory/feedback_press-asset-deploy-time-mount.md) (full RG redeploy, move site to another RG, clone site) still apply.
+
 ## Related docs
 
 - `press/docs/wiki/01-setup/` — getting Press running

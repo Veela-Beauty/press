@@ -5,6 +5,35 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 20-05-2026 — Platform fix: refresh destination bench nginx after site_update flip
+
+Closes the "stale CSS 404 after site_update" trap that bit the gulf-corner-precast demo (2026-05-13) and again the wazin-mx-demo (2026-05-20, 75 minutes burned before a memory check found the workaround).
+
+### Root cause
+
+The proxy server does NOT serve `/assets/` from disk — it does `proxy_pass` to the app server with a 2-min cache (`proxy_cache_valid 200 302 2m`). The actual stale state lives on the **app-server bench nginx**, whose config contains a hardcoded `alias /home/frappe/benches/<bench-name>/sites/assets/` for `/assets/<app>/*`. After `site_update` flips a site to a new bench, this alias is NOT auto-refreshed — it keeps pointing at the OLD bench's filesystem path until the next full Release Group rebuild rebakes it.
+
+My initial diagnosis assumed a proxy-side per-RG mount. **That was wrong** (the public Frappe agent source has zero proxy-side bench paths). A research-agent grep through `frappe/agent` corrected the diagnosis before any code shipped.
+
+### Fixed
+- **`press/press/doctype/site_update/site_update.py:handle_success`** now calls `Bench(destination_bench).generate_nginx_config()` after `reset_previous_status`. This fires the existing `Update Bench Configuration` agent job which regenerates the bench-side nginx config with the correct `/assets/<app>/` alias pointing at the new bench.
+- Best-effort: wrapped in try/except + `frappe.log_error` so a transient agent failure does NOT mark the site_update as Failed. Site IS on the new bench; assets self-heal within the proxy's 2-min cache TTL in the worst case.
+
+### Tests
+- `test_handle_success_refreshes_destination_bench_nginx` — confirms `Bench.generate_nginx_config()` is called with the destination bench name.
+- `test_handle_success_swallows_nginx_refresh_failure` — confirms agent-down errors are logged and swallowed; site_update completion is not gated on nginx refresh succeeding.
+
+### Notes
+- **No new Agent Job type.** Reuses the existing `Update Bench Configuration` job that `bench.generate_nginx_config()` already fires.
+- **No proxy-server-side code change.** The proxy was misdiagnosed; nothing on it needed to change.
+- Fix is **idempotent** at the bench level — regenerating nginx config on a bench whose alias is already correct is a no-op write + nginx -s reload.
+- The 2-min proxy cache TTL is the self-healing safety net if this fix ever fails silently.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `d326445bdf` — fix(site_update): refresh destination bench nginx on flip success
+
+
 ## 20-05-2026 — MCP: 4 new agent tools + 4 safety gates on wait_for_bench_flip
 
 A live agent driving the dmg-erp deploy got stuck polling `wait_for_bench_flip` indefinitely because the call returned `pending` even though the most recent Update Site Migrate had FAILED and been rolled back at 06:55 → 07:06. Same agent had no way to see in-flight job output the way the dashboard's job page does. This session ships the four MCP enhancements that fix BOTH gaps + the four server-side safety gates that prevent the misdiagnosis from happening at the source.
