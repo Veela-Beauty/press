@@ -5,6 +5,53 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 21-05-2026 — Snapshot guard: shared helper applied to ALL 5 snapshot crons + 4 unit tests
+
+Follow-up to 6414bd9ad9. The one-line fix only covered `snapshot_aws_servers`. There are **4 other snapshot crons** in `virtual_machine.py` (oci, hetzner, aws_internal, rolling_db) that had the SAME bug — they pick targets by `tabVirtualMachine` without checking the linked `tabServer.is_decommissioned`. If anyone decommissioned a Hetzner or OCI test server tomorrow, the same wasted-jobs pattern would repeat there.
+
+### Added — shared helper
+**`press/press/doctype/virtual_machine/virtual_machine.py:is_vm_for_decommissioned_server(vm_name)`**
+
+Single source of truth for "should snapshot crons skip this VM?". Handles 3 paths to the decommission flag because the flag lives ONLY on `tabServer` (Database Server and Proxy Server doctypes don't have their own):
+
+1. **Direct**: VM is an app Server's VM → check `Server.is_decommissioned`
+2. **Indirect (DB half)**: VM is a Database Server's VM → walk to linked app Server → check its flag
+3. **Indirect (Proxy half)**: VM is a Proxy Server's VM → walk to ALL linked app Servers → True if ALL are decommissioned (a proxy may serve multiple clusters)
+
+The app Server's flag is **authoritative for the whole cluster**.
+
+### Applied to all 5 snapshot crons
+Each cron now has the same one-line guard at the top of its loop:
+```python
+if is_vm_for_decommissioned_server(vm_name):
+    continue
+```
+Covered: `snapshot_oci_virtual_machines`, `snapshot_hetzner_virtual_machines`, `snapshot_aws_internal_virtual_machines`, `snapshot_aws_servers` (replaces 6414bd9ad9's inline fix — converges on one approach), `rolling_snapshot_database_server_virtual_machines`.
+
+### Tests
+`TestIsVmForDecommissionedServer` with 4 unit tests:
+- `test_direct_decom_app_server_returns_true` — VM backs a decommissioned app server
+- `test_direct_active_app_server_returns_false` — VM backs an active server (don't skip)
+- `test_indirect_via_db_server_returns_true` — VM is DB server's VM, linked app is decommissioned
+- `test_orphan_vm_returns_false` — VM doesn't back anything (no decom signal, let normal logic run)
+
+If anyone reverts the guards in 6 months, these tests fail in CI.
+
+### Live verified
+```
+> is_vm_for_decommissioned_server('f1-mumbai.fc.dev')  → True   (decom app server)
+> is_vm_for_decommissioned_server('m2-mumbai.fc.dev')  → True   (DB server of decom cluster)
+> is_vm_for_decommissioned_server(<production VM>)     → False  (real server, snapshot normally)
+```
+
+### Belt-and-suspenders
+The earlier SQL quick-fix (`skip_automated_snapshot=1` + `disable_server_snapshot=1` on 8 VMs) is intentionally kept ON. The helper is new code; if it has an edge-case bug, those VM-level flags catch it. No cost to leaving both layers in place.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `f6087e11e0` — refactor(snapshots): shared helper + apply to all 5 crons + 4 tests
+
+
 ## 21-05-2026 — Snapshot cron now respects is_decommissioned
 
 Follow-up to the dead-server cleanup. The `snapshot_aws_servers` scheduled job in `press/press/doctype/virtual_machine/virtual_machine.py` was creating ~37 Snapshot Disk Press Jobs per hour against 4 decommissioned test servers (`f-000*`). Over 2 days that's **1798 wasted jobs**.
