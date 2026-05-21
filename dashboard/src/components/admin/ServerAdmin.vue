@@ -211,9 +211,12 @@ export default {
 				.toFixed(2);
 		},
 		displayServers() {
-			return this.showDecommissioned
-				? this.servers
-				: this.servers.filter(s => !s.is_decommissioned);
+			// Hide servers that lack an IP — those are stale rows from
+			// test/dev runs that never finished provisioning. They have
+			// no telemetry, no cost, and no operational value. Tick
+			// 'Show decommissioned' to surface them anyway.
+			if (this.showDecommissioned) return this.servers;
+			return this.servers.filter(s => !s.is_decommissioned && s.ip);
 		},
 	},
 	mounted() { this.loadServers(); },
