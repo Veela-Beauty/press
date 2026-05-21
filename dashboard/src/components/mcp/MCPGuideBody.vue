@@ -47,7 +47,10 @@
 						<div class="flex items-start justify-between gap-2">
 							<div class="min-w-0 flex-1">
 								<div class="flex items-center gap-1.5 flex-wrap">
-									<code class="rounded bg-gray-900 px-1.5 py-0.5 text-[11px] text-emerald-300 font-mono">{{ t.name }}</code>
+									<code
+										class="rounded px-1.5 py-0.5 text-[12px] font-mono font-semibold"
+										style="background-color: #1f2937; color: #6ee7b7;"
+									>{{ t.name }}</code>
 									<span :class="riskBadgeClass(t.risk)">{{ t.risk }}</span>
 								</div>
 								<p class="mt-1 text-[11.5px] leading-snug text-gray-700">{{ t.description }}</p>

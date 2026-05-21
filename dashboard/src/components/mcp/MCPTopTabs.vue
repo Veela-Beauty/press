@@ -1,7 +1,7 @@
 <template>
 	<div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-		<!-- Tab strip -->
-		<div class="flex items-center border-b border-gray-200 bg-gray-50">
+		<!-- Tab strip — clicking the active tab again collapses the body -->
+		<div class="flex items-center bg-gray-50" :class="active ? 'border-b border-gray-200' : ''">
 			<button
 				v-for="t in tabs"
 				:key="t.id"
@@ -10,7 +10,7 @@
 				:class="active === t.id
 					? 'bg-white text-gray-900 border-b-2 border-blue-600 -mb-px'
 					: 'text-gray-600 hover:text-gray-900 hover:bg-white/60'"
-				@click="active = t.id"
+				@click="toggle(t.id)"
 			>
 				<FeatherIcon :name="t.icon" class="h-4 w-4" :class="active === t.id ? t.iconActiveClass : 'text-gray-400'" />
 				<span>{{ t.label }}</span>
@@ -19,13 +19,14 @@
 				</span>
 			</button>
 			<div class="ml-auto pr-4 text-[11px] text-gray-500">
-				{{ activeTab?.tagline }}
+				{{ activeTab?.tagline || 'Click a tab to expand' }}
 			</div>
 		</div>
-		<!-- Active tab body -->
-		<div class="bg-white">
-			<MCPHowToBody v-if="active === 'howto'" />
+		<!-- Active tab body — Active Tokens shows by default; other tabs lazy -->
+		<div v-if="active" class="bg-white">
+			<MCPActiveTokensBody v-if="active === 'tokens'" ref="tokensBody" @issue="$emit('issue')" />
 			<MCPGuideBody v-else-if="active === 'guide'" />
+			<MCPHowToBody v-else-if="active === 'howto'" />
 			<MCPRecentCallsBody v-else-if="active === 'calls'" />
 		</div>
 	</div>
@@ -34,19 +35,27 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { FeatherIcon } from 'frappe-ui';
-import MCPHowToBody from './MCPHowToBody.vue';
+import MCPActiveTokensBody from './MCPActiveTokensBody.vue';
 import MCPGuideBody from './MCPGuideBody.vue';
+import MCPHowToBody from './MCPHowToBody.vue';
 import MCPRecentCallsBody from './MCPRecentCallsBody.vue';
 
-const active = ref('howto');
+defineEmits(['issue']);
+
+// Active Tokens is the default — most-used surface
+const active = ref('tokens');
+
+function toggle(id) {
+	active.value = active.value === id ? null : id;
+}
 
 const tabs = [
 	{
-		id: 'howto',
-		label: 'How to use MCP',
-		tagline: 'Issue a token, hand it to your AI agent, audit calls',
-		icon: 'info',
-		iconActiveClass: 'text-blue-600',
+		id: 'tokens',
+		label: 'Active Tokens',
+		tagline: 'Your MCP access tokens — issue, copy, reissue, revoke',
+		icon: 'key',
+		iconActiveClass: 'text-indigo-600',
 	},
 	{
 		id: 'guide',
@@ -54,6 +63,13 @@ const tabs = [
 		tagline: 'Every tool — args, risk, copy-pasteable example',
 		icon: 'book',
 		iconActiveClass: 'text-emerald-600',
+	},
+	{
+		id: 'howto',
+		label: 'Quickstart',
+		tagline: 'Issue a token, hand it to your AI agent, audit calls',
+		icon: 'info',
+		iconActiveClass: 'text-blue-600',
 	},
 	{
 		id: 'calls',
@@ -65,4 +81,18 @@ const tabs = [
 ];
 
 const activeTab = computed(() => tabs.find((t) => t.id === active.value));
+
+const tokensBody = ref(null);
+
+// Exposed for MCPPanel: after a new token is issued, switch to the
+// Active Tokens tab + refresh its list so the user sees their new row.
+function refreshTokens() {
+	active.value = 'tokens';
+	// Wait a tick for the body to mount (if it wasn't open) before calling
+	requestAnimationFrame(() => {
+		tokensBody.value?.loadTokens?.();
+	});
+}
+
+defineExpose({ refreshTokens });
 </script>
