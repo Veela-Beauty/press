@@ -5,6 +5,33 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 21-05-2026 — MCP Guide: dashboard tool catalog (catalog-driven, never drifts)
+
+Closes the "humans can't browse what MCP tools exist and what they do" gap. New collapsible **MCP Guide** box on `/dashboard/dev-tools/mcp` renders every tool from `tools.py` as a card with: name, risk badge, 1-line description, args table (name | type | required | description), and a copy-pasteable curl example. Search box + risk filter at the top.
+
+### Added
+- **`press/mcp_server/help.py:get_tool_catalog_for_guide()`** — whitelisted method returning `{categories: [...], total, recipes}`. Categories grouped + tools sorted alpha within each category. Returns FULL catalog (not scope-filtered) because humans want to see everything.
+- **`dashboard/src/components/mcp/MCPGuideBox.vue`** — collapsible box pattern (mirrors MCPHowToBox). Lazy-loads catalog on first expand. Live search filters by name + description. Risk filter (`all` / `low` / `medium` / `high`). Per-tool Copy curl button.
+- Wired into MCPPanel.vue as a sibling of MCPHowToBox (2 lines: import + render).
+
+### Source of truth
+`tools.py` + `args_schema`. Add a new tool → its card appears in the Guide on next deploy. Zero hand-written prose to maintain.
+
+### Live verified (Playwright)
+- Page rendered at `/dashboard/dev-tools/mcp` with the MCP Guide button visible
+- Expanded → 66 tools across 5 categories (27 Read-only, 11 Bench/RG, 13 Site lifecycle, 5 File/Config, 10 Dangerous)
+- Sample tools `agent_health`, `mint_dashboard_login_url`, `site_run_python` all rendered with full args tables
+- Search filter working: typing "agent" → 7/66 shown
+- 66 "Show example call" expandables + 66 "Copy curl" buttons
+
+### Pivot note
+Original plan was full tabs refactor of MCPPanel.vue (~700 lines). Pivoted to sibling collapsible box (~3 lines change in MCPPanel.vue) — smaller blast radius, ships the value today. True tabs refactor can land later if needed.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `87a4c29815` — feat(mcp): MCP Guide box on dashboard
+
+
 ## 21-05-2026 — Canonical Recipes: twin-surface (MCP help + dashboard UI)
 
 Both AI agents (via `mcp 'help'`) and humans (via `/dashboard/dev-tools/mcp`) now see the same 3 canonical recipes today's incidents revealed:
