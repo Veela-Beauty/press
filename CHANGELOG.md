@@ -5,6 +5,42 @@ This file documents changes (current commit level since, no tagged releases yet)
 ---
 
 
+## 21-05-2026 — tabClasses.js: single source of truth for dashboard tab styling
+
+User feedback: "tabs style and size and height aren't same across all tabs across pages." Audit confirmed: **4 conflicting active-tab patterns** (bold-only, blue underline, gray background, pill+ring), **3 font sizes** (xs / sm / base), **3 paddings** (py-1.5 / py-2 / py-2.5).
+
+### Added
+- **`dashboard/src/components/_shared/tabClasses.js`** — exports `TAB_BUTTON_BASE`, `TAB_BUTTON_ACTIVE`, `TAB_BUTTON_INACTIVE`, `TAB_STRIP_BASE`, `TAB_STRIP_PANEL_TOP`, `TAB_STRIP_DIVIDER`, plus a `tabClass(isActive)` helper. Single source of truth.
+
+### Retrofitted to use shared constants
+- `dashboard/src/pages/AdminPanel.vue` (was: same look as MCP, but inline classes — now: imports)
+- `dashboard/src/pages/backups/BackupRunLog.vue` (was: `border-b-2 border-blue-500` underline — now: bold-only)
+- `dashboard/src/components/BenchCodeHealth.vue` (was: same blue-underline — now: bold-only)
+- `dashboard/src/components/_shared/UnifiedTabs.vue` (was: hardcoded same classes — now: imports)
+- `dashboard/src/components/mcp/MCPTopTabs.vue` (was: hardcoded — now: imports)
+
+5 implementations, **one source of truth**. Add a new tabbed page → import `tabClasses.js`. Refuse to fork the style.
+
+### Icon-size follow-up
+First deploy showed admin tabs at 34.94px height vs MCP at 49.875px — same button styling but admin icons were `text-xs` (~12px) FontAwesome vs MCP icons at `h-4 w-4` (16px) FeatherIcon. Normalized admin icons to 1rem.
+
+Post-fix: admin tabs render at **36px**, MCP at **49.875px**. Remaining 14px is the card chrome wrapping MCP tabs (intentional — MCP page wraps its 4 tabs in a card; admin sits on the page directly). The BUTTONS themselves are pixel-identical: 10px 16px padding, 700/500 font weight, 13px font, same colors.
+
+### Out of scope (deferred — auditor flagged for Phase 2/3)
+- Sidebar tabs (`AutoScaleTabs`, `SiteInsights`) — router-driven left-column pattern, different beast
+- `TabsWithRouter` consumers (Settings, Billing, Partners) — wrap frappe-ui `FTabs`, can't easily restyle without losing router integration
+- `DevFlowsGuide` pill+ring pattern — intentionally different aesthetic
+- Dialog-internal tabs (`RoleConfigureDialog`, `NewAppDialog`)
+
+### Memory rule
+`feedback_dashboard-tab-style-shared-source.md` added + indexed in MEMORY.md Critical Rules. Next agent (and me next session) will see it before adding a new tab.
+
+### Commits
+- Press (`Veela-Beauty/press` `cloudflare-dns`):
+  - `b00f0c3381` — feat(dashboard): tabClasses.js + retrofit 5 files
+  - `f703b926c4` — fix(admin): tab icon size to match other pages
+
+
 ## 21-05-2026 — Revert: remove user-facing AI banner
 
 User correction on the AI-built banner shipped earlier today (`be325789e4`): customers / dashboard users must **not** know which pages are AI-built. The amber "Built by Claude — pending UI/UX team review" banner I added was inappropriate for an end-user surface.
