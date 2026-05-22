@@ -1032,3 +1032,211 @@ def mint_dashboard_login_url(redirect_to: str = "/dashboard") -> dict[str, Any]:
 		"user": target_user,
 		"expires_in_seconds": expires_in_seconds,
 	}
+
+
+# ---------------------------------------------------------------------------
+# App lifecycle tools — fetch latest, list pending, register existing
+# ---------------------------------------------------------------------------
+
+
+def _resolve_app_source(
+	app_source: str | None = None,
+	app: str | None = None,
+	release_group: str | None = None,
+) -> str:
+	"""Resolve an App Source docname from either an explicit name or app+RG."""
+	if app_source:
+		if not frappe.db.exists("App Source", app_source):
+			frappe.throw(f"App Source {app_source!r} not found", frappe.DoesNotExistError)
+		return app_source
+	if not (app and release_group):
+		frappe.throw(
+			"Pass either app_source, or both app and release_group",
+			frappe.ValidationError,
+		)
+	src = frappe.db.get_value(
+		"Release Group App", {"parent": release_group, "app": app}, "source"
+	)
+	if not src:
+		frappe.throw(
+			f"App {app!r} is not on Release Group {release_group!r}",
+			frappe.ValidationError,
+		)
+	return src
+
+
+@frappe.whitelist()
+def app_source_fetch_latest(
+	app_source: str | None = None,
+	app: str | None = None,
+	release_group: str | None = None,
+	force: bool = False,
+) -> dict[str, Any]:
+	"""Poll an App Source's upstream Git remote and create a Draft App Release
+	for any new commit on its branch.
+
+	Equivalent to the dashboard's "Fetch Latest" button on an App Source.
+	Returns the new release docname, or marks `no_new_release` when the latest
+	upstream commit already has a release row.
+
+	Resolve modes (pass ONE):
+	- app_source: explicit App Source docname (e.g. SRC-frappe_theme_switcher-001)
+	- app + release_group: walk Release Group → child app row → source
+
+	Args:
+	- force: ignore the last_github_poll_failed flag (use after fixing creds)
+	"""
+	source_name = _resolve_app_source(app_source, app, release_group)
+	doc = frappe.get_doc("App Source", source_name)
+	result = doc.create_release(force=bool(force))
+	if not result:
+		return {
+			"app_source": source_name,
+			"app": doc.app,
+			"branch": doc.branch,
+			"new_release": None,
+			"no_new_release": True,
+			"reason": "Upstream has no new commits, or last poll failed (pass force=true to retry).",
+		}
+	rel = frappe.db.get_value(
+		"App Release", result, ["name", "hash", "status", "tag"], as_dict=True
+	)
+	return {
+		"app_source": source_name,
+		"app": doc.app,
+		"branch": doc.branch,
+		"new_release": rel,
+	}
+
+
+@frappe.whitelist()
+def list_pending_releases(
+	app: str | None = None,
+	release_group: str | None = None,
+	app_source: str | None = None,
+	limit: int = 20,
+) -> dict[str, Any]:
+	"""List Draft App Releases waiting for approval.
+
+	Scope filters (any combination):
+	- app_source: only this source's releases
+	- app + release_group: only releases for `app` on the RG's bound source
+	- app alone: every Draft release of that app across all sources
+	- (no scope): every Draft release the caller can see (system users only)
+	"""
+	filters: dict[str, Any] = {"status": "Draft"}
+	if app_source:
+		filters["source"] = app_source
+	elif app and release_group:
+		filters["source"] = _resolve_app_source(None, app, release_group)
+		filters["app"] = app
+	elif app:
+		filters["app"] = app
+
+	rows = frappe.get_all(
+		"App Release",
+		filters=filters,
+		fields=["name", "app", "source", "hash", "tag", "status", "creation"],
+		order_by="creation desc",
+		limit_page_length=int(limit),
+	)
+	return {"filters": filters, "count": len(rows), "releases": rows}
+
+
+@frappe.whitelist()
+def register_existing_app(
+	repository_url: str,
+	branch: str,
+	app_name: str,
+	app_title: str | None = None,
+	team: str | None = None,
+) -> dict[str, Any]:
+	"""Register an EXISTING GitHub repository as a new App Source.
+
+	Different from `app_create_locally`, which scaffolds a brand-new app on a
+	bench. This adds a known-good repo (already on GitHub) as an App Source so
+	it can be added to a Release Group and deployed.
+
+	Args:
+	- repository_url: full GitHub URL (https://github.com/owner/repo) or
+	  owner/repo shorthand
+	- branch: git branch to track (e.g. 'main', 'version-15')
+	- app_name: lowercase_with_underscores app identifier (must match the app's
+	  hooks.py `app_name`)
+	- app_title: human-readable title (defaults to app_name titlecased)
+	- team: team that owns the App Source (defaults to current team)
+	"""
+	from press.utils import get_current_team
+
+	# Normalize repository URL → owner, repo
+	url = repository_url.strip().rstrip("/")
+	if url.startswith("https://github.com/"):
+		owner_repo = url[len("https://github.com/") :]
+	elif url.startswith("git@github.com:"):
+		owner_repo = url[len("git@github.com:") :]
+	else:
+		owner_repo = url  # assume owner/repo shorthand
+	if owner_repo.endswith(".git"):
+		owner_repo = owner_repo[:-4]
+	parts = owner_repo.split("/")
+	if len(parts) != 2 or not all(parts):
+		frappe.throw(
+			f"Invalid repository_url {repository_url!r}: expected "
+			"https://github.com/owner/repo or owner/repo",
+			frappe.ValidationError,
+		)
+	owner, repo = parts
+
+	team_name = team or get_current_team()
+
+	# Duplicate check
+	existing = frappe.db.get_value(
+		"App Source",
+		{"app": app_name, "repository_owner": owner, "repository": repo, "branch": branch},
+		"name",
+	)
+	if existing:
+		return {
+			"app_source": existing,
+			"app": app_name,
+			"already_exists": True,
+		}
+
+	# Make sure the App parent row exists (App Source has a Link to App)
+	if not frappe.db.exists("App", app_name):
+		frappe.get_doc(
+			{
+				"doctype": "App",
+				"name": app_name,
+				"title": app_title or app_name.replace("_", " ").title(),
+			}
+		).insert(ignore_permissions=True)
+
+	doc = frappe.get_doc(
+		{
+			"doctype": "App Source",
+			"app": app_name,
+			"app_title": app_title or app_name.replace("_", " ").title(),
+			"repository_url": f"https://github.com/{owner}/{repo}",
+			"repository_owner": owner,
+			"repository": repo,
+			"branch": branch,
+			"team": team_name,
+			"public": 0,
+		}
+	).insert(ignore_permissions=True)
+
+	# Fetch first release so the App Source isn't empty
+	first_release = None
+	try:
+		first_release = doc.create_release(force=True)
+	except Exception:
+		pass
+
+	return {
+		"app_source": doc.name,
+		"app": app_name,
+		"repository_url": doc.repository_url,
+		"branch": branch,
+		"first_release": first_release,
+	}

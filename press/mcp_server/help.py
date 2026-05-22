@@ -162,6 +162,9 @@ TOOL_CATEGORY: dict[str, str] = {
 	"app_create_locally": "bench_rg",
 	"app_init_github": "bench_rg",
 	"app_release_approve": "bench_rg",
+	"app_source_fetch_latest": "readonly",
+	"list_pending_releases": "readonly",
+	"register_existing_app": "bench_rg",
 	"release_group_create_deploy_candidate": "bench_rg",
 	"deploy_candidate_schedule_build": "bench_rg",
 	# Site lifecycle

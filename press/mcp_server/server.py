@@ -469,6 +469,9 @@ RESOURCELESS_TOOLS: set[str] = {
 	# Frappe perm).
 	"agent_job_list",
 	"app_release_approve",  # app-scoped, not RG/Site-scoped
+	"app_source_fetch_latest",  # app-scoped via App Source.team
+	"list_pending_releases",    # filtered by app/source/RG in handler
+	"register_existing_app",    # creates new App Source for current team
 }
 
 # Argument names that, when present, indicate the tool operates on a specific

@@ -79,6 +79,11 @@ _ARG_FRAGMENTS: dict[str, dict] = {
 	"public_key": {"type": "string", "description": "OpenSSH-format public key (e.g. 'ssh-ed25519 AAAA... user@host')"},
 	"server": {"type": "string", "description": "App server docname, e.g. 'press-f1.sandbox.mvpstorm.com'"},
 	"job_name": {"type": "string", "description": "Agent Job docname (10-char ID), e.g. 'jqc727far7'"},
+	"app_source": {"type": "string", "description": "App Source docname (e.g. 'SRC-frappe_theme_switcher-001')"},
+	"repository_url": {"type": "string", "description": "GitHub repository URL (https://github.com/owner/repo) or owner/repo shorthand"},
+	"force": {"type": "boolean", "description": "Bypass safety checks (e.g. last_github_poll_failed flag)"},
+	"team": {"type": "string", "description": "Team docname (defaults to current team)"},
+	"limit": {"type": "integer", "minimum": 1, "maximum": 200, "description": "Max rows to return"},
 }
 
 
@@ -496,6 +501,27 @@ TOOLS: dict[str, dict] = {
 		"description": "Approve a Draft App Release for inclusion in Deploy Candidates",
 		"required_args": ["release_name"],
 		"args_schema": _schema(["release_name"]),
+		"risk": "medium",
+	},
+	"app_source_fetch_latest": {
+		"method": "press.mcp_server.deploy_flow.app_source_fetch_latest",
+		"description": "Poll an App Source's upstream Git remote and create a Draft App Release for any new commit on its branch. Equivalent to the dashboard's 'Fetch Latest' button. Pass either app_source explicitly, OR app + release_group to walk the link. Returns the new release docname or marks no_new_release=true when upstream has no new commits. Pass force=true to retry after last_github_poll_failed.",
+		"required_args": [],
+		"args_schema": _schema([], {"app_source": None, "app": None, "release_group": None, "force": None}),
+		"risk": "low",
+	},
+	"list_pending_releases": {
+		"method": "press.mcp_server.deploy_flow.list_pending_releases",
+		"description": "List Draft App Releases waiting for approval. Filter by app_source, OR app + release_group, OR app alone. Returns count + array of {name, app, source, hash, tag, status, creation}.",
+		"required_args": [],
+		"args_schema": _schema([], {"app": None, "release_group": None, "app_source": None, "limit": None}),
+		"risk": "low",
+	},
+	"register_existing_app": {
+		"method": "press.mcp_server.deploy_flow.register_existing_app",
+		"description": "Register an EXISTING GitHub repository as a new App Source. Different from app_create_locally (which scaffolds a NEW app). Use when a teammate or external maintainer pushed an app to GitHub and you need Press to track it. Args: repository_url (https URL or owner/repo), branch, app_name (must match hooks.py). Optional: app_title, team. Creates App Source + tries to fetch first release. Returns app_source docname.",
+		"required_args": ["repository_url", "branch", "app_name"],
+		"args_schema": _schema(["repository_url", "branch", "app_name"], {"app_title": None, "team": None}),
 		"risk": "medium",
 	},
 	"release_group_create_deploy_candidate": {
