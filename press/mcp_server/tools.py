@@ -654,6 +654,13 @@ TOOLS: dict[str, dict] = {
 		),
 		"risk": "medium",
 	},
+	"bench_provision_progress": {
+		"method": "press.mcp_server.deploy_flow.bench_provision_progress",
+		"description": "Aggregate progress for a bench going through Press's provision chain (Build → New Bench → Setup Bench → Site Migrate → Ready). Replaces the 'is the filesystem populated yet?' polling pattern. Returns {bench, candidate, bench_status, stage, stage_label, elapsed_seconds, chain[], dashboard_url}. Stage is one of: queued | build | new_bench | setup_bench | site_migrate | ready | failed | archived — each with a human label. Poll this every 10s instead of checking the filesystem; it tells you WHICH phase is running so you know the expected duration.",
+		"required_args": ["bench_name"],
+		"args_schema": _schema(["bench_name"]),
+		"risk": "low",
+	},
 	"agent_job_progress": {
 		"method": "press.mcp_server.deploy_flow.agent_job_progress",
 		"description": "LIVE in-flight progress for an Agent Job — Cursor-style streaming. Returns {status, current_step, steps[], steps_summary, output_tail, dashboard_url}. Each step has its own status + output_tail + duration. Mirrors the dashboard's /dashboard/sites/<site>/jobs/<job> page. Call this in a loop (every 3-10s) while a deploy/migrate is in-flight to see exactly which step is running and what it's printing. Use agent_job_traceback for post-mortem on Failure rows; use THIS for live watching.",

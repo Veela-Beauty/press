@@ -11,6 +11,7 @@ from frappe.utils import add_to_date, now_datetime
 from press.mcp_server.deploy_flow import (
 	agent_job_list,
 	app_release_approve,
+	bench_provision_progress,
 	deploy_candidate_schedule_build,
 	deploy_candidate_status,
 	release_group_create_deploy_candidate,
@@ -399,3 +400,118 @@ class TestDeployFlow(FrappeTestCase):
 		):
 			with self.assertRaises(frappe.ValidationError):
 				_candidate_to_release_group("orphan-build")
+
+
+class TestBenchProvisionProgress(FrappeTestCase):
+	"""Stage rollup for bench provision chain. Patch DB calls so tests don't
+	depend on a real bench existing."""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def _patch_db(self, bench_doc, agent_jobs=None, builds=None, site_updates=None):
+		"""Helper: set up the patches needed for one bench scenario."""
+		agent_jobs = agent_jobs or []
+		builds = builds or []
+		site_updates = site_updates or []
+
+		def fake_get_value(doctype, name=None, *args, **kwargs):
+			if doctype == "Bench" and isinstance(name, str):
+				return bench_doc
+			return None
+
+		def fake_exists(doctype, name=None, *args, **kwargs):
+			return doctype == "Bench" and name == bench_doc["name"]
+
+		def fake_sql(query, *args, **kwargs):
+			q = query.strip().lower()
+			if "deploy candidate build" in q:
+				return builds
+			if "agent job" in q:
+				return agent_jobs
+			if "site update" in q:
+				return site_updates
+			return []
+
+		return patch.multiple(
+			"press.mcp_server.deploy_flow.frappe.db",
+			get_value=MagicMock(side_effect=fake_get_value),
+			exists=MagicMock(side_effect=fake_exists),
+			sql=MagicMock(side_effect=fake_sql),
+		)
+
+	def test_unknown_bench_raises(self):
+		with patch(
+			"press.mcp_server.deploy_flow.frappe.db.exists", return_value=False
+		):
+			with self.assertRaises(frappe.DoesNotExistError):
+				bench_provision_progress("no-such-bench")
+
+	def test_active_bench_with_no_jobs_returns_ready(self):
+		bench_doc = frappe._dict({
+			"name": "bench-X",
+			"status": "Active",
+			"candidate": None,
+			"group": "rg-X",
+			"creation": now_datetime(),
+			"server": "press-f1.sandbox.mvpstorm.com",
+		})
+		with self._patch_db(bench_doc):
+			result = bench_provision_progress("bench-X")
+		self.assertEqual(result["stage"], "ready")
+		self.assertEqual(result["bench_status"], "Active")
+
+	def test_pending_bench_with_running_setup_bench_returns_setup_bench(self):
+		bench_doc = frappe._dict({
+			"name": "bench-Y",
+			"status": "Pending",
+			"candidate": "deploy-Y",
+			"group": "rg-Y",
+			"creation": now_datetime(),
+			"server": "press-f1.sandbox.mvpstorm.com",
+		})
+		agent_jobs = [
+			frappe._dict({
+				"name": "job-new",
+				"job_type": "New Bench",
+				"status": "Success",
+				"creation": now_datetime(),
+				"start": now_datetime(),
+				"end": now_datetime(),
+			}),
+			frappe._dict({
+				"name": "job-setup",
+				"job_type": "Setup Bench",
+				"status": "Running",
+				"creation": now_datetime(),
+				"start": now_datetime(),
+				"end": None,
+			}),
+		]
+		with self._patch_db(bench_doc, agent_jobs=agent_jobs):
+			result = bench_provision_progress("bench-Y")
+		self.assertEqual(result["stage"], "setup_bench")
+		self.assertIn("Cloning apps", result["stage_label"])
+
+	def test_failed_new_bench_returns_failed(self):
+		bench_doc = frappe._dict({
+			"name": "bench-Z",
+			"status": "Pending",
+			"candidate": "deploy-Z",
+			"group": "rg-Z",
+			"creation": now_datetime(),
+			"server": "press-f1.sandbox.mvpstorm.com",
+		})
+		agent_jobs = [
+			frappe._dict({
+				"name": "job-fail",
+				"job_type": "New Bench",
+				"status": "Failure",
+				"creation": now_datetime(),
+				"start": now_datetime(),
+				"end": now_datetime(),
+			}),
+		]
+		with self._patch_db(bench_doc, agent_jobs=agent_jobs):
+			result = bench_provision_progress("bench-Z")
+		self.assertEqual(result["stage"], "failed")

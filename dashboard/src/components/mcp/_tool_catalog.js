@@ -44,6 +44,7 @@ export const TOOL_CATALOG = {
 	bench_list_app_files:     { category: 'readonly', risk: 'low', label: 'Bench — List App Files',        desc: 'List files under apps/<app>/<dir>/ in the bench (optional glob pattern, capped at 200)' },
 	bench_ssh_instructions:   { category: 'readonly', risk: 'low', label: 'Bench — SSH Instructions',      desc: 'Get SSH connection instructions for a bench (server/port/paths/do-and-dont). Does NOT grant access.' },
 	bench_ssh_register_key:   { category: 'bench_rg', risk: 'medium', label: 'Bench — Register SSH Pubkey',  desc: 'Upload your SSH public key so bench_ssh_cert_generate can sign it. One-time setup, idempotent.' },
+	bench_provision_progress: { category: 'readonly', risk: 'low', label: 'Bench — Provision Progress',     desc: 'Single-call stage rollup: build → new_bench → setup_bench → site_migrate → ready. Poll instead of checking the filesystem.' },
 	app_source_fetch_latest:  { category: 'readonly', risk: 'low', label: 'App Source — Fetch Latest',         desc: "Poll upstream Git + create a Draft App Release for any new commit (the 'Fetch Latest' button)" },
 	list_pending_releases:    { category: 'readonly', risk: 'low', label: 'App Releases — List Pending',      desc: 'List Draft App Releases waiting for approval (filter by app / release_group / app_source)' },
 

@@ -419,6 +419,7 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"bench_read_app_file",     # SECURITY (2026-05-10): previously missing; allowed cross-RG source-file reads
 		"bench_list_app_files",    # SECURITY (2026-05-10): previously missing; allowed cross-RG file listings
 		"bench_dev_info",
+		"bench_provision_progress",
 		# Obj 10
 		"bench_run_repo_script",
 	}:

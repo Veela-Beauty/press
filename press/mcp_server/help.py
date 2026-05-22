@@ -98,6 +98,40 @@ SERVER_RECIPES: list[dict[str, Any]] = [
 		),
 	},
 	{
+		"id": "watch_bench_provision",
+		"title": "Watch a bench provision from build → ready (no filesystem polling)",
+		"purpose": (
+			"After release_group_create_deploy_candidate + "
+			"deploy_candidate_schedule_build, a new Bench row is created and "
+			"goes through Build → New Bench → Setup Bench → Site Migrate → "
+			"Ready. Each phase has a typical duration; the WRONG thing to do "
+			"is poll `ls /home/frappe/benches/<bench>/apps` because the dir "
+			"is empty for the first 5-10 min while agent clones repos one at "
+			"a time. The RIGHT thing is to poll bench_provision_progress."
+		),
+		"steps": [
+			"1. After release_group_create_deploy_candidate, you have a candidate name (e.g. 'deploy-0028-000006').",
+			"2. Find the new Bench: list_release_groups + look at the latest bench, OR query Bench where candidate=<candidate>.",
+			"3. Loop: bench_provision_progress(bench_name=<bench>) every 10s.",
+			"4. Read .stage + .stage_label. Stage tells you which phase is running:",
+			"   - build       → Docker image build (~3 min)",
+			"   - new_bench   → starting container (~30s)",
+			"   - setup_bench → cloning apps into bench (5-10 min — looks 'empty' if you check filesystem!)",
+			"   - site_migrate→ flipping a site onto the new bench (~30s-3min)",
+			"   - ready       → done, bench is Active",
+			"   - failed      → check .chain[] for the failed step, then agent_job_traceback(job_name=<that step's job>)",
+			"5. Total expected: ~10-15 min on a heavy bench. Stop watching when stage=='ready'.",
+		],
+		"caveats": (
+			"setup_bench can show 'Running' for 5-10 min with no filesystem "
+			"signal — that's NORMAL (sequential git clones). Do NOT restart "
+			"the agent based on filesystem emptiness. If stage stays "
+			"'setup_bench' for >20 min with no agent_job_progress.current_step "
+			"changes, THEN it's actually stuck (call agent_job_progress on the "
+			"Setup Bench job_name to see which app is hanging)."
+		),
+	},
+	{
 		"id": "app_lifecycle",
 		"title": "Onboard a new app OR pull a new upstream commit (no UI)",
 		"purpose": (
@@ -179,6 +213,7 @@ TOOL_CATEGORY: dict[str, str] = {
 	"site_status": "readonly",
 	"agent_job_list": "readonly",
 	"wait_for_bench_flip": "readonly",
+	"bench_provision_progress": "readonly",
 	"audit_verify_chain": "readonly",
 	"bench_read_app_file": "readonly",
 	"bench_list_app_files": "readonly",
@@ -266,6 +301,7 @@ def get_tool_help(
 		# Lightweight discovery nudge so single-tool lookups still surface new tools.
 		recent_tools = [
 			"app_source_fetch_latest", "list_pending_releases", "register_existing_app",
+			"bench_provision_progress",
 		]
 		return {
 			"tool": tool,
@@ -342,13 +378,17 @@ def get_tool_help(
 				"app_source_fetch_latest",
 				"list_pending_releases",
 				"register_existing_app",
+				"bench_provision_progress",
 			],
 			"summary": (
-				"App lifecycle: 'Fetch Latest' (poll GitHub + create Draft "
-				"App Release), 'List Pending Releases', and 'Register Existing "
-				"App' (add a GitHub repo as a new App Source). Closes the "
-				"'tell user to click in the dashboard' gap in the deploy "
-				"chain — see the app_lifecycle recipe."
+				"App lifecycle + bench-stage rollup. 'Fetch Latest' polls "
+				"GitHub. 'List Pending Releases' audits Drafts. 'Register "
+				"Existing App' onboards a GitHub repo. 'Bench Provision "
+				"Progress' returns a single dict with the current stage "
+				"(build / new_bench / setup_bench / site_migrate / ready / "
+				"failed) so you stop polling the filesystem and start polling "
+				"a meaningful signal. See app_lifecycle + watch_bench_provision "
+				"recipes."
 			),
 		},
 		{
