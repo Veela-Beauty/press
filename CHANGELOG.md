@@ -4,6 +4,90 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 22-05-2026 — MCP deploy-chain hardening: 4 new tools + 2 fixes + scope expansion
+
+Six commits closing the gap that bit us during the `fingerprint_external` /
+`selfstorage-stg` deploys earlier today. Agents were stuck telling the human
+"go click Fetch Latest in the dashboard", polling empty filesystems, and
+choking on a misleading "Could not find suitable Destination Bench" error.
+
+### New tools (commits `7d0e16dbc8` + `8125233489`)
+
+| Tool | Purpose | Risk |
+|---|---|---|
+| `app_source_fetch_latest(app+release_group OR app_source)` | Replaces the dashboard's **Fetch Latest** button — polls upstream Git and creates a Draft App Release row. | low |
+| `list_pending_releases(app?, release_group?, limit?)` | Audits Draft App Releases waiting for approval. Filter by any combination. | low |
+| `register_existing_app(repository_url, branch, app_name)` | Onboards an existing GitHub repo as a new App Source (different from `app_create_locally` which scaffolds a NEW empty app). | medium |
+| `bench_provision_progress(bench_name)` | Single-call stage rollup: `build → new_bench → setup_bench → site_migrate → ready`. **Replaces the broken pattern of polling the filesystem** — directories are empty for 5-10 min during setup_bench by design. | low |
+
+### Fixes shipped today
+
+- **`a561b0be91`** — `site_update` rewrap. Press's underlying error
+  "Could not find suitable Destination Bench" actually means "no newer
+  candidate to migrate to" — confusing because the message suggests the
+  bench is missing. Wrapper now pre-checks for a Deploy Candidate
+  Difference and an Active destination bench, returning structured
+  `{ok:false, reason:'no_destination_candidate', hint:...}` instead of
+  throwing.
+
+- **`cd4a874fa8`** — `app_source_fetch_latest` + `list_pending_releases`
+  threw `(1054, "Unknown column 'tag' in 'SELECT'")` on every call.
+  I assumed App Release had a `tag` field; it doesn't. Mock-based unit
+  tests passed because they mocked `frappe.db.sql` and never hit the
+  real schema. **Lesson recorded in `press/docs/wiki/lessons-learned.md`.**
+
+### Discovery (commit `ccca9f2070`)
+
+The MCP help endpoint now returns three discovery surfaces so new agents
+find new tools on first contact:
+- `recipes` array → canonical_deploy now has Step 0
+  (`app_source_fetch_latest`) + new `app_lifecycle` recipe +
+  `watch_bench_provision` recipe with the "don't restart the agent
+  because the filesystem looks empty" caveat.
+- `whats_new` array → last ~3 batches of shipped tools with date +
+  summary.
+- `recently_shipped_tools` + `recently_shipped_hint` on every
+  single-tool detail response.
+
+### Out-of-band: token scope expansion (DB-side)
+
+MCP tokens carry a frozen scope (allowlist of tool names) set at issue
+time. When new tools shipped, **existing tokens didn't auto-pick them
+up**. Ran a one-shot script on press-ctrl that found every Active
+deploy-flow token (3 total — eng.elgogary, markomaher333, ahmedmowafy74)
+and appended the 4 new tool names to each token's `scope` JSON list.
+Idempotent — re-running is a no-op.
+
+**Follow-up worth doing**: the token-issuance UI should dynamically read
+`PRESETS['All deploy']` from the dashboard catalog so the scope auto-
+includes new tools without a DB migration. Not built yet.
+
+### UI + wiki (commits `9cc2c4b91a` + `50c943587a`)
+
+- Dashboard MCP Guide tab catalog (`_tool_catalog.js`) now lists all 4
+  new tools with correct risk badges + copy-curl buttons.
+- `PRESETS['All deploy']` extended to include `app_source_fetch_latest`
+  + `list_pending_releases` so newly issued tokens auto-scope them.
+- `press/docs/wiki/02-operations/mcp-server.md` updated:
+  category counts (Read-only 19 → 21, Bench/RG 11 → 12), new "App
+  lifecycle tools" section, return-shape documented (`list_pending_releases`
+  returns `{name, app, source, hash, status, creation}` — no `tag`),
+  `site_update` documented as the pre-flight rewrap.
+
+### Deploy
+
+```bash
+# press-ctrl, in order:
+git pull origin cloudflare-dns
+cd dashboard && yarn build       # only needed for 9cc2c4b91a + 8125233489 (JS catalog)
+bench --site demo.mvpstorm.com clear-cache
+supervisorctl restart frappe-bench-web:
+```
+
+No `bench migrate` needed for any commit in this batch.
+
+---
+
 ## 21-05-2026 — Schema fix: is_decommissioned on Database Server + Proxy Server (commit `82abdb535c`)
 
 Closes the gap behind Sessions 1+2. Before this commit, only `tabServer` had the flag — DB/Proxy crons had to walk the link to know decom state. Now both lower doctypes have their own flag, plus an `on_update` sync hook on `tabServer` to keep them in lockstep.

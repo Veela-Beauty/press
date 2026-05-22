@@ -1278,3 +1278,110 @@ tar -xzf ~/backups/press-presync-*/working-tree.tar.gz
 Status: **PERMANENT** — playbook documented + 4 backups exist (tarball x2 + GitHub branch + git tag). Hardening (3 items) deferred.
 
 Companion memory: `~/.claude/projects/-home-eslam/memory/PRESS-WORKFLOW.md` updated with this playbook.
+
+---
+
+## 2026-05-22 — Mock-only DB tests miss schema mismatches (the "tag" column trap)
+
+### What happened
+Shipped `app_source_fetch_latest` + `list_pending_releases` MCP tools at commit `7d0e16dbc8`. Both threw `(1054, "Unknown column 'tag' in 'SELECT'")` on first user call. The bug: I asked for a `tag` field on `tabApp Release` that doesn't exist in our Press fork's schema.
+
+The unit tests passed because they used `unittest.mock.patch` against `frappe.db.sql` and `frappe.client.get_value` — the mocks accepted any field list without checking it against the real schema.
+
+### Lesson
+**Mock-based unit tests for DB queries are necessary but not sufficient.** When the test mocks the DB call itself, fieldname typos slip through because the mock has no knowledge of the doctype's actual columns. Three ways to catch this earlier:
+
+1. **At least one integration-style smoke test per new whitelisted method** — run against a real (test or dev) Frappe site, hit the real DB. Costs ~1 second per test; catches every schema mismatch.
+2. **Schema-aware mock** — instead of `MagicMock`, mock `frappe.db.sql` with a fake that VALIDATES requested fields against `frappe.get_meta(doctype).get_fieldnames()`. Pure-Python, no DB needed; catches fieldname typos at test time.
+3. **Pre-commit guard** — narrow grep on suspicious patterns. Too brittle alone, but a smoke test against real schema would have flagged it.
+
+For this codebase, **option 1 is what to add** going forward for any new whitelisted MCP method that calls `frappe.db.sql` or `frappe.client.get_list`. See `press/mcp_server/test_deploy_flow.py` for the existing mock pattern; add a single `TestRealSchema` class with one test per tool that calls the function unmocked.
+
+### Generalization
+- Any tool doing `frappe.db.sql("SELECT a, b, c FROM tabFoo")` or `frappe.get_all("Foo", fields=[...])` — **the field list MUST be validated against the real schema before shipping**, not just mocked.
+- Press's App Release schema (which I got wrong): `name, hash, message, author, code_server_url, output, source, cloned, clone_directory, app, team, public, status` — and that's it. No `tag`, no `version`, no `branch_at_release_time`.
+
+Status: **PERMANENT** — fix shipped (commit `cd4a874fa8`); follow-up testing improvement noted but not yet implemented.
+
+---
+
+## 2026-05-22 — Bench provisioning UX gap: filesystem polling is the wrong signal
+
+### What happened
+During the `fingerprint_external` deploy, an agent monitor polled `ls /home/frappe/benches/<bench>/apps/` to know when the new bench was ready. The directory stayed empty for ~10 minutes, the monitor reported repeated "Still empty" lines, and the human (correctly) asked "why is it still empty?"
+
+The directory was empty by design: Press creates the new bench dir first, then `agent setup-bench` clones each app SEQUENTIALLY into it. While the FIRST clone is running, the others don't exist yet → `ls` returns empty for 5-10 min on a heavy bench (10+ apps).
+
+### Lesson
+**Don't infer bench state from filesystem state. Use the Agent Job chain.**
+
+Press records each provisioning phase as a separate Agent Job:
+- `New Bench` — container started, dir mkdir'd (this is when "empty" starts)
+- `Setup Bench` — sequential `git clone` of each app (this is when "empty" ends)
+- `Update Site Migrate` — flip a site onto the new bench
+
+The right signal is to query these rows and look at the chain, not the disk.
+
+### Fix shipped (commit `8125233489`)
+New MCP tool `bench_provision_progress(bench_name)` aggregates the chain into one dict with a `stage` field (`build | new_bench | setup_bench | site_migrate | ready | failed`) and a human-readable `stage_label`. Agents poll this instead of the filesystem.
+
+The companion `watch_bench_provision` help recipe documents the right loop + the caveat: "setup_bench can show 'Running' for 5-10 min with no filesystem signal — that's NORMAL. Do NOT restart the agent."
+
+Status: **PERMANENT** — tool shipped, recipe added, wiki documented.
+
+---
+
+## 2026-05-22 — MCP tokens have a frozen scope; new tools don't auto-propagate
+
+### What happened
+Shipped 4 new MCP tools at commits `7d0e16dbc8` + `8125233489`. Existing tokens (issued before this date) called the new tools and got back "not in scope" errors despite the tools being live on the server.
+
+### Lesson
+**MCP tokens carry a `scope` JSON list set at issue time. New tools don't auto-appear in existing tokens' allowlists.**
+
+When you ship a new tool, ALSO update the scope of any existing Active token that should be able to call it. There are two paths:
+
+1. **One-shot DB script** (what was done today) — find every Active token with a deploy-flow tool in scope, append the new tools. Idempotent. Done in 5 minutes via `bench execute` on press-ctrl. Tradeoff: future shipments need this step every time.
+
+2. **Dynamic scope resolution** (not built yet) — change the dispatcher to read `PRESETS['All deploy']` from `_tool_catalog.js` at call time, instead of trusting the token's frozen scope. Then new tools shipped in the preset auto-propagate without a DB script. Tradeoff: more complexity in the auth path.
+
+### Operational recipe (until dynamic scopes ship)
+
+When adding a new MCP tool:
+1. Code it + register in `tools.py` + `help.py` + `_tool_catalog.js`.
+2. Decide: should existing deploy tokens auto-get this? If yes:
+   - Write a small one-shot script that finds tokens with a known reference tool (e.g. `app_release_approve`) in scope, appends the new tool.
+   - Run via `bench execute press.<somemodule>.run` on press-ctrl.
+   - Verify with `curl ... tool=help` from one of the affected tokens — the new tool should appear `in_scope=True`.
+
+### Press MCP Token schema gotcha
+The `Press MCP Token` DocType has NO `status` field. "Active" is derived from `revoked=0 AND expires_at > NOW()`. Don't write queries assuming a `status` column.
+
+Status: **PERMANENT** — pattern documented. Dynamic scope resolution noted as backlog.
+
+---
+
+## 2026-05-22 — "Could not find suitable Destination Bench" is a misleading error
+
+### What happened
+Agents called `site_update` and got back `ValidationError: Could not find suitable Destination Bench` from `press/press/doctype/site_update/site_update.py:143`. The message suggested a bench was missing — but actually the site was already on the newest candidate (no diff existed). Agents wasted cycles looking for a "missing bench" that wasn't actually the problem.
+
+### Lesson
+**The Press-side error message is wrong about what's missing.** It fires in two cases:
+1. No `Deploy Candidate Difference` row exists between source candidate and any destination → no NEWER candidate to migrate to.
+2. No Active Bench exists in the destination group with a different candidate than source → build hasn't finished yet.
+
+Both cases get the same opaque message.
+
+### Fix shipped (commit `a561b0be91`)
+MCP-level wrapper `site_update_with_hint` in `press/mcp_server/deploy_flow.py` pre-checks both conditions and returns:
+```python
+{
+  "ok": False,
+  "reason": "no_destination_candidate" | "no_active_destination_bench",
+  "hint": "<actionable next step>",
+}
+```
+instead of throwing. The MCP catalog's `site_update` tool now points at this wrapper. Agents that check `result.ok` get a clear next step (e.g. "build first via release_group_create_deploy_candidate").
+
+Status: **PERMANENT** — wrapper shipped. Could be backported into Press core's `site_update` itself but lower priority since the MCP path is the main consumer.
