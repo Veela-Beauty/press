@@ -379,16 +379,22 @@ def get_tool_help(
 				"list_pending_releases",
 				"register_existing_app",
 				"bench_provision_progress",
+				"site_update (rewrapped)",
 			],
 			"summary": (
-				"App lifecycle + bench-stage rollup. 'Fetch Latest' polls "
-				"GitHub. 'List Pending Releases' audits Drafts. 'Register "
-				"Existing App' onboards a GitHub repo. 'Bench Provision "
-				"Progress' returns a single dict with the current stage "
-				"(build / new_bench / setup_bench / site_migrate / ready / "
-				"failed) so you stop polling the filesystem and start polling "
-				"a meaningful signal. See app_lifecycle + watch_bench_provision "
-				"recipes."
+				"App lifecycle + bench-stage rollup + site_update rewrap. "
+				"'Fetch Latest' polls GitHub. 'List Pending Releases' audits "
+				"Drafts. 'Register Existing App' onboards a GitHub repo. "
+				"'Bench Provision Progress' returns a single dict with the "
+				"current stage (build / new_bench / setup_bench / "
+				"site_migrate / ready / failed) so you stop polling the "
+				"filesystem and start polling a meaningful signal. "
+				"site_update now PRE-CHECKS for a destination candidate and "
+				"returns ok:false with a structured hint instead of throwing "
+				"the misleading 'Could not find suitable Destination Bench'. "
+				"Also fixed today: list_pending_releases + app_source_fetch_latest "
+				"no longer reference the non-existent 'tag' column. See "
+				"app_lifecycle + watch_bench_provision recipes."
 			),
 		},
 		{
