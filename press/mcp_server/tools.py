@@ -515,7 +515,7 @@ TOOLS: dict[str, dict] = {
 	},
 	"list_pending_releases": {
 		"method": "press.mcp_server.deploy_flow.list_pending_releases",
-		"description": "List Draft App Releases waiting for approval. Filter by app_source, OR app + release_group, OR app alone. Returns count + array of {name, app, source, hash, tag, status, creation}.",
+		"description": "List Draft App Releases waiting for approval. Filter by app_source, OR app + release_group, OR app alone. Returns count + array of {name, app, source, hash, status, creation}.",
 		"required_args": [],
 		"args_schema": _schema([], {"app": None, "release_group": None, "app_source": None, "limit": None}),
 		"risk": "low",

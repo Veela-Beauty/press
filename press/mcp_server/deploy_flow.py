@@ -1384,7 +1384,7 @@ def app_source_fetch_latest(
 			"reason": "Upstream has no new commits, or last poll failed (pass force=true to retry).",
 		}
 	rel = frappe.db.get_value(
-		"App Release", result, ["name", "hash", "status", "tag"], as_dict=True
+		"App Release", result, ["name", "hash", "status"], as_dict=True
 	)
 	return {
 		"app_source": source_name,
@@ -1421,7 +1421,7 @@ def list_pending_releases(
 	rows = frappe.get_all(
 		"App Release",
 		filters=filters,
-		fields=["name", "app", "source", "hash", "tag", "status", "creation"],
+		fields=["name", "app", "source", "hash", "status", "creation"],
 		order_by="creation desc",
 		limit_page_length=int(limit),
 	)
