@@ -666,3 +666,73 @@ class TestMCPServer(FrappeTestCase):
 		)
 		self.assertFalse(result["ok"])
 		self.assertEqual(result["error_type"], "PermissionError")
+
+
+class TestGateABusyWorkerGuard(FrappeTestCase):
+	"""Gate A refuses bench_restart/bench_update when the target bench's
+	agent is mid-job (agent_health verdict == 'slow'). Bypass with force=true.
+	Best-effort: never breaks legitimate ops if the check itself errors."""
+
+	def test_refuses_bench_restart_when_agent_is_slow(self):
+		from press.mcp_server.server import _check_busy_worker_guard
+
+		def fake_health(server, lookback_minutes=10):
+			return {
+				"verdict": "slow",
+				"reason": "Agent has 1 Running job (youngest 45s).",
+				"running_jobs": [{"job_type": "Update Site Migrate", "age_seconds": 45}],
+			}
+
+		with patch(
+			"press.mcp_server.server.frappe.db.get_value", return_value="press-f1.example.com"
+		), patch(
+			"press.mcp_server.deploy_flow.agent_health", side_effect=fake_health
+		):
+			result = _check_busy_worker_guard("bench_restart", {"name": "bench-X-press-f1"})
+
+		self.assertIsNotNone(result)
+		self.assertEqual(result["server"], "press-f1.example.com")
+		self.assertIn("Gate A refusal", result["error"])
+		self.assertIn("Update Site Migrate", result["error"])
+		self.assertIn("force=true", result["error"])
+
+	def test_allows_bench_restart_when_agent_is_healthy(self):
+		from press.mcp_server.server import _check_busy_worker_guard
+
+		def fake_health(server, lookback_minutes=10):
+			return {"verdict": "healthy", "reason": "Last success 30s ago.", "running_jobs": []}
+
+		with patch(
+			"press.mcp_server.server.frappe.db.get_value", return_value="press-f1.example.com"
+		), patch(
+			"press.mcp_server.deploy_flow.agent_health", side_effect=fake_health
+		):
+			result = _check_busy_worker_guard("bench_restart", {"name": "bench-X-press-f1"})
+
+		self.assertIsNone(result, "guard should allow when verdict is healthy")
+
+	def test_allows_when_bench_not_found(self):
+		"""If we can't resolve the server, fail open — don't block legitimate ops."""
+		from press.mcp_server.server import _check_busy_worker_guard
+
+		with patch("press.mcp_server.server.frappe.db.get_value", return_value=None):
+			result = _check_busy_worker_guard("bench_restart", {"name": "ghost-bench"})
+
+		self.assertIsNone(result)
+
+	def test_allows_when_agent_health_raises(self):
+		"""If agent_health itself errors, fail open + log_error."""
+		from press.mcp_server.server import _check_busy_worker_guard
+
+		with patch(
+			"press.mcp_server.server.frappe.db.get_value", return_value="press-f1.example.com"
+		), patch(
+			"press.mcp_server.deploy_flow.agent_health", side_effect=RuntimeError("db down")
+		), patch(
+			"press.mcp_server.server.frappe.log_error"
+		) as fake_log:
+			result = _check_busy_worker_guard("bench_restart", {"name": "bench-X"})
+
+		self.assertIsNone(result, "guard must fail open on error")
+		fake_log.assert_called_once()
+		self.assertIn("Gate A", fake_log.call_args.kwargs["title"])

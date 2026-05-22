@@ -9,10 +9,45 @@ import frappe
 import frappe.utils
 from frappe.rate_limiter import rate_limit
 
-from press.api.account import get_account_request_from_key
+from press.api.account import get_account_request_from_key, signup as _account_signup
 from press.press.doctype.team.team import Team
 from press.saas.doctype.product_trial.product_trial import ProductTrial, send_verification_mail_for_login
 from press.utils.telemetry import capture
+
+
+@frappe.whitelist(allow_guest=True)
+@rate_limit(limit=5, seconds=60 * 60)
+def signup(
+	email: str,
+	first_name: str | None = None,
+	last_name: str | None = None,
+	country: str | None = None,
+	product: str | None = None,
+	referrer: str | None = None,
+	terms_accepted: bool | None = None,
+) -> str:
+	"""Product-trial signup shim called by dashboard/src/pages/signup/Signup.vue.
+
+	Delegates to press.api.account.signup for the canonical Account Request
+	creation, then patches first_name/last_name/country onto the resulting
+	row so setup_account() has them when the user completes the trial flow.
+	terms_accepted is informational — account.signup hard-sets agreed_to_terms=1.
+
+	Without this shim Signup.vue 500s with "has no attribute 'signup'" —
+	upstream Press has this method, but it never landed on our fork. Caught
+	by scripts/audit_dashboard_method_exists.py on 2026-05-19.
+	"""
+	account_request_name = _account_signup(email=email, product=product, referrer=referrer)
+	if account_request_name and (first_name or last_name or country):
+		ar = frappe.get_doc("Account Request", account_request_name)
+		if first_name:
+			ar.first_name = first_name
+		if last_name:
+			ar.last_name = last_name
+		if country:
+			ar.country = country
+		ar.save(ignore_permissions=True)
+	return account_request_name
 
 
 def _get_active_site(product: str, team: str | None) -> str | None:

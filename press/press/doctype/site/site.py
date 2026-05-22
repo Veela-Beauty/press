@@ -3359,9 +3359,12 @@ class Site(Document, TagHelpers):
 		cls, interval: int, backup_type: Literal["Logical", "Physical"] = "Logical"
 	) -> list[dict]:
 		sites = cls.get_sites_without_backup_in_interval(interval, backup_type)
+		# Exclude decommissioned servers — sites on them are unreachable and
+		# the resulting Backup Site jobs would just accumulate as Undelivered
+		# (2026-05-21 cluster-decom rule).
 		servers_with_backups = frappe.get_all(
 			"Server",
-			{"status": "Active", "skip_scheduled_backups": False},
+			{"status": "Active", "skip_scheduled_backups": False, "is_decommissioned": 0},
 			pluck="name",
 		)
 		filters: dict[str, Any] = {

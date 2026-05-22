@@ -22,6 +22,7 @@ export const TOOL_CATALOG = {
 	lock_status:              { category: 'readonly', risk: 'low', label: 'Lock — Status',                desc: 'Inspect lock state of Site or Release Group' },
 	list_release_groups:      { category: 'readonly', risk: 'low', label: 'List Release Groups',           desc: 'List Release Groups visible to caller' },
 	list_sites:               { category: 'readonly', risk: 'low', label: 'List Sites',                    desc: 'List Sites visible to caller' },
+	list_sites_on_release_group: { category: 'readonly', risk: 'low', label: 'List Sites on RG',           desc: "Sites belonging to a specific Release Group (team-scoped)" },
 	list_my_tokens:           { category: 'readonly', risk: 'low', label: 'List My Tokens',                desc: 'List your own MCP tokens' },
 	app_git_status:           { category: 'readonly', risk: 'low', label: 'App — Git Status',              desc: 'Git branch / commit / dirty status for apps in a bench' },
 	bench_recent_logs:        { category: 'readonly', risk: 'low', label: 'Bench — Recent Logs',           desc: 'Tail recent bench logs (frappe.log, error.log, etc.)' },
@@ -33,7 +34,11 @@ export const TOOL_CATALOG = {
 	deploy_candidate_status:  { category: 'readonly', risk: 'low', label: 'Deploy — Candidate Status',     desc: 'Status of a Deploy Candidate Build OR Candidate' },
 	site_status:              { category: 'readonly', risk: 'low', label: 'Site — Status',                 desc: 'Site bench + status + recent agent jobs' },
 	agent_job_list:           { category: 'readonly', risk: 'low', label: 'Agent Jobs — List',             desc: 'List recent Agent Jobs filtered by site / status / window' },
-	wait_for_bench_flip:      { category: 'readonly', risk: 'low', label: 'Wait for Bench Flip',           desc: 'Async-style poll: returns flipped|pending for a site / candidate' },
+	agent_job_traceback:      { category: 'readonly', risk: 'low', label: 'Agent Job — Traceback',         desc: 'One-shot diagnostic: returns status + output_tail + traceback_tail for an Agent Job. Use before deciding to restart anything.' },
+	agent_job_progress:       { category: 'readonly', risk: 'low', label: 'Agent Job — Live Progress',     desc: 'Cursor-style live stream: status + per-step output + current_step. Mirrors the dashboard job page. Poll in a loop while jobs are in-flight.' },
+	mint_dashboard_login_url: { category: 'site_lifecycle', risk: 'medium', label: 'Mint Dashboard Login URL',   desc: 'One-shot ?sid= URL for the MCP token user. Playwright / E2E bridge — no password typing.' },
+	agent_health:             { category: 'readonly', risk: 'low', label: 'Agent — Health Verdict',         desc: 'Derive healthy/slow/stuck/no_activity verdict for an app server. Check BEFORE recommending an agent restart.' },
+	wait_for_bench_flip:      { category: 'readonly', risk: 'low', label: 'Wait for Bench Flip',           desc: 'Async-style poll: returns flipped|pending|no_build|flip_not_triggered|flip_failed. Safety gates B/C/D/E embedded — never poll forever on a phantom build, skipped site_update, or rolled-back migrate.' },
 	audit_verify_chain:       { category: 'readonly', risk: 'low', label: 'Audit — Verify Hash Chain',     desc: 'System-User-only: verify MCP Call Log hash chain' },
 	bench_read_app_file:      { category: 'readonly', risk: 'low', label: 'Bench — Read App Source File',  desc: 'Read a file from apps/<app>/ inside the bench (1 MB cap, path-validated)' },
 	bench_list_app_files:     { category: 'readonly', risk: 'low', label: 'Bench — List App Files',        desc: 'List files under apps/<app>/<dir>/ in the bench (optional glob pattern, capped at 200)' },
@@ -43,6 +48,8 @@ export const TOOL_CATALOG = {
 	// BENCH / RELEASE GROUP (medium risk)
 	clone_bench:                            { category: 'bench_rg', risk: 'medium', label: 'Clone Bench',                          desc: 'Clone a Release Group on the same server with the same apps' },
 	bench_deploy:                           { category: 'bench_rg', risk: 'medium', label: 'Bench — Deploy',                       desc: "Trigger a deploy for a Release Group's apps" },
+	bench_deploy_and_wait:                  { category: 'bench_rg', risk: 'medium', label: 'Bench — Deploy and Wait',              desc: 'One-shot deploy + block until site flips to new candidate (or timeout)' },
+	bench_set_app_branch:                   { category: 'bench_rg', risk: 'medium', label: 'Bench — Set App Branch',               desc: "Change an App Source's git branch before triggering a deploy" },
 	bench_restart:                          { category: 'bench_rg', risk: 'medium', label: 'Bench — Restart',                      desc: 'Restart a Bench (gunicorn + workers)' },
 	bench_update_config:                    { category: 'bench_rg', risk: 'medium', label: 'Bench — Update Config',                desc: 'Bulk-update bench common_site_config keys' },
 	bench_ssh_cert_get:                     { category: 'bench_rg', risk: 'medium', label: 'Bench — Get SSH Certificate',          desc: 'Get the existing SSH certificate for a bench' },
@@ -65,6 +72,7 @@ export const TOOL_CATALOG = {
 	site_remove_domain:          { category: 'site_lifecycle', risk: 'medium', label: 'Site — Remove Domain',             desc: 'Detach a custom domain from a site' },
 	site_set_host_name:          { category: 'site_lifecycle', risk: 'medium', label: 'Site — Set Host Name',             desc: 'Set the primary domain (host name) for a site' },
 	site_schedule_update:        { category: 'site_lifecycle', risk: 'medium', label: 'Site — Schedule Update',           desc: 'Schedule a Site Update (migrate to latest bench)' },
+	site_update_and_wait:        { category: 'site_lifecycle', risk: 'medium', label: 'Site — Update and Wait',           desc: 'One-shot site_update + block until site flips onto target_candidate (or timeout). Companion to bench_deploy_and_wait.' },
 	revoke_my_token:             { category: 'site_lifecycle', risk: 'medium', label: 'Revoke My Token',                  desc: 'Revoke an MCP token by docname' },
 
 	// FILE / CONFIG (medium risk)

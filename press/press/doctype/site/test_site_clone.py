@@ -7,7 +7,12 @@ from unittest.mock import patch
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from press.press.doctype.site.site_clone import clone_site
+from press.press.doctype.site.site_clone import (
+	check_bench_space,
+	clone_site,
+	get_clone_options,
+	list_compatible_benches,
+)
 from press.press.doctype.site.test_site import create_test_site
 from press.press.doctype.site_backup.test_site_backup import create_test_site_backup
 
@@ -99,6 +104,63 @@ class TestSiteClone(FrappeTestCase):
 				mode="empty",
 			)
 
+	def test_list_compatible_benches_includes_same_app_set(self):
+		# The bench created with the source site shares its app set,
+		# so list_compatible_benches must include it.
+		result = list_compatible_benches(self.source_site.name)
+		names = {row["value"] for row in result}
+		self.assertIn(self.target_bench, names)
+
+	def test_list_compatible_benches_excludes_missing_apps(self):
+		# A bench that is missing one of the source site's apps must be excluded.
+		# We simulate this by inserting a stub Bench row with an empty apps list.
+		stub_name = "Test Empty Apps Bench"
+		bench_doc = frappe.get_doc("Bench", self.target_bench)
+		frappe.get_doc(
+			{
+				"doctype": "Bench",
+				"name": stub_name,
+				"status": "Active",
+				"background_workers": 1,
+				"gunicorn_workers": 2,
+				"group": bench_doc.group,
+				"apps": [],  # zero apps → incompatible with any non-empty site
+				"candidate": bench_doc.candidate,
+				"build": bench_doc.build,
+				"server": bench_doc.server,
+				"docker_image": bench_doc.docker_image,
+			}
+		).insert(ignore_if_duplicate=True, ignore_permissions=True)
+		self.addCleanup(
+			lambda: frappe.delete_doc("Bench", stub_name, force=True, ignore_permissions=True)
+		)
+
+		result = list_compatible_benches(self.source_site.name)
+		names = {row["value"] for row in result}
+		self.assertNotIn(stub_name, names)
+
+	def test_get_clone_options_returns_expected_shape(self):
+		result = get_clone_options(self.source_site.name)
+		self.assertIn("compatible_benches", result)
+		self.assertIn("plans", result)
+		self.assertIn("source_plan", result)
+		self.assertIn("source_disk_usage", result)
+		# compatible_benches should at least contain the source's own bench
+		names = {b["value"] for b in result["compatible_benches"]}
+		self.assertIn(self.target_bench, names)
+		# plans is a list (may be empty in test fixture)
+		self.assertIsInstance(result["plans"], list)
+		# source_disk_usage is an int (0 if untracked)
+		self.assertIsInstance(result["source_disk_usage"], int)
+
+	def test_check_bench_space_returns_sufficiency_flag(self):
+		# Required = 0 → always sufficient regardless of free space
+		result = check_bench_space(self.target_bench, required_bytes=0)
+		self.assertEqual(result["server"], frappe.db.get_value("Bench", self.target_bench, "server"))
+		self.assertTrue(result["sufficient"])
+		self.assertIn("free_bytes", result)
+		self.assertIn("is_public_server", result)
+
 	def test_clone_fresh_backup_triggers_backup_then_raises(self):
 		# fresh_backup mode is async-by-design: it triggers the backup
 		# then asks the caller to retry with latest_backup once ready.
@@ -114,3 +176,31 @@ class TestSiteClone(FrappeTestCase):
 				)
 			self.assertIn("queued", str(ctx.exception).lower())
 			mock_backup.assert_called_once_with(with_files=True, offsite=True)
+
+	def test_clone_fresh_backup_persists_site_backup_row(self):
+		# REGRESSION: clone_site fresh_backup mode does source.backup(...).insert()
+		# then frappe.throw(...). Without an explicit commit between the two, the
+		# throw rolls back the transaction and the Site Backup row vanishes,
+		# leaving the user with a "queued" message but no actual backup queued.
+		# The fix in site_clone.py inserts an explicit frappe.db.commit() before
+		# the throw — this test locks that behavior in.
+		existing = frappe.db.count(
+			"Site Backup", filters={"site": self.source_site.name, "offsite": 1}
+		)
+
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			clone_site(
+				site=self.source_site.name,
+				target_bench=self.target_bench,
+				new_subdomain="copy-fresh-persist",
+				mode="fresh_backup",
+			)
+		self.assertIn("queued", str(ctx.exception).lower())
+
+		# After the throw rolled back the request transaction, the explicit
+		# commit above the throw should have persisted exactly one new
+		# offsite Site Backup row for this site.
+		after = frappe.db.count(
+			"Site Backup", filters={"site": self.source_site.name, "offsite": 1}
+		)
+		self.assertEqual(after, existing + 1, "fresh_backup did not persist a Site Backup row")

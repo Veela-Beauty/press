@@ -64,5 +64,16 @@ def create_bench_shell_log(
 	doc_dict["end"] = datetime.fromisoformat(res["end"])
 	if not save_output:
 		del doc_dict["output"]
-	frappe.get_doc(doc_dict).insert()
+	# Bench Shell Log doctype grants create perm only to System Manager. Any
+	# user-facing dashboard flow that hits Bench.docker_execute (bench dev
+	# watch, bench dev overview's run_python_on_site / run_sql_on_site,
+	# app management's create_app_locally, etc.) needs to write here for
+	# audit purposes — but team users don't carry the System Manager role.
+	# Bypass perms on insert: the `owner` field still captures who triggered
+	# the shell, so the audit trail stays intact. Without this bypass, every
+	# such dashboard action throws "No permission for Bench Shell Log" for
+	# non-System users. Reported 2026-05-19 by ahmedmowafy74@gmail.com
+	# whose bench Actions page flooded with the error every 10s via the
+	# Bench Watch poll.
+	frappe.get_doc(doc_dict).insert(ignore_permissions=True)
 	frappe.db.commit()

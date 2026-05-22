@@ -34,7 +34,12 @@ def get_config(plan):
 
 def update_cpu_usages():
 	"""Update CPU Usages field Site.current_cpu_usage across all Active sites from Site Request Log"""
-	servers = frappe.get_all("Server", filters={"status": "Active", "is_primary": True}, pluck="name")
+	# Skip decommissioned servers (2026-05-21 cluster-decom rule).
+	servers = frappe.get_all(
+		"Server",
+		filters={"status": "Active", "is_primary": True, "is_decommissioned": 0},
+		pluck="name",
+	)
 	for server in servers:
 		frappe.enqueue(
 			"press.press.doctype.site.site_usages.update_cpu_usage_server",

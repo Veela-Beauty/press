@@ -6,10 +6,16 @@
 				<p class="text-sm font-semibold text-gray-700">Server Administration</p>
 				<p class="text-xs text-gray-400">Edit cost overrides, admin notes, and decommission status. Decommissioned servers are excluded from cost rollups.</p>
 			</div>
-			<Button variant="subtle" size="sm" :loading="loading" @click="loadServers">
-				<template #prefix><i class="fa fa-refresh"></i></template>
-				Refresh
-			</Button>
+			<div class="flex items-center gap-3">
+				<label class="flex cursor-pointer items-center gap-1.5 text-xs text-gray-600">
+					<input type="checkbox" v-model="showDecommissioned" class="h-3.5 w-3.5" />
+					Show decommissioned ({{ decommissionedCount }})
+				</label>
+				<Button variant="subtle" size="sm" :loading="loading" @click="loadServers">
+					<template #prefix><i class="fa fa-refresh"></i></template>
+					Refresh
+				</Button>
+			</div>
 		</div>
 
 		<!-- Summary cards -->
@@ -56,7 +62,7 @@
 					</tr>
 				</thead>
 				<tbody>
-					<tr v-for="s in servers" :key="s.name" class="border-b border-gray-50"
+					<tr v-for="s in displayServers" :key="s.name" class="border-b border-gray-50"
 						:class="s.is_decommissioned ? 'bg-orange-50/50 text-gray-400' : ''">
 						<td class="px-3 py-2 font-medium">
 							{{ s.name }}
@@ -192,6 +198,7 @@ export default {
 			showDecom: false,
 			decomTarget: null,
 			decomNewState: true,
+			showDecommissioned: false,
 		};
 	},
 	computed: {
@@ -202,6 +209,14 @@ export default {
 				.filter(s => !s.is_decommissioned)
 				.reduce((sum, s) => sum + (s.effective_cost || 0), 0)
 				.toFixed(2);
+		},
+		displayServers() {
+			// Hide servers that lack an IP — those are stale rows from
+			// test/dev runs that never finished provisioning. They have
+			// no telemetry, no cost, and no operational value. Tick
+			// 'Show decommissioned' to surface them anyway.
+			if (this.showDecommissioned) return this.servers;
+			return this.servers.filter(s => !s.is_decommissioned && s.ip);
 		},
 	},
 	mounted() { this.loadServers(); },

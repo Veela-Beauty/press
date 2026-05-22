@@ -2429,12 +2429,18 @@ def sync_binlogs_info():
 	if frappe.db.get_single_value("Press Settings", "disable_binlog_indexer_service"):
 		return
 
+	from press.utils.decom import is_database_server_in_decommissioned_cluster
+
 	databases = frappe.db.get_all(
 		"Database Server",
 		filters={"status": "Active", "is_server_setup": 1, "is_self_hosted": 0, "enable_binlog_indexing": 1},
 		pluck="name",
 	)
 	for database in databases:
+		# Skip DB servers whose linked app server is decommissioned
+		# (2026-05-21 cluster-decom rule).
+		if is_database_server_in_decommissioned_cluster(database):
+			continue
 		frappe.enqueue_doc(
 			"Database Server",
 			database,
@@ -2449,12 +2455,16 @@ def remove_uploaded_binlogs_from_disk():
 	if frappe.db.get_single_value("Press Settings", "disable_binlog_indexer_service"):
 		return
 
+	from press.utils.decom import is_database_server_in_decommissioned_cluster
+
 	databases = frappe.db.get_all(
 		"Database Server",
 		filters={"status": "Active", "is_server_setup": 1, "is_self_hosted": 0, "enable_binlog_indexing": 1},
 		pluck="name",
 	)
 	for database in databases:
+		if is_database_server_in_decommissioned_cluster(database):
+			continue
 		frappe.enqueue_doc(
 			"Database Server",
 			database,
@@ -2469,12 +2479,16 @@ def remove_uploaded_binlogs_from_s3():
 	if frappe.db.get_single_value("Press Settings", "disable_binlog_indexer_service"):
 		return
 
+	from press.utils.decom import is_database_server_in_decommissioned_cluster
+
 	databases = frappe.db.get_all(
 		"Database Server",
 		filters={"status": "Active", "is_server_setup": 1, "is_self_hosted": 0, "enable_binlog_indexing": 1},
 		pluck="name",
 	)
 	for database in databases:
+		if is_database_server_in_decommissioned_cluster(database):
+			continue
 		frappe.enqueue_doc(
 			"Database Server",
 			database,

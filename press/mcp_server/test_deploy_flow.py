@@ -181,18 +181,188 @@ class TestDeployFlow(FrappeTestCase):
 				return "bench-OLD-press-f1"
 			if doctype == "Bench":
 				return "deploy-OLD"
+			# Build row lookup for Gate C — returns a non-Success build so
+			# Gate C doesn't fire and we get the normal 'pending' path.
+			if doctype == "Deploy Candidate Build":
+				return MagicMock(name="build-x", status="Building")
 			return None
 
-		with patch("press.mcp_server.deploy_flow.frappe.db.get_value", side_effect=fake_get_value):
+		with patch("press.mcp_server.deploy_flow.frappe.db.get_value", side_effect=fake_get_value), \
+				patch("press.mcp_server.deploy_flow.frappe.db.exists", return_value=True), \
+				patch("press.mcp_server.deploy_flow.frappe.db.count", return_value=0), \
+				patch("press.mcp_server.deploy_flow.frappe.get_all", return_value=[]):
 			result = wait_for_bench_flip(
 				site_name="x.example.com",
 				target_candidate="deploy-NEW",
 			)
+		# Build is 'Building' (not Success) so Gates C/E don't fire; falls
+		# through to normal 'pending'.
 		self.assertEqual(result["status"], "pending")
 		self.assertEqual(result["current_candidate"], "deploy-OLD")
 		self.assertEqual(result["target_candidate"], "deploy-NEW")
 
+	# ---- Safety gate tests (Gates B / C / D added 2026-05-20) ----
+
+	def test_gate_b_no_build_for_target_candidate(self):
+		"""Gate B: target_candidate has no Deploy Candidate Build → return
+		early with status='no_build' + a hint. Prevents the 'agent polls
+		forever on a phantom build' pattern from 2026-05-20 dmg-erp."""
+		def fake_get_value(doctype, name, fieldname=None, *a, **kw):
+			if doctype == "Site":
+				return "bench-OLD-press-f1"
+			if doctype == "Bench":
+				return "deploy-OLD"
+			return None
+
+		def fake_exists(doctype, filters):
+			# Build does not exist; candidate does exist
+			if doctype == "Deploy Candidate Build":
+				return False
+			if doctype == "Deploy Candidate":
+				return True
+			return False
+
+		with patch("press.mcp_server.deploy_flow.frappe.db.get_value", side_effect=fake_get_value), \
+				patch("press.mcp_server.deploy_flow.frappe.db.exists", side_effect=fake_exists):
+			result = wait_for_bench_flip(
+				site_name="x.example.com",
+				target_candidate="deploy-NEW",
+			)
+		self.assertEqual(result["status"], "no_build")
+		self.assertIn("deploy_candidate_schedule_build", result["hint"])
+
+	def test_gate_b_no_candidate_at_all(self):
+		"""Gate B: neither candidate NOR build exists — hint says the
+		candidate name itself is wrong."""
+		def fake_get_value(doctype, name, fieldname=None, *a, **kw):
+			if doctype == "Site":
+				return "bench-OLD-press-f1"
+			if doctype == "Bench":
+				return "deploy-OLD"
+			return None
+
+		with patch("press.mcp_server.deploy_flow.frappe.db.get_value", side_effect=fake_get_value), \
+				patch("press.mcp_server.deploy_flow.frappe.db.exists", return_value=False):
+			result = wait_for_bench_flip(
+				site_name="x.example.com",
+				target_candidate="deploy-GHOST",
+			)
+		self.assertEqual(result["status"], "no_build")
+		self.assertIn("does not exist", result["hint"])
+
+	def test_gate_c_flip_not_triggered_when_build_success_but_no_migrate(self):
+		"""Gate C: Build is Success but no Update Site Migrate job in 30min
+		→ status='flip_not_triggered'. Stops today's exact pattern where the
+		agent polls forever expecting an auto-flip that standalone Press
+		never performs."""
+		def fake_get_value(doctype, name, fieldname=None, *a, **kw):
+			if doctype == "Site":
+				return "bench-OLD-press-f1"
+			if doctype == "Bench":
+				return "deploy-OLD"
+			if doctype == "Deploy Candidate Build":
+				return MagicMock(name="build-success", status="Success")
+			return None
+
+		# count=0 for stale-Undelivered (Gate D); get_all=[] for migrate (Gate C)
+		with patch("press.mcp_server.deploy_flow.frappe.db.get_value", side_effect=fake_get_value), \
+				patch("press.mcp_server.deploy_flow.frappe.db.exists", return_value=True), \
+				patch("press.mcp_server.deploy_flow.frappe.db.count", return_value=0), \
+				patch("press.mcp_server.deploy_flow.frappe.get_all", return_value=[]):
+			result = wait_for_bench_flip(
+				site_name="x.example.com",
+				target_candidate="deploy-NEW",
+			)
+		self.assertEqual(result["status"], "flip_not_triggered")
+		self.assertEqual(result["build_status"], "Success")
+		self.assertIn("site_update_and_wait", result["hint"])
+
+	def test_gate_e_flip_failed_with_recover(self):
+		"""Gate E: Update Site Migrate FAILED and Recover Failed Site Migrate
+		ran after it → status='flip_failed'. This catches dmg-erp's exact
+		2026-05-20 state: agent was polling forever but the migrate already
+		failed at 06:55 and was rolled back at 07:06."""
+		from frappe.utils import now_datetime, add_to_date as _add
+		def fake_get_value(doctype, name, fieldname=None, *a, **kw):
+			if doctype == "Site":
+				return "bench-OLD-press-f1"
+			if doctype == "Bench":
+				return "deploy-OLD"
+			if doctype == "Deploy Candidate Build":
+				return MagicMock(name="build-success", status="Success")
+			return None
+
+		now = now_datetime()
+		fake_jobs = [
+			MagicMock(
+				name="recover-1", job_type="Recover Failed Site Migrate",
+				status="Success", creation=now,
+			),
+			MagicMock(
+				name="migrate-1", job_type="Update Site Migrate",
+				status="Failure", creation=_add(now, minutes=-11),
+			),
+		]
+		# Override the .name attr because MagicMock(name=...) sets the mock's name, not its .name attr
+		fake_jobs[0].name = "recover-1"
+		fake_jobs[1].name = "migrate-1"
+
+		with patch("press.mcp_server.deploy_flow.frappe.db.get_value", side_effect=fake_get_value), \
+				patch("press.mcp_server.deploy_flow.frappe.db.exists", return_value=True), \
+				patch("press.mcp_server.deploy_flow.frappe.db.count", return_value=0), \
+				patch("press.mcp_server.deploy_flow.frappe.get_all", return_value=fake_jobs):
+			result = wait_for_bench_flip(
+				site_name="x.example.com",
+				target_candidate="deploy-NEW",
+			)
+		self.assertEqual(result["status"], "flip_failed")
+		self.assertEqual(result["failed_migrate_job"], "migrate-1")
+		self.assertEqual(result["recover_job"], "recover-1")
+		self.assertIn("agent_job_traceback", result["hint"])
+
+	def test_gate_d_kicks_poll_pending_jobs_when_stale_undelivered(self):
+		"""Gate D: stale Undelivered jobs >2min old trigger ONE
+		poll_pending_jobs call before returning. Idempotent — Press's own
+		scheduler does this every 60s. Recovers from scheduler hiccups
+		(the 2026-05-20 selfstorage-stg incident) automatically."""
+		call_log = {"poll_called": False}
+
+		def fake_get_value(doctype, name, fieldname=None, *a, **kw):
+			if doctype == "Site":
+				return "bench-OLD-press-f1"
+			if doctype == "Bench":
+				return "deploy-OLD"
+			if doctype == "Deploy Candidate Build":
+				return MagicMock(name="build-x", status="Building")
+			return None
+
+		# count > 0 ONLY for the stale-Undelivered query (Gate D); 0 for migrate
+		def fake_count(doctype, filters):
+			if filters.get("status") == "Undelivered":
+				return 3
+			return 0
+
+		def fake_poll():
+			call_log["poll_called"] = True
+
+		with patch("press.mcp_server.deploy_flow.frappe.db.get_value", side_effect=fake_get_value), \
+				patch("press.mcp_server.deploy_flow.frappe.db.exists", return_value=True), \
+				patch("press.mcp_server.deploy_flow.frappe.db.count", side_effect=fake_count), \
+				patch("press.mcp_server.deploy_flow.frappe.get_all", return_value=[]), \
+				patch("press.press.doctype.agent_job.agent_job.poll_pending_jobs", side_effect=fake_poll), \
+				patch("press.mcp_server.deploy_flow.frappe.db.commit"):
+			result = wait_for_bench_flip(
+				site_name="x.example.com",
+				target_candidate="deploy-NEW",
+			)
+		self.assertTrue(call_log["poll_called"], "Gate D should have kicked poll_pending_jobs")
+		# Bench didn't actually flip in this test (mocks return old bench
+		# even after re-read), so we expect 'pending' not 'flipped'.
+		self.assertEqual(result["status"], "pending")
+
 	def test_wait_for_bench_flip_returns_flipped_when_match(self):
+		# 'flipped' short-circuits BEFORE the gate checks (no exists/count
+		# mocks needed). This test verifies the early-return path.
 		def fake_get_value(doctype, name, fieldname=None, *a, **kw):
 			if doctype == "Site":
 				return "bench-NEW-press-f1"

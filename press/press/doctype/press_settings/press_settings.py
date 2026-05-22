@@ -205,6 +205,27 @@ class PressSettings(Document):
 		"partnership_fee_usd",
 	)
 
+	def before_save(self):
+		# Frappe's _save_passwords() deletes the __Auth row for any Password field
+		# that comes in falsy on save. The desk UI shows '****' placeholders but
+		# does not always re-send them — saving Press Settings via /app for an
+		# unrelated change wipes EVERY unset password field. We've lost
+		# offsite_backups_secret_access_key this way at least twice.
+		#
+		# Fix: for every Password field that came in falsy, add its fieldname to
+		# self.flags.ignore_save_passwords so _save_passwords skips it entirely —
+		# the existing encrypted value in __Auth is preserved.
+		password_fields_to_preserve = [
+			df.fieldname
+			for df in self.meta.get("fields", {"fieldtype": ("=", "Password")})
+			if not self.get(df.fieldname)
+		]
+		if password_fields_to_preserve:
+			existing = self.flags.get("ignore_save_passwords") or []
+			if existing is True:
+				return  # someone already requested skip-all, nothing to add
+			self.flags.ignore_save_passwords = list({*existing, *password_fields_to_preserve})
+
 	def validate(self):
 		if self.max_concurrent_physical_restorations > 5:
 			frappe.throw("Max Concurrent Physical Restorations should be less than 5")

@@ -26,6 +26,57 @@ from press.mcp_server.tools import get_tool_spec, get_tool_risk, list_tool_names
 
 MAX_ARGS_LOG_LEN = 5000  # truncate long arg payloads in audit log
 
+# Gate A — tools that can corrupt in-flight work if the agent is mid-job.
+# These get refused when agent_health(server) verdict == 'slow' unless the
+# caller passes args.force=true. The arg key used to find the bench/server.
+_GATE_A_GUARDED_TOOLS: dict[str, str] = {
+	# tool_name → arg_key holding the bench docname
+	"bench_restart": "name",
+	"bench_update": "name",
+}
+
+
+def _check_busy_worker_guard(tool: str, dispatch_args: dict) -> dict | None:
+	"""Return a dict {server, error} if Gate A should refuse the call, else None.
+
+	Best-effort: if anything in the check raises (bench not found, agent_health
+	import fails, etc.), we allow the call through — guards must never break
+	legitimate ops. The audit log captures both the refusal and the bypass.
+	"""
+	try:
+		from press.mcp_server.deploy_flow import agent_health
+
+		arg_key = _GATE_A_GUARDED_TOOLS[tool]
+		bench_name = dispatch_args.get(arg_key)
+		if not bench_name:
+			return None
+		server = frappe.db.get_value("Bench", bench_name, "server")
+		if not server:
+			return None
+		verdict = agent_health(server=server, lookback_minutes=5)
+		if verdict.get("verdict") == "slow":
+			reason = verdict.get("reason", "agent is mid-job")
+			running = verdict.get("running_jobs", [])
+			running_summary = ", ".join(
+				f"{j.get('job_type', '?')} ({j.get('age_seconds', '?')}s old)"
+				for j in running[:3]
+			)
+			return {
+				"server": server,
+				"error": (
+					f"Gate A refusal: {tool!r} blocked because {server!r} agent is "
+					f"verdict='slow'. {reason} Running jobs: {running_summary}. "
+					f"Restarting now would kill mid-flight work and may corrupt the "
+					f"live DB. Pass args.force=true to override (audit-logged)."
+				),
+			}
+	except Exception as e:  # noqa: BLE001 — guard must never block legitimate ops
+		frappe.log_error(
+			title=f"MCP Gate A: check failed for {tool}",
+			message=f"args={dispatch_args} err={e}",
+		)
+	return None
+
 
 @contextmanager
 def _as_user(user: str):
@@ -105,7 +156,21 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 		# Validate required args present
 		missing = [a for a in spec["required_args"] if a not in args]
 		if missing:
-			raise frappe.ValidationError(f"missing required args: {missing}")
+			# Hint the caller at the canonical arg names AND whether they sent a
+			# close miss (e.g. 'site' vs 'site_name', 'sql' vs 'query'). The most
+			# common cause of "missing required args" is an LLM client inferring
+			# a natural-language name from the description instead of the schema.
+			sent = sorted(args.keys()) if isinstance(args, dict) else []
+			hint = ""
+			if sent:
+				hint = (
+					f" Got: {sent}. Expected: {spec['required_args']}. "
+					f"For the full args_schema, call {{tool: 'help', args: {{tool: {tool!r}}}}}."
+				)
+			_track_rejection(token_doc_name, tool, "missing_required_args", str(missing))
+			raise frappe.ValidationError(
+				f"missing required args: {missing}.{hint}"
+			)
 
 		# Dry-run support for high-risk tools
 		if args.get("dry_run") and get_tool_risk(tool) == "high":
@@ -123,8 +188,49 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 			)
 			return _wrap_success(response, args)
 
-		# Strip dry_run from dispatch args (it's a meta-arg, not a tool arg)
-		dispatch_args = {k: v for k, v in args.items() if k != "dry_run"}
+		# Build dispatch_args by FILTERING to only schema-declared properties.
+		# Args the schema doesn't know about are dropped at the MCP layer with
+		# a logged warning — they don't reach the Python method (which would
+		# TypeError on the unexpected kwarg). Meta-args (dry_run, suppress_hints)
+		# are MCP-layer concerns and stripped here too.
+		# This stops the classic "agent guessed `timeout` from the description,
+		# blasts the rate limit because each call rejects in <1ms" failure mode.
+		_META_ARGS = {"dry_run", "suppress_hints"}
+		schema_props = set(spec.get("args_schema", {}).get("properties", {}).keys())
+		# If the tool has no args_schema (legacy), fall back to required_args only
+		known_args = schema_props or set(spec.get("required_args", []))
+		dispatch_args = {}
+		ignored = []
+		for k, v in args.items():
+			if k in _META_ARGS:
+				continue
+			if k in known_args:
+				dispatch_args[k] = v
+			else:
+				ignored.append(k)
+		if ignored:
+			frappe.log_error(
+				title=f"MCP: dropped unknown args from {tool}",
+				message=f"token={token_doc_name} ignored={ignored} known={sorted(known_args)}",
+			)
+			# Track for fail-fast — agent that keeps sending unknown args
+			# in a tight loop should be stopped before it bursts the rate limit
+			_track_rejection(
+				token_doc_name, tool, "unknown_args", ",".join(sorted(ignored))
+			)
+
+		# Gate A — busy-worker restart guard.
+		# Restarting an agent (bench_restart) or rebuilding a bench (bench_update)
+		# while the agent has a Running migrate/backup job mid-flight will kill
+		# the job mid-write and can corrupt the live DB. This guard refuses
+		# those tools when agent_health(server) returns verdict='slow'.
+		# Bypass with args.force=true (logged in audit). The verdict source is
+		# Press-side Agent Job records, no agent-side polling needed.
+		if tool in _GATE_A_GUARDED_TOOLS and not args.get("force"):
+			gate_a_block = _check_busy_worker_guard(tool, dispatch_args)
+			if gate_a_block is not None:
+				_track_rejection(token_doc_name, tool, "busy_worker_guard", gate_a_block["server"])
+				raise frappe.ValidationError(gate_a_block["error"])
 
 		# Run tool as the resolved user
 		with _as_user(user):
@@ -441,6 +547,56 @@ def _candidate_to_release_group(name: str) -> str | None:
 		)
 	# Maybe the name IS a Deploy Candidate
 	return frappe.db.get_value("Deploy Candidate", name, "group")
+
+
+# Fail-fast burst guard: track per-token "same rejection N times in a row".
+# Stops agents that loop a malformed call from blasting the rate limit.
+# Stored in-process (single gunicorn worker) — if the same token hits a
+# different worker, the counter resets; that's acceptable since rate limit
+# itself is per-token across workers via Redis.
+_REJECTION_HISTORY: dict[str, dict[str, Any]] = {}
+_REJECTION_BURST_LIMIT = 3  # consecutive identical rejections before backoff
+_REJECTION_BURST_WINDOW_SECONDS = 10  # rejections within this window count as "in a row"
+
+
+def _track_rejection(
+	token_name: str | None, tool: str, kind: str, signature: str
+) -> None:
+	"""Track a rejection. Raises ValidationError with a clear back-off message
+	once the same token hits the same kind+signature {LIMIT} times in a row
+	within the burst window. Caller still raises its own ValidationError on
+	the first {LIMIT-1} attempts.
+	"""
+	if not token_name:
+		return
+	key = f"{token_name}::{tool}::{kind}::{signature}"
+	now = time.monotonic()
+	entry = _REJECTION_HISTORY.get(key)
+	if entry and now - entry["last_at"] < _REJECTION_BURST_WINDOW_SECONDS:
+		entry["count"] += 1
+		entry["last_at"] = now
+	else:
+		entry = {"count": 1, "last_at": now}
+	_REJECTION_HISTORY[key] = entry
+
+	# Prune anything older than 5x the window to keep dict tiny
+	if len(_REJECTION_HISTORY) > 1000:
+		cutoff = now - _REJECTION_BURST_WINDOW_SECONDS * 5
+		_REJECTION_HISTORY.clear()
+		# Re-add the live entry so the current request still sees it
+		_REJECTION_HISTORY[key] = entry
+
+	if entry["count"] >= _REJECTION_BURST_LIMIT:
+		# Reset so caller can retry after fixing — don't trap them forever
+		_REJECTION_HISTORY.pop(key, None)
+		raise frappe.ValidationError(
+			f"BURST-GUARD: same {kind} rejection on tool {tool!r} fired "
+			f"{_REJECTION_BURST_LIMIT}x in <{_REJECTION_BURST_WINDOW_SECONDS}s. "
+			f"Fix the call before retrying — likely your loop sends the same "
+			f"bad args repeatedly. Call {{tool: 'help', args: {{tool: {tool!r}}}}} "
+			f"for the correct args_schema. Counter reset; next call will be "
+			f"evaluated normally."
+		)
 
 
 def _log_call(

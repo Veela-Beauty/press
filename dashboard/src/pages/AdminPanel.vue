@@ -13,18 +13,20 @@
 			</div>
 		</div>
 
-		<!-- Top Navigation Tabs -->
-		<div class="mb-4 flex items-center gap-1 border-b border-gray-200">
+		<!-- Top Navigation Tabs — uses shared tabClasses.js so style stays
+		     identical across the dashboard (see _shared/tabClasses.js). -->
+		<div :class="TAB_STRIP_BASE" class="mb-4 gap-1">
 			<button
 				v-for="tab in mainTabs"
 				:key="tab.id"
-				class="flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors"
-				:class="activeMainTab === tab.id
-					? 'border-blue-500 text-blue-700'
-					: 'border-transparent text-gray-500 hover:text-gray-700'"
+				:class="tabClass(activeMainTab === tab.id)"
 				@click="activeMainTab = tab.id"
 			>
-				<i :class="tab.icon" class="text-xs"></i>
+				<i
+					:class="tab.icon"
+					class="text-sm inline-flex items-center justify-center"
+					:style="{ width: '1rem', height: '1rem', opacity: activeMainTab === tab.id ? 1 : 0.6 }"
+				></i>
 				<span>{{ tab.label }}</span>
 				<span
 					v-if="tab.badge"
@@ -36,29 +38,20 @@
 
 		<!-- TAB: Teams (default) -->
 		<template v-if="activeMainTab === 'teams'">
-			<!-- Stats -->
+			<!-- Stats — shared style via StatCard component -->
 			<div v-if="stats" class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-				<div class="rounded-lg border border-gray-200 bg-white p-4">
-					<p class="text-xs font-medium uppercase text-gray-500">Teams</p>
-					<p class="mt-1 text-2xl font-bold">{{ stats.total_teams }}</p>
-				</div>
-				<div class="rounded-lg border border-gray-200 bg-white p-4">
-					<p class="text-xs font-medium uppercase text-gray-500">Sites</p>
-					<p class="mt-1 text-2xl font-bold">{{ stats.total_sites }}</p>
-				</div>
-				<div class="rounded-lg border border-gray-200 bg-white p-4">
-					<p class="text-xs font-medium uppercase text-gray-500">Benches</p>
-					<p class="mt-1 text-2xl font-bold">{{ stats.total_benches }}</p>
-				</div>
-				<div class="rounded-lg border border-gray-200 bg-white p-4">
-					<p class="text-xs font-medium uppercase text-gray-500">Monthly Cost</p>
-					<p class="mt-1 text-2xl font-bold text-blue-600">&euro;{{ stats.total_cost }}</p>
-				</div>
-				<div class="rounded-lg border border-gray-200 bg-white p-4 sm:col-span-2">
-					<p class="text-xs font-medium uppercase text-gray-500">Servers</p>
-					<p class="mt-1 text-2xl font-bold">{{ serverCosts.length }}</p>
-					<p class="text-xs text-gray-400">{{ serverCosts.map(s => s.name.split('.')[0]).join(', ') }}</p>
-				</div>
+				<StatCard label="Teams" :number="stats.total_teams" />
+				<StatCard label="Sites" :number="stats.total_sites" />
+				<StatCard label="Benches" :number="stats.total_benches" />
+				<StatCard label="Monthly Cost" color="info">
+					<template #number>&euro;{{ stats.total_cost }}</template>
+				</StatCard>
+				<StatCard
+					label="Servers"
+					:number="serverCosts.length"
+					:subline="serverCosts.map(s => s.name.split('.')[0]).join(', ')"
+					class="sm:col-span-2"
+				/>
 			</div>
 
 			<!-- Server Costs -->
@@ -212,12 +205,18 @@ import AiEscalations from '../components/admin/AiEscalations.vue';
 import AiUsageCost from '../components/admin/AiUsageCost.vue';
 import AiPolicyGate from '../components/admin/AiPolicyGate.vue';
 import AdminPanelMcp from './admin/AdminPanelMcp.vue';
+import { TAB_STRIP_BASE, tabClass } from '../components/_shared/tabClasses.js';
+import StatCard from '../components/_shared/StatCard.vue';
 
 const API = 'press.api.admin_panel';
 
 export default {
 	name: 'AdminPanel',
-	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate, AdminPanelMcp },
+	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate, AdminPanelMcp, StatCard },
+	setup() {
+		// Expose shared tab constants to the template
+		return { TAB_STRIP_BASE, tabClass };
+	},
 	data() {
 		return {
 			loading: false,

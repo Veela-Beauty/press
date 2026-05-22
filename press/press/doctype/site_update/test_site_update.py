@@ -22,7 +22,7 @@ from press.press.doctype.release_group.test_release_group import (
 from press.press.doctype.site.site import Site
 from press.press.doctype.site.test_site import create_test_bench, create_test_site
 from press.press.doctype.site_plan.test_site_plan import create_test_plan
-from press.press.doctype.site_update.site_update import SiteUpdate
+from press.press.doctype.site_update.site_update import SiteUpdate, handle_success
 from press.press.doctype.subscription.test_subscription import create_test_subscription
 
 
@@ -279,3 +279,75 @@ class TestSiteUpdate(FrappeTestCase):
 				"Success",
 				"Site Update should be successful",
 			)
+
+
+class TestSiteUpdateHandleSuccessNginxRefresh(FrappeTestCase):
+	"""handle_success must refresh the destination bench's nginx config so the
+	`/assets/<app>/` alias points at the new bench filesystem path. Without
+	this, the site keeps serving stale CSS from the OLD bench until the next
+	full Release Group rebuild — the 'stale CSS 404 after site_update' trap
+	documented in feedback_press-asset-deploy-time-mount.md."""
+
+	def test_handle_success_refreshes_destination_bench_nginx(self):
+		fake_job = Mock(site="x.example.com", name="ag-1")
+		fake_update = Mock(
+			backup_type="Logical",
+			destination_bench="bench-NEW-press-f1",
+			name="su-1",
+		)
+		fake_site = MagicMock()
+		fake_bench = MagicMock()
+
+		def get_doc_side_effect(doctype, name=None):
+			if doctype == "Site":
+				return fake_site
+			if doctype == "Bench":
+				assert name == "bench-NEW-press-f1"
+				return fake_bench
+			raise AssertionError(f"unexpected get_doc({doctype!r})")
+
+		with patch(
+			"press.press.doctype.site_update.site_update.frappe.get_doc",
+			side_effect=get_doc_side_effect,
+		):
+			handle_success(fake_job, fake_update)
+
+		fake_site.reset_previous_status.assert_called_once_with(fix_broken=True)
+		fake_bench.generate_nginx_config.assert_called_once_with()
+
+	def test_handle_success_swallows_nginx_refresh_failure(self):
+		"""nginx refresh failure must NOT mark the site_update as failed.
+		The site IS on the new bench; assets just stay stale until the proxy's
+		2-min cache TTL expires. Failure is logged via frappe.log_error."""
+		fake_job = Mock(site="x.example.com", name="ag-2")
+		fake_update = Mock(
+			backup_type="Logical",
+			destination_bench="bench-NEW-press-f1",
+			name="su-2",
+		)
+		fake_site = MagicMock()
+		fake_bench = MagicMock()
+		fake_bench.generate_nginx_config.side_effect = RuntimeError("agent down")
+
+		def get_doc_side_effect(doctype, name=None):
+			if doctype == "Site":
+				return fake_site
+			if doctype == "Bench":
+				return fake_bench
+			raise AssertionError(f"unexpected get_doc({doctype!r})")
+
+		with patch(
+			"press.press.doctype.site_update.site_update.frappe.get_doc",
+			side_effect=get_doc_side_effect,
+		), patch(
+			"press.press.doctype.site_update.site_update.frappe.log_error"
+		) as fake_log_error:
+			# Should NOT raise — failure is swallowed + logged
+			handle_success(fake_job, fake_update)
+
+		fake_site.reset_previous_status.assert_called_once_with(fix_broken=True)
+		fake_bench.generate_nginx_config.assert_called_once_with()
+		fake_log_error.assert_called_once()
+		log_kwargs = fake_log_error.call_args.kwargs
+		self.assertIn("nginx refresh on destination bench failed", log_kwargs["title"])
+		self.assertIn("agent down", log_kwargs["message"])

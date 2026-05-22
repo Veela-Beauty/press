@@ -100,3 +100,78 @@ class TestVirtualMachine(FrappeTestCase):
 			vm.create_database_server()
 		except Exception as e:
 			self.fail(e)
+
+
+class TestIsVmForDecommissionedServer(FrappeTestCase):
+	"""Guard against the 2026-05-21 incident: snapshot crons created 1798
+	wasted Snapshot Disk jobs in 2 days because they picked targets by VM
+	flags without checking the linked Server's is_decommissioned flag.
+
+	The helper is_vm_for_decommissioned_server() is the single source of
+	truth for 'should snapshot crons skip this VM?'. Every snapshot cron
+	in virtual_machine.py calls it. If you add a new snapshot cron, call
+	this helper before triggering a snapshot."""
+
+	def test_direct_decom_app_server_returns_true(self):
+		"""VM is the backing for a decommissioned app Server → True."""
+		from press.press.doctype.virtual_machine.virtual_machine import (
+			is_vm_for_decommissioned_server,
+		)
+
+		def fake_get_value(doctype, filters, fieldname=None, as_dict=False):
+			if doctype == "Server" and filters == {"virtual_machine": "f1-mumbai.fc.dev"} and as_dict:
+				return frappe._dict({"name": "f-0001.fc.dev", "is_decommissioned": 1})
+			return None
+
+		with patch("press.press.doctype.virtual_machine.virtual_machine.frappe.db.get_value", side_effect=fake_get_value):
+			self.assertTrue(is_vm_for_decommissioned_server("f1-mumbai.fc.dev"))
+
+	def test_direct_active_app_server_returns_false(self):
+		"""VM backs an active app Server → False (don't skip)."""
+		from press.press.doctype.virtual_machine.virtual_machine import (
+			is_vm_for_decommissioned_server,
+		)
+
+		def fake_get_value(doctype, filters, fieldname=None, as_dict=False):
+			if doctype == "Server" and as_dict:
+				return frappe._dict({"name": "press-f1.example.com", "is_decommissioned": 0})
+			return None
+
+		with patch("press.press.doctype.virtual_machine.virtual_machine.frappe.db.get_value", side_effect=fake_get_value):
+			self.assertFalse(is_vm_for_decommissioned_server("press-f1-vm.example.com"))
+
+	def test_indirect_via_db_server_returns_true(self):
+		"""VM is a Database Server's VM whose linked app Server is decommissioned → True."""
+		from press.press.doctype.virtual_machine.virtual_machine import (
+			is_vm_for_decommissioned_server,
+		)
+
+		def fake_get_value(doctype, filters, fieldname=None, as_dict=False):
+			# No direct Server match
+			if doctype == "Server" and "virtual_machine" in filters and as_dict:
+				return None
+			# Database Server matches this VM
+			if doctype == "Database Server" and filters == {"virtual_machine": "m2-mumbai.fc.dev"} and fieldname == "name":
+				return "m2927.fc.dev"
+			# Linked app Server IS decommissioned
+			if doctype == "Server" and filters == {"database_server": "m2927.fc.dev", "is_decommissioned": 1} and fieldname == "name":
+				return "f-0001.fc.dev"
+			return None
+
+		with patch("press.press.doctype.virtual_machine.virtual_machine.frappe.db.get_value", side_effect=fake_get_value):
+			self.assertTrue(is_vm_for_decommissioned_server("m2-mumbai.fc.dev"))
+
+	def test_orphan_vm_returns_false(self):
+		"""VM that doesn't back any Server/Database/Proxy at all → False (let normal snapshot logic run)."""
+		from press.press.doctype.virtual_machine.virtual_machine import (
+			is_vm_for_decommissioned_server,
+		)
+
+		with patch(
+			"press.press.doctype.virtual_machine.virtual_machine.frappe.db.get_value",
+			return_value=None,
+		), patch(
+			"press.press.doctype.virtual_machine.virtual_machine.frappe.get_all",
+			return_value=[],
+		):
+			self.assertFalse(is_vm_for_decommissioned_server("orphan-vm.example.com"))

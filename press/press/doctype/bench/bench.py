@@ -1557,6 +1557,9 @@ def archive_obsolete_benches(group: str | None = None, server: str | None = None
 	query_substr = ""
 	if group and server:
 		query_substr = f"AND bench.group = '{group}' AND bench.server = '{server}'"
+	# Skip benches on decommissioned servers — their archive jobs would time out
+	# on dead hosts (2026-05-21 cluster-decom rule). Join to tabServer and require
+	# is_decommissioned = 0.
 	benches = frappe.db.sql(
 		f"""
 		SELECT
@@ -1567,8 +1570,14 @@ def archive_obsolete_benches(group: str | None = None, server: str | None = None
 			`tabRelease Group` g
 		ON
 			bench.group = g.name
+		LEFT JOIN
+			`tabServer` srv
+		ON
+			bench.server = srv.name
 		WHERE
-			bench.status = "Active" {query_substr}
+			bench.status = "Active"
+			AND (srv.is_decommissioned IS NULL OR srv.is_decommissioned = 0)
+			{query_substr}
 		ORDER BY
 			bench.server
 	""",
@@ -1624,8 +1633,13 @@ def archive_obsolete_benches_for_server(benches: Iterable[BenchesToArchive]):
 
 
 def sync_benches():
+	# Skip benches on decommissioned servers (2026-05-21 cluster-decom rule).
+	from press.utils.decom import is_bench_on_decommissioned_server
+
 	benches = frappe.get_all("Bench", {"status": "Active"}, pluck="name")
 	for bench in benches:
+		if is_bench_on_decommissioned_server(bench):
+			continue
 		frappe.enqueue(
 			"press.press.doctype.bench.bench.sync_bench",
 			queue="sync",

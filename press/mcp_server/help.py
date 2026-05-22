@@ -29,6 +29,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import frappe
+
 from press.mcp_server.tools import TOOLS, get_tool_spec, list_tool_names
 
 # Built-in virtual tools — handled inline by server.handle, not via the catalog.
@@ -37,10 +39,83 @@ BUILTIN_TOOLS = {"help", "list_tools"}
 
 # Appended to every successful tool response unless caller passes args.suppress_hints=true.
 DISCOVERABILITY_HINT = (
-	"Tip: call {tool: 'help'} for the catalog of tools you can use, "
+	"Tip: call {tool: 'help'} for the catalog + canonical recipes "
+	"(deploy chain, Playwright passwordless login, agent diagnostics), "
 	"or {tool: 'help', args: {tool: '<name>'}} for a single-tool detail. "
 	"Pass args.suppress_hints=true to silence this."
 )
+
+# Canonical recipes — returned with every `help` index call so agents
+# don't have to discover the right call ordering by trial and error.
+# Each recipe is a short purpose + 2-6 line copy-paste flow. Keep these
+# under ~120 chars per line so they render readably in any client.
+SERVER_RECIPES: list[dict[str, Any]] = [
+	{
+		"id": "playwright_admin_login",
+		"title": "Passwordless admin login for Playwright / E2E tests",
+		"purpose": (
+			"Login to /dashboard as the MCP token's user without typing a "
+			"password. The token IS the auth — this bridges it into a real "
+			"Frappe session cookie."
+		),
+		"steps": [
+			"1. mcp('mint_dashboard_login_url', {redirect_to: '/dashboard/dev-tools/mcp'})",
+			"2. Read .data.url from response (embeds ?sid=<sid>)",
+			"3. mcp__playwright__browser_navigate(url=<that url>)",
+			"4. You're authenticated. No login form, no rotation, no password.",
+		],
+		"caveats": (
+			"sid cookie is HttpOnly — document.cookie won't show it. Verify "
+			"auth by has_login_form==false + user name rendered in chrome. "
+			"TTL inherits System Settings.session_expiry (default 6h)."
+		),
+	},
+	{
+		"id": "canonical_deploy",
+		"title": "Canonical deploy chain (build → flip → verify, LLM-safe)",
+		"purpose": (
+			"Drive a full Release Group deploy from one MCP client without "
+			"hitting the 'agent polls forever / restarts a busy worker' traps."
+		),
+		"steps": [
+			"1. bench_deploy_information(name=<RG>) — see what's deployable",
+			"2. app_release_approve(release_name=<r>) for every Draft release",
+			"3. bench_deploy_and_wait(name=<RG>, apps=[{app,release,hash}...], site_name=<site>, max_wait_seconds=120)",
+			"4. (optional) agent_job_progress(job_name=<build-job>) — live step stream",
+			"5. deploy_candidate_status(name=<candidate>) — confirm Success",
+			"6. site_update_and_wait(site_name=<site>, target_candidate=<candidate>) — per-site flip",
+			"7. If status != 'flipped': read the hint. Gates B/C/D/E tell you exactly what to call next.",
+			"8. On flip_failed: agent_job_traceback(job_name=<failed_migrate_job>) — see the real error.",
+		],
+		"caveats": (
+			"Standalone Press doesn't auto-flip sites after build (Gate C fires). "
+			"App Release rows default to status='Draft' and won't deploy until "
+			"Approved (would have shipped old code without step 2)."
+		),
+	},
+	{
+		"id": "agent_diagnostics",
+		"title": "Don't restart a busy agent — diagnose first",
+		"purpose": (
+			"BEFORE recommending an agent restart, check agent_health. "
+			"Verdict 'slow' = mid-migrate, restart will corrupt the live DB. "
+			"Gate A blocks bench_restart/bench_update when verdict='slow' "
+			"unless force=true."
+		),
+		"steps": [
+			"1. agent_health(server=<server>, lookback_minutes=10)",
+			"2. verdict='healthy' → restart is safe.",
+			"3. verdict='slow' → DO NOT restart. Wait or poll agent_job_progress on the running job.",
+			"4. verdict='stuck' → run poll_pending_jobs ONCE (NOT restart).",
+			"5. For a specific failed job: agent_job_traceback(job_name=<name>).",
+		],
+		"caveats": (
+			"'many Undelivered jobs' is almost always a scheduler-callback hiccup, "
+			"not a dead agent. Press's scheduler polls every 60s; Gate D auto-kicks "
+			"poll_pending_jobs if needed."
+		),
+	},
+]
 
 # Category metadata — kept here, not in tools.py, because it's UX-only.
 # Mirrors dashboard/src/components/mcp/_tool_catalog.js TOOL_CATEGORIES.
@@ -158,6 +233,7 @@ def get_tool_help(
 			"tool": tool,
 			"description": spec.get("description", ""),
 			"required_args": spec.get("required_args", []),
+			"args_schema": spec.get("args_schema", {"type": "object", "properties": {}, "required": []}),
 			"risk": spec.get("risk", "medium"),
 			"category": cat_id,
 			"category_label": CATEGORIES.get(cat_id, {}).get("label", cat_id),
@@ -218,10 +294,13 @@ def get_tool_help(
 		"in_scope_count": in_scope_count,
 		"full_total": full_total,
 		"scope_only_filter": scope_only,
+		"recipes": SERVER_RECIPES,
 		"hint": (
 			"For full detail on one tool: {tool: 'help', args: {tool: '<name>'}}. "
 			"Pass scope_only=false to also see tools your token CANNOT call "
-			"(useful when planning a request for additional scope)."
+			"(useful when planning a request for additional scope). The recipes "
+			"array shows the canonical call orderings — read them BEFORE building "
+			"your own multi-tool flow."
 		),
 	}
 
@@ -237,3 +316,63 @@ def _example_call(tool: str, spec: dict) -> dict[str, Any]:
 	"""Build a minimal example call payload an agent can copy-paste."""
 	args_template = {a: f"<{a}>" for a in spec.get("required_args", [])}
 	return {"tool": tool, "args": args_template, "token": "<your-token>"}
+
+
+@frappe.whitelist()
+def get_server_recipes() -> list[dict]:
+	"""Return SERVER_RECIPES for the dashboard MCPHowToBox UI panel.
+
+	Same data the MCP `help` index returns to AI agents — exposing it as a
+	standalone whitelisted method so the Vue UI can render the same canonical
+	recipes without going through the MCP token dispatch path.
+	"""
+	return SERVER_RECIPES
+
+
+@frappe.whitelist()
+def get_tool_catalog_for_guide() -> dict[str, Any]:
+	"""Return the full MCP tool catalog grouped by category for the
+	dashboard's MCP Guide tab.
+
+	Catalog-driven docs — every tool's title, description, args_schema, risk
+	level, and a copy-pasteable example call. Reading this is equivalent to
+	reading tools.py. Updates automatically when tools.py changes.
+
+	Different from `get_tool_help` (called via MCP token dispatch) because:
+	- No token required (dashboard guide is for browsing, not calling).
+	- Always returns ALL tools (not scope-filtered) — humans want to see the
+	  full menu, including tools they'd need to request scope for.
+	- Returns example_call inline for every tool, not just on detail requests.
+	"""
+	categories_out = []
+	for cid, meta in CATEGORIES.items():
+		tools_in_cat = []
+		for tool_name in list_tool_names():
+			if TOOL_CATEGORY.get(tool_name, "readonly") != cid:
+				continue
+			spec = TOOLS[tool_name]
+			tools_in_cat.append({
+				"name": tool_name,
+				"description": spec.get("description", ""),
+				"risk": spec.get("risk", "medium"),
+				"required_args": spec.get("required_args", []),
+				"args_schema": spec.get("args_schema", {"type": "object", "properties": {}, "required": []}),
+				"method": spec.get("method"),
+				"example_call": _example_call(tool_name, spec),
+			})
+		if not tools_in_cat:
+			continue
+		# Stable alpha order within each category
+		tools_in_cat.sort(key=lambda t: t["name"])
+		categories_out.append({
+			"id": cid,
+			"label": meta["label"],
+			"tone": meta["tone"],
+			"tools": tools_in_cat,
+			"count": len(tools_in_cat),
+		})
+	return {
+		"categories": categories_out,
+		"total": sum(c["count"] for c in categories_out),
+		"recipes": SERVER_RECIPES,
+	}

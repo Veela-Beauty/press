@@ -577,10 +577,28 @@ def filter_active_servers(servers):
 	for server_type in server_types:
 		all_active_servers[server_type] = set(frappe.get_all(server_type, {"status": "Active"}, pluck="name"))
 
+	# Also exclude decommissioned clusters. The is_decommissioned flag lives
+	# only on tabServer; Database Server / Proxy Server inherit cluster state
+	# from the linked app Server (2026-05-21 cluster-decom rule). Without this
+	# guard, poll_pending_jobs hammers dead servers every 5 seconds and the
+	# pending-job pile-up triggers the "agent stuck" misdiagnosis.
+	from press.utils.decom import (
+		is_database_server_in_decommissioned_cluster,
+		is_server_decommissioned,
+	)
+
 	active_servers = []
 	for server in servers:
-		if server.server in all_active_servers[server.server_type]:
-			active_servers.append(server)
+		if server.server not in all_active_servers[server.server_type]:
+			continue
+		if server.server_type == "Server" and is_server_decommissioned(server.server):
+			continue
+		if server.server_type == "Database Server" and is_database_server_in_decommissioned_cluster(
+			server.server
+		):
+			continue
+		# Proxy Server: not currently a poll target; if it becomes one, add the helper here.
+		active_servers.append(server)
 
 	return active_servers
 

@@ -853,7 +853,11 @@ def sites_with_available_update(server=None):
 
 
 def schedule_updates():
-	servers = frappe.get_all("Server", {"status": "Active"}, pluck="name")
+	# Skip decommissioned servers — Site Update jobs would just sit Undelivered
+	# (2026-05-21 cluster-decom rule).
+	servers = frappe.get_all(
+		"Server", {"status": "Active", "is_decommissioned": 0}, pluck="name"
+	)
 	for server in servers:
 		frappe.enqueue(
 			"press.press.doctype.site_update.site_update.schedule_updates_server",
@@ -1058,6 +1062,22 @@ def handle_success(job: AgentJob, site_update: OngoingUpdate):
 		SiteUpdate("Site Update", site_update.name).trigger_post_migration_stage_logical_replication_backup()
 	else:
 		frappe.get_doc("Site", job.site).reset_previous_status(fix_broken=True)
+
+	# Refresh the destination bench's nginx config so the `/assets/<app>/` alias
+	# points at the NEW bench's filesystem path. Without this, the app-server
+	# nginx keeps serving assets from the OLD bench until the next full RG
+	# rebuild — the "stale CSS 404 after site_update" trap documented in
+	# feedback_press-asset-deploy-time-mount memory + gulf-corner-precast L#13.
+	# Best-effort: failure to refresh nginx must NOT mark the site_update as
+	# failed (the site IS on the new bench; assets just take 2 min of proxy
+	# cache TTL to self-heal in the worst case).
+	try:
+		frappe.get_doc("Bench", site_update.destination_bench).generate_nginx_config()
+	except Exception as e:  # noqa: BLE001 — best-effort refresh
+		frappe.log_error(
+			title="site_update handle_success: nginx refresh on destination bench failed",
+			message=f"site={job.site} dest_bench={site_update.destination_bench} err={e}",
+		)
 
 
 def handle_fatal(job: AgentJob, site_update: OngoingUpdate):
