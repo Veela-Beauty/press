@@ -166,6 +166,46 @@ The audit found these patterns drifting. NEVER add:
 
 ---
 
+## Selection Tiles (cards as radio replacement)
+
+When the user picks 1 option from a small set (versions, regions, site types), do NOT use a `<select>` or a radio group. Use the **tile pattern** Press already uses for the Frappe Framework Version picker and the Region picker.
+
+### Where the canonical source lives
+
+- `dashboard/src/pages/NewSite.vue:51-58` — Frappe Framework Version picker (gold standard)
+- `dashboard/src/pages/NewSite.vue:198-210` — Region picker (same pattern, same classes)
+
+### Class strings (copy-paste)
+
+```vue
+<button
+  :class="[
+    isSelected
+      ? 'border-gray-900 ring-1 ring-gray-900 hover:bg-gray-100'
+      : 'bg-white text-gray-900 hover:bg-gray-50',
+    disabled && 'opacity-50 hover:cursor-default',
+    'flex w-full cursor-pointer flex-col items-start gap-0.5 rounded border border-gray-400 p-3 text-sm focus:outline-none',
+  ]"
+  @click="select(option)"
+>
+  <span class="font-medium">{{ option.name }}</span>
+  <span class="text-xs text-gray-600">{{ option.desc }}</span>
+</button>
+```
+
+### Rules
+
+- **NO colored squares, emoji, or fill-color cues.** The state IS the border + ring.
+- **NO radio dots / circles inside.** The selected ring replaces the radio indicator.
+- **Default border**: `border-gray-400`. **Selected**: `border-gray-900 ring-1 ring-gray-900`.
+- **Disabled**: `opacity-50 hover:cursor-default` + drop the hover bg shift.
+- Layout: grid of 2-4 tiles for short picks; full-width stacked rows for long descriptions.
+
+### Used in
+
+- `NewSite.vue` Version + Region + Site Type steps
+- `SiteDevTab.vue` Site Type panel
+
 ## How to add a new shared primitive
 
 If you find yourself building a 3rd visual pattern (button group? badge? chip?), add it to `_shared/`:

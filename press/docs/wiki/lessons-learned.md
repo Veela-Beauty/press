@@ -1182,3 +1182,99 @@ ssh root@press-ctrl "sudo -u frappe bash -lc \
 **Hardening candidate (deferred to next incident)**: an `agent_health(server)` MCP tool that derives `healthy/slow/stuck/no_activity` from Press-side Agent Job data alone. Skeleton drafted in `press/mcp_server/deploy_flow.py:agent_health` but not yet registered. Logic: any Success in window → healthy; Running with fresh `modified` → slow (wait); Undelivered >2min + no activity → stuck. Would have stopped today's misdiagnosis at the MCP layer.
 
 Status: **DOCUMENTED**. Recipe known. Hardening candidate noted. Anti-restart wisdom encoded for the next agent that sees a "stuck" pattern.
+
+---
+
+## 2026-05-22 — Press-ctrl /apps/press divergent history (safe reset playbook)
+
+### What happened
+Routine deploy of `4c0c2fb230` (Site Type UI) + `82abdb535c` (decom schema) revealed press-ctrl's `apps/press` clone was **49 commits ahead, 116 behind** `veela/cloudflare-dns`, plus **44 uncommitted file modifications** and **5 stashes**.
+
+Root cause: someone had cherry-picked / rebased commits **directly on press-ctrl** instead of pulling from GitHub, producing parallel histories with identical diffs but different commit SHAs. The uncommitted mods were from interrupted in-progress edits (probably from earlier debug sessions that never got committed back).
+
+A naive `git pull` would have refused (divergence error) or produced a tangled merge. A naive `git reset --hard` would have silently lost the 44 uncommitted file mods + 5 stashes — could have been weeks of work.
+
+### What I did (the safe reset playbook)
+
+**1. Patch-id diff** — verify the 49 local-only commits are duplicates of origin:
+```python
+# Compare patch-ids (hash of diff content, ignoring commit SHA)
+git log $MERGE_BASE..press-ctrl --format=%H | while read sha; do
+  git show "$sha" | git patch-id --stable
+done | sort -u > /tmp/press-ctrl-patch-ids.txt
+git log $MERGE_BASE..origin --format=%H | while read sha; do
+  git show "$sha" | git patch-id --stable
+done | sort -u > /tmp/origin-patch-ids.txt
+# Any patch-id in press-ctrl that's NOT in origin = real work to preserve
+```
+Result: **0 unique work** among the 49 commits. All were patch-id matches of origin commits.
+
+**2. Triple backup of uncommitted state on press-ctrl** (before any destructive op):
+```bash
+BACKUP_DIR=/home/frappe/snapshots/press-presync-$(date -u +%Y%m%d-%H%M%S)
+mkdir -p $BACKUP_DIR
+tar --exclude=.git -czf $BACKUP_DIR/working-tree.tar.gz .   # untracked + modified
+git stash list > $BACKUP_DIR/stash-list.txt
+git diff > $BACKUP_DIR/uncommitted-diff.patch
+for i in 0 1 2 3 4; do
+  git stash show -p stash@{$i} > $BACKUP_DIR/stash-$i.patch
+done
+git tag pre-sync-snapshot-$(date -u +%Y%m%d-%H%M%S) HEAD
+```
+
+**3. Mirror backup to dev box** so it survives press-ctrl loss too:
+```bash
+scp -r root@press-ctrl:/home/frappe/snapshots/press-presync-* ~/backups/press-presync/
+```
+
+**4. Preservation branch on GitHub** — apply the uncommitted diff onto a fresh branch off press-ctrl HEAD and push it:
+```bash
+git fetch /tmp/press-divergent.bundle <press-ctrl-HEAD-SHA>:refs/heads/press-ctrl-snapshot
+git checkout -b preserved-press-ctrl-wip-$(date +%Y%m%d) press-ctrl-snapshot
+git apply --3way ~/backups/press-presync-*/uncommitted-diff.patch
+git commit -am "preserve(press-ctrl): uncommitted state from <date>"
+git push origin preserved-press-ctrl-wip-$(date +%Y%m%d)
+```
+
+**5. ONLY THEN reset press-ctrl + deploy:**
+```bash
+ssh press-ctrl "sudo -u frappe bash -lc 'cd /home/frappe/frappe-bench/apps/press && git reset --hard veela/cloudflare-dns'"
+ssh press-ctrl "sudo -u frappe bench --site demo.mvpstorm.com migrate"
+ssh press-ctrl "sudo -u frappe bash -lc 'cd /home/frappe/frappe-bench/apps/press/dashboard && yarn build'"
+ssh press-ctrl "sudo supervisorctl restart frappe-bench-web:"
+```
+
+### Anti-patterns I avoided
+
+| Anti-pattern | Why dangerous |
+|---|---|
+| `git pull` on diverged branch with WIP | Refuses, OR creates conflicted merge with WIP entangled |
+| `git reset --hard` without saving WIP | Silently loses uncommitted files + stashes forever |
+| `git stash drop` to "clean up" | Stashes can contain valuable work-in-progress |
+| Force-push from press-ctrl to "fix" origin | Press-ctrl uses read-only deploy keys (PRESS-WORKFLOW.md rule) — would fail anyway, but the intent is wrong |
+| Trusting commit subject lines to mean "same work" | Subjects matched but I still verified at patch-id level |
+
+### Restore procedure (if needed later)
+
+```bash
+# Recover any specific file from the preservation branch
+git fetch origin preserved-press-ctrl-wip-20260522
+git checkout preserved-press-ctrl-wip-20260522 -- path/to/file
+
+# OR re-apply a stash by hand
+git apply ~/backups/press-presync-*/stash-3.patch
+
+# OR full restore from tarball
+cd /home/frappe/frappe-bench/apps/press
+tar -xzf ~/backups/press-presync-*/working-tree.tar.gz
+```
+
+### Hardening to prevent recurrence
+
+1. **CLAUDE.md rule**: "Never `git pull` on press-ctrl — pull bundles, cherry-pick, or hard-reset only after backup."
+2. **Pre-deploy hook idea**: a script that refuses to run `git reset --hard` on `/apps/press` unless a `pre-reset-backup` exists for today.
+3. **Periodic sync check**: a cron that pings press-ctrl + verifies its HEAD matches `origin/cloudflare-dns` and warns if drift > 5 commits or any uncommitted mods exist.
+
+Status: **PERMANENT** — playbook documented + 4 backups exist (tarball x2 + GitHub branch + git tag). Hardening (3 items) deferred.
+
+Companion memory: `~/.claude/projects/-home-eslam/memory/PRESS-WORKFLOW.md` updated with this playbook.
