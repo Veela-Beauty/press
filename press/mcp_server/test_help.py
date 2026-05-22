@@ -135,6 +135,46 @@ class TestHelp(FrappeTestCase):
 		# The hint should always tell agents how to call help.
 		self.assertIn("help", DISCOVERABILITY_HINT.lower())
 
+	def test_help_index_exposes_recipes_array(self):
+		"""SERVER_RECIPES must always reach the agent. Recipes are how a new
+		LLM agent learns the canonical call orderings without re-deriving them."""
+		result = get_tool_help(caller_scope=[])
+		self.assertIn("recipes", result)
+		recipes = result["recipes"]
+		self.assertIsInstance(recipes, list)
+		ids = {r["id"] for r in recipes}
+		# Canonical deploy chain must be reachable.
+		self.assertIn("canonical_deploy", ids)
+		# App lifecycle (Fetch Latest / Register Existing App) must be reachable.
+		self.assertIn("app_lifecycle", ids)
+
+	def test_help_index_includes_whats_new_for_recent_tools(self):
+		"""whats_new highlights tools shipped recently so agents discover them
+		on first help call."""
+		result = get_tool_help(caller_scope=[])
+		self.assertIn("whats_new", result)
+		entries = result["whats_new"]
+		self.assertIsInstance(entries, list)
+		self.assertGreater(len(entries), 0)
+		# Each entry has the expected shape.
+		for entry in entries:
+			self.assertIn("date", entry)
+			self.assertIn("tools", entry)
+			self.assertIn("summary", entry)
+		# Recently shipped tools must be listed.
+		all_listed = {t for e in entries for t in e["tools"]}
+		self.assertIn("app_source_fetch_latest", all_listed)
+		self.assertIn("list_pending_releases", all_listed)
+		self.assertIn("register_existing_app", all_listed)
+
+	def test_single_tool_detail_includes_recently_shipped_pointer(self):
+		"""Even when an agent asks for one specific tool, the response should
+		nudge them toward recently-shipped capabilities."""
+		result = get_tool_help(tool="list_sites")
+		self.assertIn("recently_shipped_tools", result)
+		self.assertIn("recently_shipped_hint", result)
+		self.assertIn("app_source_fetch_latest", result["recently_shipped_tools"])
+
 	# ------------------------------------------------------------------
 	# Server-handle integration: auth path for built-in tools (T2A)
 	# Critical: wraps the discoverability layer in token verification so

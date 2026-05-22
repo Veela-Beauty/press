@@ -78,6 +78,7 @@ SERVER_RECIPES: list[dict[str, Any]] = [
 			"hitting the 'agent polls forever / restarts a busy worker' traps."
 		),
 		"steps": [
+			"0. (if upstream pushed new commits) app_source_fetch_latest(app=<app>, release_group=<RG>) — polls GitHub + creates a Draft App Release. Skip if bench_deploy_information already shows a Draft.",
 			"1. bench_deploy_information(name=<RG>) — see what's deployable",
 			"2. app_release_approve(release_name=<r>) for every Draft release",
 			"3. bench_deploy_and_wait(name=<RG>, apps=[{app,release,hash}...], site_name=<site>, max_wait_seconds=120)",
@@ -90,7 +91,37 @@ SERVER_RECIPES: list[dict[str, Any]] = [
 		"caveats": (
 			"Standalone Press doesn't auto-flip sites after build (Gate C fires). "
 			"App Release rows default to status='Draft' and won't deploy until "
-			"Approved (would have shipped old code without step 2)."
+			"Approved (would have shipped old code without step 2). "
+			"Step 0 (app_source_fetch_latest) is what replaces the dashboard's "
+			"'Fetch Latest' button — call it FIRST when an upstream commit "
+			"hasn't appeared in Press's release list yet."
+		),
+	},
+	{
+		"id": "app_lifecycle",
+		"title": "Onboard a new app OR pull a new upstream commit (no UI)",
+		"purpose": (
+			"Two related workflows: (a) register an existing GitHub repo so "
+			"Press tracks it, (b) pull new upstream commits into Draft App "
+			"Release rows. Both replace dashboard clicks that used to block "
+			"agent automation."
+		),
+		"steps": [
+			"# (a) Onboard an existing GitHub repo as an App Source",
+			"1. register_existing_app(repository_url='https://github.com/owner/repo', branch='main', app_name='my_app')",
+			"2. Optional: add the new App Source to a Release Group via the Desk, then proceed with canonical_deploy.",
+			"",
+			"# (b) Pull latest upstream commits into Draft App Releases",
+			"1. list_pending_releases(app='my_app', release_group='bench-XYZ')  # see what's already Draft",
+			"2. app_source_fetch_latest(app='my_app', release_group='bench-XYZ')  # poll GitHub, creates new Draft if upstream has new commits",
+			"3. Returned new_release.name → feed into app_release_approve in canonical_deploy step 2.",
+		],
+		"caveats": (
+			"register_existing_app is for repos ALREADY ON GitHub — use "
+			"app_create_locally instead when scaffolding a brand-new empty app. "
+			"app_source_fetch_latest can return no_new_release=true (upstream "
+			"unchanged); that's not an error. Pass force=true to retry after "
+			"a last_github_poll_failed."
 		),
 	},
 	{
@@ -232,6 +263,10 @@ def get_tool_help(
 				"available": list_tool_names(),
 			}
 		cat_id = TOOL_CATEGORY.get(tool, "readonly")
+		# Lightweight discovery nudge so single-tool lookups still surface new tools.
+		recent_tools = [
+			"app_source_fetch_latest", "list_pending_releases", "register_existing_app",
+		]
 		return {
 			"tool": tool,
 			"description": spec.get("description", ""),
@@ -243,6 +278,13 @@ def get_tool_help(
 			"in_scope": _is_in_scope(tool, caller_scope),
 			"method": spec.get("method"),
 			"example_call": _example_call(tool, spec),
+			"recently_shipped_tools": recent_tools,
+			"recently_shipped_hint": (
+				"Three new tools shipped 2026-05-22: app_source_fetch_latest "
+				"(replaces dashboard 'Fetch Latest'), list_pending_releases, "
+				"register_existing_app. Call help() with no args for the "
+				"whats_new field + recipes."
+			),
 		}
 
 	# Index form — group by category
@@ -291,6 +333,40 @@ def get_tool_help(
 	total_in_index = sum(cat["count"] for cat in categories_out)
 	full_total = len(list_tool_names())
 
+	# Recently shipped tools — keep this list trimmed to the last ~3 batches.
+	# Agents see this on every help call so new capabilities surface fast.
+	whats_new = [
+		{
+			"date": "2026-05-22",
+			"tools": [
+				"app_source_fetch_latest",
+				"list_pending_releases",
+				"register_existing_app",
+			],
+			"summary": (
+				"App lifecycle: 'Fetch Latest' (poll GitHub + create Draft "
+				"App Release), 'List Pending Releases', and 'Register Existing "
+				"App' (add a GitHub repo as a new App Source). Closes the "
+				"'tell user to click in the dashboard' gap in the deploy "
+				"chain — see the app_lifecycle recipe."
+			),
+		},
+		{
+			"date": "2026-05-20",
+			"tools": [
+				"agent_health",
+				"agent_job_traceback",
+				"agent_job_progress",
+				"site_update_and_wait",
+				"wait_for_bench_flip",
+			],
+			"summary": (
+				"Deploy workflow + 4 safety gates. See canonical_deploy and "
+				"agent_diagnostics recipes."
+			),
+		},
+	]
+
 	return {
 		"categories": categories_out,
 		"total_in_index": total_in_index,
@@ -298,12 +374,15 @@ def get_tool_help(
 		"full_total": full_total,
 		"scope_only_filter": scope_only,
 		"recipes": SERVER_RECIPES,
+		"whats_new": whats_new,
 		"hint": (
 			"For full detail on one tool: {tool: 'help', args: {tool: '<name>'}}. "
 			"Pass scope_only=false to also see tools your token CANNOT call "
 			"(useful when planning a request for additional scope). The recipes "
 			"array shows the canonical call orderings — read them BEFORE building "
-			"your own multi-tool flow."
+			"your own multi-tool flow. The whats_new array highlights tools "
+			"shipped recently — check this on first help call to discover new "
+			"capabilities."
 		),
 	}
 
