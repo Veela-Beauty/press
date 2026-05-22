@@ -45,8 +45,8 @@ Full live source: `press/mcp_server/tools.py`. Mirrored to UI in `dashboard/src/
 
 | Category | Risk | Count | Examples |
 |---|---|---|---|
-| Read-only | low | 19 | `list_release_groups`, `list_sites`, `site_status`, `agent_job_list`, `bench_recent_logs`, `app_git_status`, `audit_verify_chain`, `bench_read_app_file`, `bench_list_app_files`, `bench_ssh_instructions` |
-| Bench / Release Group | medium | 11 | `clone_bench`, `bench_deploy`, `bench_restart`, `app_create_locally`, `app_init_github`, `release_group_create_deploy_candidate`, `bench_ssh_register_key` |
+| Read-only | low | 21 | `list_release_groups`, `list_sites`, `site_status`, `agent_job_list`, `bench_recent_logs`, `app_git_status`, `app_source_fetch_latest`, `list_pending_releases`, `audit_verify_chain`, `bench_read_app_file`, `bench_list_app_files`, `bench_ssh_instructions` |
+| Bench / Release Group | medium | 12 | `clone_bench`, `bench_deploy`, `bench_restart`, `app_create_locally`, `app_init_github`, `register_existing_app`, `release_group_create_deploy_candidate`, `bench_ssh_register_key` |
 | Site lifecycle | medium | 13 | `clone_site`, `move_site_to_release_group`, `lock_acquire`, `lock_release`, `site_migrate`, `site_backup`, `site_install_app`, `site_*_domain`, `revoke_my_token` |
 | File / Config | medium | 5 | `site_config_get`, `site_config_set`, `site_file_read`, `site_file_write`, `site_update_config_bulk` |
 | Dangerous (high-risk) | high | 10 | `site_run_python` (RCE), `site_run_sql`, `app_git_push`, `site_uninstall_app`, `site_deactivate`, `bench_update`, `site_update`, `bench_ssh_cert_generate`, `bench_update_dependencies`, `bench_run_repo_script` |
@@ -272,6 +272,35 @@ Four new tools + four safety gates that close the "agent polls forever / restart
 | `agent_job_progress(job_name, step_output_chars=1500)` | **Cursor-style live in-flight stream**. Poll every 3-10s while a job is running. Returns `{status, current_step, steps[], steps_summary, dashboard_url}` — same data the dashboard's `/dashboard/sites/<site>/jobs/<job>` page renders. Each step has its own status + output tail + duration. |
 | `site_update_and_wait(site_name, target_candidate, ...)` | After `bench_deploy_and_wait` reports build Success, sites on **standalone Press** don't auto-flip. Call this per site to trigger the migrate + block until the site's bench == target_candidate. |
 
+### App lifecycle tools (shipped 2026-05-22)
+
+Three more tools added to close the "go click Fetch Latest in the UI" gap that surfaced during the `fingerprint_external` deploy on 2026-05-22.
+
+| Tool | Use it when | Risk |
+|---|---|---|
+| `app_source_fetch_latest(app_source? \| app+release_group, force?)` | After a teammate pushes a new commit upstream, BEFORE `bench_deploy_information` — equivalent to the dashboard's **Fetch Latest** button on an App Source. Creates a Draft App Release for any new commit. | low |
+| `list_pending_releases(app?, release_group?, app_source?, limit?)` | Audit what Draft App Releases are waiting for approval. Filter by any combination. Replaces "open the UI to see if a Draft exists." | low |
+| `register_existing_app(repository_url, branch, app_name, app_title?, team?)` | Onboard an existing GitHub repository as a new App Source. Different from `app_create_locally` (which scaffolds a NEW empty app inside a bench). Creates App + App Source + tries first `create_release()`. | medium |
+
+#### Example: full deploy of a new upstream commit with zero UI
+
+```bash
+# 1. Pull latest from GitHub into a Draft App Release
+curl -s -H "X-Press-MCP-Token: $TOK" \
+  -X POST https://demo.mvpstorm.com/api/method/press.mcp_server.server.handle \
+  --data-urlencode 'tool=app_source_fetch_latest' \
+  --data-urlencode 'args={"app":"fingerprint_external","release_group":"bench-0021"}'
+# → { new_release: { name: "REL-...", hash: "113dfb9...", status: "Draft" } }
+
+# 2. Approve the Draft
+curl ... tool=app_release_approve args={"release_name":"REL-..."}
+
+# 3. Build + flip (standard chain)
+curl ... tool=release_group_create_deploy_candidate args={"name":"bench-0021"}
+curl ... tool=deploy_candidate_schedule_build args={"candidate_name":"deploy-..."}
+curl ... tool=site_update_and_wait args={"site_name":"hr-app.sandbox.mvpstorm.com","target_candidate":"deploy-..."}
+```
+
 ### The 4 safety gates inside `wait_for_bench_flip`
 
 Server-enforced, no agent opt-out. Each gate returns a structured status + a `hint` field telling the agent exactly what to call next.
@@ -289,6 +318,11 @@ Gate D is invisible — if Undelivered jobs >2min old exist for the site, the ga
 ### Canonical deploy chain (LLM-safe)
 
 ```
+0. app_source_fetch_latest(app=<app>, release_group=<RG>)   # poll GitHub for new commits
+   # only if upstream pushed something Press hasn't picked up yet — returns
+   # the new App Release docname (Draft). Skip if you already see a Draft in
+   # bench_deploy_information output.
+
 1. bench_deploy_information(name=<RG>)              # what's deployable?
 2. app_release_approve(release_name=<rel>)          # if any apps[].releases[].status == 'Draft'
 3. bench_deploy_and_wait(name=<RG>, apps=[...], site_name=<site>, max_wait_seconds=120)

@@ -44,6 +44,8 @@ export const TOOL_CATALOG = {
 	bench_list_app_files:     { category: 'readonly', risk: 'low', label: 'Bench — List App Files',        desc: 'List files under apps/<app>/<dir>/ in the bench (optional glob pattern, capped at 200)' },
 	bench_ssh_instructions:   { category: 'readonly', risk: 'low', label: 'Bench — SSH Instructions',      desc: 'Get SSH connection instructions for a bench (server/port/paths/do-and-dont). Does NOT grant access.' },
 	bench_ssh_register_key:   { category: 'bench_rg', risk: 'medium', label: 'Bench — Register SSH Pubkey',  desc: 'Upload your SSH public key so bench_ssh_cert_generate can sign it. One-time setup, idempotent.' },
+	app_source_fetch_latest:  { category: 'readonly', risk: 'low', label: 'App Source — Fetch Latest',         desc: "Poll upstream Git + create a Draft App Release for any new commit (the 'Fetch Latest' button)" },
+	list_pending_releases:    { category: 'readonly', risk: 'low', label: 'App Releases — List Pending',      desc: 'List Draft App Releases waiting for approval (filter by app / release_group / app_source)' },
 
 	// BENCH / RELEASE GROUP (medium risk)
 	clone_bench:                            { category: 'bench_rg', risk: 'medium', label: 'Clone Bench',                          desc: 'Clone a Release Group on the same server with the same apps' },
@@ -58,6 +60,7 @@ export const TOOL_CATALOG = {
 	app_release_approve:                    { category: 'bench_rg', risk: 'medium', label: 'App Release — Approve',                desc: 'Approve a Draft App Release for inclusion in candidates' },
 	release_group_create_deploy_candidate:  { category: 'bench_rg', risk: 'medium', label: 'Release Group — Create Deploy Candidate', desc: 'Create a new Deploy Candidate for a Release Group' },
 	deploy_candidate_schedule_build:        { category: 'bench_rg', risk: 'medium', label: 'Deploy — Schedule Build',              desc: 'Schedule build + deploy for a Deploy Candidate' },
+	register_existing_app:                  { category: 'bench_rg', risk: 'medium', label: 'App — Register Existing Repo',         desc: 'Add an existing GitHub repository as a new App Source (different from app_create_locally which scaffolds a NEW app)' },
 
 	// SITE LIFECYCLE (medium risk)
 	clone_site:                  { category: 'site_lifecycle', risk: 'medium', label: 'Clone Site',                       desc: 'Clone a Site onto a target bench (3 modes)' },
@@ -109,6 +112,7 @@ export const PRESETS = {
 	],
 	'All clone': ['clone_bench', 'clone_site'],
 	'All deploy': [
+		'app_source_fetch_latest', 'list_pending_releases',
 		'app_release_approve', 'release_group_create_deploy_candidate',
 		'deploy_candidate_schedule_build', 'deploy_candidate_status',
 		'site_schedule_update', 'wait_for_bench_flip', 'site_status',
