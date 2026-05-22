@@ -1185,6 +1185,90 @@ def bench_provision_progress(bench_name: str) -> dict[str, Any]:
 	}
 
 
+@frappe.whitelist()
+def site_update_with_hint(name: str, skip_failing_patches: int | bool = False) -> dict[str, Any]:
+	"""Friendlier wrapper around press.api.site.update.
+
+	Press's underlying site_update throws 'Could not find suitable Destination
+	Bench' for TWO different conditions — confusing because the message
+	suggests the destination bench is missing when usually it's that no NEWER
+	candidate has been built yet. This wrapper pre-checks and returns a
+	structured hint so the calling agent knows exactly what to do next.
+	"""
+	if not frappe.db.exists("Site", name):
+		frappe.throw(f"Site {name!r} not found", frappe.DoesNotExistError)
+
+	site = frappe.db.get_value(
+		"Site", name, ["name", "bench", "group", "server", "status"], as_dict=True
+	)
+
+	# Pre-flight #1: any Deploy Candidate Difference from source candidate?
+	source_candidate = frappe.db.get_value("Bench", site.bench, "candidate")
+	diff_count = frappe.db.count(
+		"Deploy Candidate Difference",
+		{"group": site.group, "source": source_candidate},
+	)
+	if not diff_count:
+		# No newer candidate has been built. Suggest the next step.
+		newer_bench = frappe.db.get_value(
+			"Bench",
+			{"group": site.group, "server": site.server, "status": "Active",
+			 "candidate": ["!=", source_candidate]},
+			"name",
+		)
+		hint = (
+			"No newer Deploy Candidate exists for this site's Release Group. "
+			"Build one first: call release_group_create_deploy_candidate("
+			f"name={site.group!r}) then deploy_candidate_schedule_build(...)."
+		)
+		if newer_bench:
+			hint = (
+				f"A newer Active bench {newer_bench!r} exists on this server, "
+				"but no Deploy Candidate Difference has been computed yet. "
+				"This usually self-resolves within ~60s; retry after a brief wait."
+			)
+		return {
+			"ok": False,
+			"site": name,
+			"source_bench": site.bench,
+			"source_candidate": source_candidate,
+			"reason": "no_destination_candidate",
+			"hint": hint,
+		}
+
+	# Pre-flight #2: any Active bench with a different candidate on same server?
+	dest = frappe.db.get_value(
+		"Bench",
+		{"group": site.group, "server": site.server, "status": "Active",
+		 "candidate": ["!=", source_candidate]},
+		"name",
+	)
+	if not dest:
+		return {
+			"ok": False,
+			"site": name,
+			"source_bench": site.bench,
+			"reason": "no_active_destination_bench",
+			"hint": (
+				"Deploy Candidate Differences exist but no Active bench on the "
+				"same server has a different candidate. Either the build is "
+				"still running (poll bench_provision_progress) or the build "
+				"failed (check deploy_candidate_status)."
+			),
+		}
+
+	# Pre-flight passed — call Press's real site_update.
+	from press.api.site import update as _press_site_update
+
+	job_name = _press_site_update(name=name, skip_failing_patches=bool(skip_failing_patches))
+	return {
+		"ok": True,
+		"site": name,
+		"site_update": job_name,
+		"destination_bench": dest,
+	}
+
+
 def _derive_provision_stage(bench, chain: list[dict]) -> tuple[str, str]:
 	"""Boil the chain down to one (stage, label) tuple for the UI."""
 	if bench.status == "Archived":

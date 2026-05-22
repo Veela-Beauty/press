@@ -386,10 +386,13 @@ TOOLS: dict[str, dict] = {
 		"risk": "high",
 	},
 	"site_update": {
-		"method": "press.api.site.update",
-		"description": "Update a site to the latest bench deploy",
+		"method": "press.mcp_server.deploy_flow.site_update_with_hint",
+		"description": "Update a site to the latest bench deploy. Wraps press.api.site.update with pre-flight checks. If no newer Deploy Candidate exists yet, returns {ok:false, reason:'no_destination_candidate', hint:'...'} instead of throwing the misleading 'Could not find suitable Destination Bench' error. Args: name (site FQDN). Optional: skip_failing_patches (bool).",
 		"required_args": ["name"],
-		"args_schema": _schema(["name"]),
+		"args_schema": _schema(["name"], {
+			"skip_failing_patches": {"type": "boolean",
+				"description": "Skip failing patches during migrate (default false)"},
+		}),
 		"risk": "high",
 	},
 	# SSH access (cert generation lets agents SSH into bench container)
