@@ -47,6 +47,41 @@
 			</div>
 		</div>
 
+		<!-- 1b. Site Type -->
+		<div class="rounded-lg border border-gray-200 p-4">
+			<div class="flex items-baseline justify-between">
+				<div>
+					<p class="text-xs font-medium uppercase tracking-wide text-gray-500">Site Type</p>
+					<p class="mt-1 text-xs text-gray-500">Classifies this site for automation and feature gating.</p>
+				</div>
+				<span class="text-xs text-gray-500">Current: <span class="font-medium text-gray-900">{{ siteType }}</span></span>
+			</div>
+			<div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+				<button
+					v-for="opt in siteTypeOptions"
+					:key="opt.name"
+					:class="[
+						siteType === opt.name
+							? 'border-gray-900 ring-1 ring-gray-900 hover:bg-gray-100'
+							: 'bg-white text-gray-900 hover:bg-gray-50',
+						(opt.requiresDev && !isDevBench) && 'opacity-50 hover:cursor-default hover:bg-white',
+						siteTypeLoading === opt.name && 'opacity-60',
+						'flex w-full cursor-pointer flex-col items-start gap-0.5 rounded border border-gray-400 p-3 text-sm focus:outline-none',
+					]"
+					:disabled="(opt.requiresDev && !isDevBench) || !!siteTypeLoading"
+					@click="changeSiteType(opt.name)"
+				>
+					<span class="font-medium">{{ opt.name }}</span>
+					<span class="text-xs text-gray-600">{{ opt.desc }}</span>
+				</button>
+			</div>
+			<p v-if="!isDevBench" class="mt-2 text-xs text-gray-500">
+				Dev and Demo are disabled — this bench is not marked as a development bench.
+				<a class="underline" :href="$site?.doc?.bench ? `/dashboard/groups/${$site.doc.group}/benches/${$site.doc.bench}` : '#'">Mark bench as development</a>
+				to enable them.
+			</p>
+		</div>
+
 		<!-- 2. Quick Actions -->
 		<div class="flex flex-wrap gap-3">
 			<!-- Code Server (Web VS Code) -->
@@ -481,12 +516,27 @@ export default {
 			showCreateApp: false, newAppName: '', newAppTitle: '', creatingApp: false, createAppOutput: '',
 			showInitGithub: false, initGithubApp: '', githubAccounts: [], loadingAccounts: false,
 			selectedGithubOwner: '', pushingToGithub: false, initGithubOutput: '',
+			siteTypeLoading: '',
 		};
 	},
 	computed: {
 		$site() { return getCachedDocumentResource('Site', this.site); },
 		isDevBench() { return this.devInfo?.is_development_bench; },
-		devModeOn() { return true; },
+		devModeOn() {
+			const d = this.$site?.doc;
+			if (!d) return false;
+			const v = d.developer_mode ?? d.set_development_mode;
+			return v === 1 || v === '1' || v === true;
+		},
+		siteType() { return this.$site?.doc?.site_type || 'Production'; },
+		siteTypeOptions() {
+			return [
+				{ name: 'Production', desc: 'Live customer site' },
+				{ name: 'Staging', desc: 'Pre-prod testing' },
+				{ name: 'Dev', desc: 'Active development', requiresDev: true },
+				{ name: 'Demo', desc: 'Sales demo', requiresDev: true },
+			];
+		},
 		currentBranch() {
 			const first = this.appGitStatus?.[0];
 			return first?.branch || 'dev-default';
@@ -623,6 +673,24 @@ export default {
 			const enabling = !this.devModeOn; this.devModeLoading = true;
 			try { await this.$site.setDevelopmentMode.submit({ enable: enabling ? 1 : 0 }); toast.success(enabling ? 'Developer mode enabled' : 'Developer mode disabled'); this.$site.reload(); }
 			catch (e) { toast.error(e?.messages?.join(', ') || 'Failed'); } finally { this.devModeLoading = false; }
+		},
+		async changeSiteType(newType) {
+			if (newType === this.siteType || this.siteTypeLoading) return;
+			const opt = this.siteTypeOptions.find(o => o.name === newType);
+			if (opt?.requiresDev && !this.isDevBench) {
+				toast.error(`${newType} sites require a development bench. Mark this bench as development first.`);
+				return;
+			}
+			this.siteTypeLoading = newType;
+			try {
+				await call('press.api.site.change_site_type', { name: this.site, site_type: newType });
+				toast.success(`Site type changed to ${newType}`);
+				this.$site.reload();
+			} catch (e) {
+				toast.error(e?.messages?.join(', ') || 'Failed to change site type');
+			} finally {
+				this.siteTypeLoading = '';
+			}
 		},
 		async triggerMigrate() {
 			this.migrateLoading = true;

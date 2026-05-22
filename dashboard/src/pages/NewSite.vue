@@ -181,6 +181,32 @@
 					</div>
 				</div>
 			</div>
+			<div v-if="selectedVersion" class="flex flex-col">
+				<h2 class="text-base font-medium leading-6 text-gray-900">
+					Site Type
+				</h2>
+				<p class="mt-0.5 text-xs text-gray-500">
+					What is this site for? Sets defaults and applies restrictions. You can change this later from the Dev tab.
+				</p>
+				<div class="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+					<button
+						v-for="opt in siteTypeOptions"
+						:key="opt.name"
+						type="button"
+						:class="[
+							siteType === opt.name
+								? 'border-gray-900 ring-1 ring-gray-900 hover:bg-gray-100'
+								: 'bg-white text-gray-900 hover:bg-gray-50',
+							'flex w-full cursor-pointer flex-col items-start gap-0.5 rounded border border-gray-400 p-3 text-sm focus:outline-none',
+						]"
+						@click="siteType = opt.name"
+					>
+						<span class="font-medium">{{ opt.name }}</span>
+						<span class="text-xs text-gray-600">{{ opt.desc }}</span>
+					</button>
+				</div>
+			</div>
+
 			<div
 				class="flex flex-col"
 				v-if="
@@ -401,6 +427,7 @@ export default {
 			provider: null,
 			plan: null,
 			apps: [],
+			siteType: 'Production',
 			appPlans: {},
 			selectedApp: null,
 			closestCluster: null,
@@ -583,6 +610,7 @@ export default {
 								subscription_plan: this.plan.name,
 								share_details_consent: this.shareDetailsConsent,
 								server: this.selectedDedicatedServer || null,
+								site_type: this.siteType,
 							},
 						};
 					},
@@ -636,6 +664,7 @@ export default {
 								selected_app_plans: appPlans,
 								domain: this.domain,
 								server: this.selectedDedicatedServer || null,
+								site_type: this.siteType,
 								// files: this.selectedFiles,
 								// skip_failing_patches: this.skipFailingPatches,
 							},
@@ -672,6 +701,14 @@ export default {
 	computed: {
 		options() {
 			return this.$resources.options.data;
+		},
+		siteTypeOptions() {
+			return [
+				{ name: 'Production', desc: 'Live customer site' },
+				{ name: 'Staging', desc: 'Pre-prod testing' },
+				{ name: 'Dev', desc: 'Active development' },
+				{ name: 'Demo', desc: 'Sales demo' },
+			];
 		},
 		domain() {
 			return (

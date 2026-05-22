@@ -3376,3 +3376,36 @@ def get_last_failed_job(site_name):
 		job.output = "..." + job.output[-500:]
 
 	return job
+
+
+SITE_TYPE_VALUES = ("Production", "Staging", "Dev", "Demo")
+SITE_TYPE_REQUIRES_DEV_BENCH = ("Dev", "Demo")
+
+
+@frappe.whitelist()
+@protected("Site")
+def change_site_type(name: str, site_type: str):
+	if site_type not in SITE_TYPE_VALUES:
+		frappe.throw(f"Invalid site_type. Must be one of: {', '.join(SITE_TYPE_VALUES)}")
+
+	site_doc = frappe.get_doc("Site", name)
+	if site_type in SITE_TYPE_REQUIRES_DEV_BENCH:
+		is_dev = frappe.db.get_value("Bench", site_doc.bench, "is_development_bench")
+		if not is_dev:
+			frappe.throw(
+				f"{site_type} sites require a development bench. "
+				f"Mark the bench '{site_doc.bench}' as development first from its Actions tab."
+			)
+
+	previous = frappe.db.get_value("Site", name, "site_type") or "Production"
+	if previous == site_type:
+		return {"site": name, "site_type": site_type, "changed": False}
+
+	frappe.db.set_value("Site", name, "site_type", site_type)
+	try:
+		from press.press.doctype.site_activity.site_activity import log_site_activity
+		log_site_activity(name, "Update Configuration", f"Site Type: {previous} -> {site_type}")
+	except Exception:
+		pass
+
+	return {"site": name, "site_type": site_type, "changed": True, "previous": previous}
