@@ -608,6 +608,13 @@ TOOLS: dict[str, dict] = {
 		),
 		"risk": "medium",
 	},
+	"host_memory_pressure": {
+		"method": "press.mcp_server.deploy_flow.host_memory_pressure",
+		"description": "Snapshot of memory pressure on an app server. Verdict 'ok' / 'elevated' / 'critical' / 'unknown' + free_memory_mb + recent OOM-kills + actionable hint. Use BEFORE memory-heavy ops (big reports, simultaneous backups). Use FIRST when multiple sites on a server start returning 500s. Shipped 2026-05-23 after press-f1 MariaDB OOM incident. Args: server (app server docname).",
+		"required_args": ["server"],
+		"args_schema": _schema(["server"]),
+		"risk": "low",
+	},
 	"agent_health": {
 		"method": "press.mcp_server.deploy_flow.agent_health",
 		"description": "Diagnose whether an app server's agent is healthy/slow/stuck/no_activity from Press-side Agent Job records. Use BEFORE recommending an agent restart — restarting a busy worker mid-migrate can corrupt the live DB. Verdict 'slow' = worker is on a long job, DO NOT restart. Verdict 'stuck' = Undelivered jobs piling up with no recent activity, investigate. Returns {verdict, reason, recent_jobs, last_success_seconds_ago, running_jobs, undelivered_jobs}. Args: server (app server docname); lookback_minutes (default 10, max 60).",

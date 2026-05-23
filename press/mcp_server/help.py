@@ -214,6 +214,7 @@ TOOL_CATEGORY: dict[str, str] = {
 	"agent_job_list": "readonly",
 	"wait_for_bench_flip": "readonly",
 	"bench_provision_progress": "readonly",
+	"host_memory_pressure": "readonly",
 	"audit_verify_chain": "readonly",
 	"bench_read_app_file": "readonly",
 	"bench_list_app_files": "readonly",

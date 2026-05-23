@@ -522,6 +522,140 @@ def bench_set_app_branch(
 
 
 @frappe.whitelist()
+def host_memory_pressure(server: str) -> dict[str, Any]:
+	"""Snapshot of memory pressure on an app server. Read-only.
+
+	Wraps press.api.server.usage() (which queries Prometheus) and derives a
+	verdict + recent-OOM scan. Use this BEFORE memory-heavy ops (big reports,
+	bulk inserts, simultaneous site backups) and as the first check when
+	multiple sites on a server simultaneously start returning 500s.
+
+	Why this exists: 2026-05-23 outage. MariaDB on press-f1 was OOM-killed
+	(swap 100% full + RAM exhausted). All 32 sites 500ed for ~25 min until
+	manual SSH diagnosis. An agent calling this tool would have seen
+	verdict='critical' minutes before the OOM.
+
+	Args:
+		server: App server docname (e.g. 'press-f1.sandbox.mvpstorm.com').
+
+	Returns:
+		{
+			"server": <server>,
+			"verdict": "ok" | "elevated" | "critical" | "unknown",
+			"reason": <human-readable>,
+			"memory_used_mb": <int>,        # from Prometheus
+			"memory_free_mb": <int>,        # 10-min avg of MemAvailable
+			"recent_oom_kills": [{job_type, status, age_seconds}, ...],
+			"hint": <next action if verdict != ok>,
+		}
+
+	Verdict rules:
+		ok        — memory_free_mb > 1500
+		elevated  — 500 < memory_free_mb <= 1500 (act soon)
+		critical  — memory_free_mb <= 500 (OOM imminent)
+		unknown   — Prometheus didn't return data (server may be Broken, or
+		            monitoring is down — investigate separately)
+	"""
+	if not frappe.db.exists("Server", server):
+		frappe.throw(f"Server {server!r} not found", frappe.DoesNotExistError)
+
+	# Pull live usage via Prometheus (Press's existing data source)
+	try:
+		from press.api.server import usage as _usage
+
+		stats = _usage(server) or {}
+	except Exception as e:
+		return {
+			"server": server,
+			"verdict": "unknown",
+			"reason": f"Prometheus query failed: {e!s}",
+			"memory_used_mb": None,
+			"memory_free_mb": None,
+			"recent_oom_kills": [],
+			"hint": (
+				"Check Prometheus / node_exporter on this server. "
+				"In the meantime, SSH and run `free -h` for a manual check."
+			),
+		}
+
+	# Prometheus returns last-sample tuples [<timestamp>, <value>] or scalar.
+	def _num(v):
+		if isinstance(v, list) and len(v) >= 2:
+			return float(v[1])
+		try:
+			return float(v) if v is not None else None
+		except (TypeError, ValueError):
+			return None
+
+	memory_used_mb = _num(stats.get("memory"))
+	memory_free_mb = _num(stats.get("free_memory"))
+	# free_memory query returns MemAvailable in BYTES (not MB) — convert.
+	if memory_free_mb is not None and memory_free_mb > 1_000_000:
+		memory_free_mb = memory_free_mb / (1024 * 1024)
+
+	# Verdict
+	if memory_free_mb is None:
+		verdict = "unknown"
+		reason = "No memory metric from Prometheus."
+		hint = "Check node_exporter on this server."
+	elif memory_free_mb <= 500:
+		verdict = "critical"
+		reason = f"Only {int(memory_free_mb)} MB available; OOM-killer is one bad query away."
+		hint = (
+			"STOP scheduling memory-heavy ops. Restart 1-2 idle bench gunicorns "
+			"to reclaim ~200MB each. Consider scheduling site backups for after "
+			"off-hours. If this persists, scale RAM or move sites to another host."
+		)
+	elif memory_free_mb <= 1500:
+		verdict = "elevated"
+		reason = f"{int(memory_free_mb)} MB available — under the 1.5 GB safety floor."
+		hint = (
+			"Avoid concurrent backups / big reports / bulk inserts. "
+			"Investigate any zombie processes (esbuild watchers from dev mode "
+			"are a known cause)."
+		)
+	else:
+		verdict = "ok"
+		reason = f"{int(memory_free_mb)} MB available — healthy."
+		hint = ""
+
+	# Scan recent Agent Jobs for explicit OOM evidence (job_type doesn't say
+	# OOM but Failure traceback often mentions 'Killed' or signal 9).
+	cutoff = add_to_date(now_datetime(), minutes=-30)
+	recent_oom = []
+	try:
+		failures = frappe.db.sql(
+			"""SELECT name, job_type, status, traceback, creation
+			   FROM `tabAgent Job`
+			   WHERE server = %s AND status = 'Failure' AND creation > %s
+			   ORDER BY creation DESC LIMIT 20""",
+			(server, cutoff),
+			as_dict=True,
+		)
+		now = now_datetime()
+		for f in failures:
+			tb = (f.traceback or "")[-2000:]
+			if "Killed" in tb or "signal 9" in tb or "OOM" in tb.upper() or "MemoryError" in tb:
+				recent_oom.append({
+					"job_name": f.name,
+					"job_type": f.job_type,
+					"age_seconds": int((now - f.creation).total_seconds()),
+				})
+	except Exception:
+		pass
+
+	return {
+		"server": server,
+		"verdict": verdict,
+		"reason": reason,
+		"memory_used_mb": int(memory_used_mb) if memory_used_mb is not None else None,
+		"memory_free_mb": int(memory_free_mb) if memory_free_mb is not None else None,
+		"recent_oom_kills": recent_oom,
+		"hint": hint,
+	}
+
+
+@frappe.whitelist()
 def agent_health(server: str, lookback_minutes: int = 10) -> dict[str, Any]:
 	"""Diagnose whether an app server's agent is healthy, slow, or stuck.
 
