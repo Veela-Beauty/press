@@ -113,6 +113,11 @@
 						<td class="px-3 py-2 text-right">
 							<div class="flex justify-end gap-2">
 								<Button size="sm" variant="subtle" @click="openEdit(s)" :disabled="!(s.roles && s.roles.includes('app'))">Edit</Button>
+								<Button size="sm" variant="subtle"
+									:loading="memCheckLoading[s.name]"
+									@click="checkMemoryPressure(s)"
+									:disabled="!(s.roles && s.roles.includes('app'))"
+									title="SSH to server, read /proc/meminfo, return verdict (ok/elevated/critical) + hint">Check Memory</Button>
 								<Button v-if="!s.is_decommissioned" size="sm" variant="subtle" theme="orange"
 									@click="confirmDecommission(s, true)" :disabled="!(s.roles && s.roles.includes('app'))">Decommission</Button>
 								<Button v-else size="sm" variant="subtle" theme="green"
@@ -199,6 +204,7 @@ export default {
 			decomTarget: null,
 			decomNewState: true,
 			showDecommissioned: false,
+			memCheckLoading: {}, // server.name → bool
 		};
 	},
 	computed: {
@@ -299,6 +305,40 @@ export default {
 				toast.error('Failed to update');
 			}
 			this.saving = false;
+		},
+		async checkMemoryPressure(s) {
+			// SSH-based memory probe via host_memory_pressure(). Result is shown
+			// as a sticky toast so admin can read the hint.
+			this.memCheckLoading = { ...this.memCheckLoading, [s.name]: true };
+			try {
+				const r = await call('press.api.server.check_memory_pressure', {
+					name: s.name,
+					force_refresh: 1,  // always fresh when admin clicks the button
+				});
+				const verdict = r?.verdict || 'unknown';
+				const reason = r?.reason || '';
+				const hint = r?.hint || '';
+				const themeByVerdict = {
+					ok: 'success',
+					elevated: 'warning',
+					critical: 'error',
+					unknown: 'info',
+				};
+				const fn = {
+					ok: toast.success,
+					elevated: toast.warning,
+					critical: toast.error,
+					unknown: toast.info,
+				}[verdict] || toast.info;
+				fn(`${s.name}: ${verdict.toUpperCase()} — ${reason}`, {
+					description: hint || undefined,
+					duration: verdict === 'ok' ? 4000 : 15000,  // keep critical visible
+				});
+			} catch (e) {
+				toast.error(`Memory check failed: ${e?.messages?.join(', ') || e?.message || 'unknown error'}`);
+			} finally {
+				this.memCheckLoading = { ...this.memCheckLoading, [s.name]: false };
+			}
 		},
 	},
 };

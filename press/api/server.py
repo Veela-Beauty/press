@@ -1068,3 +1068,15 @@ def get_configured_autoscale_triggers(name) -> list[dict[str, float]] | None:
 		{"parent": name},
 		["name", "metric", "threshold", "action"],
 	)
+
+
+@frappe.whitelist()
+def check_memory_pressure(name: str, force_refresh: int | bool = 0):
+	"""Dashboard wrapper around press.mcp_server.deploy_flow.host_memory_pressure.
+
+	Session-auth (so dashboard can call it without an MCP token). System Manager
+	only — same protection as the rest of the admin panel.
+	"""
+	frappe.only_for("System Manager")
+	from press.mcp_server.deploy_flow import host_memory_pressure
+	return host_memory_pressure(server=name, force_refresh=bool(int(force_refresh)))

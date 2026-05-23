@@ -1385,3 +1385,53 @@ MCP-level wrapper `site_update_with_hint` in `press/mcp_server/deploy_flow.py` p
 instead of throwing. The MCP catalog's `site_update` tool now points at this wrapper. Agents that check `result.ok` get a clear next step (e.g. "build first via release_group_create_deploy_candidate").
 
 Status: **PERMANENT** — wrapper shipped. Could be backported into Press core's `site_update` itself but lower priority since the MCP path is the main consumer.
+
+---
+
+## 2026-05-23 — press-f1 MariaDB OOM took down 32 sites for 25 min
+
+### What happened
+At 13:29 UTC, Linux OOM killer killed `mariadbd` on press-f1 (16 GB RAM + 4 GB swap, 28 active benches, ~65 gunicorn workers). systemd's `Restart=on-abort` does NOT cover SIGKILL, so MariaDB stayed dead. All 32 sites returned HTTP 500 until manual SSH restart at ~13:55. Pre-trigger memory state: ~330 MB available, 100% swap used.
+
+### Hidden contributors
+1. **esbuild zombie** — a `node esbuild --watch` from May 21 left running, eating ~800 MB in RAM + CPU continuously. The bench it belonged to was in production traffic, the watcher wasn't being used.
+2. **No per-bench `memory_max`** — every container was unlimited; one runaway query in one site could drain the host.
+3. **No monitoring** — Prometheus has never been installed on this fork. `press.api.server.usage()` returns empty dicts. The dashboard Analytics tab on every server shows "No data".
+4. **No alerting** — first signal of the problem was sites returning 500 to end users.
+5. **No graceful degradation** — Frappe binds all bench gunicorns to host MariaDB on `127.0.0.1:3306`, so a single DB outage = total outage for everything on the server.
+
+### Immediate fixes shipped
+- `systemctl edit mariadb` drop-in on press-f1: `Restart=always` + `OOMScoreAdjust=-900`. Next OOM scenario: OOM killer picks gunicorn workers FIRST (restartable in 2s), MariaDB auto-restarts in 5s if it does die.
+- Killed the esbuild zombie (PIDs 1136877, 1136864) — freed ~800 MB instantly.
+- `docker builder prune` + `docker image prune -af` freed 36 GB (unrelated to OOM but reduced background noise).
+- New cron `/usr/local/bin/mem-pressure-relief.sh` runs every 5 min on press-f1; logs (no kills) when `MemAvailable < 1.5 GB AND swap > 3.5 GB`. Logs to `/var/log/mem-pressure.log`.
+
+### MCP tooling shipped
+- `host_memory_pressure(server)` — SSH/Ansible-based snapshot. Verdict `ok` / `elevated` / `critical` / `unknown`, plus `memory_total_mb`, `memory_available_mb`, `swap_used_pct`, `recent_oom_kills`, `hint`. 60s cache so polling is cheap (80ms hit / 1.6s miss). Does NOT depend on Prometheus.
+- Help recipe `host_memory_pressure_check` — canonical chain documented for agents.
+- Dashboard: "Check Memory" row-action button on `/dashboard/admin` Servers tab — runs the same check from the UI, shows verdict + hint as a sticky toast (15s for critical, 4s for OK).
+
+### Diagnostic findings (would not have been visible without today's work)
+- Press default `set_bench_memory_limits = True` formula (150 MB × gunicorn + 240 MB × bg + 512 MB overhead) sums to **35 GB across 28 benches on press-f1**. The host has 16 GB. Default is sized for Frappe Cloud's larger production hosts.
+- node_exporter IS installed on press-f1 but bound to `127.0.0.1:9100` (unreachable from press-ctrl). Prometheus binary is not installed anywhere.
+- 5 of 5 sampled benches showed `NO memory limit set (unlimited)` in `docker inspect`.
+
+### Phase 2 — deferred to a future session
+Goals (in priority order):
+1. **Enable `set_bench_memory_limits = True` on press-f1, with conservative caps** — Press default formula is too loose for this 16 GB host. Either lower per-worker memory in Press Settings (gunicorn 150 → 100, bg 240 → 150), OR set explicit per-bench `memory_max` manually until benches are right-sized.
+2. **Pressure-event tracking on `tabBench`** — new fields `memory_pressure_alert`, `memory_high_water_mb`, `last_pressure_at`. Scheduler job polls each active bench's cgroup `memory.events` every 5 min via Ansible. When breach detected, set the flag + surface in `/dashboard/admin` benches list as a sortable column.
+3. **Admin-gated OOM-kill** — never silently kill a customer site's worker. When a bench breaches `memory_high` (the soft floor), flag it + page admin. Admin chooses: raise cap, kill workers, or scale the host. Implemented as a `bench_memory_action` doc with status `Pending Admin Review`.
+4. **Banner UI on Create-Site flow** — when target server's `host_memory_pressure().verdict in (elevated, critical)`, show a warning + "Contact admin" link before allowing site creation.
+5. **Banner UI on bench detail page** — same banner pattern, shown at top.
+6. **Right-size press-f1 to 32 GB OR move 1/3 of sites to a sibling host** — the underlying capacity is the real ceiling. Phase 2 caps buy months, not forever.
+7. **Freeze deactivated sites** (user idea) — when a site has been Inactive for N days, freeze its bench container (`docker pause` or remove from supervisor). Wake on first request via a Press hook. Memory freed: ~80-200 MB per frozen site. Edge: requires a "site is being woken, please wait" page during the 2-3s unfreeze.
+8. **Install Prometheus + node_exporter network config** — separate work (~2-3 hr). Would make the Analytics tab functional. Until then, `host_memory_pressure` MCP tool is the workaround.
+
+### Anti-patterns to remember
+- "Disk is full" looked like the root cause for the first 10 min of investigation (we were at 93%). It WAS a problem but NOT the cause of the 500s. The real cause was 3 levels deeper. Lesson: when sites are 500ing, **read the Frappe error log inside the bench container BEFORE poking at disk/memory metrics**. The traceback says `pymysql.err.OperationalError: Connection refused on :3306` — that's a one-line tell.
+- We `docker prune`-d 36 GB without verifying it would help. It did clean things up but didn't restore sites. Lesson: distinguish "low-risk hygiene" from "actually fixing the user's problem"; don't conflate them.
+- The systemd `Restart=on-abort` default is a footgun for OOM scenarios. ALL critical services on Press infrastructure should use `Restart=always` + `OOMScoreAdjust` negative.
+
+Status: **PARTIAL** — immediate fixes shipped (zombie killed, systemd guard, mem-pressure logger, host_memory_pressure MCP tool, Check Memory button). Phase 2 (caps + alerts + admin gate + freeze-inactive + Prometheus) is documented but deferred.
+
+Companion docs: `~/.claude/projects/-home-eslam/memory/PRESS-WORKFLOW.md`, `press/mcp_server/help.py` (host_memory_pressure_check recipe).

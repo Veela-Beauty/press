@@ -98,6 +98,34 @@ SERVER_RECIPES: list[dict[str, Any]] = [
 		),
 	},
 	{
+		"id": "host_memory_pressure_check",
+		"title": "Catch host OOM before it strikes (memory pressure check)",
+		"purpose": (
+			"On 2026-05-23, press-f1 MariaDB was OOM-killed by Linux because "
+			"RAM + swap were exhausted. 32 sites 500ed for 25 minutes. The fix "
+			"is to monitor BEFORE the OOM. Call this in any flow that creates / "
+			"migrates a site, OR when a user reports 'multiple sites are slow'."
+		),
+		"steps": [
+			"1. host_memory_pressure({server: '<server-docname>'})",
+			"2. Read .verdict:",
+			"   - ok        → safe to proceed",
+			"   - elevated  → warn user, avoid concurrent backups/big reports",
+			"   - critical  → STOP. Surface .hint to user. Contact admin to scale RAM, OR free memory by deactivating idle sites.",
+			"   - unknown   → SSH check failed; verify Press can reach this server",
+			"3. Results are cached 60s; pass force_refresh=true after a worker restart to confirm memory dropped.",
+			"4. Bonus: .swap_used_pct >= 80% is itself an 'elevated' signal even when memory_available_mb still looks OK — swap exhaustion is the canary.",
+		],
+		"caveats": (
+			"This tool uses SSH/Ansible (no Prometheus dependency). First call "
+			"to a server takes 3-10s; subsequent calls within 60s return cached "
+			"data in <100ms. Designed for polling — don't be shy about calling it. "
+			"Phase 2 will add a cron that records pressure events to tabBench so "
+			"admins see chronic offenders in the dashboard. For now this is a "
+			"pull-based check."
+		),
+	},
+	{
 		"id": "watch_bench_provision",
 		"title": "Watch a bench provision from build → ready (no filesystem polling)",
 		"purpose": (
