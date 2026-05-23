@@ -610,9 +610,11 @@ TOOLS: dict[str, dict] = {
 	},
 	"host_memory_pressure": {
 		"method": "press.mcp_server.deploy_flow.host_memory_pressure",
-		"description": "Snapshot of memory pressure on an app server. Verdict 'ok' / 'elevated' / 'critical' / 'unknown' + free_memory_mb + recent OOM-kills + actionable hint. Use BEFORE memory-heavy ops (big reports, simultaneous backups). Use FIRST when multiple sites on a server start returning 500s. Shipped 2026-05-23 after press-f1 MariaDB OOM incident. Args: server (app server docname).",
+		"description": "Snapshot of memory pressure on an app server (SSH-based, no Prometheus needed). Verdict 'ok' / 'elevated' / 'critical' / 'unknown' + memory_total_mb + memory_available_mb + swap_used_pct + recent OOM-kills + actionable hint. Results CACHED for 60s per server — repeated polls return cached data in <100ms (look at _cached:true in the response). Pass force_refresh=true to bypass cache. Use BEFORE memory-heavy ops, FIRST when multiple sites on a server 500. Shipped 2026-05-23 after press-f1 OOM incident.",
 		"required_args": ["server"],
-		"args_schema": _schema(["server"]),
+		"args_schema": _schema(["server"], {
+			"force_refresh": {"type": "boolean", "description": "Bypass 60s cache and SSH fresh"},
+		}),
 		"risk": "low",
 	},
 	"agent_health": {

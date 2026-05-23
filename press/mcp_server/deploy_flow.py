@@ -521,12 +521,20 @@ def bench_set_app_branch(
 	}
 
 
+_HOST_MEMORY_PRESSURE_CACHE_TTL = 60  # seconds
+
+
 @frappe.whitelist()
-def host_memory_pressure(server: str) -> dict[str, Any]:
+def host_memory_pressure(server: str, force_refresh: bool = False) -> dict[str, Any]:
 	"""Snapshot of memory pressure on an app server. Read-only.
 
 	SSH-based: runs `cat /proc/meminfo` on the target server via Press's
 	existing Ansible-adhoc pattern. No Prometheus dependency.
+
+	Results are cached per-server for 60 seconds (the SSH+Ansible round-trip
+	takes 3-10s — repeated calls within 60s return cached data in <100ms).
+	Pass force_refresh=True to bypass the cache (e.g. right after restarting
+	a worker to confirm memory dropped).
 
 	Use this BEFORE memory-heavy ops (big reports, simultaneous backups) and
 	as the FIRST check when multiple sites on a server start returning 500s.
@@ -559,6 +567,14 @@ def host_memory_pressure(server: str) -> dict[str, Any]:
 	"""
 	if not frappe.db.exists("Server", server):
 		frappe.throw(f"Server {server!r} not found", frappe.DoesNotExistError)
+
+	# Cache hit? Return immediately to avoid 3-10s SSH round-trip on every poll.
+	cache_key = f"mcp:host_memory_pressure:{server}"
+	if not force_refresh:
+		cached = frappe.cache().get_value(cache_key)
+		if cached:
+			cached["_cached"] = True
+			return cached
 
 	# Use Press's existing Ansible ad-hoc pattern to SSH the target server.
 	# Inventory format: single host with trailing comma.
@@ -671,7 +687,7 @@ def host_memory_pressure(server: str) -> dict[str, Any]:
 	except Exception:
 		pass
 
-	return {
+	result = {
 		"server": server,
 		"verdict": verdict,
 		"reason": reason,
@@ -680,7 +696,10 @@ def host_memory_pressure(server: str) -> dict[str, Any]:
 		"swap_used_pct": swap_used_pct,
 		"recent_oom_kills": recent_oom,
 		"hint": hint,
+		"_cached": False,
 	}
+	frappe.cache().set_value(cache_key, result, expires_in_sec=_HOST_MEMORY_PRESSURE_CACHE_TTL)
+	return result
 
 
 @frappe.whitelist()
