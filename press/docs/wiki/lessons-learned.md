@@ -1443,3 +1443,60 @@ Full design — per-bench caps + idle-bench freeze + admin gate — lives at:
 The spec covers: detection rules (3-day idle, Production-skip safety), freeze action (`docker stop` whole benches not individual sites), nginx wake-up handler, admin-gated approval for every OOM-kill + freeze, rollout order, risk register. Estimated build: 8-10 hr focused session.
 
 Companion docs: `~/.claude/projects/-home-eslam/memory/PRESS-WORKFLOW.md`, `press/mcp_server/help.py` (host_memory_pressure_check recipe).
+
+---
+
+## 2026-05-23 (later) — Agent Jobs stuck Undelivered for 5-10 min: RQ short-queue starvation
+
+### What happened
+Customer-visible symptom: site updates (Update Site Migrate, Update Site Pull) sat in `Undelivered` or `Pending` for 5-10 minutes before the agent picked them up. Looked like the Frappe scheduler was firing the `poll_pending_jobs` cron (`* * * * * 0/5`) at 30-450s intervals instead of every 5 seconds.
+
+### Diagnosis (the surprise)
+The scheduler was fine. `bench.process_bench_queue` and other 5s crons were firing every 1-3 seconds. Only `agent_job.poll_pending_jobs` showed huge gaps in `tabScheduled Job Log`.
+
+Root cause: **RQ short-queue workers were both pinned on long-running jobs**.
+
+```bash
+# Diagnostic that nailed it
+ssh press-ctrl 'for w in $(redis-cli -p 11000 smembers rq:workers); do
+  redis-cli -p 11000 hget "$w" state
+  redis-cli -p 11000 hget "$w" current_job_working_time
+  redis-cli -p 11000 hget "$w" current_job
+done'
+# Found: worker stuck on stats_server_Daman Backup 5 TB for 150s+
+# /proc/<pid>/stack showed wait4() syscall — hung in subprocess SSH call
+```
+
+The Daman backup app's `update_all_stats` task was enqueueing `update_server_statistics` to `queue="short"` with `timeout=120`. The actual work loops through 10+ clients running `borgmatic info --json` (each up to 60s), so a single run can exceed 5 minutes. Two short-queue workers ran them simultaneously → zero capacity for `poll_pending_jobs` → Agent Jobs sat.
+
+### Why `Scheduled Job Log` for `poll_pending_jobs` is sparse even when healthy
+`poll_pending_jobs()` itself enqueues per-server polls (`poll_pending_jobs_server`) with `deduplicate=True, job_id=f"poll_pending_jobs:{server}"`. When per-server children are still queued or running, the parent silently dedups. The scheduled job log only writes when the parent enqueue completes, so a healthy system can still show gaps in the log. **Real reconciliation comes from `Server.retry_undelivered_jobs` (different cron, every minute), not from `poll_pending_jobs`'s scheduled log row.**
+
+### Fix shipped
+1. **`daman_backup` patch (commit [a685b88](https://github.com/accurate-systems/daman-backup-app-server/commit/a685b88) on `press-integration`)**: `stats_server_*` enqueues moved from `queue="short"` to `queue="long"`. Destination timeout 120s → 600s.
+2. **Immediate recovery on press-ctrl**: `kill -9 <hung_pid>` (supervisord respawns in seconds).
+3. **`background_workers: 1 → 3`** in `common_site_config.json`. Press-ctrl now runs 3 short + 3 long + 3 build = 9 RQ workers. With 30 GB RAM + 16 CPUs and ~600 MB per worker, plenty of headroom.
+
+### Side-effect to remember
+`bench setup supervisor --skip-redis` REMOVED the Frappe-managed Redis programs from `/etc/supervisor/conf.d/frappe-bench.conf`. Redis on port 11000 went down for ~30 seconds. Workers and socketio couldn't connect. **Recovery: re-run `bench setup supervisor --yes` WITHOUT `--skip-redis`, then `supervisorctl reread && supervisorctl update`.**
+
+Lesson: never pass `--skip-redis` to `bench setup supervisor` on press-ctrl. It assumes Redis runs externally (it doesn't here — Frappe manages it via supervisor).
+
+### Audit suggestion
+Grep every installed Frappe app for `enqueue(..., queue="short", ...)` calls. Any that do SSH, subprocess, HTTP-to-external-host, or `borgmatic` work belong on `long`, not `short`. Found in this audit:
+- `daman_backup/daman_backup/tasks/statistics.py:383` — moved to `long`
+- `daman_backup/daman_backup/tasks/statistics.py:402` — moved to `long`
+
+If you add more 3rd-party apps to press-ctrl, repeat this audit.
+
+### Anti-patterns to remember
+- "Worker is busy" ≠ "worker is working". `current_job_working_time` FROZEN across multiple Redis ticks = hung process. `/proc/<pid>/stack` showing `wait4` or `do_poll` (with the same `current_job` shown) confirms it.
+- The Frappe `Scheduled Job Log` is a poor signal for "is the scheduler healthy" if your job uses internal `enqueue(deduplicate=True)`. Use `bench.process_bench_queue` or `incident.resolve_incidents` as your reference cron — they fire every 1-3 seconds when healthy.
+- 5-second crons in Frappe ARE NOT real-time guarantees. They're "we'll try every 5s, but if the queue is busy you'll see gaps." Treat them as "approximately every 5-30 seconds under healthy load".
+- One bad app's enqueue choice can starve the entire short queue for every other Frappe app on the box. There is no fairness scheduler between apps on the same queue.
+
+Status: **PERMANENT** (Daman patched + workers tripled + side-effect documented). Worth adding a periodic `Scheduled Job Type` health check that compares actual cadence vs configured cron and alerts on >2× drift.
+
+### Companion docs
+- Internal memory: `~/.claude/projects/-home-eslam/memory/press-rq-worker-starvation-2026-05-23.md` (full diagnostic playbook)
+- Daman commit: https://github.com/accurate-systems/daman-backup-app-server/commit/a685b88
