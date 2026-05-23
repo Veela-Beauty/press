@@ -1434,4 +1434,12 @@ Goals (in priority order):
 
 Status: **PARTIAL** — immediate fixes shipped (zombie killed, systemd guard, mem-pressure logger, host_memory_pressure MCP tool, Check Memory button). Phase 2 (caps + alerts + admin gate + freeze-inactive + Prometheus) is documented but deferred.
 
+### Phase 2 detailed spec (separate doc)
+
+Full design — per-bench caps + idle-bench freeze + admin gate — lives at:
+- **Internal:** `/home/eslam/docs/superpowers/phase2-bench-memory-resilience-spec.md`
+- **Preview gallery (basic-auth):** https://sanad-preview.sanadeoi.mvpstorm.com/specs/phase2-bench-memory-resilience-spec.md
+
+The spec covers: detection rules (3-day idle, Production-skip safety), freeze action (`docker stop` whole benches not individual sites), nginx wake-up handler, admin-gated approval for every OOM-kill + freeze, rollout order, risk register. Estimated build: 8-10 hr focused session.
+
 Companion docs: `~/.claude/projects/-home-eslam/memory/PRESS-WORKFLOW.md`, `press/mcp_server/help.py` (host_memory_pressure_check recipe).
