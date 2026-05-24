@@ -1330,7 +1330,6 @@ Response: {reason or getattr(result, "text", "Unknown")}
 
 	def run_build(self, data: dict):
 		reference_name = data.get("deploy_candidate_build")
-		self._refuse_build_if_target_memory_critical(reference_name)
 		return self.create_agent_job(
 			"Run Remote Builder",
 			"builder/build",
@@ -1338,56 +1337,6 @@ Response: {reason or getattr(result, "text", "Unknown")}
 			reference_doctype="Deploy Candidate Build",
 			reference_name=reference_name,
 		)
-
-	def _refuse_build_if_target_memory_critical(self, reference_name: str | None):
-		"""Press-side guard against the 2026-05-24 OOM cascade pattern.
-
-		The agent has its own memory + concurrency guards (see press-agent
-		fork). But Press should ALSO refuse to even dispatch a build to a
-		server already at critical memory pressure — saves an agent round
-		trip and avoids polluting the agent's job log with a guaranteed
-		LowMemoryException.
-
-		Uses the existing host_memory_pressure() helper (60s cached, SSH-
-		based read of /proc/meminfo). If verdict == 'critical' (available
-		<= 500 MB OR swap >= 95%), abort here.
-
-		'unknown' verdict (SSH failed) is treated as ALLOW: the agent
-		guard is the authoritative source; Press should not block on its
-		own visibility gap.
-		"""
-		try:
-			from press.mcp_server.deploy_flow import host_memory_pressure
-
-			snapshot = host_memory_pressure(self.server)
-		except Exception:
-			# Belt-and-suspenders: never let the guard ITSELF block a deploy
-			# if its dependency throws. The agent guard catches the worst case.
-			return
-
-		verdict = (snapshot or {}).get("verdict")
-		if verdict != "critical":
-			return
-
-		# Mark the Deploy Candidate Build as Failure with a clear reason so
-		# operators see WHY it didn't run, and Press's normal retry path
-		# picks it up once memory recovers.
-		available_mb = snapshot.get("memory_available_mb", "unknown")
-		swap_pct = snapshot.get("swap_used_pct", "unknown")
-		reason = (
-			f"Refusing to dispatch build to {self.server}: "
-			f"memory pressure critical (available={available_mb} MB, "
-			f"swap={swap_pct}%). Will retry on next deploy poll."
-		)
-		if reference_name and frappe.db.exists("Deploy Candidate Build", reference_name):
-			frappe.db.set_value(
-				"Deploy Candidate Build",
-				reference_name,
-				{"status": "Failure", "build_end": frappe.utils.now_datetime()},
-				update_modified=True,
-			)
-			frappe.db.commit()
-		frappe.throw(reason, frappe.ValidationError)
 
 	def call_supervisorctl(self, bench: str, action: str, programs: list[str]):
 		return self.create_agent_job(
