@@ -8,6 +8,21 @@
 	>
 		<template #body-content>
 			<ObjectList :options="listOptions" />
+			<AlertBanner
+				v-if="pendingNewApps.length"
+				class="mt-4"
+				type="warning"
+				:title="pendingBannerTitle"
+			>
+				<Button
+					variant="solid"
+					theme="gray"
+					:loading="$site.scheduleUpdate?.loading"
+					@click="scheduleUpdate"
+				>
+					Update Site
+				</Button>
+			</AlertBanner>
 		</template>
 	</Dialog>
 </template>
@@ -19,6 +34,7 @@ import { toast } from 'vue-sonner';
 import { renderDialog } from '../../utils/components';
 import router from '../../router';
 import ObjectList from '../ObjectList.vue';
+import AlertBanner from '../AlertBanner.vue';
 import { getToastErrorMessage } from '../../utils/toast';
 
 export default {
@@ -31,13 +47,48 @@ export default {
 	emits: ['installed'],
 	components: {
 		ObjectList,
+		AlertBanner,
 	},
 	data() {
 		return {
 			show: true,
 		};
 	},
+	resources: {
+		pendingApps() {
+			return {
+				url: 'press.api.site.pending_apps_after_update',
+				params: { name: this.site },
+				auto: true,
+			};
+		},
+	},
+	methods: {
+		scheduleUpdate() {
+			if (!this.$site?.scheduleUpdate) return;
+			this.$site.scheduleUpdate.submit(
+				{ skip_failing_patches: false, skip_backups: false },
+				{
+					onSuccess: () => {
+						toast.success('Site update queued. Refresh in ~2 minutes.');
+						this.show = false;
+					},
+					onError: (e) => toast.error(getToastErrorMessage(e)),
+				},
+			);
+		},
+	},
 	computed: {
+		pendingNewApps() {
+			return this.pendingApps?.data || [];
+		},
+		pendingBannerTitle() {
+			const count = this.pendingNewApps.length;
+			const names = this.pendingNewApps
+				.map((a) => a.title || a.app)
+				.join(', ');
+			return `${count} app${count === 1 ? '' : 's'} available after the next site update: <span class="font-mono text-sm">${names}</span>`;
+		},
 		$site() {
 			return getCachedDocumentResource('Site', this.site);
 		},

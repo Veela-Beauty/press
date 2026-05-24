@@ -1843,6 +1843,57 @@ def available_apps(name):
 	return sorted(available_sources, key=lambda x: bench_sources.index(x.name))
 
 
+@frappe.whitelist()
+@protected("Site")
+def pending_apps_after_update(name):
+	"""Return apps that will become installable after the site updates to a newer bench.
+
+	Surfaces in InstallAppDialog when the current bench has NO installable apps
+	but a newer bench in the Release Group does. Tells the user "Update Site"
+	is the path forward, instead of leaving them at an empty list with no hint.
+	"""
+	from press.press.doctype.site.site import get_updates_between_current_and_next_apps
+	from press.press.doctype.site_update.site_update import benches_with_available_update
+
+	if name not in [b for b in (frappe.get_all("Site", {"name": name}, pluck="name") or [])]:
+		return []
+
+	site = frappe.get_doc("Site", name)
+	if site.bench not in benches_with_available_update(site=name):
+		return []
+
+	# Find the destination candidate Press would update this site to
+	destination_candidate = frappe.db.sql(
+		"""
+		SELECT db.candidate
+		FROM `tabBench` sb, `tabDeploy Candidate Difference` dcd, `tabBench` db
+		WHERE sb.name = %(bench)s
+			AND sb.candidate = dcd.source
+			AND db.candidate = dcd.destination
+			AND db.status = 'Active'
+		ORDER BY db.creation DESC LIMIT 1
+		""",
+		{"bench": site.bench},
+		as_dict=True,
+	)
+	if not destination_candidate:
+		return []
+
+	current = frappe.get_all(
+		"Bench App", filters={"parent": site.bench}, fields=["app", "source", "hash"]
+	)
+	next_apps = frappe.get_all(
+		"Deploy Candidate App",
+		filters={"parent": destination_candidate[0].candidate},
+		fields=["app", "source", "hash", "pullable_hash", "title"],
+	)
+
+	diff = get_updates_between_current_and_next_apps(current, next_apps)
+	# Return ONLY apps that are brand-new (current_hash is None).
+	# Version bumps of already-installed apps belong on the Updates page.
+	return [a for a in diff if not a.get("current_hash")]
+
+
 def is_marketplace_app_source(app_source_name):
 	return frappe.db.exists("Marketplace App Version", {"source": app_source_name})
 
