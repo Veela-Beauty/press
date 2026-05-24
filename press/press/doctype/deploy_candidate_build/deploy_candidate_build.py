@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import contextlib
+import fcntl
 import glob
 import json
 import os
@@ -23,6 +24,11 @@ import frappe
 import requests
 import semantic_version
 from frappe.core.utils import find
+
+# Time a build will wait for another build to release a clone-dir lock before
+# giving up. Generous because shutil.copytree on a large app (e.g. ERPNext)
+# can take 30-60s.
+CLONE_DIR_LOCK_TIMEOUT_SECONDS = 300
 from frappe.model.document import Document
 from frappe.utils import now_datetime as now
 from frappe.utils import rounded
@@ -456,15 +462,72 @@ class DeployCandidateBuild(Document):
 
 		assert self.build_directory, "Build directory must be set before cloning apps"
 		target = os.path.join(self.build_directory, "apps", app.app)
-		shutil.copytree(source, target, symlinks=True)
+		self._locked_copytree(source, target)
 
 		if app.pullable_release:
 			source = frappe.get_value("App Release", app.pullable_release, "clone_directory")
 			target = os.path.join(self.build_directory, "app_updates", app.app)
 			# don't know why
-			shutil.copytree(source, target, symlinks=True)
+			self._locked_copytree(source, target)
 
 		return target
+
+	def _locked_copytree(self, source: str, target: str) -> None:
+		"""shutil.copytree wrapped in a per-source-dir flock.
+
+		Fixes upstream Press race: when multiple Deploy Candidate Builds run
+		concurrently (e.g. App Release auto-creates a DC per Release Group),
+		they all try to shutil.copytree() from the SAME clones/<app>/<src>/<hash>
+		directory. If any of them is mid-clone OR if git gc is repacking,
+		copytree sees partial files and raises:
+		  [Errno 2] No such file or directory: '.../pack-XXXX.pack'
+
+		Lock pattern: exclusive flock on a sibling lock file (NOT on the
+		source dir itself, which doesn't survive shutil.copytree's recursive
+		reads). Lock waits up to CLONE_DIR_LOCK_TIMEOUT_SECONDS, then proceeds
+		anyway as best-effort to avoid permanent deadlock on a stale lock.
+
+		Falls back to plain copytree if the lock file can't be created
+		(read-only mount, etc) — never let the lock itself block a build.
+		"""
+		try:
+			lock_path = source.rstrip("/") + ".clone-lock"
+			lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o644)
+		except OSError:
+			shutil.copytree(source, target, symlinks=True)
+			return
+
+		try:
+			# Spin with a non-blocking attempt + sleep so we can enforce a
+			# timeout without relying on POSIX flock timeouts (not portable).
+			import time
+
+			deadline = time.monotonic() + CLONE_DIR_LOCK_TIMEOUT_SECONDS
+			while True:
+				try:
+					fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+					break
+				except BlockingIOError:
+					if time.monotonic() >= deadline:
+						# Timeout: log + proceed anyway as best-effort.
+						frappe.log_error(
+							title="Clone dir lock timeout",
+							message=f"Could not acquire {lock_path} within {CLONE_DIR_LOCK_TIMEOUT_SECONDS}s; "
+							f"proceeding without lock (may produce corrupted copy).",
+						)
+						break
+					time.sleep(1)
+
+			shutil.copytree(source, target, symlinks=True)
+		finally:
+			try:
+				fcntl.flock(lock_fd, fcntl.LOCK_UN)
+			except OSError:
+				pass
+			try:
+				os.close(lock_fd)
+			except OSError:
+				pass
 
 	def _clone_repositories(self):
 		repo_path_map = {}
