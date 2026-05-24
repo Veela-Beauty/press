@@ -142,11 +142,14 @@ export default {
 						label: 'Current Version',
 						type: 'Badge',
 						format(value, row) {
+							// Brand-new app (not yet installed on this site's bench).
+							if (!row.current_hash) return 'New install';
 							return row.will_branch_change
 								? row.current_branch
 								: row.current_tag || row.current_hash.slice(0, 7);
 						},
 						link(value, row) {
+							if (!row.current_hash) return null;
 							if (row.will_branch_change) {
 								return `${row.repository_url}/tree/${row.current_branch}`;
 							}
@@ -183,12 +186,12 @@ export default {
 		},
 		updatableApps() {
 			if (!this.$site.doc.update_information.update_available) return [];
-			let installedApps = this.$site.doc.update_information.installed_apps.map(
-				(d) => d.app,
-			);
-			return this.$site.doc.update_information.apps.filter((app) =>
-				installedApps.includes(app.app),
-			);
+			// Show both version-bumps (installed apps with new commits) AND
+			// brand-new apps that exist in the destination bench but were
+			// never installed on this site's bench. The latter were hidden
+			// upstream because the original Press UI assumed Updates dialog
+			// = upgrade only; this dashboard surfaces both in one place.
+			return this.$site.doc.update_information.apps;
 		},
 		$site() {
 			return getCachedDocumentResource('Site', this.site);
