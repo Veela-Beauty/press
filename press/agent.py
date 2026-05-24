@@ -789,9 +789,14 @@ class Agent:
 		)
 
 	def remove_ssh_user(self, bench):
+		private_ip = frappe.db.get_value("Server", bench.server, "private_ip")
+		data = {
+			"ssh": {"ip": private_ip, "port": 22000 + bench.port_offset},
+		}
 		return self.create_agent_job(
 			"Remove User from Proxy",
 			f"ssh/users/{bench.name}",
+			data,
 			method="DELETE",
 			bench=bench.name,
 			upstream=bench.server,
