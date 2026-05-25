@@ -1531,7 +1531,14 @@ def try_archive(bench: str):
 
 
 def archive_broken_benches():
-	"""Archive broken benches that have no active sites. Runs hourly."""
+	"""Archive broken benches that have no active sites. Runs hourly.
+
+	A "Broken" Site is dead too — its bench shouldn't be kept alive on its
+	behalf. Original upstream query only excluded Archived/Suspended sites,
+	which left broken-on-broken pairs as permanent zombies (test fixtures,
+	failed-clone leftovers, etc.). Adding 'Broken' here lets the cron clean
+	them up automatically.
+	"""
 	broken_benches = frappe.db.sql(
 		"""
 		SELECT b.name, b.server
@@ -1539,7 +1546,7 @@ def archive_broken_benches():
 		WHERE b.status = 'Broken'
 		AND NOT EXISTS (
 			SELECT 1 FROM `tabSite` s
-			WHERE s.bench = b.name AND s.status NOT IN ('Archived', 'Suspended')
+			WHERE s.bench = b.name AND s.status NOT IN ('Archived', 'Suspended', 'Broken')
 		)
 		""",
 		as_dict=True,
