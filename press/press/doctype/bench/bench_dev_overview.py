@@ -11,6 +11,21 @@ from frappe import _
 from press.press.doctype.bench.bench_app_ownership import is_app_owned_by_current_team
 from press.utils import ensure_team_access
 
+# Returned by every bench_ssh_* tool inside its data payload (so any agent on
+# any MCP client sees it even if they ignore the envelope-level _warning).
+# Reinforces ~/.claude/CLAUDE.md "Press Bench SSH Rule" — files edited inside
+# the bench container at /home/frappe/frappe-bench/apps/<app>/... MUST be
+# git committed + pushed before the SSH session ends. Press redeploys wipe
+# uncommitted edits.
+SSH_RULE_MUST_FOLLOW = (
+	"RULE: any file you edit at /home/frappe/frappe-bench/apps/<app>/... "
+	"MUST be git commit + push'd BEFORE you exit this SSH session. "
+	"Press deploys rebuild the container from the registered Git repo; "
+	"uncommitted edits are LOST on the next deploy. Preferred: use the "
+	"Press MCP tool app_git_push (commits + pushes from inside the bench "
+	"with audit trail). No 'TODO commit later' — if you edit, you push."
+)
+
 
 @frappe.whitelist()
 def get_dev_overview_benches():
@@ -320,6 +335,7 @@ def get_ssh_certificate(bench_name):
 		"has_ssh_key": bool(keys), "has_valid_cert": False, "cert_name": None,
 		"valid_until": None, "expires_in_seconds": 0, "certificate": None,
 		"principal": rg.name, "key_label": keys[0].label if keys else None,
+		"rule_must_follow": SSH_RULE_MUST_FOLLOW,
 	}
 	now = frappe.utils.now_datetime()
 	for key in keys:
@@ -862,6 +878,7 @@ def bench_ssh_register_key(
 		"label": label or (existing.label if existing else "mcp-issued"),
 		"is_default": final_default,
 		"already_registered": already_registered,
+		"rule_must_follow": SSH_RULE_MUST_FOLLOW,
 	}
 
 
@@ -924,6 +941,7 @@ def bench_ssh_instructions(
 		"ssh_port": ssh_port,
 		"user": "frappe",
 		"has_registered_key": has_registered_key,
+		"rule_must_follow": SSH_RULE_MUST_FOLLOW,
 		"prerequisite": (
 			"You need TWO MCP calls before you can SSH in:\n"
 			"  1. bench_ssh_register_key(public_key=<your-id_ed25519.pub-content>)\n"

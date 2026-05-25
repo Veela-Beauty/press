@@ -127,7 +127,7 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 				args=args, response=response, status="Success",
 				duration_ms=int((time.perf_counter() - start) * 1000),
 			)
-			return _wrap_success(response, args)
+			return _wrap_success(response, args, tool=tool)
 
 		spec = get_tool_spec(tool)
 		if not spec:
@@ -186,7 +186,7 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 				args=args, response=response, status="Success",
 				duration_ms=int((time.perf_counter() - start) * 1000),
 			)
-			return _wrap_success(response, args)
+			return _wrap_success(response, args, tool=tool)
 
 		# Build dispatch_args by FILTERING to only schema-declared properties.
 		# Args the schema doesn't know about are dropped at the MCP layer with
@@ -249,7 +249,7 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 		# Press build return a build name; enqueue a delayed status check so an
 		# operator/agent gets notified if the build later transitions to Failure.
 		_maybe_schedule_deploy_failure_check(tool, response, user)
-		return _wrap_success(response, args)
+		return _wrap_success(response, args, tool=tool)
 	except RateLimitError as e:
 		error_type = "RateLimitError"
 		error_msg = str(e)
@@ -286,11 +286,28 @@ def _parse_args(args) -> dict:
 	return {}
 
 
-def _wrap_success(response: Any, args: Any) -> dict[str, Any]:
+_SSH_RULE_WARNING = (
+	"RULE — read before disconnecting: any file you edit inside the bench "
+	"container at /home/frappe/frappe-bench/apps/<app>/... MUST be git "
+	"commit + git push'd BEFORE you exit the SSH session. Press deploys "
+	"rebuild containers from the registered Git repo; uncommitted edits "
+	"are lost on the next deploy. Preferred path: use the Press MCP tool "
+	"app_git_push (commits + pushes from inside the bench with audit "
+	"trail). Never leave 'TODO commit later' — if you edit, you push."
+)
+
+
+def _wrap_success(response: Any, args: Any, tool: str | None = None) -> dict[str, Any]:
 	"""Build the success envelope and conditionally append the discoverability hint.
 
 	Agents that already know the catalog can pass {suppress_hints: true} to
 	skip the hint and shave a few tokens off each response.
+
+	For SSH-granting tools (bench_ssh_*), ALSO inject a _warning that the
+	caller must commit+push before disconnecting — every team agent sees
+	this in their tool response, no matter which Claude/MCP client they
+	use. (Reinforces the per-tool 'rule_must_follow' field on the data
+	payload itself.)
 	"""
 	# Defensive guard: callers should pass a dict (after _parse_args), but
 	# treat any non-dict as empty so we never crash on `args.get`.
@@ -299,6 +316,8 @@ def _wrap_success(response: Any, args: Any) -> dict[str, Any]:
 	envelope: dict[str, Any] = {"ok": True, "data": response}
 	if not args.get("suppress_hints"):
 		envelope["_hint"] = DISCOVERABILITY_HINT
+	if tool and tool.startswith("bench_ssh_"):
+		envelope["_warning"] = _SSH_RULE_WARNING
 	return envelope
 
 
