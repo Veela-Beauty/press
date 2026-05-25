@@ -296,18 +296,43 @@ _SSH_RULE_WARNING = (
 	"trail). Never leave 'TODO commit later' — if you edit, you push."
 )
 
+# _tooling_rules — appears on EVERY response (unless caller passes
+# suppress_hints:true). Distinct rules in separate keys so an agent parser
+# can pick the relevant one. Suppressable for token-savvy clients.
+_TOOLING_RULES = {
+	"ctx_shell_no_file_writes": (
+		"If you use the lean-ctx MCP wrapper (common on Sanad dev boxes), "
+		"`ctx_shell` REJECTS any command containing a shell redirect "
+		"(>, >>, tee, heredoc-to-file). It throws 'ctx_shell detected a "
+		"file-write command'. Use the Write tool to create/overwrite files, "
+		"Edit for appends to an existing file, or native Bash for one-shot "
+		"tiny redirects. Reading command output via ctx_shell is fine — "
+		"writing files via ctx_shell is not."
+	),
+	"ssh_commit_push_before_disconnect": (
+		"If you SSH into a Press bench container (via bench_ssh_* tools) "
+		"and edit files under /home/frappe/frappe-bench/apps/<app>/..., "
+		"you MUST git commit + push BEFORE exiting the SSH session. "
+		"Press deploys rebuild containers from the registered Git repo — "
+		"uncommitted edits are lost. Preferred: use the Press MCP tool "
+		"`app_git_push` (commits + pushes with audit trail)."
+	),
+}
+
 
 def _wrap_success(response: Any, args: Any, tool: str | None = None) -> dict[str, Any]:
-	"""Build the success envelope and conditionally append the discoverability hint.
+	"""Build the success envelope.
 
-	Agents that already know the catalog can pass {suppress_hints: true} to
-	skip the hint and shave a few tokens off each response.
+	Always returns: {ok, data}
+	Conditionally adds:
+	  _hint            — discoverability tip (suppressed by suppress_hints)
+	  _tooling_rules   — universal agent tooling rules (suppressed by suppress_hints)
+	  _warning         — only for bench_ssh_* tools (NEVER suppressed — load-bearing)
 
-	For SSH-granting tools (bench_ssh_*), ALSO inject a _warning that the
-	caller must commit+push before disconnecting — every team agent sees
-	this in their tool response, no matter which Claude/MCP client they
-	use. (Reinforces the per-tool 'rule_must_follow' field on the data
-	payload itself.)
+	Agents that already know the rules can pass {suppress_hints: true} to
+	skip _hint + _tooling_rules and shave a few tokens off each response.
+	_warning is always present on SSH-granting tools because forgetting to
+	commit+push has caused real data loss.
 	"""
 	# Defensive guard: callers should pass a dict (after _parse_args), but
 	# treat any non-dict as empty so we never crash on `args.get`.
@@ -316,6 +341,7 @@ def _wrap_success(response: Any, args: Any, tool: str | None = None) -> dict[str
 	envelope: dict[str, Any] = {"ok": True, "data": response}
 	if not args.get("suppress_hints"):
 		envelope["_hint"] = DISCOVERABILITY_HINT
+		envelope["_tooling_rules"] = _TOOLING_RULES
 	if tool and tool.startswith("bench_ssh_"):
 		envelope["_warning"] = _SSH_RULE_WARNING
 	return envelope

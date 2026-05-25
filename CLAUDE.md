@@ -98,6 +98,22 @@ three separate DocType records, each with its own `agent_password` in `__Auth` t
 - SSL certs: wildcard per subdomain level — `*.demo.mvpstorm.com` ≠ `*.sandbox.mvpstorm.com`
 - Cluster.public: always set via `frappe.db.set_value()`, never via UI (patched but be cautious)
 
+## Tooling rules (read before issuing commands on this box)
+
+When running ops on press-ctrl or press-f1, you'll likely use the lean-ctx MCP wrapper that's installed on the dev box. Two rules to avoid the recurring error:
+
+1. **`mcp__lean-ctx__ctx_shell` REJECTS file-write redirects.** Any command containing `>`, `>>`, `tee filename`, or a heredoc that writes a file will error with `"ctx_shell detected a file-write command"`. Pick the right tool:
+   - Write/overwrite a file (any size) → **`Write` tool** (preferred — native, never corrupts MCP stream)
+   - Append to an existing file → **`Edit` tool** with `replace_all=false`
+   - One-shot tiny redirect (logs, debug) → **native `Bash`** (NOT ctx_shell)
+   - Run a command + READ its output → `ctx_shell` is fine
+   - `cd <dir> && cmd` chain → fine
+   - `ssh remote 'cmd > file'` → fine (redirect runs on the REMOTE host, not the local MCP stream)
+
+2. **If you SSH into a Press bench container** (via `bench_ssh_*` MCP tools or any path) and EDIT files inside `apps/<app>/...`, you MUST `git commit + push` from inside the container before disconnecting. Press deploys rebuild the container — uncommitted edits are LOST. Prefer the Press MCP tool `app_git_push` (commits + pushes with audit trail).
+
+The same two rules are also delivered server-side in every Press MCP response's `_tooling_rules` envelope field (visible to every agent, every call).
+
 ## Key Context
 
 - `developer_mode=1` has been REMOVED — replaced by dedicated build worker (setup-build-worker.sh deployed)
