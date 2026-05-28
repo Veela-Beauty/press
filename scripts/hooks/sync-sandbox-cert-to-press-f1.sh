@@ -1,15 +1,6 @@
 #!/bin/bash
-# /etc/letsencrypt/renewal-hooks/deploy/sync-sandbox-cert-to-press-f1.sh
-#
-# PURPOSE: When certbot renews *.sandbox.mvpstorm.com cert on press-ctrl,
-#          the new cert must be deployed to press-f1's agent tls/ directory.
-#          press-f1 serves *.sandbox.mvpstorm.com sites so nginx + agent both
-#          need the updated cert/key.
-#
-# DEPLOY on press-ctrl:
-#   cp sync-sandbox-cert-to-press-f1.sh /etc/letsencrypt/renewal-hooks/deploy/
-#   chmod +x /etc/letsencrypt/renewal-hooks/deploy/sync-sandbox-cert-to-press-f1.sh
-#   certbot renew --dry-run   # verify it runs
+# Certbot renewal deploy hook: sync *.sandbox.mvpstorm.com cert to press-f1
+# Installed at: /etc/letsencrypt/renewal-hooks/deploy/sync-sandbox-cert-to-press-f1.sh
 
 CERT_DIR="/etc/letsencrypt/live/sandbox.mvpstorm.com"
 PRESS_F1="root@89.167.57.21"

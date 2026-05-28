@@ -41,6 +41,7 @@ echo "[$(date)] sync-press-tls-records: Cert for *.${CERT_DOMAIN} renewed, expir
 
 # Update matching Press TLS Certificate records
 TMPSCRIPT=$(mktemp /tmp/press-tls-sync-XXXXXX.py)
+chmod 644 "${TMPSCRIPT}"
 cat > "${TMPSCRIPT}" << PYEOF
 import sys
 sys.path.insert(0, '${BENCH_DIR}/apps/frappe')
