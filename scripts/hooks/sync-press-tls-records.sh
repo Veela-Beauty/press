@@ -74,7 +74,7 @@ print(f"Done. Updated {updated} of {len(records)} TLS Certificate records.")
 frappe.destroy()
 PYEOF
 
-sudo -u frappe bash -c "cd ${BENCH_DIR} && python3 ${TMPSCRIPT}" 2>&1 \
+sudo -u frappe bash -c "cd ${BENCH_DIR} && ${BENCH_DIR}/env/bin/python ${TMPSCRIPT}" 2>&1 \
   || echo "[$(date)] sync-press-tls-records: WARNING — failed to update Press DB records. Run manually."
 rm -f "${TMPSCRIPT}"
 
