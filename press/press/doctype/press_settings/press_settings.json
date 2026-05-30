@@ -263,7 +263,9 @@
   "code_spaces_tab",
   "spaces_domain",
   "security_tab",
-  "wazuh_server"
+  "wazuh_server",
+  "admin_login_pin",
+  "confidential_alert_email"
  ],
  "fields": [
   {
@@ -1579,6 +1581,20 @@
    "fieldname": "wazuh_server",
    "fieldtype": "Data",
    "label": "Wazuh Server"
+  },
+  {
+   "fieldname": "admin_login_pin",
+   "fieldtype": "Password",
+   "label": "Confidential Site Admin PIN",
+   "description": "Global PIN required to Login As Administrator on sites flagged Confidential."
+  },
+  {
+   "fieldname": "confidential_alert_email",
+   "fieldtype": "Data",
+   "options": "Email",
+   "label": "Confidential Wrong-PIN Alert Email",
+   "default": "eng.elgogary@gmail.com",
+   "description": "Recipient for wrong-PIN attempt alerts on confidential sites."
   },
   {
    "fieldname": "autoscale_discount",
