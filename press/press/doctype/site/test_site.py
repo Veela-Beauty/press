@@ -862,3 +862,17 @@ class TestConfidentialPinGate(FrappeTestCase):
 		self.site.save()  # should not raise
 		self.site.reload()
 		self.assertEqual(self.site.is_confidential, 1)
+
+	def test_form_pin_field_syncs_to_global_and_clears(self):
+		# Entering a PIN on the Site form writes it to the global Press Settings
+		# admin_login_pin and does NOT persist on the Site row.
+		frappe.db.set_single_value("Press Settings", "admin_login_pin", "0000")
+		self.site.is_confidential = 1
+		self.site.confidential_admin_pin = "7531"
+		self.site.save()
+		self.site.reload()
+		# per-site copy cleared
+		self.assertFalse(self.site.get_password("confidential_admin_pin", raise_exception=False))
+		# global updated
+		gp = frappe.get_doc("Press Settings").get_password("admin_login_pin", raise_exception=False)
+		self.assertEqual(gp, "7531")
