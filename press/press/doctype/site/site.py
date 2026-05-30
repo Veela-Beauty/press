@@ -445,6 +445,7 @@ class Site(Document, TagHelpers):
 			from press.press.doctype.team.press_role_bridge import require_team_role_flag
 
 			require_team_role_flag(self.team, "admin_access")
+		self._sync_confidential_pin_to_global()
 		if self.has_value_changed("subdomain"):
 			self.validate_site_name()
 		self.validate_bench()
@@ -1830,6 +1831,36 @@ class Site(Document, TagHelpers):
 			self._check_confidential_pin(pin, reason)
 		sid = self.login(reason=reason)
 		return f"https://{self.host_name or self.name}/app?sid={sid}"
+
+	def onload(self):
+		"""Mirror the global confidential PIN onto the form field for display/edit.
+
+		The PIN is NOT stored per-site (security); Press Settings is the source of
+		truth. We populate the field on load and push edits back in validate.
+		"""
+		try:
+			pin = frappe.get_doc("Press Settings").get_password(
+				"admin_login_pin", raise_exception=False
+			)
+			if pin:
+				self.confidential_admin_pin = pin
+		except Exception:
+			pass
+
+	def _sync_confidential_pin_to_global(self):
+		"""If the form's confidential_admin_pin was changed, write it to the global
+		Press Settings PIN, then clear the per-site copy so the PIN is never
+		persisted on individual Site rows."""
+		if not self.has_value_changed("confidential_admin_pin"):
+			return
+		new_pin = self.confidential_admin_pin
+		if new_pin:
+			from press.press.doctype.team.press_role_bridge import require_team_role_flag
+
+			require_team_role_flag(self.team, "admin_access")
+			frappe.db.set_single_value("Press Settings", "admin_login_pin", new_pin)
+		# never keep the PIN on the Site row
+		self.confidential_admin_pin = ""
 
 	def _check_confidential_pin(self, pin, reason):
 		"""Backend-enforced PIN gate for confidential sites. Bypassing the Vue
