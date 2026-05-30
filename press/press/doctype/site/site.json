@@ -361,6 +361,13 @@
    "description": "Development sites allow enabling developer_mode. Do not use for production."
   },
   {
+   "default": "0",
+   "fieldname": "is_confidential",
+   "fieldtype": "Check",
+   "label": "Confidential Site",
+   "description": "When set, Login As Administrator requires the global admin PIN (Press Settings). Only System Managers can change this."
+  },
+  {
    "fieldname": "account_request",
    "fieldtype": "Link",
    "label": "Account Request",
