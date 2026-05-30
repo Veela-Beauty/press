@@ -1,8 +1,14 @@
 # Confidential-Site PIN Gate + No-Cache Visit Site
 
 Date: 2026-05-30
-Status: Design approved, ready for implementation plan
-Repo: press_local (accurate-systems/press), branch cloudflare-dns, live at autodeploypanel.mvpstorm.com
+Status: SHIPPED. Core feature merged via PR #2 (Veela-Beauty/press -> cloudflare-dns).
+  Follow-ups in PR #3 (OPEN): error-toast HTML sanitize, is_confidential placed in
+  Desk Flags section, global PIN mirrored on the Site form under Administrator
+  Password. Scope grew during build (all user-approved):
+  - menu items gated to Platform Admin (admin_access flag), not desk/site-creation
+  - PIN change = email confirm-link (/dashboard/confirm-pin/<token>); forgotten-PIN
+    = email OTP reset; Admin Panel "Security" tab to drive both
+Repo: press_local (Veela-Beauty/press origin), branch cloudflare-dns, live at autodeploypanel.mvpstorm.com
 
 ## Problem
 
