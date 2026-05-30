@@ -1827,7 +1827,7 @@ export default {
 							// allow_site_creation flag (Platform Admin / DevOps Admin).
 							// Mirrors backend gate in Site.set_development_mode.
 							condition: () =>
-								($team.doc?.is_desk_user || session.hasSiteCreationAccess.value) &&
+								session.hasAdminAccess.value &&
 								['Active', 'Broken'].includes(site.doc.status),
 							onClick() {
 								const enabling = !site.doc.is_development_site;
@@ -1844,7 +1844,7 @@ export default {
 							label: site.doc?.is_confidential ? 'Unmark Confidential' : 'Mark Confidential',
 							icon: 'lock',
 							// System Manager only; mirrors backend gate in Site.set_confidential.
-							condition: () => $team.doc?.is_desk_user,
+							condition: () => session.hasAdminAccess.value,
 							onClick() {
 								const enabling = !site.doc.is_confidential;
 								site.setConfidential

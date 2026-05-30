@@ -439,10 +439,12 @@ class Site(Document, TagHelpers):
 	@role_guard.action()
 	def validate(self):
 		if not self.is_new() and self.has_value_changed("is_confidential"):
-			# Only platform admins may protect/unprotect a site. A team member must
-			# not be able to clear the confidential flag (and the PIN gate) on their
-			# own site via the dashboard.
-			frappe.only_for("System Manager")
+			# Only Platform Admins (admin_access) or System Managers may
+			# protect/unprotect a site. A regular team member must not be able to
+			# clear the confidential flag (and its PIN gate) on their own site.
+			from press.press.doctype.team.press_role_bridge import require_team_role_flag
+
+			require_team_role_flag(self.team, "admin_access")
 		if self.has_value_changed("subdomain"):
 			self.validate_site_name()
 		self.validate_bench()
@@ -2734,12 +2736,11 @@ class Site(Document, TagHelpers):
 	def set_development_mode(self, enable):
 		"""Mark site as dev or production and toggle developer_mode in site config.
 
-		Allowed for System Managers OR any team member with `allow_site_creation`
-		on the site's team.
+		Restricted to Platform Admins (admin_access) or System Managers.
 		"""
 		from press.press.doctype.team.press_role_bridge import require_team_role_flag
 
-		require_team_role_flag(self.team, "allow_site_creation")
+		require_team_role_flag(self.team, "admin_access")
 		self.is_development_site = 1 if enable else 0
 		self.save(ignore_permissions=True)
 		if enable:
@@ -2753,8 +2754,10 @@ class Site(Document, TagHelpers):
 	@dashboard_whitelist()
 	def set_confidential(self, enable):
 		"""Flag/unflag a site as confidential (gates Login As Administrator behind
-		the global admin PIN). System Manager only."""
-		frappe.only_for("System Manager")
+		the global admin PIN). Platform Admin (admin_access) or System Manager."""
+		from press.press.doctype.team.press_role_bridge import require_team_role_flag
+
+		require_team_role_flag(self.team, "admin_access")
 		self.is_confidential = 1 if enable else 0
 		self.save(ignore_permissions=True)
 		frappe.logger().info(
