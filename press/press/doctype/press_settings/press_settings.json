@@ -265,7 +265,12 @@
   "security_tab",
   "wazuh_server",
   "admin_login_pin",
-  "confidential_alert_email"
+  "confidential_alert_email",
+  "pending_admin_login_pin",
+  "pin_change_token",
+  "pin_change_token_expiry",
+  "pin_reset_otp",
+  "pin_reset_otp_expiry"
  ],
  "fields": [
   {
@@ -1595,6 +1600,35 @@
    "label": "Confidential Wrong-PIN Alert Email",
    "default": "eng.elgogary@gmail.com",
    "description": "Recipient for wrong-PIN attempt alerts on confidential sites."
+  },
+  {
+   "fieldname": "pending_admin_login_pin",
+   "fieldtype": "Password",
+   "label": "Pending Admin PIN (awaiting email confirmation)"
+  },
+  {
+   "fieldname": "pin_change_token",
+   "fieldtype": "Data",
+   "label": "PIN Change Token",
+   "hidden": 1
+  },
+  {
+   "fieldname": "pin_change_token_expiry",
+   "fieldtype": "Datetime",
+   "label": "PIN Change Token Expiry",
+   "hidden": 1
+  },
+  {
+   "fieldname": "pin_reset_otp",
+   "fieldtype": "Data",
+   "label": "PIN Reset OTP",
+   "hidden": 1
+  },
+  {
+   "fieldname": "pin_reset_otp_expiry",
+   "fieldtype": "Datetime",
+   "label": "PIN Reset OTP Expiry",
+   "hidden": 1
   },
   {
    "fieldname": "autoscale_discount",
