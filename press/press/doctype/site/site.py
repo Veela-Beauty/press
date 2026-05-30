@@ -1818,9 +1818,68 @@ class Site(Document, TagHelpers):
 	@dashboard_whitelist()
 	@site_action(["Active", "Broken"])
 	@action_guard(SiteActions.LoginAsAdmin)
-	def login_as_admin(self, reason=None):
+	def login_as_admin(self, reason=None, pin=None):
+		if self.is_confidential:
+			self._check_confidential_pin(pin, reason)
 		sid = self.login(reason=reason)
 		return f"https://{self.host_name or self.name}/app?sid={sid}"
+
+	def _check_confidential_pin(self, pin, reason):
+		"""Backend-enforced PIN gate for confidential sites. Bypassing the Vue
+		dialog (calling the API directly) still hits this, so it is the real guard.
+		"""
+		configured = frappe.get_doc("Press Settings").get_password(
+			"admin_login_pin", raise_exception=False
+		)
+		if not configured:
+			frappe.throw(
+				"This site is confidential but no admin PIN is configured. "
+				"Set it in Press Settings."
+			)
+		# Use redis incrby (atomic, no per-request memoization like get_value has)
+		# so repeated wrong tries within one request still increment correctly.
+		# IMPORTANT: incrby/get/delete operate on the RAW redis key; delete_value
+		# uses a different prefixed key, so we must use cache.delete() to clear it.
+		cache = frappe.cache()
+		key = f"confidential_pin_fail:{frappe.session.user}:{self.name}"
+		current = int(cache.get(key) or 0)
+		if current >= 3:
+			frappe.throw("Too many incorrect PIN attempts. Try again in a few minutes.")
+		if (pin or "") != configured:
+			fails = cache.incrby(key, 1)
+			cache.expire(key, 300)
+			# "Login as Administrator" is the only valid Site Activity action; the
+			# WRONG-PIN detail goes in reason (the action Select rejects new values).
+			log_site_activity(
+				self.name,
+				"Login as Administrator",
+				reason=f"WRONG PIN (attempt {fails}): {reason or ''}",
+			)
+			if fails == 1 or fails >= 3:
+				self._send_wrong_pin_alert(reason, fails)
+			frappe.throw("Incorrect PIN")
+		cache.delete(key)
+
+	def _send_wrong_pin_alert(self, reason, fails):
+		try:
+			recipient = frappe.db.get_single_value("Press Settings", "confidential_alert_email")
+			if not recipient:
+				return
+			kind = "LOCKOUT" if fails >= 3 else "first wrong attempt"
+			frappe.sendmail(
+				recipients=[recipient],
+				subject=f"[Press] Wrong admin PIN on confidential site {self.name} ({kind})",
+				message=(
+					f"User: {frappe.session.user}<br>"
+					f"Site: {self.name}<br>"
+					f"Failed attempts: {fails}<br>"
+					f"Reason given: {frappe.utils.escape_html(reason or '(none)')}<br>"
+					f"Time: {frappe.utils.now()}"
+				),
+				now=True,
+			)
+		except Exception:
+			frappe.log_error("Confidential PIN alert email failed", frappe.get_traceback())
 
 	@dashboard_whitelist()
 	@site_action(["Active"])

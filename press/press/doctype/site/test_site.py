@@ -778,3 +778,63 @@ class TestSiteHealthMethods(FrappeTestCase):
 			result = site.get_recent_errors()
 		self.assertEqual(result["count"], 0)
 		self.assertEqual(result["errors"], [])
+
+
+class TestConfidentialPinGate(FrappeTestCase):
+	def setUp(self):
+		frappe.db.set_single_value("Press Settings", "admin_login_pin", "1234")
+		frappe.db.set_single_value(
+			"Press Settings", "confidential_alert_email", "eng.elgogary@gmail.com"
+		)
+		self.site = create_test_site(make_autoname("confpin-.#####"))
+		# incrby/get use the RAW redis key (no Frappe site-prefix), so clear via the
+		# raw client; delete_keys() would prefix the pattern and miss them.
+		r = frappe.cache()
+		for k in r.keys("confidential_pin_fail:*"):
+			r.delete(k)
+
+	def test_non_confidential_skips_pin_check(self):
+		# Not confidential -> _check_confidential_pin is never invoked by login_as_admin.
+		self.site.is_confidential = 0
+		with patch.object(Site, "_check_confidential_pin") as chk, patch.object(
+			self.site, "login", return_value="SID"
+		):
+			self.site.login_as_admin(reason="t")
+		chk.assert_not_called()
+
+	def test_correct_pin_passes_check(self):
+		self.site.is_confidential = 1
+		# no raise == pass
+		self.site._check_confidential_pin("1234", "t")
+
+	def test_wrong_pin_throws_logs_and_alerts(self):
+		self.site.is_confidential = 1
+		# Guarantee a pristine counter for THIS site (sibling tests share Redis).
+		frappe.cache().delete(f"confidential_pin_fail:{frappe.session.user}:{self.site.name}")
+		with patch.object(Site, "_send_wrong_pin_alert") as alert:
+			with self.assertRaises(frappe.ValidationError):
+				self.site._check_confidential_pin("0000", "t")
+		# First wrong attempt: alert fires once, and a Site Activity row is logged.
+		alert.assert_called_once()
+		self.assertTrue(
+			frappe.db.exists(
+				"Site Activity",
+				{"site": self.site.name, "action": "Login as Administrator", "reason": ("like", "WRONG PIN%")},
+			)
+		)
+
+	def test_no_pin_configured_blocks(self):
+		frappe.db.set_single_value("Press Settings", "admin_login_pin", "")
+		self.site.is_confidential = 1
+		with self.assertRaises(frappe.ValidationError):
+			self.site._check_confidential_pin("anything", "t")
+
+	def test_lockout_after_three(self):
+		self.site.is_confidential = 1
+		with patch.object(Site, "_send_wrong_pin_alert"):
+			for _ in range(3):
+				with self.assertRaises(frappe.ValidationError):
+					self.site._check_confidential_pin("0000", "t")
+			with self.assertRaises(frappe.ValidationError) as ctx:
+				self.site._check_confidential_pin("1234", "t")
+			self.assertIn("Too many", str(ctx.exception))
