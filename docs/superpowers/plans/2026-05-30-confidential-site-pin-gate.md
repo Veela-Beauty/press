@@ -11,7 +11,7 @@
 **Conventions:**
 - Repo on dev box: `/data/eslam-data/erpnext-app-repos/press_local/`
 - Tests run on press-ctrl. Sync first: `scp -q <localfile> press-ctrl:/home/frappe/frappe-bench/apps/press/<relpath>`
-- Backend tests: `ssh press-ctrl "cd /home/frappe/frappe-bench && bench --site demo.mvpstorm.com run-tests --module press.press.doctype.site.test_site"` (NOTE: confirm the Press site name on press-ctrl; demo.mvpstorm.com is the daman site. Press dashboard runs on the SAME bench — verify with `bench --site <press-site> list-apps | grep press`).
+- Backend tests: `ssh press-ctrl "cd /home/frappe/frappe-bench && bench --site demo.mvpstorm.com run-tests --module press.press.doctype.site.test_site"` (NOTE: confirm the Press site name on press-ctrl; demo.mvpstorm.com is the daman site. Press dashboard runs on the SAME bench — verify with `bench --site demo.mvpstorm.com list-apps | grep press`).
 - `login_as_admin` is already `@dashboard_whitelist()` -> NO new auth_hook allowlist entry needed (same method, new optional param).
 
 ---
@@ -49,14 +49,14 @@ Add to the `fields` array (near `is_development_site`) and to `field_order` in t
 
 ```bash
 scp -q press/press/doctype/site/site.json press-ctrl:/home/frappe/frappe-bench/apps/press/press/press/doctype/site/site.json
-ssh press-ctrl "cd /home/frappe/frappe-bench && bench --site <press-site> migrate"
+ssh press-ctrl "cd /home/frappe/frappe-bench && bench --site demo.mvpstorm.com migrate"
 ```
 Expected: migrate completes; `is_confidential` column exists.
 
 - [ ] **Step 3: Verify column**
 
 ```bash
-ssh press-ctrl "cd /home/frappe/frappe-bench && bench --site <press-site> execute frappe.db.get_table_columns --kwargs \"{'doctype':'Site'}\"" 2>&1 | grep -o is_confidential
+ssh press-ctrl "cd /home/frappe/frappe-bench && bench --site demo.mvpstorm.com execute frappe.db.get_table_columns --kwargs \"{'doctype':'Site'}\"" 2>&1 | grep -o is_confidential
 ```
 Expected: `is_confidential` printed.
 
@@ -98,14 +98,14 @@ Add to `fields` + `field_order` (under the existing `security_tab` section, afte
 
 ```bash
 scp -q press/press/doctype/press_settings/press_settings.json press-ctrl:/home/frappe/frappe-bench/apps/press/press/press/doctype/press_settings/press_settings.json
-ssh press-ctrl "cd /home/frappe/frappe-bench && bench --site <press-site> migrate"
+ssh press-ctrl "cd /home/frappe/frappe-bench && bench --site demo.mvpstorm.com migrate"
 ```
 Expected: migrate completes.
 
 - [ ] **Step 3: Verify**
 
 ```bash
-ssh press-ctrl "cd /home/frappe/frappe-bench && bench --site <press-site> execute frappe.db.get_single_value --kwargs \"{'doctype':'Press Settings','field':'confidential_alert_email'}\""
+ssh press-ctrl "cd /home/frappe/frappe-bench && bench --site demo.mvpstorm.com execute frappe.db.get_single_value --kwargs \"{'doctype':'Press Settings','field':'confidential_alert_email'}\""
 ```
 Expected: prints `eng.elgogary@gmail.com` (the default).
 
@@ -178,7 +178,7 @@ class TestConfidentialPinGate(FrappeTestCase):
 
 ```bash
 scp -q press/press/doctype/site/test_site.py press-ctrl:/home/frappe/frappe-bench/apps/press/press/press/doctype/site/test_site.py
-ssh press-ctrl "cd /home/frappe/frappe-bench && bench --site <press-site> run-tests --module press.press.doctype.site.test_site --test TestConfidentialPinGate"
+ssh press-ctrl "cd /home/frappe/frappe-bench && bench --site demo.mvpstorm.com run-tests --module press.press.doctype.site.test_site --test TestConfidentialPinGate"
 ```
 Expected: FAIL (pin param not handled / no guard).
 
@@ -243,7 +243,7 @@ Confirm `log_site_activity` is imported at the top of site.py (it is used elsewh
 
 ```bash
 scp -q press/press/doctype/site/site.py press-ctrl:/home/frappe/frappe-bench/apps/press/press/press/doctype/site/site.py
-ssh press-ctrl "cd /home/frappe/frappe-bench && bench --site <press-site> run-tests --module press.press.doctype.site.test_site --test TestConfidentialPinGate"
+ssh press-ctrl "cd /home/frappe/frappe-bench && bench --site demo.mvpstorm.com run-tests --module press.press.doctype.site.test_site --test TestConfidentialPinGate"
 ```
 Expected: PASS (5 tests).
 
@@ -354,5 +354,5 @@ gh pr create --base cloudflare-dns --head feat/confidential-pin-gate --title "fe
 - **Spec coverage:** is_confidential (T1), PIN+email fields (T2), backend guard + rate-limit + alert 1st+lockout (T3), desk-only toggle (T4), prototype (T5), Vue PIN field + cache-buster + toggle (T6), live dual-layer verify + PR (T7). [done]
 - **Backend enforcement (the load-bearing risk):** PIN check is in `login_as_admin._check_confidential_pin`, tested by calling the method directly with wrong/empty pin (T3) and via the API path (T7 Step 2). [done]
 - **auth_hook:** no new whitelisted method (reused `login_as_admin`), so no allowlist edit. [done]
-- **Placeholders:** `<press-site>` is intentionally a lookup the executor must resolve on press-ctrl (Press dashboard site name) — flagged in Conventions, not a content gap. The desk-user predicate name (T4) must be confirmed against the codebase — flagged inline.
+- **Placeholders:** `demo.mvpstorm.com` is intentionally a lookup the executor must resolve on press-ctrl (Press dashboard site name) — flagged in Conventions, not a content gap. The desk-user predicate name (T4) must be confirmed against the codebase — flagged inline.
 - **Branch:** feat/confidential-pin-gate off cloudflare-dns; PR not merged by the agent.
