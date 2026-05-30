@@ -68,6 +68,7 @@ export default {
 		fetchDatabaseTableSchemas: 'fetch_database_table_schemas',
 		fetchSitesDataForExport: 'fetch_sites_data_for_export',
 		setDevelopmentMode: 'set_development_mode',
+		setConfidential: 'set_confidential',
 		getSchedulerStatus: 'get_scheduler_status',
 		getMigrationStatus: 'get_migration_status',
 		getRecentErrors: 'get_recent_errors',
@@ -1789,6 +1790,8 @@ export default {
 							Number(site.doc.version.split(' ')[1]) >= 15
 						)
 							siteURL += '/apps';
+						// Cache-buster: force a fresh load past the browser cache.
+						siteURL += `${siteURL.includes('?') ? '&' : '?'}_nocache=${Date.now()}`;
 						window.open(siteURL, '_blank');
 					},
 				},
@@ -1838,6 +1841,22 @@ export default {
 							},
 						},
 						{
+							label: site.doc?.is_confidential ? 'Unmark Confidential' : 'Mark Confidential',
+							icon: 'lock',
+							// System Manager only; mirrors backend gate in Site.set_confidential.
+							condition: () => $team.doc?.is_desk_user,
+							onClick() {
+								const enabling = !site.doc.is_confidential;
+								site.setConfidential
+									.submit({ enable: enabling ? 1 : 0 })
+									.then(() => {
+										toast.success(enabling ? 'Marked confidential' : 'Unmarked confidential');
+										site.reload();
+									})
+									.catch((e) => toast.error(e.messages?.join(', ') || 'Failed'));
+							},
+						},
+						{
 							label: 'View in Desk',
 							icon: 'external-link',
 							condition: () => $team.doc?.is_desk_user,
@@ -1853,38 +1872,37 @@ export default {
 							icon: 'external-link',
 							condition: () => ['Active', 'Broken'].includes(site.doc.status),
 							onClick: () => {
-								confirmDialog({
-									title: 'Login as Administrator',
-									message: `Are you sure you want to login as administrator on the site <b>${site.doc?.name}</b>?`,
-									fields:
-										$team.name !== site.doc.team || $team.doc.is_desk_user
-											? [
-													{
-														label: 'Reason',
-														type: 'textarea',
-														fieldname: 'reason',
-													},
-												]
-											: [],
-									onSuccess: ({ hide, values }) => {
-										if (
-											!values.reason &&
-											($team.name !== site.doc.team || $team.doc.is_desk_user)
-										) {
-											throw new Error('Reason is required');
-										}
-										return site.loginAsAdmin
-											.submit({ reason: values.reason })
-											.then((result) => {
-												let url = result;
-												window.open(url, '_blank');
-												hide();
-											});
-									},
-								});
+									const reasonRequired =
+										$team.name !== site.doc.team || $team.doc.is_desk_user;
+									confirmDialog({
+										title: 'Login as Administrator',
+										message: `Are you sure you want to login as administrator on the site <b>${site.doc?.name}</b>?`,
+										fields: [
+											...(site.doc.is_confidential
+												? [{ label: 'Admin PIN', type: 'password', fieldname: 'pin' }]
+												: []),
+											...(reasonRequired
+												? [{ label: 'Reason', type: 'textarea', fieldname: 'reason' }]
+												: []),
+										],
+										onSuccess: ({ hide, values }) => {
+											if (!values.reason && reasonRequired) {
+												throw new Error('Reason is required');
+											}
+											if (site.doc.is_confidential && !values.pin) {
+												throw new Error('Admin PIN is required');
+											}
+											return site.loginAsAdmin
+												.submit({ reason: values.reason, pin: values.pin })
+												.then((result) => {
+													window.open(result, '_blank');
+													hide();
+												});
+										},
+									});
+								},
 							},
-						},
-					],
+						],
 				},
 			];
 		},

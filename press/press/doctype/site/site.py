@@ -2751,6 +2751,17 @@ class Site(Document, TagHelpers):
 		frappe.logger().info(f"{self.name}: {action} by {frappe.session.user}")
 
 	@dashboard_whitelist()
+	def set_confidential(self, enable):
+		"""Flag/unflag a site as confidential (gates Login As Administrator behind
+		the global admin PIN). System Manager only."""
+		frappe.only_for("System Manager")
+		self.is_confidential = 1 if enable else 0
+		self.save(ignore_permissions=True)
+		frappe.logger().info(
+			f"{self.name}: confidential={'on' if enable else 'off'} by {frappe.session.user}"
+		)
+
+	@dashboard_whitelist()
 	def get_scheduler_status(self):
 		"""Return scheduler enabled/disabled state for this site."""
 		try:
