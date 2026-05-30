@@ -438,6 +438,11 @@ class Site(Document, TagHelpers):
 
 	@role_guard.action()
 	def validate(self):
+		if not self.is_new() and self.has_value_changed("is_confidential"):
+			# Only platform admins may protect/unprotect a site. A team member must
+			# not be able to clear the confidential flag (and the PIN gate) on their
+			# own site via the dashboard.
+			frappe.only_for("System Manager")
 		if self.has_value_changed("subdomain"):
 			self.validate_site_name()
 		self.validate_bench()

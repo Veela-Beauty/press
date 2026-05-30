@@ -838,3 +838,27 @@ class TestConfidentialPinGate(FrappeTestCase):
 			with self.assertRaises(frappe.ValidationError) as ctx:
 				self.site._check_confidential_pin("1234", "t")
 			self.assertIn("Too many", str(ctx.exception))
+
+	def test_only_system_manager_can_toggle_confidential(self):
+		# Existing site, flag flips -> validate calls frappe.only_for("System Manager").
+		self.site.is_confidential = 0
+		self.site.save()
+		self.site.reload()
+		self.site.is_confidential = 1
+		with patch(
+			"press.press.doctype.site.site.frappe.only_for",
+			side_effect=frappe.PermissionError,
+		) as guard:
+			with self.assertRaises(frappe.PermissionError):
+				self.site.save()
+		guard.assert_called_with("System Manager")
+
+	def test_system_manager_toggle_confidential_allowed(self):
+		# Administrator (System Manager) can flip it without error.
+		self.site.is_confidential = 0
+		self.site.save()
+		self.site.reload()
+		self.site.is_confidential = 1
+		self.site.save()  # should not raise
+		self.site.reload()
+		self.assertEqual(self.site.is_confidential, 1)
