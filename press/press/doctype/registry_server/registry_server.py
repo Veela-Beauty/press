@@ -217,6 +217,10 @@ def delete_old_images_from_registry():  # noqa: C901
 	"""Purge registry of older images"""
 	settings = frappe.get_doc("Press Settings", None)
 	registry = settings.docker_registry_url
+	# Self-hosted registries may serve plain HTTP. Default to http when the
+	# optional `docker_registry_scheme` field is unset so the daily purge works
+	# on insecure registries. Set it to "https" on TLS-fronted registries.
+	scheme = getattr(settings, "docker_registry_scheme", None) or "http"
 
 	requests = FrappeClient(registry).session
 
@@ -227,7 +231,7 @@ def delete_old_images_from_registry():  # noqa: C901
 	last = None
 	while True:
 		params = {"last": last} if last else {}
-		response = requests.get(f"https://{registry}/v2/_catalog", auth=auth, headers=headers, params=params)
+		response = requests.get(f"{scheme}://{registry}/v2/_catalog", auth=auth, headers=headers, params=params)
 
 		if not response.ok:
 			return
@@ -243,7 +247,7 @@ def delete_old_images_from_registry():  # noqa: C901
 				if not frappe.db.exists("Release Group", repository.split("/")[-1]):
 					continue
 				tags = (
-					requests.get(f"https://{registry}/v2/{repository}/tags/list", auth=auth, headers=headers)
+					requests.get(f"{scheme}://{registry}/v2/{repository}/tags/list", auth=auth, headers=headers)
 					.json()
 					.get("tags", [])
 					or []
@@ -268,7 +272,7 @@ def delete_old_images_from_registry():  # noqa: C901
 
 					if not in_use:
 						digest = requests.head(
-							f"https://{registry}/v2/{repository}/manifests/{tag}", auth=auth, headers=headers
+							f"{scheme}://{registry}/v2/{repository}/manifests/{tag}", auth=auth, headers=headers
 						).headers["Docker-Content-Digest"]
 						should_delete = False
 
@@ -291,7 +295,7 @@ def delete_old_images_from_registry():  # noqa: C901
 						if should_delete:
 							# DELETE the image
 							requests.delete(
-								f"https://{registry}/v2/{repository}/manifests/{digest}",
+								f"{scheme}://{registry}/v2/{repository}/manifests/{digest}",
 								auth=auth,
 								headers=headers,
 							)
