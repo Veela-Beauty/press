@@ -85,6 +85,9 @@ export let session = reactive({
 	hasPartnerContributionAccess: computed(
 		() => session.userPermissions.data.partner_contribution,
 	),
+	hasAdminAccess: computed(
+		() => session.userPermissions.data.admin_access,
+	),
 	hasSiteCreationAccess: computed(
 		() => session.userPermissions.data.site_creation,
 	),
