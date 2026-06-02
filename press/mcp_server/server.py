@@ -439,8 +439,6 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"clone_bench",
 		"bench_deploy",
 		"bench_deploy_information",
-		"bench_restart",
-		"bench_update",
 		"bench_update_config",
 		"bench_update_dependencies",
 		# Obj 10
@@ -451,8 +449,13 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 
 	# Bench-targeted tools: bench_name → parent Release Group via DB lookup.
 	# Token RG allowlist applies to the parent RG of the bench.
-	bench_name = args.get("bench_name")
+	# bench_restart / bench_update take the Bench docname as 'name' (per
+	# tools.py required_args); accept name here so the docname resolves to
+	# its parent RG instead of being mistaken for a Release Group name.
+	bench_name = args.get("bench_name") or args.get("name")
 	if bench_name and tool in {
+		"bench_restart",
+		"bench_update",
 		"app_git_status",
 		"app_git_push",
 		"app_create_locally",

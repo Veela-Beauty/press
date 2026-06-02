@@ -363,6 +363,32 @@ class TestMCPServer(FrappeTestCase):
 					"Resource-scope check would be SKIPPED — token scope bypass.",
 				)
 
+	def test_extract_target_bench_restart_resolves_name_to_parent_rg(self):
+		"""REGRESSION (2026-06-02): bench_restart / bench_update take the Bench
+		docname as the `name` arg (per tools.py required_args). _extract_target
+		previously mapped `name` to a Release Group name in the RG block, so a
+		Bench docname resolved to a bogus ("Release Group", <bench-docname>) and
+		the scope check failed closed with a PermissionError -- the MCP tool was
+		unusable. Verify both tools now resolve the Bench docname to its parent
+		RG via the bench-docname block (whether passed as name or bench_name).
+		"""
+		from press.mcp_server.server import _extract_target
+		from unittest.mock import patch
+
+		with patch(
+			"press.mcp_server.server.frappe.db.get_value",
+			return_value="rg-mapped-from-bench",
+		):
+			for tool in ("bench_restart", "bench_update"):
+				for arg in ("name", "bench_name"):
+					td, tn = _extract_target(tool, {arg: "bench-X-001-press-f1"})
+					self.assertEqual(
+						(td, tn),
+						("Release Group", "rg-mapped-from-bench"),
+						f"{tool!r} via {arg!r}: expected RG resolution, "
+						f"got ({td!r}, {tn!r}).",
+					)
+
 	def test_assert_target_extracted_fails_closed_on_unmapped_resource_tool(self):
 		"""Defense-in-depth: a tool with bench_name/site/etc. arg but missing
 		from _extract_target must be blocked, not silently authorized.
