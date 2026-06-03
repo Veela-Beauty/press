@@ -463,6 +463,7 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"bench_recent_logs",
 		"bench_ssh_cert_get",
 		"bench_ssh_cert_generate",
+		"bench_ssh_connect",
 		"bench_ssh_instructions",  # SECURITY (2026-05-10): previously missing; leaked SSH paths cross-RG
 		"bench_read_app_file",     # SECURITY (2026-05-10): previously missing; allowed cross-RG source-file reads
 		"bench_list_app_files",    # SECURITY (2026-05-10): previously missing; allowed cross-RG file listings

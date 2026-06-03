@@ -762,6 +762,13 @@ TOOLS: dict[str, dict] = {
 			}),
 		"risk": "low",
 	},
+	"bench_ssh_connect": {
+		"method": "press.press.doctype.bench.bench_dev_overview.bench_ssh_connect",
+		"description": "One call: SSH instructions + freshly-minted cert + a ready-to-run ssh command with the LIVE port (which changes on every redeploy). Re-call after a redeploy instead of reusing an old port.",
+		"required_args": ["bench_name"],
+		"args_schema": _schema(["bench_name"]),
+		"risk": "medium",
+	},
 	"bench_ssh_instructions": {
 		"method": "press.press.doctype.bench.bench_dev_overview.bench_ssh_instructions",
 		"description": "Get SSH connection instructions for a bench (real port, paths, do/don't, prerequisite). Does NOT grant access — see bench_ssh_register_key + bench_ssh_cert_generate for that.",

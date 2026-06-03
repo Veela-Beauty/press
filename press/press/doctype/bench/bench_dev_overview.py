@@ -1048,6 +1048,87 @@ _LOG_FILES = [
 
 
 @frappe.whitelist()
+def bench_ssh_connect(
+	bench_name: str,
+	site_name: str | None = None,
+) -> dict[str, Any]:
+	"""One-call SSH bootstrap: instructions + freshly-minted cert + a
+	ready-to-run ssh command with the LIVE port already filled in.
+
+	Folds bench_ssh_instructions + bench_ssh_cert_generate into a single call
+	so callers never have to chain two tools or hardcode the SSH port (which
+	changes on every Press redeploy: ssh_port = 22000 + bench.port_offset, and
+	a redeploy creates a new Bench instance with a new offset).
+
+	Requires the caller to have already registered a pubkey via
+	bench_ssh_register_key; if not, returns instructions only with cert=None
+	and a needs_key flag so the caller knows to register first.
+
+	Args:
+		bench_name: Bench docname (e.g. "bench-0022-000037-press-f1")
+		site_name: optional site name for site-specific after-login paths
+
+	Returns:
+		{server_ip, ssh_port, user, ready_command, certificate, cert_name,
+		 cert_valid_until, needs_key, save_cert_to, instructions}
+	"""
+	instructions = bench_ssh_instructions(bench_name=bench_name, site_name=site_name)
+
+	cert = None
+	needs_key = not instructions.get("has_registered_key")
+	if not needs_key:
+		try:
+			cert = generate_ssh_certificate(bench_name)
+		except Exception as e:  # noqa: BLE001 — surface the reason, do not 500
+			cert = {"error": str(e)}
+
+	ssh_port = instructions["ssh_port"]
+	server_ip = instructions["server_ip"]
+	# Concrete command pointing at the canonical cert path the instructions
+	# tell the user to save to. No placeholder — paste-and-run.
+	ready_command = f"ssh -p {ssh_port} -i ~/.ssh/id_ed25519 frappe@{server_ip}"
+
+	cert_body = None
+	cert_name = None
+	cert_valid_until = None
+	if isinstance(cert, dict) and not cert.get("error"):
+		cert_body = cert.get("certificate")
+		cert_name = cert.get("cert_name")
+		cert_valid_until = cert.get("valid_until")
+
+	return {
+		"server_ip": server_ip,
+		"ssh_port": ssh_port,
+		"user": "frappe",
+		"ready_command": ready_command,
+		"certificate": cert_body,
+		"cert_name": cert_name,
+		"cert_valid_until": cert_valid_until,
+		"needs_key": needs_key,
+		"save_cert_to": "~/.ssh/id_ed25519-cert.pub",
+		"next_steps": (
+			"Register a key first: bench_ssh_register_key(public_key=...)"
+			if needs_key
+			else (
+				"Save 'certificate' to ~/.ssh/id_ed25519-cert.pub (next to your "
+				"id_ed25519 private key), then run 'ready_command'. The port is "
+				"the CURRENT one: re-call this tool after any redeploy instead of "
+				"reusing an old port."
+			)
+			if cert_body
+			else (
+				"Port + command are ready. No fresh cert was returned inline; call "
+				"bench_ssh_cert_generate(bench_name=...) to mint one, save it to "
+				"~/.ssh/id_ed25519-cert.pub, then run 'ready_command'. The port is "
+				"the CURRENT one: re-call this tool after any redeploy."
+			)
+		),
+		"rule_must_follow": instructions.get("rule_must_follow"),
+		"instructions": instructions,
+	}
+
+
+@frappe.whitelist()
 def get_recent_logs(bench_name, log_type=None, limit=50):
 	"""Read recent log lines from bench container (frappe.log, scheduler.log, web.error.log, bench.log)."""
 	ensure_team_access(bench_name=bench_name)

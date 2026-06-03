@@ -246,6 +246,7 @@ TOOL_CATEGORY: dict[str, str] = {
 	"audit_verify_chain": "readonly",
 	"bench_read_app_file": "readonly",
 	"bench_list_app_files": "readonly",
+	"bench_ssh_connect": "bench_rg",
 	"bench_ssh_instructions": "readonly",
 	"bench_ssh_register_key": "bench_rg",
 	# Bench / Release Group
