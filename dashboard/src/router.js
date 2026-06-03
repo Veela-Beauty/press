@@ -26,6 +26,12 @@ let router = createRouter({
 			meta: { hideSidebar: true },
 		},
 		{
+			path: '/confirm-pin/:token',
+			name: 'ConfirmPin',
+			component: () => import('./pages/ConfirmPin.vue'),
+			meta: { hideSidebar: true, isLoginPage: true },
+		},
+		{
 			path: '/login',
 			name: 'Login',
 			component: () => import('./pages/LoginSignup.vue'),

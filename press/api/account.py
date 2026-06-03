@@ -1125,6 +1125,9 @@ def user_permissions():
 	result = {
 		"owner": is_owner,
 		"admin": is_admin,
+		# Raw Platform Admin flag (admin_access on the Press Role), distinct from
+		# the broad `admin` (which also covers owner / System Manager / no-roles).
+		"admin_access": bool(permissions["admin_access"]),
 		"billing": is_admin or permissions["allow_billing"],
 		"webhook": is_admin or permissions["allow_webhook_configuration"],
 		"apps": is_admin or permissions["allow_apps"],
