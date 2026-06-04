@@ -282,7 +282,7 @@ RUN --mount=type=bind,source=apps/{{ app.app }},target=/home/frappe/context/apps
 {% else %}
 RUN --mount=type=cache,sharing=locked,target=/home/frappe/.cache,uid=1000,gid=1000 \
     --mount=type=bind,source=apps/{{ app.app }},target=/home/frappe/context/apps/{{ app.app }} \
-    bench get-app file:///home/frappe/context/apps/{{ app.app }} \
+    bench get-app {% if app.app in ["hr_attendance_extension"] %}--skip-assets {% endif %}file:///home/frappe/context/apps/{{ app.app }} \
     `#stage-apps-{{ app.app }}`
 {% endif %}
 

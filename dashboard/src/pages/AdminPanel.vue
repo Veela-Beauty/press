@@ -166,6 +166,10 @@
 		</template>
 
 		<!-- TAB: Policy -->
+		<template v-if="activeMainTab === 'security'">
+			<ConfidentialSecurity />
+		</template>
+
 		<template v-if="activeMainTab === 'policy'">
 			<AiPolicyGate @acknowledged="activeMainTab = 'teams'" />
 		</template>
@@ -201,6 +205,7 @@ import { toast } from 'vue-sonner';
 import TeamDetail from '../components/admin/TeamDetail.vue';
 import ServerAdmin from '../components/admin/ServerAdmin.vue';
 import AiGovernance from '../components/admin/AiGovernance.vue';
+import ConfidentialSecurity from '../components/admin/ConfidentialSecurity.vue';
 import AiEscalations from '../components/admin/AiEscalations.vue';
 import AiUsageCost from '../components/admin/AiUsageCost.vue';
 import AiPolicyGate from '../components/admin/AiPolicyGate.vue';
@@ -212,7 +217,7 @@ const API = 'press.api.admin_panel';
 
 export default {
 	name: 'AdminPanel',
-	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate, AdminPanelMcp, StatCard },
+	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate, AdminPanelMcp, StatCard, ConfidentialSecurity },
 	setup() {
 		// Expose shared tab constants to the template
 		return { TAB_STRIP_BASE, tabClass };
@@ -239,6 +244,7 @@ export default {
 				{ id: 'usage-cost', label: 'Usage & Cost', icon: 'fa fa-bar-chart' },
 				{ id: 'policy', label: 'Policy', icon: 'fa fa-file-text-o' },
 				{ id: 'mcp', label: 'MCP', icon: 'fa fa-key' },
+				{ id: 'security', label: 'Security', icon: 'fa fa-lock' },
 			],
 		};
 	},
