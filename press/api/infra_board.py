@@ -62,3 +62,82 @@ def host_probes(server: str) -> dict:
 		"agent": {"verdict": agent.get("verdict")} if agent else None,
 		"ssh": {"ok": _safe(_ssh_ok, server) or False},
 	}
+
+
+import json
+
+CACHE_KEY = "infra_board:tree"
+CACHE_TTL = 15  # seconds
+
+
+def _all_servers() -> list[str]:
+	return frappe.get_all("Server", filters={"status": "Active"}, pluck="name")
+
+
+def _all_benches() -> list[dict]:
+	from press.press.doctype.bench.bench_dev_overview import get_dev_overview_benches
+
+	return get_dev_overview_benches()
+
+
+def _bench_services(bench_name: str) -> list[dict]:
+	from press.api.bench import get_processes
+
+	try:
+		return get_processes(bench_name) or []
+	except Exception:
+		return []
+
+
+def _service_state(status: str) -> str:
+	return "run" if status == "Running" else "down"
+
+
+def _build_tree() -> dict:
+	benches = _all_benches()
+	by_server: dict[str, list] = {}
+	for b in benches:
+		services = _bench_services(b["name"])
+		down = sum(1 for s in services if s.get("status") != "Running")
+		node = {
+			"name": b["name"],
+			"group": b.get("group"),
+			"status": b.get("status"),
+			"site_count": b.get("site_count", 0),
+			"services": [
+				{"program": s.get("program"), "state": _service_state(s.get("status")), "status": s.get("status")}
+				for s in services
+			],
+			"services_up": len(services) - down,
+			"services_down": down,
+			"health": "down" if down else "up",
+		}
+		by_server.setdefault(b.get("server"), []).append(node)
+
+	servers = []
+	for name in _all_servers():
+		bs = by_server.get(name, [])
+		any_down = any(x["health"] == "down" for x in bs)
+		servers.append({
+			"name": name,
+			"benches": bs,
+			"host": host_probes(name),
+			"health": "down" if any_down else "up",
+		})
+	return {"servers": servers}
+
+
+@frappe.whitelist()
+def get_infra_tree() -> dict:
+	"""System-Manager-gated, Redis-cached server->bench->service tree."""
+	frappe.only_for("System Manager")
+	# Cache the tree for CACHE_TTL so a live polling board does not re-run a
+	# synchronous supervisorctl-status exec per bench every tick. Keys set with
+	# expires_in_sec live in Redis only, so the read MUST pass expires=True to
+	# force a Redis GET (frappe.local.cache is stale for expiring keys).
+	cached = frappe.cache().get_value(CACHE_KEY, expires=True)
+	if cached is not None:
+		return json.loads(cached) if isinstance(cached, str) else cached
+	tree = _build_tree()
+	frappe.cache().set_value(CACHE_KEY, json.dumps(tree), expires_in_sec=CACHE_TTL)
+	return tree

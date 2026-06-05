@@ -64,3 +64,53 @@ class TestHostProbes(FrappeTestCase):
 
 		self.assertIsNone(out["memory"])
 		self.assertEqual(out["agent"]["verdict"], "healthy")
+
+
+class TestInfraTree(FrappeTestCase):
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_build_tree_groups_benches_by_server_with_services(self):
+		from press.api import infra_board
+
+		benches = [
+			{"name": "bench-A", "server": "press-f1", "group": "g1", "status": "Active", "site_count": 1},
+			{"name": "bench-B", "server": "u4", "group": "g2", "status": "Active", "site_count": 2},
+		]
+		procs = {
+			"bench-A": [{"program": "frappe-web", "status": "Running"}, {"program": "redis-queue", "status": "Stopped"}],
+			"bench-B": [{"program": "frappe-web", "status": "Running"}],
+		}
+		with patch.object(infra_board, "_all_servers", return_value=["press-f1", "u4"]), patch.object(
+			infra_board, "_all_benches", return_value=benches
+		), patch.object(infra_board, "_bench_services", side_effect=lambda b: procs[b]), patch.object(
+			infra_board, "host_probes", side_effect=lambda s: {"server": s, "memory": None, "agent": None, "ssh": {"ok": True}}
+		):
+			tree = infra_board._build_tree()
+
+		f1 = next(s for s in tree["servers"] if s["name"] == "press-f1")
+		self.assertEqual(len(f1["benches"]), 1)
+		bench_a = f1["benches"][0]
+		self.assertEqual(bench_a["name"], "bench-A")
+		self.assertEqual(bench_a["services_down"], 1)
+		self.assertEqual(bench_a["health"], "down")
+
+	def test_get_infra_tree_uses_cache_on_second_call(self):
+		from press.api import infra_board
+
+		frappe.cache().delete_value(infra_board.CACHE_KEY)
+		calls = {"n": 0}
+
+		def fake_build():
+			calls["n"] += 1
+			return {"servers": [], "built": calls["n"]}
+
+		with patch("press.api.infra_board.frappe.only_for"), patch.object(
+			infra_board, "_build_tree", side_effect=fake_build
+		):
+			first = infra_board.get_infra_tree()
+			second = infra_board.get_infra_tree()
+
+		self.assertEqual(calls["n"], 1)
+		self.assertEqual(first["built"], second["built"])
+		frappe.cache().delete_value(infra_board.CACHE_KEY)
