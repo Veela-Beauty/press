@@ -33,3 +33,34 @@ class TestServiceAction(FrappeTestCase):
 		self.assertTrue(result["ok"])
 		self.assertEqual(result["action"], "restart")
 		self.assertEqual(result["program"], "redis-queue")
+
+
+class TestHostProbes(FrappeTestCase):
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_host_probes_normalizes_memory_and_agent(self):
+		from press.api import infra_board
+
+		mem = {"verdict": "ok", "memory_available_mb": 12940, "memory_total_mb": 23458}
+		agent = {"verdict": "healthy"}
+		with patch.object(infra_board, "_memory", return_value=mem), patch.object(
+			infra_board, "_agent", return_value=agent
+		), patch.object(infra_board, "_ssh_ok", return_value=True):
+			out = infra_board.host_probes("press-f1.sandbox.mvpstorm.com")
+
+		self.assertEqual(out["memory"]["verdict"], "ok")
+		self.assertEqual(out["memory"]["used_pct"], 45)
+		self.assertEqual(out["agent"]["verdict"], "healthy")
+		self.assertTrue(out["ssh"]["ok"])
+
+	def test_host_probes_survives_failing_probe(self):
+		from press.api import infra_board
+
+		with patch.object(infra_board, "_memory", side_effect=Exception("boom")), patch.object(
+			infra_board, "_agent", return_value={"verdict": "healthy"}
+		), patch.object(infra_board, "_ssh_ok", return_value=True):
+			out = infra_board.host_probes("press-f1.sandbox.mvpstorm.com")
+
+		self.assertIsNone(out["memory"])
+		self.assertEqual(out["agent"]["verdict"], "healthy")
