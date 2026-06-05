@@ -15,13 +15,20 @@ class TestServiceAction(FrappeTestCase):
 		frappe.set_user("Administrator")
 
 	def test_rejects_invalid_action(self):
-		with self.assertRaises(frappe.ValidationError):
-			_service_action("bench-X-001-press-f1", "redis-queue", "delete")
+		fake_bench = MagicMock()
+		with patch("press.api.bench.frappe.get_doc", return_value=fake_bench):
+			with self.assertRaises(frappe.ValidationError):
+				_service_action("bench-X-001-press-f1", "redis-queue", "delete")
+		fake_bench.supervisorctl.assert_not_called()
 
 	def test_rejects_unknown_program(self):
-		with patch("press.api.bench.get_processes", return_value=[{"program": "redis-queue"}]):
+		fake_bench = MagicMock()
+		with patch("press.api.bench.get_processes", return_value=[{"program": "redis-queue"}]), patch(
+			"press.api.bench.frappe.get_doc", return_value=fake_bench
+		):
 			with self.assertRaises(frappe.ValidationError):
 				_service_action("bench-X-001-press-f1", "ghost-program", "restart")
+		fake_bench.supervisorctl.assert_not_called()
 
 	def test_calls_supervisorctl_for_valid_program(self):
 		fake_bench = MagicMock()
@@ -114,3 +121,30 @@ class TestInfraTree(FrappeTestCase):
 		self.assertEqual(calls["n"], 1)
 		self.assertEqual(first["built"], second["built"])
 		frappe.cache().delete_value(infra_board.CACHE_KEY)
+
+
+	def test_get_infra_tree_requires_system_manager(self):
+		from press.api import infra_board
+
+		frappe.cache().delete_value(infra_board.CACHE_KEY)
+		with patch("press.api.infra_board.frappe.only_for") as gate, patch.object(
+			infra_board, "_build_tree", return_value={"servers": []}
+		):
+			infra_board.get_infra_tree()
+		gate.assert_called_once_with("System Manager")
+		frappe.cache().delete_value(infra_board.CACHE_KEY)
+
+	def test_build_tree_marks_unreachable_bench_unknown(self):
+		from press.api import infra_board
+
+		benches = [{"name": "bench-C", "server": "press-f1", "group": "g", "status": "Active", "site_count": 0}]
+		with patch.object(infra_board, "_all_servers", return_value=["press-f1"]), patch.object(
+			infra_board, "_all_benches", return_value=benches
+		), patch.object(infra_board, "_bench_services", return_value=[]), patch.object(
+			infra_board, "host_probes", side_effect=lambda s: {"server": s, "memory": None, "agent": None, "ssh": {"ok": True}}
+		):
+			tree = infra_board._build_tree()
+
+		bench_c = tree["servers"][0]["benches"][0]
+		self.assertEqual(bench_c["health"], "unknown")
+		self.assertEqual(tree["servers"][0]["health"], "down")

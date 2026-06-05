@@ -110,19 +110,21 @@ def _build_tree() -> dict:
 			],
 			"services_up": len(services) - down,
 			"services_down": down,
-			"health": "down" if down else "up",
+			# No services found means the supervisor probe failed / bench
+			# unreachable: report 'unknown', never a false-green 'up'.
+			"health": ("unknown" if not services else "down" if down else "up"),
 		}
 		by_server.setdefault(b.get("server"), []).append(node)
 
 	servers = []
 	for name in _all_servers():
 		bs = by_server.get(name, [])
-		any_down = any(x["health"] == "down" for x in bs)
+		any_bad = any(x["health"] != "up" for x in bs)
 		servers.append({
 			"name": name,
 			"benches": bs,
 			"host": host_probes(name),
-			"health": "down" if any_down else "up",
+			"health": "down" if any_bad else "up",
 		})
 	return {"servers": servers}
 
@@ -137,6 +139,8 @@ def get_infra_tree() -> dict:
 	# force a Redis GET (frappe.local.cache is stale for expiring keys).
 	cached = frappe.cache().get_value(CACHE_KEY, expires=True)
 	if cached is not None:
+		if isinstance(cached, bytes):
+			cached = cached.decode("utf-8")
 		return json.loads(cached) if isinstance(cached, str) else cached
 	tree = _build_tree()
 	frappe.cache().set_value(CACHE_KEY, json.dumps(tree), expires_in_sec=CACHE_TTL)

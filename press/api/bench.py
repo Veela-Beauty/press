@@ -699,9 +699,12 @@ def _service_action(bench_name: str, program: str, action: str) -> dict:
 @protected("Bench")
 def service_action(name: str, program: str, action: str) -> dict:
 	"""Dashboard-callable per-service control. `name` is the Bench docname
-	(team/permission enforced by @protected). Restricts action to
+	(bench permission enforced by @protected). Restarting a production
+	service is an admin-only infra control, so also require System Manager,
+	matching the read path (get_infra_tree). Restricts action to
 	start/stop/restart and validates the program against get_processes.
 	"""
+	frappe.only_for("System Manager")
 	return _service_action(name, program, action)
 
 
