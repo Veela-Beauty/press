@@ -10,6 +10,7 @@ from frappe.utils import add_to_date, now_datetime
 
 from press.mcp_server.deploy_flow import (
 	agent_job_list,
+	register_existing_app,
 	app_release_approve,
 	bench_provision_progress,
 	deploy_candidate_schedule_build,
@@ -24,6 +25,70 @@ from press.mcp_server.deploy_flow import (
 class TestDeployFlow(FrappeTestCase):
 	def setUp(self):
 		frappe.set_user("Administrator")
+
+	def test_register_existing_app_populates_versions_from_branch(self):
+		"""REGRESSION (2026-06-05): register_existing_app built the App Source
+		doc WITHOUT the required `versions` child table, so .insert() failed
+		with 'Data missing in table: Versions' and the tool could NEVER create
+		a valid App Source (it looped, getting stuck on every retry). Verify the
+		Frappe Version is now derived from a version-NN branch and passed into
+		the doc.
+		"""
+		captured = {}
+
+		def fake_get_doc(d):
+			if isinstance(d, dict) and d.get("doctype") == "App Source":
+				captured.update(d)
+			m = MagicMock()
+			m.name = "SRC-test-001"
+			m.repository_url = d.get("repository_url") if isinstance(d, dict) else ""
+			m.create_release.return_value = "rel-1"
+			return m
+
+		with patch("press.utils.get_current_team", return_value="Team-X"), patch(
+			"press.mcp_server.deploy_flow.frappe.db.exists", return_value=True
+		), patch(
+			"press.mcp_server.deploy_flow.frappe.db.get_value", return_value=None
+		), patch(
+			"press.mcp_server.deploy_flow.frappe.get_doc", side_effect=fake_get_doc
+		):
+			result = register_existing_app(
+				repository_url="https://github.com/x/rentix",
+				branch="version-15",
+				app_name="rentix",
+			)
+
+		self.assertEqual(captured.get("versions"), [{"version": "Version 15"}])
+		self.assertEqual(result["versions"], ["Version 15"])
+
+	def test_register_existing_app_explicit_versions_arg_wins(self):
+		"""An explicit versions arg is honoured (and validated) over branch derivation."""
+		captured = {}
+
+		def fake_get_doc(d):
+			if isinstance(d, dict) and d.get("doctype") == "App Source":
+				captured.update(d)
+			m = MagicMock()
+			m.name = "SRC-test-002"
+			m.repository_url = ""
+			m.create_release.return_value = None
+			return m
+
+		with patch("press.utils.get_current_team", return_value="Team-X"), patch(
+			"press.mcp_server.deploy_flow.frappe.db.exists", return_value=True
+		), patch(
+			"press.mcp_server.deploy_flow.frappe.db.get_value", return_value=None
+		), patch(
+			"press.mcp_server.deploy_flow.frappe.get_doc", side_effect=fake_get_doc
+		):
+			register_existing_app(
+				repository_url="x/rentix",
+				branch="main",
+				app_name="rentix",
+				versions=["Version 14"],
+			)
+
+		self.assertEqual(captured.get("versions"), [{"version": "Version 14"}])
 
 	def test_app_release_approve_flips_status(self):
 		fake_doc = MagicMock(status="Draft")

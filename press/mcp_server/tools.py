@@ -522,9 +522,9 @@ TOOLS: dict[str, dict] = {
 	},
 	"register_existing_app": {
 		"method": "press.mcp_server.deploy_flow.register_existing_app",
-		"description": "Register an EXISTING GitHub repository as a new App Source. Different from app_create_locally (which scaffolds a NEW app). Use when a teammate or external maintainer pushed an app to GitHub and you need Press to track it. Args: repository_url (https URL or owner/repo), branch, app_name (must match hooks.py). Optional: app_title, team. Creates App Source + tries to fetch first release. Returns app_source docname.",
+		"description": "Register an EXISTING GitHub repository as a new App Source. Different from app_create_locally (which scaffolds a NEW app). Use when a teammate or external maintainer pushed an app to GitHub and you need Press to track it. Args: repository_url (https URL or owner/repo), branch, app_name (must match hooks.py). Optional: app_title, versions (list of Frappe Versions like ['Version 15']; auto-resolved from a version-NN branch or the latest on record if omitted), team. Creates App Source + tries to fetch first release. Returns app_source docname.",
 		"required_args": ["repository_url", "branch", "app_name"],
-		"args_schema": _schema(["repository_url", "branch", "app_name"], {"app_title": None, "team": None}),
+		"args_schema": _schema(["repository_url", "branch", "app_name"], {"app_title": None, "versions": {"type": "array", "items": {"type": "string"}, "description": "Frappe Versions to tag, e.g. ['Version 15']. Auto-resolved from a version-NN branch or the latest on record if omitted."}, "team": None}),
 		"risk": "medium",
 	},
 	"release_group_create_deploy_candidate": {

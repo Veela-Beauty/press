@@ -1615,6 +1615,7 @@ def register_existing_app(
 	branch: str,
 	app_name: str,
 	app_title: str | None = None,
+	versions: list[str] | None = None,
 	team: str | None = None,
 ) -> dict[str, Any]:
 	"""Register an EXISTING GitHub repository as a new App Source.
@@ -1655,6 +1656,37 @@ def register_existing_app(
 
 	team_name = team or get_current_team()
 
+	# App Source.versions is a REQUIRED child table. Without it, .insert()
+	# fails with 'Data missing in table: Versions'. Resolve from the arg, or
+	# derive from a version-NN branch, else default to the latest Frappe
+	# Version on record. Validate every value against Frappe Version.
+	if not versions:
+		derived = None
+		if branch.lower().startswith("version-"):
+			num = branch.split("-", 1)[1].strip()
+			candidate = f"Version {num}"
+			if frappe.db.exists("Frappe Version", candidate):
+				derived = candidate
+		if not derived:
+			rows = frappe.get_all(
+				"Frappe Version",
+				filters={"name": ["like", "Version %"]},
+				pluck="name",
+			)
+			# Highest numeric Version N on record (e.g. Version 16 > Version 15).
+			derived = max(
+				rows,
+				key=lambda v: int(v.rsplit(" ", 1)[1]) if v.rsplit(" ", 1)[1].isdigit() else -1,
+			) if rows else "Version 15"
+		versions = [derived]
+	for v in versions:
+		if not frappe.db.exists("Frappe Version", v):
+			frappe.throw(
+				f"Unknown Frappe Version {v!r}. Valid values come from the "
+				"Frappe Version list (e.g. 'Version 15').",
+				frappe.ValidationError,
+			)
+
 	# Duplicate check
 	existing = frappe.db.get_value(
 		"App Source",
@@ -1689,6 +1721,7 @@ def register_existing_app(
 			"branch": branch,
 			"team": team_name,
 			"public": 0,
+			"versions": [{"version": v} for v in versions],
 		}
 	).insert(ignore_permissions=True)
 
@@ -1704,5 +1737,6 @@ def register_existing_app(
 		"app": app_name,
 		"repository_url": doc.repository_url,
 		"branch": branch,
+		"versions": versions,
 		"first_release": first_release,
 	}
