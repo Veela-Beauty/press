@@ -12,6 +12,23 @@ from press.mcp_server.auth import issue_token
 from press.mcp_server.server import handle
 
 
+def _bench_group_get_value(real_get_value):
+	"""Build a side_effect for the 3 ssh-cert tests that call handle().
+
+	A blanket `frappe.db.get_value` mock replaces the method on the SHARED
+	frappe.local.db object, so it poisons EVERY internal get_value — including
+	the ones frappe.get_all uses inside _authenticate_token, which then fails
+	with 'token not found' before the tool ever runs. Return the fake RG only
+	for _extract_target's Bench->group lookup and delegate everything else to
+	the real get_value captured before patching.
+	"""
+	def _fake(*args, **kwargs):
+		if args and args[0] == "Bench" and len(args) >= 3 and args[2] == "group":
+			return "fake-rg"
+		return real_get_value(*args, **kwargs)
+	return _fake
+
+
 class TestMCPServer(FrappeTestCase):
 	def setUp(self):
 		frappe.set_user("Administrator")
@@ -518,9 +535,10 @@ class TestMCPServer(FrappeTestCase):
 		)
 		# Mock Bench → group lookup so _assert_target_extracted passes and the
 		# test exercises the actual high-risk gate, not the fail-closed guard.
+		_real_gv = frappe.db.get_value
 		with patch(
 			"press.mcp_server.server.frappe.db.get_value",
-			return_value="fake-rg",
+			side_effect=_bench_group_get_value(_real_gv),
 		):
 			result = handle(
 				tool="bench_ssh_cert_generate",
@@ -546,9 +564,10 @@ class TestMCPServer(FrappeTestCase):
 		# Mock the Bench → group lookup that _extract_target performs (the
 		# fail-closed guard requires extraction to succeed even with an empty
 		# allowed_release_groups allowlist).
+		_real_gv = frappe.db.get_value
 		with patch(
 			"press.mcp_server.server.frappe.db.get_value",
-			return_value="fake-rg",
+			side_effect=_bench_group_get_value(_real_gv),
 		), patch(
 			"press.press.doctype.bench.bench_dev_overview.get_ssh_certificate",
 			return_value={"certificate": "fake-cert", "expires": "2026-12-31"},
@@ -574,9 +593,10 @@ class TestMCPServer(FrappeTestCase):
 		)
 		self.assertEqual(risky["approval_status"], "approved")
 		# Mock Bench → group lookup (see comment on test above).
+		_real_gv = frappe.db.get_value
 		with patch(
 			"press.mcp_server.server.frappe.db.get_value",
-			return_value="fake-rg",
+			side_effect=_bench_group_get_value(_real_gv),
 		), patch(
 			"press.press.doctype.bench.bench_dev_overview.generate_ssh_certificate",
 			return_value={"status": "generated"},
