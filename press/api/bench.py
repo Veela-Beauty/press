@@ -671,6 +671,40 @@ def get_processes(name):
 	return bench.supervisorctl_status()
 
 
+def _service_action(bench_name: str, program: str, action: str) -> dict:
+	"""Start/stop/restart ONE supervisor program on a bench.
+
+	Pure helper (no permission decorator) so it is unit-testable. The
+	whitelisted `service_action` wrapper applies @protected('Bench'). The
+	program name is validated against live get_processes output so a caller
+	can only act on programs that actually exist on this bench (no free-form
+	command injection into supervisorctl).
+	"""
+	if action not in ("start", "stop", "restart"):
+		frappe.throw(
+			f"Invalid action {action!r}; allowed: start, stop, restart",
+			frappe.ValidationError,
+		)
+	valid_programs = {p["program"] for p in get_processes(bench_name)}
+	if program not in valid_programs:
+		frappe.throw(
+			f"Unknown program {program!r} on bench {bench_name!r}",
+			frappe.ValidationError,
+		)
+	frappe.get_doc("Bench", bench_name).supervisorctl(action, programs=[program])
+	return {"bench": bench_name, "program": program, "action": action, "ok": True}
+
+
+@frappe.whitelist()
+@protected("Bench")
+def service_action(name: str, program: str, action: str) -> dict:
+	"""Dashboard-callable per-service control. `name` is the Bench docname
+	(team/permission enforced by @protected). Restricts action to
+	start/stop/restart and validates the program against get_processes.
+	"""
+	return _service_action(name, program, action)
+
+
 @frappe.whitelist()
 @protected("Release Group")
 def candidates(filters=None, order_by=None, limit_start=None, limit_page_length=None):
