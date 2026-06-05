@@ -335,11 +335,16 @@ class TestMCPServer(FrappeTestCase):
 
 	def test_bench_file_tools_are_resource_scoped(self):
 		"""REGRESSION (2026-05-10): bench_list_app_files / bench_read_app_file /
-		bench_ssh_register_key / bench_ssh_instructions previously returned
-		(None, None) from _extract_target → resource-scope check skipped →
-		token scoped to bench-A could read files from bench-B unbounded.
+		bench_ssh_instructions previously returned (None, None) from
+		_extract_target → resource-scope check skipped → token scoped to bench-A
+		could read files from bench-B unbounded. These tools take bench_name and
+		read bench data, so they MUST resolve to the parent RG.
 
-		Verify each of the 4 tools correctly resolves bench_name → parent RG.
+		bench_ssh_register_key is intentionally NOT here: it takes `public_key`
+		(not bench_name) and registers a key on the calling USER, so it is
+		resourceless. Bench scope is enforced later at bench_ssh_cert_generate
+		(which IS bench-scoped). Asserting RG resolution for it was a test bug —
+		see test_bench_ssh_register_key_is_resourceless below.
 		"""
 		from press.mcp_server.server import _extract_target
 
@@ -352,7 +357,6 @@ class TestMCPServer(FrappeTestCase):
 			for tool in (
 				"bench_list_app_files",
 				"bench_read_app_file",
-				"bench_ssh_register_key",
 				"bench_ssh_instructions",
 			):
 				td, tn = _extract_target(tool, {"bench_name": "bench-X-001-press-f1"})
@@ -362,6 +366,18 @@ class TestMCPServer(FrappeTestCase):
 					f"{tool!r}: expected RG resolution, got ({td!r}, {tn!r}). "
 					"Resource-scope check would be SKIPPED — token scope bypass.",
 				)
+
+	def test_bench_ssh_register_key_is_resourceless(self):
+		"""bench_ssh_register_key registers a pubkey on the calling USER (arg:
+		public_key, NOT bench_name) so it has no bench resource to scope.
+		_extract_target must return (None, None) and the tool must be in
+		RESOURCELESS_TOOLS — bench scope is enforced at bench_ssh_cert_generate.
+		"""
+		from press.mcp_server.server import RESOURCELESS_TOOLS, _extract_target
+
+		td, tn = _extract_target("bench_ssh_register_key", {"public_key": "ssh-ed25519 AAAA..."})
+		self.assertEqual((td, tn), (None, None))
+		self.assertIn("bench_ssh_register_key", RESOURCELESS_TOOLS)
 
 	def test_extract_target_bench_restart_resolves_name_to_parent_rg(self):
 		"""REGRESSION (2026-06-02): bench_restart / bench_update take the Bench
