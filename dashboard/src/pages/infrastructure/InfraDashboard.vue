@@ -89,6 +89,14 @@
         </div>
       </template>
     </div>
+
+    <!-- Unit drawer (Task 7) -->
+    <UnitDrawer
+      :host="path.server"
+      :unit="drawerUnit"
+      @close="drawerUnit = null"
+      @reload="tree.reload()"
+    />
   </div>
 </template>
 
@@ -100,6 +108,7 @@ import { useInfraTree } from './infra-api';
 import { partition } from './infra-derive';
 import ServerList from './ServerList.vue';
 import HostDetail from './HostDetail.vue';
+import UnitDrawer from './UnitDrawer.vue';
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 const tree = useInfraTree();
