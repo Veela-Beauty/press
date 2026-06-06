@@ -1,0 +1,30 @@
+{
+ "actions": [],
+ "creation": "2026-06-06 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["registry_section","registry_gc_enabled","registry_gc_interval_days","registry_gc_cb","registry_gc_last_run","registry_gc_last_result","retention_section","backup_retention_enabled","backup_retention_keep_days","retention_cb","backup_retention_last_run","backup_retention_last_result"],
+ "fields": [
+  {"fieldname":"registry_section","fieldtype":"Section Break","label":"Docker Registry Garbage Collection"},
+  {"fieldname":"registry_gc_enabled","fieldtype":"Check","label":"Enabled","default":"1"},
+  {"fieldname":"registry_gc_interval_days","fieldtype":"Int","label":"Run every (days)","default":"7"},
+  {"fieldname":"registry_gc_cb","fieldtype":"Column Break"},
+  {"fieldname":"registry_gc_last_run","fieldtype":"Datetime","label":"Last Run","read_only":1},
+  {"fieldname":"registry_gc_last_result","fieldtype":"Small Text","label":"Last Result","read_only":1},
+  {"fieldname":"retention_section","fieldtype":"Section Break","label":"Offsite Backup Retention"},
+  {"fieldname":"backup_retention_enabled","fieldtype":"Check","label":"Enabled","default":"0","description":"Off by default - permanently deletes old backups when on."},
+  {"fieldname":"backup_retention_keep_days","fieldtype":"Int","label":"Keep last (days)","default":"7"},
+  {"fieldname":"retention_cb","fieldtype":"Column Break"},
+  {"fieldname":"backup_retention_last_run","fieldtype":"Datetime","label":"Last Run","read_only":1},
+  {"fieldname":"backup_retention_last_result","fieldtype":"Small Text","label":"Last Result","read_only":1}
+ ],
+ "issingle": 1,
+ "modified": "2026-06-06 00:00:00",
+ "module": "Press",
+ "name": "Server Maintenance",
+ "owner": "Administrator",
+ "permissions": [{"create":1,"delete":1,"email":1,"print":1,"read":1,"role":"System Manager","share":1,"write":1}],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

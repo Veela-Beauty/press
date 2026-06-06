@@ -243,6 +243,8 @@ scheduler_events = {
 		# Auto-delete MCP tokens whose expires_at is more than 24h in the past.
 		# Keeps the dashboard's Active Tokens panel clean — see press/mcp_server/auth.py
 		"press.mcp_server.auth.cleanup_expired_tokens",
+		"press.press.doctype.server_maintenance.server_maintenance.run_scheduled_registry_gc",
+		"press.press.doctype.server_maintenance.server_maintenance.run_scheduled_backup_retention",
 	],
 	"daily_long": [
 		"press.press.audit.check_bench_fields",
