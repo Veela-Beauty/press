@@ -12,7 +12,8 @@
 		"test:e2e": "playwright test",
 		"test:e2e:headed": "playwright test --headed",
 		"test:e2e:report": "playwright show-report",
-		"postinstall": "patch-package"
+		"postinstall": "patch-package",
+		"test:unit": "vitest run"
 	},
 	"dependencies": {
 		"@codemirror/autocomplete": "^6.18.1",
