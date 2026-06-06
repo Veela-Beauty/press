@@ -226,23 +226,33 @@ def get_host_log(host: str, unit_id: str, tail: int = 200) -> list:
 		raise
 
 
+# Gate-0 provisions a dedicated control-plane keypair at this path; test_connection
+# signs its pubkey with the CA to mint a short-TTL cert. Until provisioned, sign_cert
+# fails and test_connection honestly reports the host Unreachable.
+INFRA_KEY = "/home/frappe/.ssh/sanad-infra"
+
+
 @frappe.whitelist()
 def add_managed_host(host_name, server_type, ssh_host, ssh_user="sanad", ssh_port=22, proxy_port=2375, tags=None, notes=None):
 	"""Register a managed host (System-Manager). Starts Pending until test_connection verifies it."""
 	frappe.only_for("System Manager")
+	from frappe.utils import cint
+	from press.infra.adapters.base import log_infra_action
+
 	doc = frappe.get_doc({
 		"doctype": "Managed Host",
 		"host_name": host_name,
 		"server_type": server_type,
 		"ssh_host": ssh_host,
 		"ssh_user": ssh_user,
-		"ssh_port": int(ssh_port),
-		"proxy_port": int(proxy_port),
+		"ssh_port": cint(ssh_port) or 22,
+		"proxy_port": cint(proxy_port) or 2375,
 		"status": "Pending",
 		"tags": tags,
 		"notes": notes,
-	})
-	doc.insert()
+	}).insert()
+	log_infra_action(host=doc.name, unit="-", action="add_host", outcome="created",
+		detail=f"{ssh_user}@{ssh_host}:{cint(ssh_port) or 22} type={server_type}")
 	return {"name": doc.name, "status": doc.status}
 
 
@@ -252,14 +262,25 @@ def test_connection(host) -> dict:
 	socket-proxy tunnel. Flips status to Active on success. System-Manager only."""
 	frappe.only_for("System Manager")
 	from press.infra import ssh_ca
-	from press.infra.docker_tunnel import docker_request
+	from press.infra.adapters.base import get_adapter, log_infra_action
 
 	doc = _managed_doc(host)
-	ssh_ca.sign_cert(principal=doc.host_principal, pubkey_path=f"/tmp/{doc.host_principal}.pub")
-	out = {"ssh_ok": True, "docker_ok": False, "containers": 0}
-	if doc.server_type == "docker":
-		containers = docker_request(doc, "GET", "/containers/json?all=1") or []
-		out["docker_ok"] = True
-		out["containers"] = len(containers)
-	frappe.db.set_value("Managed Host", host, "status", "Active")
-	return out
+	out = {"ssh_ok": False, "docker_ok": False, "containers": 0}
+	try:
+		# mint a short-TTL cert for the control-plane key, then ACTUALLY reach the
+		# host through its adapter (SSH for plain, the socket-proxy tunnel for docker).
+		cert = ssh_ca.sign_cert(principal=doc.host_principal, pubkey_path=f"{INFRA_KEY}.pub")
+		doc.ssh_identity = INFRA_KEY
+		doc.ssh_cert = cert
+		en = get_adapter(doc).enumerate(doc)
+		out["ssh_ok"] = True
+		if doc.server_type == "docker":
+			out["docker_ok"] = True
+			out["containers"] = sum(1 for u in en.get("units", []) if u.get("kind") == "container")
+		frappe.db.set_value("Managed Host", host, {"status": "Active", "last_seen": frappe.utils.now_datetime()})
+		log_infra_action(host=host, unit="-", action="test_connection", outcome="success", detail=str(out))
+		return out
+	except Exception as e:
+		frappe.db.set_value("Managed Host", host, "status", "Unreachable")
+		log_infra_action(host=host, unit="-", action="test_connection", outcome="error", detail=str(e))
+		raise

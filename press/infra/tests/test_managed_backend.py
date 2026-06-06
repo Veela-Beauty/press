@@ -335,3 +335,21 @@ class TestOnboarding(FrappeTestCase):
 		self.assertTrue(res["ssh_ok"])
 		self.assertTrue(res["docker_ok"])
 		self.assertEqual(res["containers"], 1)
+		# test_connection now audits; clean up its row
+		frappe.get_last_doc("Infra Action Log").delete()
+
+	def test_test_connection_failure_marks_unreachable(self):
+		from press.api import infra_board
+
+		host = frappe._dict(host_name="probe-2", server_type="plain", host_principal="probe-2", ssh_host="10.0.0.9", ssh_user="sanad", ssh_port=22, proxy_port=2375)
+		adapter = MagicMock()
+		adapter.enumerate.side_effect = RuntimeError("down")
+		with patch("press.api.infra_board.frappe.only_for"), patch.object(
+			infra_board, "_managed_doc", return_value=host
+		), patch("press.infra.ssh_ca.sign_cert", return_value="/tmp/k-cert.pub"), patch(
+			"press.infra.adapters.base.get_adapter", return_value=adapter
+		), patch.object(infra_board.frappe.db, "set_value") as sv:
+			with self.assertRaises(RuntimeError):
+				infra_board.test_connection("probe-2")
+		self.assertTrue(any("Unreachable" in str(c) for c in sv.call_args_list))
+		frappe.get_last_doc("Infra Action Log").delete()
