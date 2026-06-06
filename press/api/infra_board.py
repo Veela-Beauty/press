@@ -93,7 +93,7 @@ def _service_state(status: str) -> str:
 	return "run" if status == "Running" else "down"
 
 
-def _build_tree() -> dict:
+def _press_servers() -> list:
 	benches = _all_benches()
 	by_server: dict[str, list] = {}
 	for b in benches:
@@ -125,6 +125,45 @@ def _build_tree() -> dict:
 			"benches": bs,
 			"host": host_probes(name),
 			"health": "down" if any_bad else "up",
+		})
+	return servers
+
+
+def _managed_hosts() -> list:
+	return frappe.get_all(
+		"Managed Host", filters={"status": ["!=", "Pending"]},
+		fields=["name as host_name", "server_type", "ssh_host", "ssh_port", "ssh_user", "proxy_port", "status"],
+	)
+
+
+def _enumerate_managed(host) -> dict:
+	from press.infra.adapters.base import get_adapter
+
+	try:
+		return get_adapter(host).enumerate(host)
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), f"infra enumerate failed: {host.host_name}")
+		return {"units": [], "metrics": {"cpu": 0, "mem": 0, "disk": 0, "req": 0}}
+
+
+def _overload(m: dict):
+	hi = max(m.get("cpu", 0), m.get("mem", 0), m.get("disk", 0))
+	return "crit" if hi >= 90 else "high" if hi >= 80 else None
+
+
+def _build_tree() -> dict:
+	servers = _press_servers()
+	for h in _managed_hosts():
+		en = _enumerate_managed(h)
+		units = en["units"]
+		down = sum(1 for u in units if u.get("state") in ("stop", "exit2", "down"))
+		overload = _overload(en["metrics"])
+		servers.append({
+			"name": h.host_name, "kind": "managed", "server_type": h.server_type,
+			"benches": [],
+			"units": units, "metrics": en["metrics"], "overload": overload,
+			"host": {"server": h.host_name},
+			"health": ("unknown" if h.status == "Unreachable" else "down" if (down or overload == "crit") else "up"),
 		})
 	return {"servers": servers}
 

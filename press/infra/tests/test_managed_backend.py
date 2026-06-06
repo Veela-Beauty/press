@@ -244,3 +244,24 @@ class TestSshDocker(FrappeTestCase):
 		self.assertIn("tail=5000", captured["path"])
 		self.assertEqual(out, ["line1", "line2"])
 
+
+
+class TestMergedTree(FrappeTestCase):
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_managed_hosts_merge_with_overload(self):
+		from press.api import infra_board
+
+		host = frappe._dict(host_name="acc-1", server_type="docker", ssh_host="10.0.0.7", reach="ok")
+		enum = {"units": [{"name": "x", "kind": "container", "state": "stop"}], "metrics": {"cpu": 10, "mem": 92, "disk": 40, "req": 100}}
+		with patch.object(infra_board, "_press_servers", return_value=[]), patch.object(
+			infra_board, "_managed_hosts", return_value=[host]
+		), patch.object(infra_board, "_enumerate_managed", return_value=enum):
+			tree = infra_board._build_tree()
+
+		node = next(s for s in tree["servers"] if s["name"] == "acc-1")
+		self.assertEqual(node["kind"], "managed")
+		self.assertEqual(node["server_type"], "docker")
+		self.assertEqual(node["overload"], "crit")  # mem 92 -> crit
+		self.assertEqual(node["health"], "down")     # a container is stopped
