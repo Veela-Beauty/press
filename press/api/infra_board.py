@@ -224,3 +224,42 @@ def get_host_log(host: str, unit_id: str, tail: int = 200) -> list:
 	except Exception as e:
 		log_infra_action(host=host, unit=unit_id, action="logs", outcome="error", detail=str(e))
 		raise
+
+
+@frappe.whitelist()
+def add_managed_host(host_name, server_type, ssh_host, ssh_user="sanad", ssh_port=22, proxy_port=2375, tags=None, notes=None):
+	"""Register a managed host (System-Manager). Starts Pending until test_connection verifies it."""
+	frappe.only_for("System Manager")
+	doc = frappe.get_doc({
+		"doctype": "Managed Host",
+		"host_name": host_name,
+		"server_type": server_type,
+		"ssh_host": ssh_host,
+		"ssh_user": ssh_user,
+		"ssh_port": int(ssh_port),
+		"proxy_port": int(proxy_port),
+		"status": "Pending",
+		"tags": tags,
+		"notes": notes,
+	})
+	doc.insert()
+	return {"name": doc.name, "status": doc.status}
+
+
+@frappe.whitelist()
+def test_connection(host) -> dict:
+	"""Sign a short-TTL cert, SSH-probe, and (docker) hit the Docker API via the
+	socket-proxy tunnel. Flips status to Active on success. System-Manager only."""
+	frappe.only_for("System Manager")
+	from press.infra import ssh_ca
+	from press.infra.docker_tunnel import docker_request
+
+	doc = _managed_doc(host)
+	ssh_ca.sign_cert(principal=doc.host_principal, pubkey_path=f"/tmp/{doc.host_principal}.pub")
+	out = {"ssh_ok": True, "docker_ok": False, "containers": 0}
+	if doc.server_type == "docker":
+		containers = docker_request(doc, "GET", "/containers/json?all=1") or []
+		out["docker_ok"] = True
+		out["containers"] = len(containers)
+	frappe.db.set_value("Managed Host", host, "status", "Active")
+	return out

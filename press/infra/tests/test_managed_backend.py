@@ -315,3 +315,23 @@ class TestHostControl(FrappeTestCase):
 		row = frappe.get_last_doc("Infra Action Log")
 		self.assertEqual(row.outcome, "error")
 		row.delete()
+
+
+class TestOnboarding(FrappeTestCase):
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_test_connection_signs_cert_and_probes(self):
+		from press.api import infra_board
+
+		host = frappe._dict(host_name="probe-1", server_type="docker", ssh_host="10.0.0.7", ssh_user="sanad", ssh_port=22, proxy_port=2375)
+		with patch("press.api.infra_board.frappe.only_for"), patch.object(
+			infra_board, "_managed_doc", return_value=host
+		), patch("press.infra.ssh_ca.sign_cert", return_value="/tmp/k-cert.pub"), patch(
+			"press.infra.docker_tunnel.docker_request", return_value=[{"Id": "a" * 64, "Names": ["/x"]}]
+		):
+			res = infra_board.test_connection("probe-1")
+
+		self.assertTrue(res["ssh_ok"])
+		self.assertTrue(res["docker_ok"])
+		self.assertEqual(res["containers"], 1)
