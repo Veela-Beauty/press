@@ -71,3 +71,24 @@ class TestAudit(FrappeTestCase):
 		self.assertTrue(frappe.db.exists("Infra Action Log", name))  # durable
 		frappe.delete_doc("Infra Action Log", name)
 		frappe.db.commit()
+
+
+class TestSshCa(FrappeTestCase):
+	def test_sign_cert_uses_principal_and_ttl(self):
+		from press.infra import ssh_ca
+
+		calls = {}
+
+		def fake_run(cmd, **kw):
+			calls["cmd"] = cmd
+			return MagicMock(returncode=0, stderr="")
+
+		with patch.object(ssh_ca, "_ca_private_key", return_value="/tmp/fake-ca"), patch.object(
+			ssh_ca.subprocess, "run", side_effect=fake_run
+		):
+			cert = ssh_ca.sign_cert(principal="client-prod-1", pubkey_path="/tmp/k.pub")
+
+		joined = " ".join(calls["cmd"])
+		self.assertIn("-n client-prod-1", joined)
+		self.assertIn("-V +8h", joined)
+		self.assertTrue(cert.endswith("-cert.pub"))
