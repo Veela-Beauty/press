@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Press Infrastructure</title>
+<style>
+  :root{
+    --bg:#ffffff;--panel:#ffffff;--soft:#fafafa;--border:#ececee;--border-2:#e0e0e3;
+    --ink:#18181b;--ink-2:#71717a;--ink-3:#a1a1aa;--hover:#f6f6f7;
+    --accent:#2563eb;--green:#16a34a;--amber:#d97706;--red:#dc2626;
+    --ring:#bfd3ff;--radius:6px;
+    --font:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .app{display:flex;min-height:100vh}.mono{font-family:var(--mono);font-size:12px}
+  button{font-family:var(--font)}:focus-visible{outline:2px solid var(--ring);outline-offset:1px;border-radius:4px}
+  .sidebar{width:212px;background:var(--soft);border-right:1px solid var(--border);flex:0 0 auto}
+  .brand{display:flex;align-items:center;gap:8px;padding:11px 12px;border-bottom:1px solid var(--border)}
+  .logo{width:26px;height:26px;border-radius:6px;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:600;font-size:11px}
+  .brand .nm{font-size:13px;font-weight:600}.brand .em{font-size:11px;color:var(--ink-3)}
+  nav{padding:8px}
+  .nav-sec{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);padding:10px 8px 4px;font-weight:600}
+  .nav-item{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:var(--radius);color:var(--ink-2);cursor:pointer;font-size:13px;margin-bottom:1px}
+  .nav-item:hover{background:var(--hover);color:var(--ink)}.nav-item.active{background:#ededf0;color:var(--ink);font-weight:550}
+  .nav-item .ic{width:15px;height:15px;color:var(--ink-3)}.ic svg{width:15px;height:15px}.nav-item.active .ic{color:var(--ink)}
+  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .topbar{height:44px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 20px}
+  .crumb{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink-2)}
+  .crumb a{color:var(--ink-2);text-decoration:none;cursor:pointer}.crumb a:hover{color:var(--ink)}.crumb .cur{color:var(--ink);font-weight:550}.crumb .sep{color:var(--border-2)}
+  .topbar .right{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .fresh{font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+  .pulse{width:6px;height:6px;border-radius:50%;background:var(--green);animation:p 2s infinite}@keyframes p{0%,100%{opacity:1}50%{opacity:.35}}
+  .seg{display:inline-flex;border:1px solid var(--border-2);border-radius:var(--radius);overflow:hidden}
+  .seg button{background:none;border:none;color:var(--ink-2);padding:4px 10px;font-size:12px;cursor:pointer}.seg button+button{border-left:1px solid var(--border-2)}.seg button.on{background:#ededf0;color:var(--ink)}
+  .content{padding:18px 24px 90px;overflow:auto;max-width:1180px}
+  h1{font-size:17px;font-weight:600;margin:0 0 3px}
+  .sub{font-size:12.5px;color:var(--ink-2);margin-bottom:16px}
+  .summ{font-size:12.5px;color:var(--ink-2);margin-bottom:14px}
+  .summ b{color:var(--ink);font-weight:600}.summ .sep{margin:0 8px;color:var(--border-2)}
+  .scards{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .scard{border:1px solid var(--border);border-radius:8px;padding:9px 15px;min-width:92px}
+  .scard .n{font-size:18px;font-weight:600;line-height:1.1}.scard .l{font-size:11px;color:var(--ink-3);margin-top:2px}
+  /* status dot + text */
+  .dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex:0 0 auto;vertical-align:middle}
+  .up{background:var(--green)}.down{background:var(--red)}.warn{background:var(--amber)}.unk{background:var(--ink-3)}
+  .st{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2)}
+  .st.bad{color:var(--red)}
+  .ty{font-size:11px;color:var(--ink-3);font-weight:500}
+  /* needs attention */
+  .attn{margin-bottom:18px}
+  .attn-h{font-size:12px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .attn-h .c{color:var(--ink-3);font-weight:400}
+  .attn-list{border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .attn-row{display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid var(--border);font-size:12.5px}
+  .attn-row:last-child{border-bottom:none}.attn-row:hover{background:var(--soft)}
+  .attn-row .nm{font-weight:550}.attn-row .path{color:var(--ink-3)}.attn-row .act{margin-left:auto;display:flex;gap:6px}
+  /* toolbar / filter */
+  .tools{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+  .tools .ttl{font-size:13px;font-weight:600;margin-right:auto;display:flex;align-items:center;gap:7px}
+  .tools .ttl .c{color:var(--ink-3);font-weight:400;font-size:12px}
+  .search{border:1px solid var(--border-2);border-radius:var(--radius);padding:5px 10px 5px 27px;font-size:12.5px;width:210px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4-4'/%3E%3C/svg%3E") no-repeat 9px center}
+  .btn{background:#fff;border:1px solid var(--border-2);color:var(--ink);border-radius:var(--radius);padding:5px 11px;font-size:12.5px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+  .btn:hover{background:var(--hover)}.btn:active{transform:translateY(.5px)}
+  .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}.btn.primary:hover{background:#000}
+  .btn.danger:hover{border-color:var(--red);color:var(--red)}
+  .btn:disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+  /* tabs (server detail) */
+  .tabs{display:flex;gap:1px;border-bottom:1px solid var(--border);margin:4px 0 16px;overflow-x:auto}
+  .tab{padding:7px 11px;font-size:12.5px;color:var(--ink-2);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+  .tab:hover{color:var(--ink)}.tab.on{color:var(--ink);font-weight:550;border-bottom-color:var(--ink)}
+  /* table */
+  table{width:100%;border-collapse:collapse}
+  thead th{font-size:11px;color:var(--ink-3);font-weight:550;text-align:left;padding:7px 12px;border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.03em}
+  th.s{cursor:pointer;user-select:none}th.s:hover{color:var(--ink-2)}th .arr{color:var(--accent)}
+  tbody td{padding:9px 12px;border-bottom:1px solid var(--border);font-size:13px}
+  tbody tr:last-child td{border-bottom:none}
+  tr.row{cursor:pointer}tr.row:hover{background:var(--soft)}
+  .nmcell{font-weight:550}
+  .rowact{display:inline-flex;gap:4px;opacity:0}tr.row:hover .rowact{opacity:1}
+  .ia{background:#fff;border:1px solid var(--border-2);color:var(--ink-3);border-radius:5px;width:24px;height:24px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}.ia:hover{color:var(--ink)}.ia:disabled{opacity:.35;cursor:not-allowed}
+  .busy{display:inline-flex;align-items:center;gap:6px;color:var(--accent);font-size:12px}
+  .spin{width:11px;height:11px;border:2px solid #e6eeff;border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+  .mbar{height:4px;width:46px;background:#efeff1;border-radius:2px;overflow:hidden;display:inline-block;vertical-align:middle;margin-left:6px}.mbar>i{display:block;height:100%;background:var(--ink-3)}.mbar.warn>i{background:var(--amber)}.mbar.crit>i{background:var(--red)}
+  .wrapt{border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .loadmore{display:flex;justify-content:center;padding:12px}
+  .sec{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:600;margin:22px 0 9px}
+  .muted{color:var(--ink-3)}.empty{padding:30px;text-align:center;color:var(--ink-3);font-size:12.5px}
+  .back{margin-bottom:10px}.link{color:var(--accent);cursor:pointer}.link:hover{text-decoration:underline}
+  .callout{border:1px solid var(--border);border-radius:8px;padding:10px 13px;font-size:12.5px;color:var(--ink-2);margin:8px 0;display:flex;gap:9px;align-items:center}
+  .callout .dot{margin-top:1px}
+  /* drawer */
+  .scrim{position:fixed;inset:0;background:rgba(20,22,25,.3);opacity:0;pointer-events:none;transition:.15s;z-index:40}.scrim.open{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:min(620px,94vw);background:#fff;border-left:1px solid var(--border);transform:translateX(100%);transition:transform .16s;z-index:50;display:flex;flex-direction:column;box-shadow:-2px 0 20px rgba(0,0,0,.06)}.drawer.open{transform:translateX(0)}
+  .dh{display:flex;align-items:center;gap:9px;padding:13px 16px;border-bottom:1px solid var(--border)}.dh b{font-size:14px}.dh .x{margin-left:auto;background:none;border:none;color:var(--ink-3);font-size:19px;cursor:pointer}
+  .dtabs{display:flex;gap:1px;padding:0 14px;border-bottom:1px solid var(--border)}
+  .dtab{padding:8px 11px;font-size:12.5px;color:var(--ink-2);cursor:pointer;border-bottom:2px solid transparent}.dtab.on{color:var(--ink);font-weight:550;border-bottom-color:var(--ink)}
+  .dact{display:flex;gap:7px;padding:11px 16px;border-bottom:1px solid var(--border)}
+  .dbody{flex:1;overflow:auto}
+  .dfiles{display:flex;gap:6px;padding:9px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center}.dfiles .lbl{font-size:10px;text-transform:uppercase;color:var(--ink-3)}
+  .chip{font-size:11.5px;padding:3px 9px;border-radius:5px;border:1px solid var(--border-2);background:#fff;color:var(--ink-2);cursor:pointer;font-family:var(--mono)}.chip.on{background:#ededf0;color:var(--ink)}.chip.ext{opacity:.4;cursor:not-allowed}
+  .logbody{padding:11px 16px;font-family:var(--mono);font-size:12px;line-height:1.75}
+  .ll{display:flex;gap:10px;white-space:pre-wrap}.lt{color:var(--ink-3)}.lv{width:40px;font-weight:600}.lv.ERR{color:var(--red)}.lv.WARN{color:var(--amber)}.lv.INFO{color:var(--ink-3)}
+  .kv{display:grid;grid-template-columns:128px 1fr;gap:8px 14px;padding:14px 16px;font-size:12.5px}.kv .k{color:var(--ink-3)}.kv .v{font-family:var(--mono);font-size:12px}
+  /* modal + toast */
+  .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:60;background:rgba(20,22,25,.18)}.modal.open{display:flex}
+  .mcard{background:#fff;border:1px solid var(--border);border-radius:10px;width:min(440px,92vw);box-shadow:0 12px 40px rgba(0,0,0,.16);overflow:hidden}
+  .mh{padding:15px 18px;font-size:15px;font-weight:600;border-bottom:1px solid var(--border)}
+  .mb{padding:16px 18px;font-size:13px;color:var(--ink-2);line-height:1.55}
+  .mf{padding:13px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+  .field{margin-bottom:12px}.field label{display:block;font-size:12px;color:var(--ink-2);margin-bottom:4px;font-weight:550}
+  .field input,.field select{width:100%;border:1px solid var(--border-2);border-radius:var(--radius);padding:7px 10px;font-size:13px;font-family:var(--font)}
+  .steps{display:flex;gap:6px;margin-bottom:16px}.stp{flex:1;height:2px;border-radius:1px;background:#ededf0}.stp.on{background:var(--ink)}
+  .toasts{position:fixed;bottom:18px;right:18px;display:flex;flex-direction:column;gap:8px;z-index:70}
+  .toast{background:var(--ink);color:#fff;padding:9px 13px;border-radius:8px;font-size:12.5px;box-shadow:0 6px 20px rgba(0,0,0,.18);display:flex;gap:8px;align-items:center;animation:si .2s}@keyframes si{from{transform:translateX(16px);opacity:0}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">AS</div><div><div class="nm">Accurate Systems</div><div class="em">eslam@sanadeoi.com</div></div></div>
+    <nav>
+      <div class="nav-item"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg></span>Sites</div>
+      <div class="nav-item"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M4 12h16M4 17h16"/></svg></span>Benches</div>
+      <div class="nav-item" id="navServers" onclick="setNav('servers')"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="7" rx="1"/><rect x="3" y="13" width="18" height="7" rx="1"/></svg></span>Servers</div>
+      <div class="nav-item" id="navInfra" onclick="setNav('infra')"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></span>Infrastructure</div>
+      <div class="nav-item"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l1-5h16l1 5M4 9v11h16V9"/></svg></span>Marketplace</div>
+    </nav>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb" id="crumb"></div>
+      <div class="right"><div class="seg" id="viewseg"><button id="vList" class="on" onclick="setView('list')">List</button><button id="vCards" onclick="setView('cards')">Cards</button></div><div class="fresh"><span class="pulse"></span> updated <span id="freshness">just now</span></div></div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="dh"><span class="dot down" id="dwDot"></span><b id="dwTitle">unit</b><button class="x" onclick="closeDrawer()" aria-label="Close">&times;</button></div>
+  <div class="dtabs"><div class="dtab on" data-t="logs" onclick="setDTab('logs')">Logs</div><div class="dtab" data-t="inspect" onclick="setDTab('inspect')">Inspect</div><div class="dtab" data-t="stats" onclick="setDTab('stats')">Stats</div></div>
+  <div class="dact"><button class="btn primary" id="dwRestart" onclick="act('restart',curUnit,curGroup)">Restart</button><button class="btn" onclick="act('start',curUnit,curGroup)">Start</button><button class="btn danger" onclick="act('stop',curUnit,curGroup)">Stop</button><button class="btn danger" onclick="act('kill',curUnit,curGroup)">Kill</button><span class="mono muted" id="dwMeta" style="margin-left:auto;align-self:center"></span></div>
+  <div class="dbody" id="dbody"></div>
+</aside>
+<div class="modal" id="modal"><div class="mcard" id="mcard"></div></div>
+<div class="toasts" id="toasts"></div>
+
+<script>
+const GLABEL={frappe_bench:'Benches',docker:'Stacks',plain:'Services'};
+function hv(s){let x=Math.sin(s*12.9898)*43758.5453;return Math.floor((x-Math.floor(x))*100);}
+function pick(s,a){return a[hv(s)%a.length];}function pad(n,w){return String(n).padStart(w,'0');}
+const ALL=[
+  {id:'press-f1',name:'press-f1',ip:'89.167.57.21',type:'frappe_bench',role:'Press app server',cpu:34,mem:46,disk:58,req:1240,reach:'ok',n:34},
+  {id:'press-ctrl',name:'press-ctrl',ip:'89.167.116.92',type:'frappe_bench',role:'Press controller',cpu:18,mem:49,disk:69,req:320,reach:'ok',n:1},
+  {id:'u4',name:'u4-default',ip:'157.90.244.216',type:'frappe_bench',role:'Press app server',cpu:12,mem:32,disk:44,req:410,reach:'ok',n:6},
+  {id:'u5',name:'u5-default',ip:'46.224.170.58',type:'frappe_bench',role:'Press app server',cpu:27,mem:92,disk:51,req:880,reach:'ok',n:5},
+  {id:'hetzner-main',name:'hetzner-main',ip:'65.109.65.159',type:'docker',role:'Dev + production',cpu:41,mem:84,disk:73,req:2100,reach:'ok',n:3},
+  {id:'accurate-servers',name:'accurate-servers',ip:'95.217.109.117',type:'docker',role:'Compose fleet',cpu:55,mem:71,disk:78,req:3400,reach:'pending',n:49},
+  {id:'sandbox-1',name:'sandbox-1',ip:'Daytona host',type:'docker',role:'Daytona sandboxes',cpu:22,mem:40,disk:48,req:150,reach:'ok',n:4},
+  {id:'u563138',name:'u563138',ip:'your-storagebox.de',type:'plain',role:'Storage box (5 TB)',cpu:3,mem:8,disk:13,req:0,reach:'limited',n:0},
+];
+const ALERTS=[
+  {sev:'crit',msg:'redis-queue down on bench-0016 (press-f1)',src:'Watch Tower',ago:'4m'},
+  {sev:'crit',msg:'2 containers down in eltarak-prod (accurate-servers)',src:'Watch Tower',ago:'1h'},
+  {sev:'warn',msg:'u5 memory 92% - overloaded',src:'host probe',ago:'8m'},
+  {sev:'warn',msg:'hetzner-main memory 84% - high load',src:'host probe',ago:'21m'},
+];
+const SVC=[['frappe-web','gunicorn web'],['node-socketio','realtime'],['frappe-schedule','scheduler'],['frappe-short-worker','worker'],['frappe-long-worker','worker'],['redis-cache','redis cache'],['redis-queue','redis queue']];
+const CON=['frontend','backend','websocket','scheduler','queue-short','queue-long','redis-cache','redis-queue','db','configurator','create-site'];
+const IMG={frontend:'erpnext15:latest',backend:'erpnext15:latest',websocket:'erpnext15:latest',scheduler:'erpnext15:latest','queue-short':'erpnext15:latest','queue-long':'erpnext15:latest','redis-cache':'redis:6.2-alpine','redis-queue':'redis:6.2-alpine',db:'mariadb:10.6',configurator:'erpnext15:latest','create-site':'erpnext15:latest'};
+const SUBS=['eltarak','roseline','dmg','wazin','tamkeen','gulf-corner','accubuild','self-storage','gwis','newjacquard','lipton'];
+const STK=['eltarak-prod','eltarak-prod-stg','eltarak-dist','alsima-top-dev','ppco-dev','hstp-dev','prime-test','mytextiles-dev','ploycon-stg','superset-prod','evolution_server','bic-dev','roseline-prod','newjacquard-prod','dmg-erp','wazin-prod','tamkeen-demo','gulf-corner-demo','accubuild-prod','selfstorage-prod','gwis-prod','lipton-eg','veela-beauty','sccc-erp','alshamal-prod','academy-lms','code-server','metabase','grafana','n8n','vaultwarden','uptime-kuma','minio-extra','registry-mirror','plausible','outline','litellm','qdrant','neo4j','open-webui','flowise','langfuse','penpot','nocodb','appsmith','directus','typesense','meilisearch','cal-com'];
+const GROUPS={},UNITS={},SITES={};
+ALL.forEach(s=>{
+  if(s.type==='plain'){GROUPS[s.id]=[];UNITS['__p_'+s.id]=[{name:'sshd.service',sub:'systemd',kind:'systemd',state:'active'},{name:'borgmatic.timer',sub:'systemd',kind:'systemd',state:'active'},{name:'rsync.service',sub:'systemd',kind:'systemd',state:'active'},{name:'fail2ban.service',sub:'systemd',kind:'systemd',state:'active'}];return;}
+  GROUPS[s.id]=[];
+  for(let i=0;i<s.n;i++){const seed=s.id.length*13+i*7;
+    if(s.type==='frappe_bench'){const id=`bench-${pad(11+i,4)}-${pad(100+i*3,6)}`;const sub=s.id==='press-ctrl'?'controller':pick(seed,SUBS);
+      const broken=(s.id==='press-f1'&&i===5)||(s.id==='u5'&&i===2);
+      const us=SVC.map((sv,j)=>({name:sv[0],sub:sv[1],kind:'service',state:(broken&&sv[0]==='redis-queue')?'stop':'run',uptime:(broken&&sv[0]==='redis-queue')?'-':`${2+hv(seed+j)%9}h ${hv(seed+j*2)%59}m`,pid:`${70000+hv(seed+j)*7}`,restarts:hv(seed+j)%4}));
+      const dn=us.filter(u=>u.state!=='run').length;
+      GROUPS[s.id].push({id,name:id,sub,kind:'bench',ver:hv(seed)>20?'v15':'v14',health:dn?'down':'up',up:us.length-dn,down:dn,cpu:hv(seed+3)%30,mem:25+hv(seed+4)%65,sites:1+hv(seed+5)%3});
+      UNITS[id]=us;SITES[id]=Array.from({length:1+hv(seed+5)%2},(_,k)=>({name:`${sub}${k?'-stg':'-app'}.sandbox.mvpstorm.com`,db:`${1+hv(seed+k)%4}.${hv(seed+k*2)%9} GB`,reqs:`${hv(seed+k*3)%90}/min`}));
+    } else {const nm=STK[i%STK.length];const inactive=hv(seed)>68;const broken=(s.id==='accurate-servers'&&(i===0||i===14));
+      let us;if(inactive)us=CON.slice(0,2).map(c=>({name:`${nm}-${c}`,sub:IMG[c],kind:'container',state:'exit0',uptime:'-',ports:'-',restarts:0,health:'-',created:`${10+hv(seed)%20}d ago`}));
+      else us=CON.map((c,j)=>{let st='run';if(c==='db')st='heal';if(c==='configurator')st='exit2';if(c==='create-site')st='exit0';if(broken&&(c==='redis-queue'||c==='backend'))st='stop';
+        return {name:`${nm}-${c}`,sub:IMG[c],kind:'container',state:st,uptime:st.startsWith('exit')?'-':`${1+hv(seed+j)%6}d`,ports:c==='frontend'?`0.0.0.0:${8000+i}->8080`:'-',restarts:hv(seed+j)%5,health:c==='db'?'healthy':(st==='run'?'-':'unhealthy'),created:`${1+hv(seed+j)%9}d ago`};});
+      const real=us.filter(u=>u.state==='run'||u.state==='heal').length,dn=us.filter(u=>u.state==='stop'||u.state==='exit2').length;
+      GROUPS[s.id].push({id:`${s.id}::${nm}`,name:nm,sub:'compose',kind:'stack',inactive,health:dn?'down':inactive?'unk':'up',up:real,down:dn,cpu:hv(seed+3)%40,mem:15+hv(seed+4)%70});
+      UNITS[`${s.id}::${nm}`]=us;}
+  }
+});
+const LOGS={redis:[['10:48:21','ERR','bind: Address already in use (127.0.0.1:11021)'],['10:48:21','ERR','Failed listening on port, aborting.'],['10:48:24','INFO','redis-queue entered FATAL state']],backend:[['09:31:02','ERR','ConnectionError: Error 111 connecting to redis-queue. Refused.'],['09:31:02','WARN','worker could not reach broker']],exit2:[['09:12:01','ERR','site config step exited with code 2']],ok:[['10:50:10','INFO','request GET / 200 14ms'],['10:50:11','INFO','request POST /api/method 200 41ms']]};
+
+let nav='servers',path={server:null,group:null},tab='Benches',view='list',curUnit=null,curGroup=null,dtab='logs',loading=false;
+const busy=new Set();const ui={search:'',sort:null,dir:1,page:1,fType:'all',fStatus:'all'};const PER=15;
+const recent=[{actor:'eslam',action:'restart',target:'redis-cache on bench-0011',ago:'4m'},{actor:'eslam',action:'stop',target:'create-site on prime-test',ago:'1h'}];
+const TABS=['Overview','Analytics','Bench Analytics','Sites','Benches','Snapshots','Actions','Firewall','Activity'];
+
+function servers(){return ALL.filter(s=>nav==='servers'?s.type==='frappe_bench':s.type!=='frappe_bench');}
+function srv(id){return ALL.find(s=>s.id===id);}
+function bar(p){const c=p>=90?'crit':p>=75?'warn':'';return `<span class="mono">${p}%</span><span class="mbar ${c}"><i style="width:${p}%"></i></span>`;}
+function isDown(st){return st==='stop'||st==='exit2'||st==='down';}
+function uDot(st){return (st==='run'||st==='heal'||st==='active')?'up':st==='exit0'?'unk':'down';}
+function stTxt(st){const m={run:'running',heal:'healthy',active:'active',stop:'stopped',exit2:'exited (2)',exit0:'exited (0)'};const bad=isDown(st);return `<span class="st ${bad?'bad':''}"><span class="dot ${uDot(st)}"></span>${m[st]||st}</span>`;}
+function setNav(n){nav=n;path={server:null,group:null};ui.search='';ui.sort=null;ui.page=1;ui.fType='all';ui.fStatus='all';tab='Benches';render();}
+function setView(v){view=v;document.getElementById('vList').className=v==='list'?'on':'';document.getElementById('vCards').className=v==='cards'?'on':'';render();}
+function go(server,group){path={server,group};ui.search='';ui.sort=null;ui.page=1;tab='Benches';closeDrawer();render();document.querySelector('.content').scrollTo(0,0);}
+function issues(){const out=[];servers().forEach(s=>(GROUPS[s.id]||[]).forEach(g=>(UNITS[g.id]||[]).forEach(u=>{if(isDown(u.state))out.push({server:s.id,group:g.id,gname:g.name,unit:u.name,state:u.state});})));return out;}
+function loadState(s){const m=Math.max(s.cpu,s.mem,s.disk);if(s.type==='plain')return null;if(m>=90)return {lvl:'crit',which:s.cpu>=90?'CPU':s.mem>=90?'Mem':'Disk',val:m};if(m>=80)return {lvl:'high',which:s.cpu>=80?'CPU':s.mem>=80?'Mem':'Disk',val:m};return null;}
+function srvStatus(s){if((GROUPS[s.id]||[]).some(g=>g.health==='down'))return 'down';const ld=loadState(s);if(ld&&ld.lvl==='crit')return 'down';if(s.reach==='pending')return 'unreachable';return 'healthy';}
+function srvDot(s){if((GROUPS[s.id]||[]).some(g=>g.health==='down'))return 'down';const ld=loadState(s);if(ld&&ld.lvl==='crit')return 'down';if(s.reach==='pending'||(ld&&ld.lvl==='high'))return 'warn';return 'up';}
+function statusCell(s){const dn=(GROUPS[s.id]||[]).filter(g=>g.health==='down').length;const ld=loadState(s);
+  if(dn)return `<span class="st bad"><span class="dot down"></span>${dn} down</span>`;
+  if(s.reach==='pending')return `<span class="st"><span class="dot warn"></span>no SSH yet</span>`;
+  if(ld&&ld.lvl==='crit')return `<span class="st bad"><span class="dot down"></span>overloaded ${ld.which} ${ld.val}%</span>`;
+  if(ld&&ld.lvl==='high')return `<span class="st"><span class="dot warn"></span>high load ${ld.which} ${ld.val}%</span>`;
+  return `<span class="st"><span class="dot up"></span>healthy</span>`;}
+function overloaded(){return servers().filter(s=>{const l=loadState(s);return l&&l.lvl==='crit';});}
+function alertsPanel(){if(!ALERTS.length)return '';
+  return `<div class="attn"><div class="attn-h"><span class="dot warn"></span> Alerts <span class="c">&middot; ${ALERTS.length} active &middot; from Watch Tower</span></div><div class="attn-list">`+ALERTS.map((a,i)=>`<div class="attn-row"><span class="dot ${a.sev==='crit'?'down':'warn'}"></span><span class="nm">${a.msg}</span><span class="path">${a.src} &middot; ${a.ago} ago</span><span class="act"><button class="btn" onclick="ackAlert(${i})">Acknowledge</button></span></div>`).join('')+`</div></div>`;}
+function ackAlert(i){ALERTS.splice(i,1);toast('Alert acknowledged',1);render();}
+function filterSet(arr){return arr.filter(s=>{
+  if(ui.fType!=='all'&&s.type!==ui.fType)return false;
+  if(ui.fStatus==='healthy'&&srvStatus(s)!=='healthy')return false;
+  if(ui.fStatus==='issues'&&srvStatus(s)==='healthy')return false;
+  return true;});}
+function setF(k,v){ui[k]=v;ui.page=1;render();}
+function fseg(key,opts){return `<span class="seg">`+opts.map(o=>`<button class="${ui[key]===o[0]?'on':''}" onclick="setF('${key}','${o[0]}')">${o[1]}</button>`).join('')+`</span>`;}
+function summaryCards(kind){
+  const ss=servers();const groups=ss.flatMap(s=>GROUPS[s.id]||[]);
+  const up=groups.reduce((a,g)=>a+(g.up||0),0),down=groups.reduce((a,g)=>a+(g.down||0),0);
+  const unreach=ss.filter(s=>s.reach==='pending').length;const req=ss.reduce((a,s)=>a+(s.req||0),0);const over=overloaded().length;
+  const items=kind==='servers'
+    ?[['Servers',ss.length,0],['Benches',groups.length,0],['Req/min',req.toLocaleString(),0],['Units down',down,down>0],['Overloaded',over,over>0]]
+    :[['Hosts',ss.length,0],['Stacks',groups.length,0],['Req/min',req.toLocaleString(),0],['Units down',down,down>0],['Overloaded',over,over>0],['Unreachable',unreach,unreach>0]];
+  return `<div class="scards">`+items.map(it=>`<div class="scard"><div class="n"${it[2]?' style="color:var(--red)"':''}>${it[1]}</div><div class="l">${it[0]}</div></div>`).join('')+`</div>`;
+}
+function applyS(arr,k){let r=ui.search?arr.filter(x=>(x[k]||'').toLowerCase().includes(ui.search.toLowerCase())):arr;if(ui.sort)r=[...r].sort((a,b)=>{let x=a[ui.sort],y=b[ui.sort];return (typeof x==='string'?x.localeCompare(y):(x||0)-(y||0))*ui.dir;});return r;}
+function sortH(l,k){const a=ui.sort===k?(ui.dir>0?' &uarr;':' &darr;'):'';return `<th class="s" onclick="toggleSort('${k}')">${l}<span class="arr">${a}</span></th>`;}
+function toggleSort(k){if(ui.sort===k)ui.dir*=-1;else{ui.sort=k;ui.dir=1;}render();}
+function search(ph){return `<input class="search" placeholder="${ph}" value="${ui.search}" oninput="ui.search=this.value;ui.page=1;render()">`;}
+
+function crumb(){const root=nav==='servers'?'Servers':'Infrastructure';
+  let h=`<a onclick="go(null,null)">${root}</a>`;
+  if(path.server)h+=`<span class="sep">/</span>`+(path.group?`<a onclick="go('${path.server}',null)">${path.server}</a>`:`<span class="cur">${path.server}</span>`);
+  if(path.group){const g=GROUPS[path.server].find(x=>x.id===path.group);h+=`<span class="sep">/</span><span class="cur">${g?g.name:path.group}</span>`;}
+  document.getElementById('crumb').innerHTML=h;
+  document.getElementById('viewseg').style.display=path.group?'none':'inline-flex';
+  document.getElementById('navServers').className='nav-item'+(nav==='servers'?' active':'');
+  document.getElementById('navInfra').className='nav-item'+(nav==='infra'?' active':'');
+}
+function render(){crumb();const c=document.getElementById('content');
+  if(!path.server)c.innerHTML=nav==='servers'?renderServerList():renderInfraList();
+  else if(!path.group)c.innerHTML=renderServer(srv(path.server));
+  else c.innerHTML=renderGroup(path.group);
+}
+
+function renderServerList(){
+  const ss=applyS(filterSet(servers()),'name');
+  const head=`<h1>Servers</h1><div class="sub">Press-managed servers. Edit the same pages you already use, now with live metrics and per-service control.</div>`;
+  const summ=summaryCards('servers');
+  const tools=`<div class="tools"><span class="ttl">Servers <span class="c">(${ss.length})</span></span>${fseg('fStatus',[['all','All'],['healthy','Healthy'],['issues','Issues']])}${search('Search servers...')}</div>`;
+  let body;
+  if(view==='cards'){body=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px">`+ss.map(s=>cardServer(s)).join('')+`</div>`;}
+  else body=`<div class="wrapt"><table><thead><tr><th style="width:18px"></th>${sortH('Server','name')}${sortH('Req/min','req')}${sortH('CPU','cpu')}${sortH('Mem','mem')}${sortH('Disk','disk')}<th>Status</th></tr></thead><tbody>`+ss.map(s=>
+    `<tr class="row" onclick="go('${s.id}',null)"><td><span class="dot ${srvDot(s)}"></span></td><td class="nmcell">${s.name} <span class="muted mono">${s.ip}</span></td><td class="mono">${s.req?s.req.toLocaleString():'-'}</td><td>${bar(s.cpu)}</td><td>${bar(s.mem)}</td><td>${bar(s.disk)}</td><td>${statusCell(s)}</td></tr>`).join('')+`</tbody></table></div>`;
+  return head+summ+alertsPanel()+tools+body;
+}
+function cardServer(s){const g=GROUPS[s.id]||[];const dn=g.filter(x=>x.health==='down').length;const f=dn?(UNITS[g.find(x=>x.health==='down').id]||[]).find(u=>isDown(u.state)):null;
+  return `<div class="wrapt" style="cursor:pointer" tabindex="0" onclick="go('${s.id}',null)"><div style="padding:12px 14px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--border)"><span class="dot ${dn?'down':'up'}"></span><b>${s.name}</b><span class="muted mono" style="margin-left:auto">${s.ip}</span></div>
+    <div style="padding:9px 14px;font-size:12.5px;color:var(--ink-2)">${s.role} &middot; ${g.length} benches${f?` &middot; <span style="color:var(--red)">${f.name} down</span>`:''}</div>
+    <div style="padding:9px 14px;display:flex;gap:16px;border-top:1px solid var(--border)"><span class="st">CPU ${bar(s.cpu)}</span><span class="st">Mem ${bar(s.mem)}</span><span class="st">Disk ${bar(s.disk)}</span></div></div>`;
+}
+function renderServer(s){
+  const head=`<h1>${s.name}</h1><div class="sub">${s.role} &middot; ${s.ip}</div>`;
+  const tabbar=`<div class="tabs">`+TABS.map(t=>`<div class="tab ${t===tab?'on':''}" onclick="tab='${t}';render()">${t}</div>`).join('')+`</div>`;
+  let body;
+  if(tab==='Benches')body=renderGroupSection(s);
+  else if(tab==='Overview')body=`<div class="kv"><div class="k">Type</div><div class="v">Frappe bench (Press)</div><div class="k">Region</div><div class="v">Frankfurt</div><div class="k">Plan</div><div class="v">Premium 8 vCPU</div><div class="k">CPU / Mem / Disk</div><div class="v">${s.cpu}% / ${s.mem}% / ${s.disk}%</div></div>`;
+  else body=`<div class="empty">Existing "${tab}" tab - kept as-is.</div>`;
+  return head+tabbar+body;
+}
+function renderGroupSection(s){
+  let g=applyS(GROUPS[s.id]||[],'name');const total=g.length;const shown=g.slice(0,ui.page*PER);
+  const tools=`<div class="tools"><span class="ttl">Benches <span class="c">(${total})</span></span>${search('Search benches...')}<button class="btn">New bench</button></div>`;
+  return tools+groupBody(s,shown,total,'Benches');
+}
+function renderInfraList(){
+  const iss=issues();const ss=applyS(filterSet(servers()),'name');
+  const head=`<h1>Infrastructure</h1><div class="sub">All external and managed hosts. Docker and plain boxes, monitored and controlled from one place.</div>`;
+  const over=overloaded();const tot=iss.length+over.length;
+  const attn=`<div class="attn"><div class="attn-h"><span class="dot ${tot?'down':'up'}"></span> Needs attention <span class="c">${tot?'&middot; '+iss.length+' down, '+over.length+' overloaded':'&middot; all clear'}</span></div>${tot?`<div class="attn-list">`+iss.slice(0,4).map(x=>`<div class="attn-row"><span class="dot down"></span><span class="nm">${x.unit}</span><span class="path">${x.server} / ${x.gname}</span><span class="act"><button class="btn" onclick="event.stopPropagation();go('${x.server}','${x.group}')">View</button><button class="btn primary" onclick="event.stopPropagation();act('restart','${x.unit}','${x.group}')">Restart</button></span></div>`).join('')+over.map(s=>{const l=loadState(s);return `<div class="attn-row"><span class="dot down"></span><span class="nm">${s.name}</span><span class="path">overloaded - ${l.which} ${l.val}%</span><span class="act"><button class="btn" onclick="event.stopPropagation();go('${s.id}',null)">View</button></span></div>`;}).join('')+`</div>`:''}</div>`;
+  const summ=summaryCards('infra');
+  const tools=`<div class="tools"><span class="ttl">Hosts <span class="c">(${ss.length})</span></span>${fseg('fType',[['all','All'],['docker','Docker'],['plain','Plain']])}${fseg('fStatus',[['all','All'],['healthy','Healthy'],['issues','Issues']])}${search('Search hosts...')}<button class="btn primary" onclick="openWizard()">Add host</button></div>`;
+  let body;
+  if(view==='cards'){body=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px">`+ss.map(s=>cardHost(s)).join('')+`</div>`;}
+  else body=`<div class="wrapt"><table><thead><tr><th style="width:18px"></th>${sortH('Host','name')}<th>Type</th>${sortH('Req/min','req')}${sortH('CPU','cpu')}${sortH('Mem','mem')}${sortH('Disk','disk')}<th>Status</th></tr></thead><tbody>`+ss.map(s=>
+    `<tr class="row" onclick="go('${s.id}',null)"><td><span class="dot ${srvDot(s)}"></span></td><td class="nmcell">${s.name} <span class="muted mono">${s.ip}</span></td><td class="ty">${s.type==='docker'?'Docker':'Plain'}</td><td class="mono">${s.req?s.req.toLocaleString():'-'}</td><td>${bar(s.cpu)}</td><td>${bar(s.mem)}</td><td>${bar(s.disk)}</td><td>${statusCell(s)}</td></tr>`).join('')+`</tbody></table></div>`;
+  return head+attn+alertsPanel()+summ+tools+body;
+}
+function cardHost(s){const g=GROUPS[s.id]||[];const dn=g.filter(x=>x.health==='down').length;const cnt=s.type==='plain'?`${(UNITS['__p_'+s.id]||[]).length} services`:`${g.length} stacks`;
+  return `<div class="wrapt" style="cursor:pointer" tabindex="0" onclick="go('${s.id}',null)"><div style="padding:12px 14px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--border)"><span class="dot ${dn?'down':s.reach==='pending'?'warn':'up'}"></span><b>${s.name}</b><span class="ty" style="margin-left:auto">${s.type==='docker'?'Docker':'Plain'}</span></div>
+    <div style="padding:9px 14px;font-size:12.5px;color:var(--ink-2)">${s.role} &middot; ${cnt}${s.reach==='pending'?' &middot; <span style="color:var(--amber)">no SSH yet</span>':''}</div>
+    <div style="padding:9px 14px;display:flex;gap:16px;border-top:1px solid var(--border)"><span class="st">CPU ${bar(s.cpu)}</span><span class="st">Mem ${bar(s.mem)}</span><span class="st">Disk ${bar(s.disk)}</span></div></div>`;
+}
+function renderServerHost(s){ // infra host detail
+  const head=`<h1>${s.name}</h1><div class="sub">${s.role} &middot; ${s.ip} &middot; <span class="ty">${s.type==='docker'?'Docker':'Plain'}</span></div>`;
+  if(s.type==='plain'){const us=UNITS['__p_'+s.id]||[];return head+`<div class="callout"><span class="dot up"></span> Plain host - watch-only in v1 (CPU/disk + systemd status, no control).</div><div class="tools"><span class="ttl">Services <span class="c">(${us.length})</span></span></div><div class="wrapt"><table><thead><tr><th>Service</th><th>Manager</th><th>State</th></tr></thead><tbody>${us.map(u=>`<tr><td class="nmcell">${u.name}</td><td class="mono muted">systemd</td><td>${stTxt(u.state)}</td></tr>`).join('')}</tbody></table></div>`;}
+  let g=applyS(GROUPS[s.id]||[],'name');const total=g.length;const shown=g.slice(0,ui.page*PER);
+  const tools=`<div class="tools"><span class="ttl">Stacks <span class="c">(${total})</span></span>${search('Search stacks...')}</div>`;
+  const pre=s.reach==='pending'?`<div class="callout"><span class="dot warn"></span> Not reachable yet. Add an SSH key + socket-proxy to manage its ${total} stacks.</div>`:'';
+  return head+pre+tools+groupBody(s,shown,total,'Stacks');
+}
+function groupBody(s,g,total,lbl){
+  let body;const isStack=lbl==='Stacks';
+  if(g.length===0)body=`<div class="empty">No ${lbl.toLowerCase()} match "${ui.search}".</div>`;
+  else if(view==='cards'){body=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px">`+g.map(x=>{const f=x.down?(UNITS[x.id]||[]).find(u=>isDown(u.state)):null;
+    return `<div class="wrapt" style="cursor:pointer" tabindex="0" onclick="go('${s.id}','${x.id}')"><div style="padding:11px 13px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--border)"><span class="dot ${x.health}"></span><b>${x.name}</b><span class="muted" style="margin-left:auto;font-size:11.5px">${x.inactive?'inactive':x.sub}</span></div>
+      <div style="padding:9px 13px;font-size:12.5px;color:var(--ink-2)">${x.down?`<span style="color:var(--red)">${x.down} down</span>`:`${x.up} up`}${x.sites!==undefined?` &middot; ${x.sites} sites`:''}${f?` &middot; <span style="color:var(--red)">${f.name}</span>`:''}</div>
+      <div style="padding:9px 13px;display:flex;gap:16px;border-top:1px solid var(--border)"><span class="st">CPU ${bar(x.cpu)}</span><span class="st">Mem ${bar(x.mem)}</span></div></div>`;}).join('')+`</div>`;}
+  else body=`<div class="wrapt"><table><thead><tr><th style="width:18px"></th>${sortH(lbl.slice(0,-1),'name')}<th></th>${sortH('Down','down')}${sortH('CPU','cpu')}${sortH('Mem','mem')}${g[0]&&g[0].sites!==undefined?'<th>Sites</th>':''}</tr></thead><tbody>`+g.map(x=>`<tr class="row" onclick="go('${s.id}','${x.id}')"><td><span class="dot ${x.health}"></span></td><td class="nmcell">${x.name}</td><td class="muted mono">${x.inactive?'inactive':x.sub}</td><td>${x.down?`<span class="st bad">${x.down} down</span>`:`<span class="muted">${x.up} up</span>`}</td><td>${bar(x.cpu)}</td><td>${bar(x.mem)}</td>${x.sites!==undefined?`<td>${x.sites}</td>`:''}</tr>`).join('')+`</tbody></table></div>`;
+  const more=total>g.length?`<div class="loadmore"><button class="btn" onclick="ui.page++;render()">Load ${Math.min(PER,total-g.length)} more (${total-g.length} left)</button></div>`:'';
+  return body+more;
+}
+// when drilling a server in infra nav, use host detail; in servers nav, server detail with tabs
+const _renderServer=renderServer;
+renderServer=function(s){return nav==='infra'?renderServerHost(s):_renderServer(s);};
+
+function renderGroup(gid){
+  const us=UNITS[gid]||[];const s=srv(path.server);const g=GROUPS[path.server].find(x=>x.id===gid);
+  const isCon=us[0]&&us[0].kind==='container';const word=isCon?'Containers':'Services';
+  const hasDown=us.some(u=>isDown(u.state));let list=applyS(us,'name');
+  const back=`<div class="back"><span class="link" onclick="go('${path.server}',null)">&larr; back to ${GLABEL[s.type].toLowerCase()}</span></div>`;
+  const tools=`<div class="tools"><span class="ttl"><span class="dot ${hasDown?'down':'up'}"></span> ${g?g.name:gid} <span class="c">${word} (${us.length})</span></span>${search('Search '+word.toLowerCase()+'...')}${isCon?'':'<button class="btn">Restart web</button>'}<button class="btn primary" onclick="confirmAct('restart','${isCon?'stack':'bench'}','${gid}')">Restart ${isCon?'stack':'bench'}</button></div>`;
+  const cols=isCon?`<tr><th style="width:18px"></th>${sortH('Container','name')}<th>Image</th><th>State</th><th>Ports</th>${sortH('Restarts','restarts')}<th>Health</th><th></th></tr>`:`<tr><th style="width:18px"></th>${sortH('Service','name')}<th>Type</th><th>State</th><th>Uptime</th>${sortH('Restarts','restarts')}<th></th></tr>`;
+  const rows=list.map(u=>{const b=busy.has(gid+'::'+u.name);const acts=`<span class="rowact" onclick="event.stopPropagation()"><button class="ia" title="Restart" ${b?'disabled':''} onclick="act('restart','${u.name}','${gid}')">&#10227;</button><button class="ia" title="Stop" ${b||isDown(u.state)?'disabled':''} onclick="act('stop','${u.name}','${gid}')">&#9632;</button><button class="ia" title="Log" onclick="openUnit('${u.name}','${gid}',event)">&#9776;</button></span>`;
+    const st=b?`<span class="busy"><span class="spin"></span>restarting</span>`:stTxt(u.state);
+    if(isCon)return `<tr class="row" onclick="openUnit('${u.name}','${gid}',event)"><td><span class="dot ${uDot(u.state)}"></span></td><td>${u.name}</td><td class="mono muted">${u.sub}</td><td>${st}</td><td class="mono muted">${u.ports}</td><td class="mono">${u.restarts}</td><td class="mono" style="color:${u.health==='unhealthy'?'var(--red)':'var(--ink-3)'}">${u.health}</td><td>${acts}</td></tr>`;
+    return `<tr class="row" onclick="openUnit('${u.name}','${gid}',event)"><td><span class="dot ${uDot(u.state)}"></span></td><td>${u.name}</td><td class="mono muted">${u.sub}</td><td>${st}</td><td class="mono muted">${u.uptime}</td><td class="mono">${u.restarts}</td><td>${acts}</td></tr>`;}).join('');
+  let html=back+(hasDown?`<div class="callout"><span class="dot down"></span> A ${isCon?'container':'service'} here is down. Open the red row to read its log, then restart it.</div>`:'')+tools+`<div class="wrapt"><table><thead>${cols}</thead><tbody>${rows}</tbody></table></div>`;
+  if(SITES[gid]&&SITES[gid].length)html+=`<div class="sec">Sites on this bench (${SITES[gid].length})</div><div class="wrapt"><table><thead><tr><th>Site</th><th>DB</th><th>Requests</th></tr></thead><tbody>${SITES[gid].map(si=>`<tr><td class="nmcell">${si.name}</td><td class="mono muted">${si.db}</td><td class="mono muted">${si.reqs}</td></tr>`).join('')}</tbody></table></div>`;
+  return html;
+}
+function setDTab(t){dtab=t;drawBody();document.querySelectorAll('.dtab').forEach(e=>e.classList.toggle('on',e.dataset.t===t));}
+function openUnit(name,gid,ev){if(ev)ev.stopPropagation();curUnit=name;curGroup=gid;dtab='logs';
+  const u=(UNITS[gid]||[]).find(x=>x.name===name);const down=u&&isDown(u.state);
+  document.getElementById('dwDot').className='dot '+(down?'down':'up');document.getElementById('dwTitle').textContent=name;document.getElementById('dwMeta').textContent=gid.replace(/.*::/,'');
+  document.getElementById('dwRestart').disabled=busy.has(gid+'::'+name);
+  document.querySelectorAll('.dtab').forEach(e=>e.classList.toggle('on',e.dataset.t==='logs'));
+  drawBody();document.getElementById('drawer').classList.add('open');document.getElementById('scrim').classList.add('open');
+}
+function drawBody(){const u=(UNITS[curGroup]||[]).find(x=>x.name===curUnit)||{};const b=document.getElementById('dbody');
+  if(dtab==='logs'){let key='ok';if((u.name||'').includes('redis-queue')&&isDown(u.state))key='redis';if((u.name||'').includes('backend')&&isDown(u.state))key='backend';if(u.state==='exit2')key='exit2';
+    b.innerHTML=`<div class="dfiles"><span class="lbl">log files</span><span class="chip on">${u.name}.log</span><span class="chip ext" title="agent ext">journalctl</span></div><div class="logbody">${LOGS[key].map(l=>`<div class="ll"><span class="lt">${l[0]}</span><span class="lv ${l[1]}">${l[1]}</span><span>${l[2]}</span></div>`).join('')}</div>`;}
+  else if(dtab==='inspect'){b.innerHTML=`<div class="kv"><div class="k">Name</div><div class="v">${u.name||'-'}</div><div class="k">${u.kind==='container'?'Image':'Program'}</div><div class="v">${u.sub||'-'}</div><div class="k">State</div><div class="v">${u.state||'-'}</div><div class="k">${u.kind==='container'?'Ports':'PID'}</div><div class="v">${u.kind==='container'?(u.ports||'-'):(u.pid||'-')}</div><div class="k">Restart count</div><div class="v">${u.restarts!=null?u.restarts:'-'}</div><div class="k">Created</div><div class="v">${u.created||u.uptime||'-'}</div><div class="k">Read via</div><div class="v">${u.kind==='container'?'Docker API (socket-proxy)':'supervisorctl'}</div></div>`;}
+  else b.innerHTML=`<div class="kv"><div class="k">CPU</div><div class="v">${hv((curUnit||'a').length)%30}%</div><div class="k">Memory</div><div class="v">${50+hv((curUnit||'a').length*2)%400} MB</div><div class="k">Net I/O</div><div class="v">${hv((curUnit||'a').length*3)%900} kB / ${hv((curUnit||'a').length*4)%900} kB</div></div>`;
+}
+function closeDrawer(){document.getElementById('drawer').classList.remove('open');document.getElementById('scrim').classList.remove('open');}
+function act(verb,unit,gid){if(verb==='stop'||verb==='kill'){confirmAct(verb,unit,gid);return;}doAct(verb,unit,gid);}
+function confirmAct(verb,unit,gid){const cap=verb[0].toUpperCase()+verb.slice(1);openModal(`<div class="mh">${cap} ${unit}?</div><div class="mb">This will <b>${verb}</b> <span class="mono">${unit}</span>. ${verb==='kill'?'Kill sends SIGKILL and may lose in-flight work.':'It will be unavailable until restarted.'}</div><div class="mf"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn danger" onclick="closeModal();doAct('${verb}','${unit}','${gid}')">${cap}</button></div>`);}
+function doAct(verb,unit,gid){const k=gid+'::'+unit;busy.add(k);render();if(document.getElementById('drawer').classList.contains('open'))document.getElementById('dwRestart').disabled=true;
+  toast(`${verb[0].toUpperCase()+verb.slice(1)}ing ${unit}`);
+  setTimeout(()=>{busy.delete(k);recent.unshift({actor:'eslam',action:verb,target:`${unit} on ${gid.replace(/.*::/,'')}`,ago:'now'});render();if(document.getElementById('drawer').classList.contains('open')){document.getElementById('dwRestart').disabled=false;drawBody();}toast(`${unit} ${verb==='restart'?'restarted':verb+'ped'} &middot; logged`,1);},1300);}
+function toast(msg,ok){const t=document.getElementById('toasts');const el=document.createElement('div');el.className='toast';el.innerHTML=`${ok?'<span class="dot up"></span>':'<span class="spin"></span>'} ${msg}`;t.appendChild(el);setTimeout(()=>el.remove(),2500);}
+function openModal(h){document.getElementById('mcard').className='mcard';document.getElementById('mcard').innerHTML=h;document.getElementById('modal').classList.add('open');}
+function closeModal(){document.getElementById('modal').classList.remove('open');}
+let wz=1;function openWizard(){wz=1;drawWizard();document.getElementById('modal').classList.add('open');}
+function drawWizard(){const steps=`<div class="steps"><div class="stp ${wz>=1?'on':''}"></div><div class="stp ${wz>=2?'on':''}"></div><div class="stp ${wz>=3?'on':''}"></div></div>`;let b='';
+  if(wz===1)b=`<div class="mh">Add host</div><div class="mb">${steps}<div class="field"><label>Host name</label><input placeholder="client-prod-1"></div><div class="field"><label>Type</label><select><option>docker</option><option>plain</option></select></div><div class="field"><label>SSH host</label><input placeholder="95.217.109.117"></div><div class="field"><label>SSH user / port</label><input placeholder="root / 22"></div></div><div class="mf"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="wz=2;drawWizard()">Next: test</button></div>`;
+  if(wz===2)b=`<div class="mh">Test connection</div><div class="mb">${steps}<div class="callout"><span class="spin"></span> Signing a short-TTL SSH cert and probing the host...</div><div class="kv"><div class="k">SSH</div><div class="v" style="color:var(--green)">ok (cert principal client-prod-1)</div><div class="k">Docker API</div><div class="v" style="color:var(--green)">ok via socket-proxy (12 containers)</div><div class="k">TLS fingerprint</div><div class="v">SHA256:a3f9...e2b1 pinned</div></div></div><div class="mf"><button class="btn" onclick="wz=1;drawWizard()">Back</button><button class="btn primary" onclick="wz=3;drawWizard()">Add host</button></div>`;
+  if(wz===3)b=`<div class="mh">Host added</div><div class="mb">${steps}<div style="text-align:center;padding:8px"><span class="dot up" style="width:12px;height:12px"></span><div style="margin-top:8px;color:var(--ink)">client-prod-1 is now managed.</div><div class="muted" style="margin-top:3px">It appears under Infrastructure and reports in ~12s.</div></div></div><div class="mf"><button class="btn primary" onclick="closeModal();toast('client-prod-1 added',1)">Done</button></div>`;
+  document.getElementById('mcard').className='mcard';document.getElementById('mcard').innerHTML=b;}
+document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
+
+setNav('servers');
+let n=0;setInterval(()=>{n=(n+1)%3;document.getElementById('freshness').textContent=['just now','3s ago','7s ago'][n];},2500);
+</script>
+</body>
+</html>

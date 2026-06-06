@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Press Infrastructure (final output, frappe-ui)</title>
+<style>
+  /* frappe-ui dashboard look (light), tokens approximated from the real preset */
+  :root{
+    --bg:#f4f5f6; --panel:#ffffff; --sidebar:#ffffff;
+    --border:#e9eaec; --border-2:#dfe1e4;
+    --ink:#1c2024; --ink-2:#6b7178; --ink-3:#8b9198;
+    --hover:#f4f5f6; --active:#ededf0;
+    --green:#18794e; --green-bg:#e7f4ec;
+    --red:#c0392b; --red-bg:#fbe9e7;
+    --amber:#b9560a; --amber-bg:#fcf1e3;
+    --blue:#2463eb; --blue-bg:#eef3ff;
+    --solid:#1f2225; --radius:6px;
+    --font:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:13.5px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .app{display:flex;min-height:100vh}
+  .mono{font-family:var(--mono)}
+  /* ===== sidebar ===== */
+  .sidebar{width:220px;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;flex:0 0 auto}
+  .brand{display:flex;align-items:center;gap:8px;padding:10px;margin:6px;border-radius:var(--radius);cursor:pointer}
+  .brand:hover{background:var(--hover)}
+  .logo{width:34px;height:34px;border-radius:8px;background:var(--solid);color:#fff;display:grid;place-items:center;font-weight:700;font-size:13px;flex:0 0 auto}
+  .brand .nm{font-size:13px;font-weight:600;line-height:1.2}
+  .brand .em{font-size:11px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px}
+  .brand .chev{margin-left:auto;color:var(--ink-3)}
+  nav{padding:4px 8px}
+  .nav-sec{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);padding:12px 8px 4px;font-weight:600}
+  .nav-item{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--radius);color:var(--ink-2);cursor:pointer;font-size:13.5px;margin-bottom:1px}
+  .nav-item:hover{background:var(--hover);color:var(--ink)}
+  .nav-item.active{background:var(--active);color:var(--ink);font-weight:550}
+  .nav-item .ic{width:18px;height:18px;display:grid;place-items:center;color:var(--ink-3);flex:0 0 auto}
+  .nav-item.active .ic{color:var(--ink)}
+  .ic svg{width:15px;height:15px;stroke-width:1.6}
+  /* ===== main ===== */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .topbar{height:48px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 18px;background:var(--panel)}
+  .crumb{display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--ink-2)}
+  .crumb a{color:var(--ink-2);text-decoration:none;cursor:pointer}
+  .crumb a:hover{color:var(--ink)}
+  .crumb .cur{color:var(--ink);font-weight:550}
+  .crumb .sep{color:var(--border-2)}
+  .topbar .right{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .live{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3)}
+  .live .pulse{width:7px;height:7px;border-radius:50%;background:var(--green);animation:p 1.6s infinite}
+  @keyframes p{0%,100%{opacity:1}50%{opacity:.3}}
+  .seg{display:inline-flex;border:1px solid var(--border-2);border-radius:var(--radius);overflow:hidden}
+  .seg button{background:var(--panel);border:none;color:var(--ink-2);padding:4px 11px;font-size:12.5px;cursor:pointer;font-family:var(--font)}
+  .seg button+button{border-left:1px solid var(--border-2)}
+  .seg button.on{background:var(--active);color:var(--ink);font-weight:550}
+  .content{padding:18px 22px 80px;overflow:auto}
+  .page-h{font-size:18px;font-weight:600;margin:2px 0 2px}
+  .page-sub{font-size:13px;color:var(--ink-2);margin-bottom:14px}
+  /* summary tiles */
+  .tiles{display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+  .tile{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:11px 16px;min-width:118px}
+  .tile .n{font-size:21px;font-weight:650}
+  .tile .l{font-size:11.5px;color:var(--ink-2);margin-top:1px}
+  /* dot */
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 auto}
+  .up{background:var(--green)} .down{background:var(--red)} .warn{background:var(--amber)} .unk{background:var(--ink-3)}
+  /* cards grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:13px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:border-color .1s,box-shadow .1s}
+  .card:hover{border-color:var(--border-2);box-shadow:0 1px 4px rgba(0,0,0,.05)}
+  .card-h{display:flex;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid var(--border)}
+  .card-h .nm{font-weight:600;font-size:14px}
+  .card-h .meta{margin-left:auto;color:var(--ink-3)}
+  .card-b{display:flex;gap:16px;padding:9px 14px;font-size:12.5px;color:var(--ink-2)}
+  .card-b b{color:var(--ink);font-weight:600}
+  .mini{display:flex;gap:5px;align-items:center}
+  .metrics{display:flex;gap:16px;padding:9px 14px;border-top:1px solid var(--border);flex-wrap:wrap}
+  .m{display:flex;gap:6px;align-items:center;font-size:12px}
+  .mk{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:600}
+  .mbar{height:5px;width:62px;background:var(--active);border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle}
+  .mbar>i{display:block;height:100%;background:var(--blue)}
+  .mbar.warn>i{background:var(--amber)} .mbar.crit>i{background:var(--red)}
+  td .mbar{width:52px}
+  /* badge (frappe-ui subtle pill) */
+  .badge{font-size:11.5px;font-weight:500;padding:2px 8px;border-radius:5px;display:inline-flex;gap:5px;align-items:center;line-height:1.5}
+  .badge.green{background:var(--green-bg);color:var(--green)}
+  .badge.red{background:var(--red-bg);color:var(--red)}
+  .badge.gray{background:var(--active);color:var(--ink-2)}
+  .badge.amber{background:var(--amber-bg);color:var(--amber)}
+  /* list/table (frappe-ui ListView) */
+  .toolbar{display:flex;align-items:center;gap:8px;margin:16px 0 9px}
+  .toolbar .ttl{font-weight:600;font-size:13.5px;margin-right:auto;display:flex;gap:8px;align-items:center}
+  .btn{background:var(--panel);border:1px solid var(--border-2);color:var(--ink);border-radius:var(--radius);padding:5px 11px;font-size:12.5px;cursor:pointer;font-family:var(--font);display:inline-flex;gap:6px;align-items:center}
+  .btn:hover{background:var(--hover)}
+  .btn.solid{background:var(--solid);color:#fff;border-color:var(--solid)}
+  .btn.solid:hover{opacity:.9}
+  table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  th,td{padding:9px 14px;text-align:left;border-bottom:1px solid var(--border);font-size:13px}
+  th{font-size:11.5px;color:var(--ink-2);font-weight:550;background:#fafbfb}
+  tr:last-child td{border-bottom:none}
+  tr.row{cursor:pointer} tr.row:hover{background:var(--hover)}
+  .rowact{display:flex;gap:5px;opacity:0}
+  tr.row:hover .rowact{opacity:1}
+  .iact{background:var(--panel);border:1px solid var(--border-2);color:var(--ink-2);border-radius:5px;width:25px;height:25px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+  .iact:hover{background:var(--hover);color:var(--ink)}
+  .sec-h{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:600;margin:24px 0 9px}
+  .hint{background:var(--amber-bg);border:1px solid #f3dcc0;border-radius:var(--radius);padding:9px 13px;font-size:12.5px;color:#7a4a12;margin:8px 0;display:flex;gap:8px;align-items:center}
+  .link{color:var(--blue);cursor:pointer;font-size:12.5px}
+  .link:hover{text-decoration:underline}
+  /* log drawer */
+  .scrim{position:fixed;inset:0;background:rgba(20,22,25,.35);opacity:0;pointer-events:none;transition:.15s;z-index:40}
+  .scrim.open{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:min(620px,92vw);background:var(--panel);border-left:1px solid var(--border);transform:translateX(100%);transition:transform .18s;z-index:50;display:flex;flex-direction:column;box-shadow:-4px 0 24px rgba(0,0,0,.08)}
+  .drawer.open{transform:translateX(0)}
+  .dh{display:flex;align-items:center;gap:9px;padding:13px 16px;border-bottom:1px solid var(--border)}
+  .dh b{font-size:14px} .dh .x{margin-left:auto;background:none;border:none;color:var(--ink-3);font-size:20px;cursor:pointer;line-height:1}
+  .dfiles{display:flex;gap:6px;padding:9px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center}
+  .dfiles .lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3)}
+  .chip{font-size:11.5px;padding:3px 9px;border-radius:5px;border:1px solid var(--border-2);background:var(--panel);color:var(--ink-2);cursor:pointer;font-family:var(--mono)}
+  .chip.on{background:var(--active);color:var(--ink);border-color:var(--border-2)}
+  .chip.ext{opacity:.45;cursor:not-allowed}
+  .dact{display:flex;gap:7px;padding:11px 16px;border-bottom:1px solid var(--border)}
+  .logbody{flex:1;overflow:auto;padding:11px 16px;font-family:var(--mono);font-size:12px;line-height:1.7;background:#fcfcfd}
+  .logline{display:flex;gap:10px;white-space:pre-wrap}
+  .lt{color:var(--ink-3)} .lv{width:42px;font-weight:600}
+  .lv.ERR{color:var(--red)} .lv.WARN{color:var(--amber)} .lv.INFO{color:var(--green)}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- sidebar (frappe-ui) -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">AS</div>
+      <div style="min-width:0">
+        <div class="nm">Accurate Systems</div>
+        <div class="em">eslam@sanadeoi.com</div>
+      </div>
+      <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <nav>
+      <div class="nav-item" data-i="sites"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg></span>Sites</div>
+      <div class="nav-item" data-i="benches"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M4 12h16M4 17h16"/></svg></span>Benches</div>
+      <div class="nav-item" data-i="servers"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="7" rx="1"/><rect x="3" y="13" width="18" height="7" rx="1"/></svg></span>Servers</div>
+      <div class="nav-item active" data-i="infra"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></span>Infrastructure</div>
+      <div class="nav-item" data-i="market"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l1-5h16l1 5M4 9v11h16V9M9 13h6"/></svg></span>Marketplace</div>
+      <div class="nav-sec">Account</div>
+      <div class="nav-item" data-i="settings"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.3 2.4a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L3 11a7 7 0 0 0 0 2l-2 1.6 2 3.5 2.4-1a7 7 0 0 0 1.7 1l.3 2.4h5l.3-2.4a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.6a7 7 0 0 0 .1-1z"/></svg></span>Settings</div>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb" id="crumb"></div>
+      <div class="right">
+        <div class="seg" id="viewseg" style="display:none">
+          <button id="vCards" class="on" onclick="setView('card')">Cards</button>
+          <button id="vList" onclick="setView('list')">List</button>
+        </div>
+        <div class="live"><span class="pulse"></span> Auto-refresh 12s</div>
+      </div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="dh"><span class="dot down" id="dwDot"></span><b id="dwTitle">service</b><button class="x" onclick="closeDrawer()">&times;</button></div>
+  <div class="dfiles" id="dwFiles"></div>
+  <div class="dact">
+    <button class="btn solid" onclick="act('restart')">Restart</button>
+    <button class="btn" onclick="act('start')">Start</button>
+    <button class="btn" onclick="act('stop')">Stop</button>
+    <span class="mono" id="dwMeta" style="margin-left:auto;align-self:center;color:var(--ink-3);font-size:11.5px"></span>
+  </div>
+  <div class="logbody" id="logbody"></div>
+</aside>
+
+<script>
+const DATA = {
+  servers:[
+    {id:'press-f1',name:'press-f1',ip:'89.167.57.21',cluster:'Frankfurt',health:'down',cpu:34,mem:46,memUsed:'10.5',memTotal:'23G',disk:58},
+    {id:'press-ctrl',name:'press-ctrl',ip:'89.167.116.92',cluster:'Frankfurt',health:'warn',cpu:18,mem:49,memUsed:'7.8',memTotal:'16G',disk:69},
+    {id:'u4',name:'u4-default',ip:'157.90.244.216',cluster:'Bahrain',health:'up',cpu:12,mem:32,memUsed:'5.1',memTotal:'16G',disk:44},
+    {id:'u5',name:'u5-default',ip:'46.224.170.58',cluster:'KSA',health:'up',cpu:27,mem:88,memUsed:'14.1',memTotal:'16G',disk:51},
+  ],
+  benches:{
+    'press-f1':[
+      {id:'bench-0022-000037',name:'bench-0022-000037',group:'eltarak',health:'down',sites:1,svcUp:6,svcDown:1,cpu:9,mem:35,memUsed:'1.4',memTotal:'4G'},
+      {id:'bench-0011-000195',name:'bench-0011-000195',group:'roseline',health:'up',sites:3,svcUp:7,svcDown:0,cpu:21,mem:73,memUsed:'2.9',memTotal:'4G'},
+      {id:'bench-0023-000108',name:'bench-0023-000108',group:'dmg',health:'up',sites:1,svcUp:7,svcDown:0,cpu:6,mem:28,memUsed:'1.1',memTotal:'4G'},
+      {id:'bench-0028-000088',name:'bench-0028-000088',group:'wazin',health:'up',sites:1,svcUp:7,svcDown:0,cpu:8,mem:33,memUsed:'1.3',memTotal:'4G'},
+    ],
+    'press-ctrl':[{id:'demo-bench',name:'demo.mvpstorm.com',group:'press-dashboard',health:'up',sites:1,svcUp:7,svcDown:0,cpu:5,mem:22,memUsed:'0.9',memTotal:'4G'}],
+    'u4':[{id:'bench-0007-u4',name:'bench-0007-000006',group:'client-a',health:'up',sites:2,svcUp:7,svcDown:0,cpu:11,mem:40,memUsed:'1.6',memTotal:'4G'}],
+    'u5':[{id:'bench-0014-u5',name:'bench-0014-000007',group:'client-b',health:'up',sites:2,svcUp:7,svcDown:0,cpu:14,mem:55,memUsed:'2.2',memTotal:'4G'}],
+  },
+  bench:{
+    'bench-0022-000037':{
+      services:[
+        {name:'frappe-web',kind:'gunicorn web',state:'run',uptime:'2h 14m',pid:'72637'},
+        {name:'node-socketio',kind:'realtime',state:'run',uptime:'2h 14m',pid:'72638'},
+        {name:'frappe-schedule',kind:'scheduler',state:'run',uptime:'2h 14m',pid:'72662'},
+        {name:'frappe-short-worker',kind:'worker',state:'run',uptime:'2h 14m',pid:'72749'},
+        {name:'frappe-long-worker',kind:'worker',state:'run',uptime:'2h 14m',pid:'72752'},
+        {name:'redis-cache',kind:'redis :13021',state:'run',uptime:'2h 14m',pid:'73442'},
+        {name:'redis-queue',kind:'redis :11021',state:'stop',uptime:'-',pid:'-'},
+      ],
+      sites:[{name:'eltarak-app.sandbox.mvpstorm.com',status:'Active',http:'200',db:'1.4 GB',files:'320 MB',reqs:'42/min'}],
+    },
+    'bench-0011-000195':{
+      services:[
+        {name:'frappe-web',kind:'gunicorn web',state:'run',uptime:'9h 02m',pid:'41011'},
+        {name:'node-socketio',kind:'realtime',state:'run',uptime:'9h 02m',pid:'41012'},
+        {name:'frappe-schedule',kind:'scheduler',state:'run',uptime:'9h 02m',pid:'41020'},
+        {name:'frappe-short-worker',kind:'worker',state:'run',uptime:'9h 02m',pid:'41049'},
+        {name:'frappe-long-worker',kind:'worker',state:'run',uptime:'9h 02m',pid:'41050'},
+        {name:'redis-cache',kind:'redis :13011',state:'run',uptime:'9h 02m',pid:'41100'},
+        {name:'redis-queue',kind:'redis :11011',state:'run',uptime:'9h 02m',pid:'41101'},
+      ],
+      sites:[
+        {name:'roseline-erpsys.sandbox.mvpstorm.com',status:'Active',http:'200',db:'3.1 GB',files:'1.2 GB',reqs:'88/min'},
+        {name:'newjacquard.sandbox.mvpstorm.com',status:'Active',http:'200',db:'640 MB',files:'210 MB',reqs:'12/min'},
+        {name:'roseline-stg.sandbox.mvpstorm.com',status:'Active',http:'200',db:'2.8 GB',files:'900 MB',reqs:'3/min'},
+      ],
+    },
+  },
+  logs:{
+    'redis-queue.log':[['10:48:21','ERR','Could not create server TCP listening socket 127.0.0.1:11021: bind: Address already in use'],['10:48:21','ERR','Failed listening on port 11021 (tcp), aborting.'],['10:48:21','WARN','redis-queue exited with code 1'],['10:48:24','INFO','supervisor: redis-queue entered FATAL state, too many start retries']],
+    'worker.log':[['10:50:10','INFO','rq worker started, listening on short, default'],['10:50:12','INFO','default: frappe.email.queue.flush executed in 0.21s']],
+    'worker.error.log':[['10:49:58','ERR','ConnectionError: Error 111 connecting to 127.0.0.1:11021. Connection refused.'],['10:49:58','WARN','job moved to failed registry: send_weekly_digest']],
+    'web.error.log':[['10:50:10','INFO','Booting worker with pid: 72686'],['10:50:11','INFO','request GET / 200 14ms']],
+    'redis-cache.log':[['10:50:00','INFO','Background saving terminated with success']],
+    'scheduler.log':[['10:50:00','INFO','scheduler: enqueued 4 events']],
+    'default':[['10:50:10','INFO','no formatter, raw tail']],
+  },
+};
+const LOGFILES={'redis-cache':['redis-cache.log'],'redis-queue':['redis-queue.log'],'frappe-schedule':['scheduler.log'],'frappe-web':['web.error.log'],'frappe-short-worker':['worker.log','worker.error.log'],'frappe-long-worker':['worker.log','worker.error.log'],'node-socketio':['node-socketio.log']};
+const EXT=['journalctl (agent ext)','docker logs (agent ext)'];
+let path={server:null,bench:null},curSvc=null,viewMode='card';
+
+function bar(p){const c=p>=90?'crit':p>=75?'warn':'';return `<span class="mbar ${c}"><i style="width:${p}%"></i></span>`;}
+function setView(m){viewMode=m;document.getElementById('vCards').className=m==='card'?'on':'';document.getElementById('vList').className=m==='list'?'on':'';render();}
+function go(s,b){path={server:s,bench:b};closeDrawer();render();document.querySelector('.content').scrollTo(0,0);}
+
+function crumb(){
+  let h=`<a onclick="go(null,null)">Infrastructure</a>`;
+  if(path.server) h+=`<span class="sep">/</span>`+(path.bench?`<a onclick="go('${path.server}',null)">${path.server}</a>`:`<span class="cur">${path.server}</span>`);
+  if(path.bench) h+=`<span class="sep">/</span><span class="cur">${path.bench}</span>`;
+  document.getElementById('crumb').innerHTML=h;
+  document.getElementById('viewseg').style.display=path.bench?'none':'inline-flex';
+}
+function render(){
+  crumb();
+  const c=document.getElementById('content');
+  if(!path.server) c.innerHTML=renderServers();
+  else if(!path.bench) c.innerHTML=renderBenches(path.server);
+  else c.innerHTML=renderBench(path.bench);
+}
+function summaryTiles(){
+  const b=Object.values(DATA.benches).flat();
+  const su=b.reduce((a,x)=>a+x.svcUp,0),sd=b.reduce((a,x)=>a+x.svcDown,0),aff=b.filter(x=>x.health==='down').length;
+  return `<div class="tiles">
+    <div class="tile"><div class="n">${DATA.servers.length}</div><div class="l">Servers</div></div>
+    <div class="tile"><div class="n">${b.length}</div><div class="l">Benches</div></div>
+    <div class="tile"><div class="n" style="color:var(--green)">${su}</div><div class="l">Services up</div></div>
+    <div class="tile"><div class="n" style="color:var(--red)">${sd}</div><div class="l">Services down</div></div>
+    <div class="tile"><div class="n" style="color:${aff?'var(--red)':'var(--green)'}">${aff}</div><div class="l">Benches affected</div></div></div>`;
+}
+function renderServers(){
+  const head=`<div class="page-h">Infrastructure</div><div class="page-sub">Live health across all servers, benches, and services. Click through to find and fix an issue.</div>`+summaryTiles();
+  const cards=`<div class="grid">`+DATA.servers.map(s=>{
+    const bs=DATA.benches[s.id]||[];const down=bs.filter(b=>b.health==='down').length;
+    return `<div class="card" onclick="go('${s.id}',null)">
+      <div class="card-h"><span class="dot ${s.health}"></span><span class="nm">${s.name}</span><span class="meta mono">${s.ip}</span></div>
+      <div class="card-b"><span class="mini"><b>${bs.length}</b> benches</span>
+        <span class="mini">${down?`<span class="dot down"></span><b style="color:var(--red)">${down} affected</b>`:`<span class="dot up"></span> healthy`}</span>
+        <span class="mini">${s.cluster}</span></div>
+      <div class="metrics"><span class="m"><span class="mk">CPU</span> ${s.cpu}% ${bar(s.cpu)}</span><span class="m"><span class="mk">Mem</span> ${s.memUsed}/${s.memTotal} ${bar(s.mem)}</span><span class="m"><span class="mk">Disk</span> ${s.disk}% ${bar(s.disk)}</span></div></div>`;
+  }).join('')+`</div>`;
+  const rows=DATA.servers.map(s=>{const bs=DATA.benches[s.id]||[];const down=bs.filter(b=>b.health==='down').length;
+    return `<tr class="row" onclick="go('${s.id}',null)"><td><span class="dot ${s.health}"></span></td><td><b>${s.name}</b></td><td class="mono">${s.ip}</td><td>${s.cluster}</td><td>${bs.length}</td>
+      <td><span class="mono">${s.cpu}%</span> ${bar(s.cpu)}</td><td><span class="mono">${s.mem}%</span> ${bar(s.mem)}</td><td><span class="mono">${s.disk}%</span> ${bar(s.disk)}</td>
+      <td>${down?`<span class="badge red">${down} affected</span>`:`<span class="badge green">healthy</span>`}</td></tr>`;}).join('');
+  const list=`<table><tr><th></th><th>Server</th><th>IP</th><th>Region</th><th>Benches</th><th>CPU</th><th>Mem</th><th>Disk</th><th>Health</th></tr>${rows}</table>`;
+  return head+`<div class="toolbar"><span class="ttl">Servers (${DATA.servers.length})</span></div>`+(viewMode==='card'?cards:list);
+}
+function renderBenches(sid){
+  const bs=DATA.benches[sid]||[];
+  const head=`<div class="page-h">${sid}</div><div class="page-sub"><span class="link" onclick="alert('[prototype] opens the existing Analytics tab (ServerCharts.vue)')">View analytics history</span> &nbsp;&middot;&nbsp; <span class="link" onclick="alert('[prototype] opens the existing Server Actions tab (reboot / rename / resize)')">Server actions</span></div>`;
+  const cards=`<div class="grid">`+bs.map(b=>`<div class="card" onclick="go('${sid}','${b.id}')">
+    <div class="card-h"><span class="dot ${b.health}"></span><span class="nm">${b.name}</span><span class="meta mono">${b.group}</span></div>
+    <div class="card-b"><span class="mini">${b.svcDown?`<span class="dot down"></span><b style="color:var(--red)">${b.svcDown} svc down</b>`:`<span class="dot up"></span> ${b.svcUp} up`}</span><span class="mini"><b>${b.sites}</b> sites</span></div>
+    <div class="metrics"><span class="m"><span class="mk">CPU</span> ${b.cpu}% ${bar(b.cpu)}</span><span class="m"><span class="mk">Mem</span> ${b.memUsed}/${b.memTotal} ${bar(b.mem)}</span></div></div>`).join('')+`</div>`;
+  const rows=bs.map(b=>`<tr class="row" onclick="go('${sid}','${b.id}')"><td><span class="dot ${b.health}"></span></td><td><b>${b.name}</b></td><td class="mono">${b.group}</td>
+    <td>${b.svcDown?`<span class="badge red">${b.svcDown} down</span>`:`<span class="badge green">${b.svcUp} up</span>`}</td><td><span class="mono">${b.cpu}%</span> ${bar(b.cpu)}</td><td><span class="mono">${b.mem}%</span> ${bar(b.mem)}</td><td>${b.sites}</td></tr>`).join('');
+  const list=`<table><tr><th></th><th>Bench</th><th>Group</th><th>Services</th><th>CPU</th><th>Mem</th><th>Sites</th></tr>${rows}</table>`;
+  return head+`<div class="toolbar"><span class="ttl">Benches (${bs.length})</span></div>`+(viewMode==='card'?cards:list);
+}
+function badge(st){if(st==='run')return `<span class="badge green"><span class="dot up"></span>running</span>`;if(st==='stop')return `<span class="badge red"><span class="dot down"></span>stopped</span>`;return `<span class="badge red"><span class="dot down"></span>exited (2)</span>`;}
+function renderBench(bid){
+  const d=DATA.bench[bid]||DATA.bench['bench-0011-000195'];
+  const hasDown=d.services.some(s=>s.state!=='run');
+  const svc=d.services.map(s=>`<tr class="row" onclick="openLog('${s.name}','${bid}',event)"><td><span class="dot ${s.state==='run'?'up':'down'}"></span> ${s.name}</td><td class="mono">${s.kind}</td><td>${badge(s.state)}</td><td class="mono">${s.uptime}</td><td class="mono">${s.pid}</td>
+    <td><div class="rowact" onclick="event.stopPropagation()"><button class="iact" title="Restart" onclick="act('restart')">&#10227;</button><button class="iact" title="Stop" onclick="act('stop')">&#9632;</button><button class="iact" title="Log" onclick="openLog('${s.name}','${bid}',event)">&#9776;</button></div></td></tr>`).join('');
+  const sites=d.sites.map(si=>`<tr><td><span class="dot up"></span> ${si.name}</td><td><span class="badge green">${si.status}</span></td><td class="mono">HTTP ${si.http}</td><td class="mono">${si.db}</td><td class="mono">${si.files}</td><td class="mono">${si.reqs}</td></tr>`).join('');
+  return `<div class="page-h">${bid}</div><div class="page-sub"><span class="link" onclick="alert('[prototype] opens existing Bench Analytics (ReleaseGroupCharts.vue)')">Bench analytics</span></div>
+    ${hasDown?`<div class="hint"><span class="dot down"></span> A service on this bench is down. Click the red row to read its log, then Restart it inline.</div>`:''}
+    <div class="toolbar"><span class="ttl"><span class="dot ${hasDown?'down':'up'}"></span> Services (${d.services.length})</span><button class="btn">Restart web only</button><button class="btn solid">Restart bench</button></div>
+    <table><tr><th>Service</th><th>Type</th><th>State</th><th>Uptime</th><th>PID</th><th></th></tr>${svc}</table>
+    <div class="sec-h">Sites on this bench (${d.sites.length})</div>
+    <table><tr><th>Site</th><th>Status</th><th>Check</th><th>DB size</th><th>Files</th><th>Requests</th></tr>${sites}</table>`;
+}
+function openLog(svc,bid,ev){if(ev)ev.stopPropagation();curSvc=svc;
+  const down=DATA.bench[bid]&&DATA.bench[bid].services.find(s=>s.name===svc&&s.state!=='run');
+  document.getElementById('dwDot').className='dot '+(down?'down':'up');
+  document.getElementById('dwTitle').textContent=svc;document.getElementById('dwMeta').textContent=bid;
+  const files=LOGFILES[svc]||[svc+'.log'];
+  document.getElementById('dwFiles').innerHTML=`<span class="lbl">log files</span>`+files.map((f,i)=>`<span class="chip ${i===0?'on':''}" onclick="loadLog('${f}',this)">${f}</span>`).join('')+EXT.map(f=>`<span class="chip ext" title="needs bench.logs extension via the Press Agent">${f}</span>`).join('');
+  loadLog(files[0]);
+  document.getElementById('drawer').classList.add('open');document.getElementById('scrim').classList.add('open');
+}
+function loadLog(f,el){if(el){document.querySelectorAll('#dwFiles .chip').forEach(c=>c.classList.remove('on'));el.classList.add('on');}
+  const lines=DATA.logs[f]||DATA.logs['default'];
+  document.getElementById('logbody').innerHTML=lines.map(l=>`<div class="logline"><span class="lt">${l[0]}</span><span class="lv ${l[1]}">${l[1]}</span><span>${l[2]}</span></div>`).join('');}
+function closeDrawer(){document.getElementById('drawer').classList.remove('open');document.getElementById('scrim').classList.remove('open');}
+function act(v){alert('[prototype] would call: press.api.bench.service_action\\n'+v+' '+(curSvc||'service')+'\\n(Plan 1 backend, already shipped)');}
+render();
+</script>
+</body>
+</html>
