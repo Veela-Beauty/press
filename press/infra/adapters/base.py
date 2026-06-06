@@ -18,3 +18,8 @@ def log_infra_action(host: str, unit: str, action: str, outcome: str, detail: st
 			"detail": detail,
 		}
 	).insert(ignore_permissions=True)
+	# Durability (R5): commit the audit row in its own right so a later rollback
+	# of the control request cannot erase the record of the attempt. Control
+	# actions are external (Docker API / SSH), so there is no pending DB write
+	# this would wrongly commit.
+	frappe.db.commit()

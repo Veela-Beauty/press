@@ -28,6 +28,11 @@ class TestManagedHost(FrappeTestCase):
 		doc.delete()
 
 
+	def test_rejects_unsafe_host_name(self):
+		with self.assertRaises(frappe.ValidationError):
+			frappe.get_doc({"doctype": "Managed Host", "host_name": "bad name!", "ssh_host": "10.0.0.1", "ssh_user": "x", "server_type": "docker"}).insert()
+
+
 class TestAudit(FrappeTestCase):
 	def setUp(self):
 		frappe.set_user("Administrator")
@@ -41,4 +46,28 @@ class TestAudit(FrappeTestCase):
 		self.assertEqual(row.action, "restart")
 		self.assertEqual(row.outcome, "success")
 		self.assertEqual(row.actor, "Administrator")
-		row.delete()
+		frappe.delete_doc("Infra Action Log", row.name)
+		frappe.db.commit()
+
+	def test_actor_is_the_acting_user(self):
+		from press.infra.adapters.base import log_infra_action
+
+		frappe.set_user("Guest")
+		try:
+			log_infra_action(host="h2", unit="u2", action="stop", outcome="success")
+			row = frappe.get_last_doc("Infra Action Log")
+			self.assertEqual(row.actor, "Guest")
+		finally:
+			frappe.set_user("Administrator")
+		frappe.delete_doc("Infra Action Log", row.name)
+		frappe.db.commit()
+
+	def test_failed_outcome_survives_rollback(self):
+		from press.infra.adapters.base import log_infra_action
+
+		log_infra_action(host="h3", unit="u3", action="kill", outcome="error", detail="boom")
+		name = frappe.get_last_doc("Infra Action Log").name
+		frappe.db.rollback()
+		self.assertTrue(frappe.db.exists("Infra Action Log", name))  # durable
+		frappe.delete_doc("Infra Action Log", name)
+		frappe.db.commit()
