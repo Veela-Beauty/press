@@ -23,23 +23,37 @@ class SshPlainAdapter(Adapter):
 		"""
 		identity = host.get("ssh_identity")  # Gate 0 fills this (ssh_ca signed cert); None in v1
 		ident_opts = ["-i", identity] if identity else []
+		# ControlMaster multiplexing: a 15s-polled tree re-uses one connection
+		# per host for 30s instead of a fresh handshake on every probe.
+		ctl = f"/tmp/sanad-infra-{host.ssh_user}@{host.ssh_host}:{host.ssh_port or 22}.sock"
 		cmd = ["ssh", *ident_opts,
 			"-o", "StrictHostKeyChecking=accept-new", "-o", "BatchMode=yes",
+			"-o", "ControlMaster=auto", "-o", f"ControlPath={ctl}", "-o", "ControlPersist=30s",
 			"-p", str(host.ssh_port or 22), f"{host.ssh_user}@{host.ssh_host}", remote_cmd]
 		r = subprocess.run(cmd, capture_output=True, text=True, timeout=12)
 		return r.stdout.strip()
 
 	def enumerate(self, host) -> dict:
-		systemctl = self._ssh(host, "systemctl list-units --type=service,timer --no-legend --plain")
-		disk = self._ssh(host, "df --output=pcent / | tail -1 | tr -dc 0-9")
-		mem = self._ssh(host, "free | awk '/Mem:/{printf \"%d\", $3/$2*100}'")
-		cpu = self._ssh(host, "awk '{printf \"%d\", $1*25}' /proc/loadavg")
+		# ONE round-trip: systemd units + disk%/mem%/cpu split on a marker.
+		# The marker is single-quoted so the shell echoes it literally (a bare
+		# echo ##B## would treat ## as a comment).
+		probe = (
+			"systemctl list-units --type=service,timer --no-legend --plain; echo '##B##'; "
+			"df --output=pcent / | tail -1 | tr -dc 0-9; echo '##B##'; "
+			"free | awk '/Mem:/{printf \"%d\", $3/$2*100}'; echo '##B##'; "
+			"awk '{printf \"%d\", $1*25}' /proc/loadavg"
+		)
+		parts = (self._ssh(host, probe) or "").split("##B##")
+		systemctl = parts[0] if len(parts) > 0 else ""
+		disk = parts[1].strip() if len(parts) > 1 else ""
+		mem = parts[2].strip() if len(parts) > 2 else ""
+		cpu = parts[3].strip() if len(parts) > 3 else ""
 		units = []
-		for line in (systemctl or "").splitlines():
-			parts = line.split()
-			if len(parts) < 4:
+		for line in systemctl.splitlines():
+			cols = line.split()
+			if len(cols) < 4:
 				continue
-			name, active = parts[0], parts[2]
+			name, active = cols[0], cols[2]
 			units.append({"name": name, "kind": "systemd", "sub": "systemd",
 				"state": "active" if active == "active" else "down",
 				"uptime": "-", "restarts": 0, "ports": "-", "health": "-", "pid": "-"})

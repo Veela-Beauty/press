@@ -140,10 +140,12 @@ def _enumerate_managed(host) -> dict:
 	from press.infra.adapters.base import get_adapter
 
 	try:
-		return get_adapter(host).enumerate(host)
+		out = get_adapter(host).enumerate(host)
+		out.setdefault("reach", "ok")
+		return out
 	except Exception:
 		frappe.log_error(frappe.get_traceback(), f"infra enumerate failed: {host.host_name}")
-		return {"units": [], "metrics": {"cpu": 0, "mem": 0, "disk": 0, "req": 0}}
+		return {"units": [], "metrics": {"cpu": 0, "mem": 0, "disk": 0, "req": 0}, "reach": "fail"}
 
 
 def _overload(m: dict):
@@ -163,7 +165,7 @@ def _build_tree() -> dict:
 			"benches": [],
 			"units": units, "metrics": en["metrics"], "overload": overload,
 			"host": {"server": h.host_name},
-			"health": ("unknown" if h.status == "Unreachable" else "down" if (down or overload == "crit") else "up"),
+			"health": ("unknown" if (h.status == "Unreachable" or en.get("reach") == "fail") else "down" if (down or overload == "crit") else "up"),
 		})
 	return {"servers": servers}
 

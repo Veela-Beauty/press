@@ -118,9 +118,10 @@ class TestSshPlain(FrappeTestCase):
 
 		host = frappe._dict(host_name="storage-1", ssh_host="10.0.0.5", ssh_user="sanad", ssh_port=22, server_type="plain")
 		systemctl_out = "sshd.service loaded active running\nborgmatic.timer loaded active waiting\nfail2ban.service loaded failed failed"
-		df_out = "13"  # disk percent
+		# enumerate now issues ONE compound _ssh call; output is marker-joined
+		combined = systemctl_out + "\n##B##\n13\n##B##\n8\n##B##\n3"
 		ad = SshPlainAdapter()
-		with patch.object(ad, "_ssh", side_effect=[systemctl_out, df_out, "8", "3"]):
+		with patch.object(ad, "_ssh", return_value=combined):
 			out = ad.enumerate(host)
 
 		names = {u["name"] for u in out["units"]}
@@ -265,3 +266,15 @@ class TestMergedTree(FrappeTestCase):
 		self.assertEqual(node["server_type"], "docker")
 		self.assertEqual(node["overload"], "crit")  # mem 92 -> crit
 		self.assertEqual(node["health"], "down")     # a container is stopped
+
+	def test_managed_enumerate_failure_is_unknown(self):
+		from press.api import infra_board
+
+		host = frappe._dict(host_name="acc-2", server_type="plain", status="Active")
+		failed = {"units": [], "metrics": {"cpu": 0, "mem": 0, "disk": 0, "req": 0}, "reach": "fail"}
+		with patch.object(infra_board, "_press_servers", return_value=[]), patch.object(
+			infra_board, "_managed_hosts", return_value=[host]
+		), patch.object(infra_board, "_enumerate_managed", return_value=failed):
+			tree = infra_board._build_tree()
+		node = next(s for s in tree["servers"] if s["name"] == "acc-2")
+		self.assertEqual(node["health"], "unknown")
