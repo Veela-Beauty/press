@@ -61,14 +61,16 @@
 
       <template v-else>
         <!-- LEVEL 1: server/host list -->
-        <ServerList
-          v-if="!path.server"
-          :nav="nav"
-          :nodes="navNodes"
-          :view="view"
-          @drill="drill"
-          @add="onAdd"
-        />
+        <template v-if="!path.server">
+          <NeedsAttention v-if="nav === 'infra'" :nodes="navNodes" class="mb-4" @view="drill" />
+          <ServerList
+            :nav="nav"
+            :nodes="navNodes"
+            :view="view"
+            @drill="drill"
+            @add="onAdd"
+          />
+        </template>
 
         <!-- LEVEL 2: host detail -->
         <div v-else-if="!path.group" class="space-y-3">
@@ -107,6 +109,7 @@ import { Button } from 'frappe-ui';
 import { useInfraTree } from './infra-api';
 import { partition } from './infra-derive';
 import ServerList from './ServerList.vue';
+import NeedsAttention from './NeedsAttention.vue';
 import HostDetail from './HostDetail.vue';
 import UnitDrawer from './UnitDrawer.vue';
 
