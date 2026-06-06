@@ -99,6 +99,13 @@
       @close="drawerUnit = null"
       @reload="tree.reload()"
     />
+
+    <!-- Add-host wizard (Task 9) -->
+    <AddHostWizard
+      :open="wizardOpen"
+      @close="wizardOpen = false"
+      @added="tree.reload()"
+    />
   </div>
 </template>
 
@@ -112,6 +119,7 @@ import ServerList from './ServerList.vue';
 import NeedsAttention from './NeedsAttention.vue';
 import HostDetail from './HostDetail.vue';
 import UnitDrawer from './UnitDrawer.vue';
+import AddHostWizard from './AddHostWizard.vue';
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 const tree = useInfraTree();
@@ -172,9 +180,10 @@ function go(server, group) {
   path.group  = group;
 }
 
-// ─── Stubs (wired in later tasks) ─────────────────────────────────────────────
+// ─── Add-host wizard (Task 9) ─────────────────────────────────────────────────
+const wizardOpen = ref(false);
 function onAdd() {
-  // Task 9: Add host wizard
+  wizardOpen.value = true;
 }
 
 // ─── Unit drawer (wired in Task 7) ────────────────────────────────────────────
