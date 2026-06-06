@@ -31,7 +31,7 @@ class Adapter:
 	  enumerate(host) -> {"units": [unit...], "metrics": {"cpu","mem","disk","req"}}
 	  control(host, unit_id, action) -> {"ok": bool, ...}
 	  logs(host, unit_id, tail) -> list[str]
-	A `unit` is {"name","kind"('service'|'container'),"state","sub","uptime","restarts","ports","health","pid"}.
+	A `unit` is {"name","kind"('service'|'container'|'systemd'),"state","sub","uptime","restarts","ports","health","pid","_id"}.
 	"""
 
 	def enumerate(self, host) -> dict:  # pragma: no cover - interface

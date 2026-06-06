@@ -11,7 +11,7 @@ import frappe
 
 from press.infra.adapters.base import Adapter
 
-_ID_RE = re.compile(r"^[a-f0-9]{12,64}$")
+_ID_RE = re.compile(r"\A[a-f0-9]{12,64}\Z")
 _VERBS = ("start", "stop", "restart", "kill")
 
 
@@ -29,9 +29,21 @@ class SshDockerAdapter(Adapter):
 		state = (c.get("State") or "").lower()
 		status = c.get("Status") or ""
 		if state == "running":
-			return "heal" if "healthy" in status else "run"
+			if "(unhealthy)" in status:
+				return "unhealth"
+			if "(healthy)" in status:
+				return "heal"
+			return "run"
 		if state == "exited":
-			return "exit2" if "(2)" in status else "exit0"
+			m = re.search(r"Exited \((\d+)\)", status)
+			code = int(m.group(1)) if m else 0
+			return "exit0" if code == 0 else "exit2"
+		if state == "restarting":
+			return "restart"
+		if state == "dead":
+			return "dead"
+		if state == "paused":
+			return "pause"
 		return "stop"
 
 	def enumerate(self, host) -> dict:
@@ -63,5 +75,11 @@ class SshDockerAdapter(Adapter):
 	def logs(self, host, unit_id: str, tail: int = 200) -> list:
 		if not _ID_RE.match(unit_id or ""):
 			frappe.throw("Invalid container id", frappe.ValidationError)
-		raw = self._api(host, "GET", f"/containers/{unit_id}/logs?stdout=1&stderr=1&tail={int(tail)}", raw=True)
+		if unit_id not in self._live_ids(host):
+			frappe.throw("Container not found on host", frappe.ValidationError)
+		try:
+			tail_n = max(1, min(int(tail or 200), 5000))
+		except (TypeError, ValueError):
+			frappe.throw("Invalid tail value", frappe.ValidationError)
+		raw = self._api(host, "GET", f"/containers/{unit_id}/logs?stdout=1&stderr=1&tail={tail_n}", raw=True)
 		return (raw or "").splitlines()

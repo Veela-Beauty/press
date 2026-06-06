@@ -189,3 +189,58 @@ class TestSshDocker(FrappeTestCase):
 			res = ad.control(self._host(), "a" * 64, "restart")
 		self.assertTrue(res["ok"])
 		self.assertEqual(posted["path"], "/containers/" + "a" * 64 + "/restart")
+
+	def test_state_unhealthy_not_heal(self):
+		from press.infra.adapters.ssh_docker import SshDockerAdapter
+		ad = SshDockerAdapter()
+		api_list = [{"Id": "a" * 64, "Names": ["/x"], "State": "running", "Status": "Up 5 minutes (unhealthy)"}]
+		with patch.object(ad, "_api", return_value=api_list):
+			out = ad.enumerate(self._host())
+		self.assertEqual(out["units"][0]["state"], "unhealth")
+
+	def test_state_oom_exit_is_error(self):
+		from press.infra.adapters.ssh_docker import SshDockerAdapter
+		ad = SshDockerAdapter()
+		api_list = [{"Id": "a" * 64, "Names": ["/x"], "State": "exited", "Status": "Exited (137) 2m ago"}]
+		with patch.object(ad, "_api", return_value=api_list):
+			out = ad.enumerate(self._host())
+		self.assertEqual(out["units"][0]["state"], "exit2")
+
+	def test_state_restarting(self):
+		from press.infra.adapters.ssh_docker import SshDockerAdapter
+		ad = SshDockerAdapter()
+		api_list = [{"Id": "a" * 64, "Names": ["/x"], "State": "restarting", "Status": "Restarting (1) 3s ago"}]
+		with patch.object(ad, "_api", return_value=api_list):
+			out = ad.enumerate(self._host())
+		self.assertEqual(out["units"][0]["state"], "restart")
+
+	def test_control_rejects_trailing_newline_id(self):
+		from press.infra.adapters.ssh_docker import SshDockerAdapter
+		ad = SshDockerAdapter()
+		with patch.object(ad, "_api", return_value=[{"Id": "a" * 64, "Names": ["/x"]}]):
+			with self.assertRaises(frappe.ValidationError):
+				ad.control(self._host(), "a" * 64 + "\n", "restart")
+
+	def test_logs_rejects_trailing_newline_and_unknown_id(self):
+		from press.infra.adapters.ssh_docker import SshDockerAdapter
+		ad = SshDockerAdapter()
+		with patch.object(ad, "_api", return_value=[{"Id": "a" * 64, "Names": ["/x"]}]):
+			with self.assertRaises(frappe.ValidationError):
+				ad.logs(self._host(), "a" * 64 + "\n")
+			with self.assertRaises(frappe.ValidationError):
+				ad.logs(self._host(), "f" * 64)
+
+	def test_logs_clamps_tail_and_checks_membership(self):
+		from press.infra.adapters.ssh_docker import SshDockerAdapter
+		ad = SshDockerAdapter()
+		captured = {}
+		def fake_api(host, method, path, **kw):
+			if path.startswith("/containers/json"):
+				return [{"Id": "a" * 64, "Names": ["/x"]}]
+			captured["path"] = path
+			return "line1\nline2"
+		with patch.object(ad, "_api", side_effect=fake_api):
+			out = ad.logs(self._host(), "a" * 64, tail=999999)
+		self.assertIn("tail=5000", captured["path"])
+		self.assertEqual(out, ["line1", "line2"])
+
