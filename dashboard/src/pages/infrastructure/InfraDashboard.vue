@@ -70,16 +70,10 @@
           @add="onAdd"
         />
 
-        <!-- LEVEL 2: server / host detail (HostDetail lands in Task 6) -->
+        <!-- LEVEL 2: host detail -->
         <div v-else-if="!path.group" class="space-y-3">
-          <button
-            class="text-sm text-blue-600 hover:underline"
-            @click="go(null, null)"
-          >&larr; Back</button>
-          <div class="rounded-lg border border-gray-200 p-6 text-gray-600">
-            Detail for <span class="font-mono font-medium">{{ path.server }}</span>
-            &mdash; host/unit views land in Task 6 / 7.
-          </div>
+          <button class="text-sm text-blue-600 hover:underline" @click="go(null,null)">&larr; Back</button>
+          <HostDetail :node="current" @openUnit="onOpenUnit" @reload="tree.reload()" />
         </div>
 
         <!-- LEVEL 3: group unit table (UnitTable lands in Task 6) -->
@@ -105,6 +99,7 @@ import { Button } from 'frappe-ui';
 import { useInfraTree } from './infra-api';
 import { partition } from './infra-derive';
 import ServerList from './ServerList.vue';
+import HostDetail from './HostDetail.vue';
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 const tree = useInfraTree();
@@ -168,5 +163,11 @@ function go(server, group) {
 // ─── Stubs (wired in later tasks) ─────────────────────────────────────────────
 function onAdd() {
   // Task 9: Add host wizard
+}
+
+// ─── Unit drawer (wired in Task 7) ────────────────────────────────────────────
+const drawerUnit = ref(null);
+function onOpenUnit(u) {
+  drawerUnit.value = u;
 }
 </script>
