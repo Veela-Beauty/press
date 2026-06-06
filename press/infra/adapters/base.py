@@ -45,10 +45,14 @@ class Adapter:
 
 
 def get_adapter(host) -> "Adapter":
+	"""Return the adapter for a MANAGED host (docker/plain). Press benches are
+	NOT routed here - they are read directly via get_dev_overview_benches /
+	get_processes. This factory is managed-hosts-only by design.
+	"""
 	from press.infra.adapters.ssh_docker import SshDockerAdapter
 	from press.infra.adapters.ssh_plain import SshPlainAdapter
 
-	t = host.server_type
+	t = host.get("server_type")
 	if t == "docker":
 		return SshDockerAdapter()
 	if t == "plain":
