@@ -23,3 +23,34 @@ def log_infra_action(host: str, unit: str, action: str, outcome: str, detail: st
 	# actions are external (Docker API / SSH), so there is no pending DB write
 	# this would wrongly commit.
 	frappe.db.commit()
+
+
+class Adapter:
+	"""Normalized host adapter. Every adapter returns the same shapes so the
+	aggregator and UI never care how a host is read.
+	  enumerate(host) -> {"units": [unit...], "metrics": {"cpu","mem","disk","req"}}
+	  control(host, unit_id, action) -> {"ok": bool, ...}
+	  logs(host, unit_id, tail) -> list[str]
+	A `unit` is {"name","kind"('service'|'container'),"state","sub","uptime","restarts","ports","health","pid"}.
+	"""
+
+	def enumerate(self, host) -> dict:  # pragma: no cover - interface
+		raise NotImplementedError
+
+	def control(self, host, unit_id: str, action: str) -> dict:  # pragma: no cover
+		raise NotImplementedError
+
+	def logs(self, host, unit_id: str, tail: int = 200) -> list:  # pragma: no cover
+		raise NotImplementedError
+
+
+def get_adapter(host) -> "Adapter":
+	from press.infra.adapters.ssh_docker import SshDockerAdapter
+	from press.infra.adapters.ssh_plain import SshPlainAdapter
+
+	t = host.server_type
+	if t == "docker":
+		return SshDockerAdapter()
+	if t == "plain":
+		return SshPlainAdapter()
+	frappe.throw(f"No adapter for server_type {t!r}", frappe.ValidationError)

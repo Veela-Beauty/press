@@ -92,3 +92,21 @@ class TestSshCa(FrappeTestCase):
 		self.assertIn("-n client-prod-1", joined)
 		self.assertIn("-V +8h", joined)
 		self.assertTrue(cert.endswith("-cert.pub"))
+
+
+class TestAdapterFactory(FrappeTestCase):
+	def test_factory_routes_by_type(self):
+		from press.infra.adapters import base
+		from press.infra.adapters.ssh_docker import SshDockerAdapter
+		from press.infra.adapters.ssh_plain import SshPlainAdapter
+
+		dh = frappe._dict(server_type="docker")
+		ph = frappe._dict(server_type="plain")
+		self.assertIsInstance(base.get_adapter(dh), SshDockerAdapter)
+		self.assertIsInstance(base.get_adapter(ph), SshPlainAdapter)
+
+	def test_factory_rejects_unknown(self):
+		from press.infra.adapters import base
+
+		with self.assertRaises(frappe.ValidationError):
+			base.get_adapter(frappe._dict(server_type="quantum"))
