@@ -21,15 +21,20 @@ class SshPlainAdapter(Adapter):
 		until then v1 connects with the default agent identity. The remote
 		forced-command validator re-checks the command server-side.
 		"""
-		identity = host.get("ssh_identity")  # Gate 0 fills this (ssh_ca signed cert); None in v1
-		ident_opts = ["-i", identity] if identity else []
+		identity = host.get("ssh_identity")  # test_connection / Gate 0 sets the signed key
+		cert = host.get("ssh_cert")
+		ident_opts = []
+		if identity:
+			ident_opts += ["-o", "IdentitiesOnly=yes", "-i", identity]
+		if cert:
+			ident_opts += ["-o", f"CertificateFile={cert}"]
 		# ControlMaster multiplexing: a 15s-polled tree re-uses one connection
 		# per host for 30s instead of a fresh handshake on every probe.
 		ctl = f"/tmp/sanad-infra-{host.ssh_user}@{host.ssh_host}:{host.ssh_port or 22}.sock"
 		cmd = ["ssh", *ident_opts,
 			"-o", "StrictHostKeyChecking=accept-new", "-o", "BatchMode=yes",
 			"-o", "ControlMaster=auto", "-o", f"ControlPath={ctl}", "-o", "ControlPersist=30s",
-			"-p", str(host.ssh_port or 22), f"{host.ssh_user}@{host.ssh_host}", remote_cmd]
+			"-p", str(host.ssh_port or 22), "--", f"{host.ssh_user}@{host.ssh_host}", remote_cmd]
 		r = subprocess.run(cmd, capture_output=True, text=True, timeout=12)
 		return r.stdout.strip()
 

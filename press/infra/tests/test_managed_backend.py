@@ -32,6 +32,27 @@ class TestManagedHost(FrappeTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			frappe.get_doc({"doctype": "Managed Host", "host_name": "bad name!", "ssh_host": "10.0.0.1", "ssh_user": "x", "server_type": "docker"}).insert()
 
+	def test_rejects_dash_ssh_user(self):
+		with self.assertRaises(frappe.ValidationError):
+			frappe.get_doc({
+				"doctype": "Managed Host",
+				"host_name": "veela-dashuser",
+				"ssh_host": "10.0.0.9",
+				"ssh_user": "-oProxyCommand=x",
+				"server_type": "docker",
+			}).insert()
+
+	def test_rejects_bad_port(self):
+		with self.assertRaises(frappe.ValidationError):
+			frappe.get_doc({
+				"doctype": "Managed Host",
+				"host_name": "veela-badport",
+				"ssh_host": "10.0.0.9",
+				"ssh_user": "sanad",
+				"ssh_port": 70000,
+				"server_type": "docker",
+			}).insert()
+
 
 class TestAudit(FrappeTestCase):
 	def setUp(self):
