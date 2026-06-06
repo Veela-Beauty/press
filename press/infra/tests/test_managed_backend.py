@@ -278,3 +278,25 @@ class TestMergedTree(FrappeTestCase):
 			tree = infra_board._build_tree()
 		node = next(s for s in tree["servers"] if s["name"] == "acc-2")
 		self.assertEqual(node["health"], "unknown")
+
+
+class TestHostControl(FrappeTestCase):
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_action_routes_to_adapter_and_audits(self):
+		from press.api import infra_board
+
+		host = frappe._dict(host_name="acc-1", server_type="docker")
+		adapter = MagicMock()
+		adapter.control.return_value = {"ok": True}
+		with patch("press.api.infra_board.frappe.only_for"), patch.object(
+			infra_board, "_managed_doc", return_value=host
+		), patch("press.infra.adapters.base.get_adapter", return_value=adapter):
+			res = infra_board.host_unit_action("acc-1", "a" * 64, "restart")
+
+		self.assertTrue(res["ok"])
+		adapter.control.assert_called_once_with(host, "a" * 64, "restart")
+		row = frappe.get_last_doc("Infra Action Log")
+		self.assertEqual(row.action, "restart")
+		row.delete()

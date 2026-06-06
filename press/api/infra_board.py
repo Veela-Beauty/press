@@ -186,3 +186,36 @@ def get_infra_tree() -> dict:
 	tree = _build_tree()
 	frappe.cache().set_value(CACHE_KEY, json.dumps(tree), expires_in_sec=CACHE_TTL)
 	return tree
+
+
+def _managed_doc(host_name: str):
+	return frappe.get_doc("Managed Host", host_name)
+
+
+@frappe.whitelist()
+def host_unit_action(host: str, unit_id: str, action: str) -> dict:
+	"""Start/stop/restart/kill a unit on a managed host. System-Manager only;
+	the adapter validates the action allowlist + the unit against live state;
+	every call is audited (R5/R6)."""
+	frappe.only_for("System Manager")
+	from press.infra.adapters.base import get_adapter, log_infra_action
+
+	doc = _managed_doc(host)
+	try:
+		res = get_adapter(doc).control(doc, unit_id, action)
+		log_infra_action(host=host, unit=unit_id, action=action, outcome="success")
+		return res
+	except Exception as e:
+		log_infra_action(host=host, unit=unit_id, action=action, outcome="error", detail=str(e))
+		raise
+
+
+@frappe.whitelist()
+def get_host_log(host: str, unit_id: str, tail: int = 200) -> list:
+	"""Tail a unit's log on a managed host (docker logs / journalctl)."""
+	frappe.only_for("System Manager")
+	from press.infra.adapters.base import get_adapter, log_infra_action
+
+	doc = _managed_doc(host)
+	log_infra_action(host=host, unit=unit_id, action="logs", outcome="read")
+	return get_adapter(doc).logs(doc, unit_id, tail=int(tail))
