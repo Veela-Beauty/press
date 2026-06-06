@@ -110,3 +110,21 @@ class TestAdapterFactory(FrappeTestCase):
 
 		with self.assertRaises(frappe.ValidationError):
 			base.get_adapter(frappe._dict(server_type="quantum"))
+
+
+class TestSshPlain(FrappeTestCase):
+	def test_enumerate_parses_systemctl_and_df(self):
+		from press.infra.adapters.ssh_plain import SshPlainAdapter
+
+		host = frappe._dict(host_name="storage-1", ssh_host="10.0.0.5", ssh_user="sanad", ssh_port=22, server_type="plain")
+		systemctl_out = "sshd.service loaded active running\nborgmatic.timer loaded active waiting\nfail2ban.service loaded failed failed"
+		df_out = "13"  # disk percent
+		ad = SshPlainAdapter()
+		with patch.object(ad, "_ssh", side_effect=[systemctl_out, df_out, "8", "3"]):
+			out = ad.enumerate(host)
+
+		names = {u["name"] for u in out["units"]}
+		self.assertIn("sshd.service", names)
+		failed = next(u for u in out["units"] if u["name"] == "fail2ban.service")
+		self.assertEqual(failed["state"], "down")  # failed -> down
+		self.assertEqual(out["metrics"]["disk"], 13)
