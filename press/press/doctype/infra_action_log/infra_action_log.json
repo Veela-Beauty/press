@@ -1,0 +1,23 @@
+{
+ "actions": [],
+ "creation": "2026-06-06 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["actor","host","unit","action","outcome","detail"],
+ "fields": [
+  {"fieldname":"actor","fieldtype":"Data","label":"Actor","read_only":1},
+  {"fieldname":"host","fieldtype":"Data","label":"Host","read_only":1},
+  {"fieldname":"unit","fieldtype":"Data","label":"Unit","read_only":1},
+  {"fieldname":"action","fieldtype":"Data","label":"Action","read_only":1},
+  {"fieldname":"outcome","fieldtype":"Data","label":"Outcome","read_only":1},
+  {"fieldname":"detail","fieldtype":"Small Text","label":"Detail","read_only":1}
+ ],
+ "links": [],
+ "modified": "2026-06-06 00:00:00",
+ "module": "Press",
+ "name": "Infra Action Log",
+ "owner": "Administrator",
+ "permissions": [{"read":1,"report":1,"role":"System Manager"}],
+ "sort_field": "creation",
+ "sort_order": "DESC"
+}

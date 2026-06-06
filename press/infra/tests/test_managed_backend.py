@@ -26,3 +26,19 @@ class TestManagedHost(FrappeTestCase):
 		self.assertEqual(doc.status, "Pending")
 		self.assertEqual(doc.host_principal, "test-docker-1")
 		doc.delete()
+
+
+class TestAudit(FrappeTestCase):
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_log_infra_action_creates_row(self):
+		from press.infra.adapters.base import log_infra_action
+
+		log_infra_action(host="host-x", unit="redis-queue", action="restart", outcome="success")
+		row = frappe.get_last_doc("Infra Action Log")
+		self.assertEqual(row.host, "host-x")
+		self.assertEqual(row.action, "restart")
+		self.assertEqual(row.outcome, "success")
+		self.assertEqual(row.actor, "Administrator")
+		row.delete()
