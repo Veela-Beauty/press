@@ -10,6 +10,7 @@ import PanelTopInactive from '~icons/lucide/panel-top-inactive';
 import Package from '~icons/lucide/package';
 import Boxes from '~icons/lucide/boxes';
 import Server from '~icons/lucide/server';
+import ServerCog from '~icons/lucide/server-cog';
 import WalletCards from '~icons/lucide/wallet-cards';
 import Key from '~icons/lucide/key';
 import Settings from '~icons/lucide/settings';
@@ -123,6 +124,14 @@ export default {
 						['New Server'].includes(routeName) ||
 						routeName.startsWith('Server') ||
 						routeName === 'Enable Servers',
+					disabled: enforce2FA,
+				},
+				{
+					name: 'Infrastructure',
+					icon: () => h(ServerCog),
+					route: '/infrastructure',
+					isActive: routeName === 'Infrastructure',
+					condition: onboardingComplete && !isSaasUser && this.$session.isSystemUser,
 					disabled: enforce2FA,
 				},
 				{

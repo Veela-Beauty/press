@@ -533,6 +533,11 @@ let router = createRouter({
 			name: 'Admin Panel MCP',
 			component: () => import('./pages/admin/AdminPanelMcp.vue'),
 		},
+		{
+			path: '/infrastructure',
+			name: 'Infrastructure',
+			component: () => import('./pages/infrastructure/InfraDashboard.vue'),
+		},
 		...generateRoutes(),
 		// TODO: makeshift redirect fixes for /insights paths
 		{
