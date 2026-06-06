@@ -400,6 +400,7 @@ scheduler_events = {
 			"press.press.doctype.site.site.create_subscription_for_trial_sites",
 			"press.press.doctype.monitor_server.monitor_server.check_monitoring_servers_rate_limit_key",
 			"press.press.doctype.auto_scale_record.auto_scale_record.run_scheduled_scale_records",
+			"press.api.infra_board.warm_infra_tree",
 		],
 		"*/10 * * * *": [
 			"press.press.doctype.site.saas_pool.create",

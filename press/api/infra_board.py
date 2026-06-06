@@ -67,7 +67,7 @@ def host_probes(server: str) -> dict:
 import json
 
 CACHE_KEY = "infra_board:tree"
-CACHE_TTL = 15  # seconds
+CACHE_TTL = 90  # seconds
 
 
 def _all_servers() -> list[str]:
@@ -187,6 +187,14 @@ def get_infra_tree() -> dict:
 	tree = _build_tree()
 	frappe.cache().set_value(CACHE_KEY, json.dumps(tree), expires_in_sec=CACHE_TTL)
 	return tree
+
+
+def warm_infra_tree():
+	"""Scheduled: rebuild + cache the infra tree so the dashboard always reads a
+	warm cache. The build does a supervisorctl probe per bench + host probes (~10s),
+	so we pay that cost here in the background, not on the user's first page load."""
+	tree = _build_tree()
+	frappe.cache().set_value(CACHE_KEY, json.dumps(tree), expires_in_sec=CACHE_TTL)
 
 
 def _managed_doc(host_name: str):
