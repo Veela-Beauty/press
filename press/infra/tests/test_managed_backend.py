@@ -128,3 +128,15 @@ class TestSshPlain(FrappeTestCase):
 		failed = next(u for u in out["units"] if u["name"] == "fail2ban.service")
 		self.assertEqual(failed["state"], "down")  # failed -> down
 		self.assertEqual(out["metrics"]["disk"], 13)
+
+	def test_enumerate_unreachable_host_is_empty(self):
+		from press.infra.adapters.ssh_plain import SshPlainAdapter
+
+		host = frappe._dict(host_name="storage-1", ssh_host="10.0.0.5", ssh_user="sanad", ssh_port=22, server_type="plain")
+		ad = SshPlainAdapter()
+		# unreachable host -> _ssh returns empty stdout for every probe
+		with patch.object(ad, "_ssh", return_value=""):
+			out = ad.enumerate(host)
+
+		self.assertEqual(out["units"], [])
+		self.assertEqual(out["metrics"], {"cpu": 0, "mem": 0, "disk": 0, "req": 0})
