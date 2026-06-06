@@ -140,3 +140,52 @@ class TestSshPlain(FrappeTestCase):
 
 		self.assertEqual(out["units"], [])
 		self.assertEqual(out["metrics"], {"cpu": 0, "mem": 0, "disk": 0, "req": 0})
+
+
+class TestSshDocker(FrappeTestCase):
+	def _host(self):
+		return frappe._dict(host_name="acc-1", ssh_host="10.0.0.7", ssh_user="sanad", ssh_port=22, proxy_port=2375, server_type="docker")
+
+	def test_enumerate_maps_containers(self):
+		from press.infra.adapters.ssh_docker import SshDockerAdapter
+
+		api_list = [
+			{"Id": "a" * 64, "Names": ["/eltarak-frontend"], "Image": "erpnext15:latest", "State": "running", "Status": "Up 3 days"},
+			{"Id": "b" * 64, "Names": ["/eltarak-configurator"], "Image": "erpnext15:latest", "State": "exited", "Status": "Exited (2) 1h ago"},
+		]
+		ad = SshDockerAdapter()
+		with patch.object(ad, "_api", return_value=api_list):
+			out = ad.enumerate(self._host())
+
+		names = {u["name"] for u in out["units"]}
+		self.assertIn("eltarak-frontend", names)
+		cfg = next(u for u in out["units"] if u["name"] == "eltarak-configurator")
+		self.assertEqual(cfg["state"], "exit2")  # exited code 2
+		self.assertEqual(cfg["kind"], "container")
+
+	def test_control_validates_action_and_id(self):
+		from press.infra.adapters.ssh_docker import SshDockerAdapter
+
+		ad = SshDockerAdapter()
+		with patch.object(ad, "_api", return_value=[{"Id": "a" * 64, "Names": ["/x"]}]):
+			# bad action rejected
+			with self.assertRaises(frappe.ValidationError):
+				ad.control(self._host(), "a" * 64, "exec")
+			# unknown id rejected (not in enumerated set)
+			with self.assertRaises(frappe.ValidationError):
+				ad.control(self._host(), "f" * 64, "restart")
+
+	def test_control_posts_for_valid(self):
+		from press.infra.adapters.ssh_docker import SshDockerAdapter
+
+		ad = SshDockerAdapter()
+		posted = {}
+		def fake_api(host, method, path, **kw):
+			if method == "GET":
+				return [{"Id": "a" * 64, "Names": ["/x"]}]
+			posted["path"] = path
+			return {}
+		with patch.object(ad, "_api", side_effect=fake_api):
+			res = ad.control(self._host(), "a" * 64, "restart")
+		self.assertTrue(res["ok"])
+		self.assertEqual(posted["path"], "/containers/" + "a" * 64 + "/restart")
