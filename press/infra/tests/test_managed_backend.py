@@ -374,3 +374,33 @@ class TestOnboarding(FrappeTestCase):
 				infra_board.test_connection("probe-2")
 		self.assertTrue(any("Unreachable" in str(c) for c in sv.call_args_list))
 		frappe.get_last_doc("Infra Action Log").delete()
+
+
+class TestInfraSecret(FrappeTestCase):
+	def test_unprovisioned_raises(self):
+		import os
+
+		from press.infra import secrets
+
+		for k in ("SANAD_SSH_CA_PRIVATE_PATH", "SANAD_SSH_CA_PRIVATE"):
+			os.environ.pop(k, None)
+		with self.assertRaises(frappe.ValidationError):
+			secrets.get_infisical_secret("infra/ssh_ca_private")
+
+	def test_value_env_materializes_0600_file(self):
+		import os
+		import stat
+
+		from press.infra import secrets
+
+		os.environ["SANAD_SSH_CA_PRIVATE"] = "TESTKEYDATA"
+		p = None
+		try:
+			p = secrets.get_infisical_secret("infra/ssh_ca_private")
+			self.assertTrue(os.path.exists(p))
+			self.assertEqual(open(p).read().strip(), "TESTKEYDATA")
+			self.assertEqual(stat.S_IMODE(os.stat(p).st_mode), 0o600)
+		finally:
+			os.environ.pop("SANAD_SSH_CA_PRIVATE", None)
+			if p and os.path.exists(p):
+				os.remove(p)

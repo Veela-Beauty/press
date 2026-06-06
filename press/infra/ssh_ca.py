@@ -15,7 +15,7 @@ CERT_TTL = "+8h"
 
 def _ca_private_key() -> str:
 	"""Path to the CA private key, materialised from Infisical at call time."""
-	from press.utils import get_infisical_secret  # existing Press helper
+	from press.infra.secrets import get_infisical_secret
 
 	return get_infisical_secret("infra/ssh_ca_private")
 
