@@ -200,8 +200,8 @@ def host_unit_action(host: str, unit_id: str, action: str) -> dict:
 	frappe.only_for("System Manager")
 	from press.infra.adapters.base import get_adapter, log_infra_action
 
-	doc = _managed_doc(host)
 	try:
+		doc = _managed_doc(host)
 		res = get_adapter(doc).control(doc, unit_id, action)
 		log_infra_action(host=host, unit=unit_id, action=action, outcome="success")
 		return res
@@ -216,6 +216,11 @@ def get_host_log(host: str, unit_id: str, tail: int = 200) -> list:
 	frappe.only_for("System Manager")
 	from press.infra.adapters.base import get_adapter, log_infra_action
 
-	doc = _managed_doc(host)
-	log_infra_action(host=host, unit=unit_id, action="logs", outcome="read")
-	return get_adapter(doc).logs(doc, unit_id, tail=int(tail))
+	try:
+		doc = _managed_doc(host)
+		lines = get_adapter(doc).logs(doc, unit_id, tail=tail)
+		log_infra_action(host=host, unit=unit_id, action="logs", outcome="read")
+		return lines
+	except Exception as e:
+		log_infra_action(host=host, unit=unit_id, action="logs", outcome="error", detail=str(e))
+		raise

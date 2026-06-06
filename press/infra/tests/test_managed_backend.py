@@ -300,3 +300,18 @@ class TestHostControl(FrappeTestCase):
 		row = frappe.get_last_doc("Infra Action Log")
 		self.assertEqual(row.action, "restart")
 		row.delete()
+
+	def test_action_audits_error_and_reraises(self):
+		from press.api import infra_board
+
+		host = frappe._dict(host_name="acc-1", server_type="docker")
+		adapter = MagicMock()
+		adapter.control.side_effect = frappe.ValidationError("bad")
+		with patch("press.api.infra_board.frappe.only_for"), patch.object(
+			infra_board, "_managed_doc", return_value=host
+		), patch("press.infra.adapters.base.get_adapter", return_value=adapter):
+			with self.assertRaises(frappe.ValidationError):
+				infra_board.host_unit_action("acc-1", "a" * 64, "exec")
+		row = frappe.get_last_doc("Infra Action Log")
+		self.assertEqual(row.outcome, "error")
+		row.delete()
