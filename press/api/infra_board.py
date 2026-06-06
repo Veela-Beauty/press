@@ -140,6 +140,7 @@ def _enumerate_managed(host) -> dict:
 	from press.infra.adapters.base import get_adapter
 
 	try:
+		_attach_cert(host)
 		out = get_adapter(host).enumerate(host)
 		out.setdefault("reach", "ok")
 		return out
@@ -189,7 +190,7 @@ def get_infra_tree() -> dict:
 
 
 def _managed_doc(host_name: str):
-	return frappe.get_doc("Managed Host", host_name)
+	return _attach_cert(frappe.get_doc("Managed Host", host_name))
 
 
 @frappe.whitelist()
@@ -232,6 +233,31 @@ def get_host_log(host: str, unit_id: str, tail: int = 200) -> list:
 INFRA_KEY = "/home/frappe/.ssh/sanad-infra"
 
 
+def _attach_cert(host):
+	"""Attach a valid short-TTL SSH cert (control-plane key, principal = ssh_user)
+	to `host` so the adapter can authenticate. The cert is cached per ssh_user and
+	re-signed well before its 8h TTL. Best-effort: if signing fails (Gate 0 not yet
+	provisioned) the host is returned without a cert and the adapter call surfaces
+	the auth failure honestly."""
+	from press.infra import ssh_ca
+
+	user = host.get("ssh_user")
+	if not user:
+		return host
+	ck = f"infra_board:cert:{user}"
+	cert = frappe.cache().get_value(ck, expires=True)
+	if not cert:
+		try:
+			cert = ssh_ca.sign_cert(principal=user, pubkey_path=f"{INFRA_KEY}.pub")
+			frappe.cache().set_value(ck, cert, expires_in_sec=6 * 3600)
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), "infra cert sign failed")
+			return host
+	host.ssh_identity = INFRA_KEY
+	host.ssh_cert = cert
+	return host
+
+
 @frappe.whitelist()
 def add_managed_host(host_name, server_type, ssh_host, ssh_user="sanad", ssh_port=22, proxy_port=2375, tags=None, notes=None):
 	"""Register a managed host (System-Manager). Starts Pending until test_connection verifies it."""
@@ -261,17 +287,12 @@ def test_connection(host) -> dict:
 	"""Sign a short-TTL cert, SSH-probe, and (docker) hit the Docker API via the
 	socket-proxy tunnel. Flips status to Active on success. System-Manager only."""
 	frappe.only_for("System Manager")
-	from press.infra import ssh_ca
 	from press.infra.adapters.base import get_adapter, log_infra_action
 
-	doc = _managed_doc(host)
+	doc = _managed_doc(host)  # attaches a fresh short-TTL cert
 	out = {"ssh_ok": False, "docker_ok": False, "containers": 0}
 	try:
-		# mint a short-TTL cert for the control-plane key, then ACTUALLY reach the
-		# host through its adapter (SSH for plain, the socket-proxy tunnel for docker).
-		cert = ssh_ca.sign_cert(principal=doc.host_principal, pubkey_path=f"{INFRA_KEY}.pub")
-		doc.ssh_identity = INFRA_KEY
-		doc.ssh_cert = cert
+		# reach the host through its adapter (SSH for plain, socket-proxy tunnel for docker).
 		en = get_adapter(doc).enumerate(doc)
 		out["ssh_ok"] = True
 		if doc.server_type == "docker":

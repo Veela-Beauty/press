@@ -375,6 +375,17 @@ class TestOnboarding(FrappeTestCase):
 		self.assertTrue(any("Unreachable" in str(c) for c in sv.call_args_list))
 		frappe.get_last_doc("Infra Action Log").delete()
 
+	def test_attach_cert_sets_identity(self):
+		from press.api import infra_board
+
+		host = frappe._dict(ssh_user="sanad")
+		frappe.cache().delete_value("infra_board:cert:sanad")
+		with patch("press.infra.ssh_ca.sign_cert", return_value="/tmp/c-cert.pub"):
+			infra_board._attach_cert(host)
+		self.assertEqual(host.ssh_identity, infra_board.INFRA_KEY)
+		self.assertEqual(host.ssh_cert, "/tmp/c-cert.pub")
+		frappe.cache().delete_value("infra_board:cert:sanad")
+
 
 class TestInfraSecret(FrappeTestCase):
 	def test_unprovisioned_raises(self):
