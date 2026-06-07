@@ -6,20 +6,6 @@
         <Breadcrumbs :items="crumbs" />
         <template #actions>
           <div class="flex items-center gap-3">
-            <!-- Nav toggle: Servers | Infrastructure -->
-            <div class="flex rounded-md bg-gray-100 p-0.5 text-sm">
-              <button
-                class="rounded px-3 py-1 transition-colors"
-                :class="nav === 'servers' ? 'bg-white shadow-sm font-medium text-gray-900' : 'text-gray-500 hover:text-gray-700'"
-                @click="setNav('servers')"
-              >Servers</button>
-              <button
-                class="rounded px-3 py-1 transition-colors"
-                :class="nav === 'infra' ? 'bg-white shadow-sm font-medium text-gray-900' : 'text-gray-500 hover:text-gray-700'"
-                @click="setNav('infra')"
-              >Infrastructure</button>
-            </div>
-
             <!-- List / Cards toggle (hidden when drilled into a group) -->
             <div v-if="!path.group" class="flex rounded-md bg-gray-100 p-0.5 text-sm">
               <button
@@ -62,6 +48,24 @@
       <template v-else>
         <!-- LEVEL 1: server/host list -->
         <template v-if="!path.server">
+          <!-- Primary surface toggle: Infrastructure (managed hosts) | Servers (Press, read-only) -->
+          <div class="mb-5 flex flex-wrap items-center gap-3">
+            <div class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+              <button
+                class="rounded-md px-4 py-1.5 text-sm transition-colors"
+                :class="nav === 'infra' ? 'bg-white shadow-sm font-medium text-gray-900' : 'text-gray-600 hover:text-gray-900'"
+                @click="setNav('infra')"
+              >Infrastructure</button>
+              <button
+                class="rounded-md px-4 py-1.5 text-sm transition-colors"
+                :class="nav === 'servers' ? 'bg-white shadow-sm font-medium text-gray-900' : 'text-gray-600 hover:text-gray-900'"
+                @click="setNav('servers')"
+              >Servers</button>
+            </div>
+            <span class="text-sm text-gray-500">
+              {{ nav === 'infra' ? 'Managed Docker and host machines you control' : 'Press servers and benches (read-only)' }}
+            </span>
+          </div>
           <NeedsAttention v-if="nav === 'infra'" :nodes="navNodes" class="mb-4" @view="drill" />
           <ServerList
             :nav="nav"
