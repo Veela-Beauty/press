@@ -17,6 +17,10 @@ const getNotification = (name) => {
 	});
 };
 
+// NOTE: the generated `/notifications` list route below is superseded by the
+// bespoke pages/notifications/Notifications.vue, which is registered before
+// generateRoutes() in router.js and therefore shadows it. This object config is
+// kept for the object registry; the generated ObjectList route is unreachable.
 export default {
 	doctype: 'Press Notification',
 	whitelistedMethods: {},

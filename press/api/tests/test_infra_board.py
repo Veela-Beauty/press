@@ -46,19 +46,23 @@ class TestHostProbes(FrappeTestCase):
 	def setUp(self):
 		frappe.set_user("Administrator")
 
-	def test_host_probes_normalizes_memory_and_agent(self):
+	def test_host_probes_normalizes_memory_cpu_disk_and_agent(self):
 		from press.api import infra_board
 
 		mem = {"verdict": "ok", "memory_available_mb": 12940, "memory_total_mb": 23458}
 		agent = {"verdict": "healthy"}
+		stats = {"cpu": {"used_pct": 15}, "disk": {"used_pct": 61}}
 		with patch.object(infra_board, "_memory", return_value=mem), patch.object(
 			infra_board, "_agent", return_value=agent
-		), patch.object(infra_board, "_ssh_ok", return_value=True):
+		), patch.object(infra_board, "_cpu_disk", return_value=stats):
 			out = infra_board.host_probes("press-f1.sandbox.mvpstorm.com")
 
 		self.assertEqual(out["memory"]["verdict"], "ok")
 		self.assertEqual(out["memory"]["used_pct"], 45)
+		self.assertEqual(out["cpu"]["used_pct"], 15)
+		self.assertEqual(out["disk"]["used_pct"], 61)
 		self.assertEqual(out["agent"]["verdict"], "healthy")
+		# ssh.ok is derived from the cpu/disk probe returning data
 		self.assertTrue(out["ssh"]["ok"])
 
 	def test_host_probes_survives_failing_probe(self):
@@ -66,11 +70,45 @@ class TestHostProbes(FrappeTestCase):
 
 		with patch.object(infra_board, "_memory", side_effect=Exception("boom")), patch.object(
 			infra_board, "_agent", return_value={"verdict": "healthy"}
-		), patch.object(infra_board, "_ssh_ok", return_value=True):
+		), patch.object(infra_board, "_cpu_disk", side_effect=Exception("boom")):
 			out = infra_board.host_probes("press-f1.sandbox.mvpstorm.com")
 
 		self.assertIsNone(out["memory"])
+		self.assertIsNone(out["cpu"])
+		self.assertIsNone(out["disk"])
 		self.assertEqual(out["agent"]["verdict"], "healthy")
+		# cpu/disk probe failed -> server treated as unreachable
+		self.assertFalse(out["ssh"]["ok"])
+
+
+class TestParseCpuDisk(FrappeTestCase):
+	def test_valid_line(self):
+		from press.api import infra_board
+
+		r = infra_board._parse_cpu_disk("CPU=2.0:4 DISK=53")
+		self.assertEqual(r["cpu"]["used_pct"], 50)
+		self.assertEqual(r["cpu"]["cores"], 4)
+		self.assertEqual(r["disk"]["used_pct"], 53)
+
+	def test_caps_cpu_at_100(self):
+		from press.api import infra_board
+
+		# load 16 on 4 cores = 400% -> capped at 100
+		self.assertEqual(infra_board._parse_cpu_disk("CPU=16.0:4 DISK=10")["cpu"]["used_pct"], 100)
+
+	def test_single_core_no_zero_division(self):
+		from press.api import infra_board
+
+		self.assertEqual(infra_board._parse_cpu_disk("CPU=0.5:0 DISK=10")["cpu"]["cores"], 1)
+
+	def test_returns_none_on_malformed_or_empty(self):
+		from press.api import infra_board
+
+		self.assertIsNone(infra_board._parse_cpu_disk("CPU=1.0:4"))      # no DISK
+		self.assertIsNone(infra_board._parse_cpu_disk("CPU=oops DISK=53"))  # cpu not load:cores
+		self.assertIsNone(infra_board._parse_cpu_disk("CPU=1.0:4 DISK=x"))  # disk not int
+		self.assertIsNone(infra_board._parse_cpu_disk(""))
+		self.assertIsNone(infra_board._parse_cpu_disk(None))
 
 
 class TestInfraTree(FrappeTestCase):

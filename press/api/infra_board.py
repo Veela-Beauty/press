@@ -23,22 +23,35 @@ def _agent(server: str):
 	return agent_health(server=server, lookback_minutes=10)
 
 
-def _ssh_ok(server: str) -> bool:
+def _parse_cpu_disk(out: str):
+	"""Parse the `CPU=<load>:<cores> DISK=<pct>` line from the host-stats probe
+	into normalized metrics. Pure + side-effect free so it is unit-tested
+	directly. Returns None on any missing or malformed field.
+	"""
+	if not out or "CPU=" not in out or "DISK=" not in out:
+		return None
 	try:
-		from frappe_theme_switcher.watch_tower.alerts._helpers import ssh_cmd
-
-		ip = frappe.db.get_value("Server", server, "ip") or server
-		ok, _out, _err = ssh_cmd(ip, "echo OK", timeout=8)
-		return bool(ok)
-	except Exception:
-		return False
+		cpu_field = out.split("CPU=", 1)[1].split()[0]   # "0.42:4"
+		disk_field = out.split("DISK=", 1)[1].split()[0]  # "53"
+		load_s, cores_s = cpu_field.split(":")
+		load = float(load_s)
+		cores = int(cores_s) or 1
+		disk_pct = int(disk_field)
+	except (ValueError, IndexError):
+		return None
+	return {
+		"cpu": {"used_pct": min(100, round(load / cores * 100)), "load": load, "cores": cores},
+		"disk": {"used_pct": disk_pct},
+	}
 
 
 def _cpu_disk(server: str):
-	"""1-min load average + root-disk usage in one SSH round-trip via the
-	same Ansible ad-hoc pattern as _memory. Cached 60s per server (the
-	round-trip is 3-10s). CPU% is load-average / cores (a cheap proxy that
-	needs no sampling), capped at 100. Disk% is root filesystem usage.
+	"""1-min load average + root-disk usage in one SSH round-trip via the same
+	Ansible ad-hoc pattern as _memory. Cached 60s per server (the round-trip is
+	3-10s). CPU% is load-average / cores (a cheap proxy that needs no sampling),
+	capped at 100. Disk% is root filesystem usage. Returning data also doubles as
+	the server's reachability signal (see host_probes), so there is no separate
+	ssh probe.
 	"""
 	cache_key = f"infra_board:cpu_disk:{server}"
 	cached = frappe.cache().get_value(cache_key)
@@ -54,18 +67,11 @@ def _cpu_disk(server: str):
 		out = host_result.get("output") or host_result.get("stdout") or ""
 		if "CPU=" in out:
 			break
-	if "CPU=" not in out or "DISK=" not in out:
-		return None
 
-	cpu_field = out.split("CPU=", 1)[1].split()[0]   # "0.42:4"
-	disk_field = out.split("DISK=", 1)[1].split()[0]  # "53"
-	load_s, cores_s = cpu_field.split(":")
-	cores = int(cores_s) or 1
-	data = {
-		"cpu": {"used_pct": min(100, round(float(load_s) / cores * 100)),
-			"load": float(load_s), "cores": cores},
-		"disk": {"used_pct": int(disk_field)},
-	}
+	data = _parse_cpu_disk(out)
+	if data is None:
+		frappe.log_error(f"unparseable cpu/disk output for {server}: {out!r}", "infra_board cpu/disk parse")
+		return None
 	frappe.cache().set_value(cache_key, data, expires_in_sec=60)
 	return data
 
@@ -80,7 +86,9 @@ def _safe(fn, *args):
 
 def host_probes(server: str) -> dict:
 	"""Per-server health dict. Every probe is best-effort: a failing probe
-	degrades to None and never breaks the whole payload.
+	degrades to None and never breaks the whole payload. `ssh.ok` is derived
+	from the cpu/disk probe succeeding (one fewer SSH round-trip than a
+	dedicated reachability ping).
 	"""
 	mem = _safe(_memory, server)
 	mem_norm = None
@@ -91,15 +99,15 @@ def host_probes(server: str) -> dict:
 		mem_norm = {"verdict": mem.get("verdict"), "used_pct": used_pct,
 			"available_mb": avail, "total_mb": total}
 
-	cd = _safe(_cpu_disk, server) or {}
+	stats = _safe(_cpu_disk, server)
 	agent = _safe(_agent, server)
 	return {
 		"server": server,
 		"memory": mem_norm,
-		"cpu": cd.get("cpu"),
-		"disk": cd.get("disk"),
+		"cpu": (stats or {}).get("cpu"),
+		"disk": (stats or {}).get("disk"),
 		"agent": {"verdict": agent.get("verdict")} if agent else None,
-		"ssh": {"ok": _safe(_ssh_ok, server) or False},
+		"ssh": {"ok": bool(stats)},
 	}
 
 

@@ -141,7 +141,7 @@
                   v-html="cleanMessage(n.message)"
                 />
                 <button
-                  v-if="plainLength(n.message) > 140"
+                  v-if="plainLength(n.message) > MSG_EXPAND_CHARS"
                   class="mt-1 text-[12.5px] font-medium text-blue-600 hover:underline"
                   @click="toggleExpand(n.name)"
                 >{{ expanded.has(n.name) ? 'Show less' : 'Show more' }}</button>
@@ -192,9 +192,12 @@ import {
 } from './notifications-derive';
 
 // Data
+const PAGE_LENGTH = 100;       // recent-feed cap; a "load older" control is a T10 follow-up
+const MSG_EXPAND_CHARS = 140;  // plain-text length past which the "Show more" toggle appears
+
 const list = createResource({
   url: 'press.api.notifications.get_notifications',
-  params: { limit_page_length: 100 },
+  params: { limit_page_length: PAGE_LENGTH },
   auto: true,
   cache: ['Notifications', 'feed'],
 });
@@ -260,14 +263,15 @@ function sevChipClass(n) { return SEV_CHIP[severityOf(n)] || ''; }
 // Actions
 function markRead(n) {
   if (n.read) return;
-  n.read = 1; // optimistic: list.data is reactive
-  unreadNotificationsCount.setData((c) => Math.max(0, (c || 0) - 1));
   const res = getDocResource({
     doctype: 'Press Notification',
     name: n.name,
     whitelistedMethods: { markRead: 'mark_as_read' },
   });
-  res.markRead.submit().catch(() => {});
+  res.markRead.submit().then(() => {
+    unreadNotificationsCount.setData((c) => Math.max(0, (c || 0) - 1));
+    list.reload(); // refetch so the read state is authoritative, not an optimistic guess
+  }).catch(() => {});
 }
 
 function open(n) {
@@ -281,8 +285,8 @@ function markAll() {
   markingAll.value = true;
   frappeRequest({ url: '/api/method/press.api.notifications.mark_all_notifications_as_read' })
     .then(() => {
-      items.value.forEach((n) => { n.read = 1; });
       unreadNotificationsCount.setData(0);
+      list.reload(); // refetch so read state is authoritative
       toast.success('All notifications marked as read');
     })
     .catch((e) => toast.error(e?.messages?.length ? e.messages.join('\n') : e?.message || 'Failed to mark all as read'))

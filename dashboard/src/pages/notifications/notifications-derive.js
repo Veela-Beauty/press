@@ -4,13 +4,23 @@
 //   { name, type, read, title, message, creation, is_addressed, is_actionable,
 //     document_type, document_name, route }
 // It has NO severity field, so we infer one for the icon tint + severity chip.
+import dayjs from '../../utils/dayjs';
 
-// Coarse severity from the type/title text. Order matters: error wins over warning.
+// INTERIM severity inference. The Press Notification doctype has no severity
+// field, so we classify from the type/title text here on the client. When a
+// real `severity` column is added to get_notifications, delete this and read
+// `n.severity` directly (see code-review 2026-06-07, Architecture-2B).
+// Order matters: the first matching pattern wins (Error before Warning).
+const SEVERITY_PATTERNS = [
+  ['Error', /(fail|error|crash|\boom\b|denied|exceeded|unreachable|rolled back|\bdown\b)/],
+  ['Warning', /(warn|validation|uncommitted|pending|requested|expir|retry|throttl)/],
+  ['Success', /(complete|success|recovered|recovery|upgraded|finished|restored|scaled|online|deployed)/],
+];
 export function severityOf(n) {
   const t = `${n.type || ''} ${n.title || ''}`.toLowerCase();
-  if (/(fail|error|crash|\boom\b|denied|exceeded|unreachable|rolled back|\bdown\b)/.test(t)) return 'Error';
-  if (/(warn|validation|uncommitted|pending|requested|expir|retry|throttl)/.test(t)) return 'Warning';
-  if (/(complete|success|recovered|recovery|upgraded|finished|restored|scaled|online|deployed)/.test(t)) return 'Success';
+  for (const [severity, pattern] of SEVERITY_PATTERNS) {
+    if (pattern.test(t)) return severity;
+  }
   return 'Info';
 }
 
@@ -32,18 +42,13 @@ export function bucketOf(creation, now = new Date()) {
   return 'Earlier';
 }
 
-// Relative "2h ago" label.
+// Relative "2 hours ago" label. Reuses the dashboard's dayjs instance (already
+// extended with the relativeTime plugin) for locale-correct output.
 export function timeAgo(creation, now = new Date()) {
   if (!creation) return '';
-  const d = new Date(String(creation).replace(' ', 'T'));
-  if (Number.isNaN(d.getTime())) return '';
-  const s = Math.floor((now.getTime() - d.getTime()) / 1000);
-  if (s < 60) return 'just now';
-  const m = Math.floor(s / 60); if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
-  const dd = Math.floor(h / 24); if (dd < 30) return `${dd}d ago`;
-  const mo = Math.floor(dd / 30); if (mo < 12) return `${mo}mo ago`;
-  return `${Math.floor(mo / 12)}y ago`;
+  const d = dayjs(String(creation).replace(' ', 'T'));
+  if (!d.isValid()) return '';
+  return d.from(dayjs(now));
 }
 
 // Strip every HTML tag except <b> from the message (mirrors the old ObjectList).
