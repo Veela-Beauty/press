@@ -17,7 +17,8 @@
 
     <!-- Content -->
     <div class="flex-1 overflow-auto p-5">
-      <div class="mx-auto max-w-3xl">
+      <!-- full-width like the Infrastructure page and the rest of the dashboard (no narrow centered column) -->
+      <div>
         <!-- Summary chips (also act as quick filters) -->
         <div class="mb-4 flex flex-wrap gap-2">
           <button
@@ -172,6 +173,13 @@
               </div>
             </div>
           </template>
+
+          <!-- Load older notifications -->
+          <div v-if="hasMore" class="mt-5 flex justify-center">
+            <Button variant="subtle" :loading="list.loading" @click="loadMore">
+              Load older notifications
+            </Button>
+          </div>
         </template>
       </div>
     </div>
@@ -192,15 +200,20 @@ import {
 } from './notifications-derive';
 
 // Data
-const PAGE_LENGTH = 100;       // recent-feed cap; a "load older" control is a T10 follow-up
+const PAGE_LENGTH = 30;        // page size; the "Load more" control grows the window by this step
 const MSG_EXPAND_CHARS = 140;  // plain-text length past which the "Show more" toggle appears
 
+const limit = ref(PAGE_LENGTH);
 const list = createResource({
   url: 'press.api.notifications.get_notifications',
-  params: { limit_page_length: PAGE_LENGTH },
+  makeParams: () => ({ limit_page_length: limit.value }),
   auto: true,
   cache: ['Notifications', 'feed'],
 });
+function loadMore() {
+  limit.value += PAGE_LENGTH;
+  list.reload(); // re-fetches the grown window so counts/filters/groups stay on one source of truth
+}
 
 // Filter state
 const tab        = ref('all');           // 'all' | 'unread' | 'attention'
@@ -226,6 +239,8 @@ const visible     = computed(() => applyFilters(items.value, {
   tab: tab.value, type: typeFilter.value, severity: sevFilter.value,
 }));
 const groups      = computed(() => groupByBucket(visible.value));
+// offer "Load more" while the last fetch filled the window (older rows may still exist server-side)
+const hasMore     = computed(() => items.value.length >= limit.value);
 
 // Expand state
 const expanded = reactive(new Set());
