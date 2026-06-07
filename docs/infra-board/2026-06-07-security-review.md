@@ -79,3 +79,10 @@ Raw `socat -> /var/run/docker.sock` is replaced on BOTH hosts by a 2-container s
 **Durability:** the proxy + sidecar are `--restart unless-stopped`. If recreated, both must be on `sanad-infra-net` so the sidecar's socat resolves `sanad-dsp`.
 
 ### INFRA-002 - STILL OPEN (CA private key on disk; move to Infisical).
+
+### INFRA-002 - ADDRESSED 2026-06-07 (CA private key now in the Infisical vault)
+The CA private key is stored in Infisical (project `optiflow-secrets` `3137bc4e-69db-4d2d-b09e-563c78901729`, env `prod`, secret `SANAD_SSH_CA_PRIVATE` at `/`), written via the API with `jq --rawfile` (the key piped straight from disk into the JSON body, never in any arg/log/transcript) and verified by **SHA-256 match** against the on-disk key. The CA is now backed up, recoverable, and rotatable from the vault: the primary risk ("CA only on press-ctrl disk -> a rebuild loses it -> all host trust gone") is resolved.
+
+**Residual** (follow-up, lower severity): the RUNTIME still reads the CA via `SANAD_SSH_CA_PRIVATE_PATH` -> the hand-placed `/home/frappe/keys/sanad-infra-ca`. To fully source it from the vault + drop the hand-placed copy: install the Infisical CLI + the universal-auth machine identity on press-ctrl, launch the bench via `infisical run --projectId=3137bc4e-69db-4d2d-b09e-563c78901729 --env=prod -- <bench cmd>` so `SANAD_SSH_CA_PRIVATE` is injected; `secrets.py` then materializes a transient 0600 copy and the hand-placed key can be deleted. (ssh-keygen requires a key file at sign time, so a transient on-disk materialization is inherent - "zero on disk" is not achievable.)
+
+## Status after remediation: INFRA-001 FIXED, INFRA-002 ADDRESSED (vault). Open: INFRA-003/004 (MED), INFRA-005/006 (LOW).
