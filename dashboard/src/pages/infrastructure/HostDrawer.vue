@@ -29,7 +29,7 @@
 
   <!-- Nested unit drawer (managed unit logs / control) -->
   <UnitDrawer
-    :host="node?.name"
+    :host="node?.name || ''"
     :unit="unit"
     @close="unit = null"
     @reload="$emit('reload')"

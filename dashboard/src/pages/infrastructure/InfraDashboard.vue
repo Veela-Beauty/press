@@ -93,7 +93,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import Header from '../../components/Header.vue';
-import { Button } from 'frappe-ui';
 import { useInfraTree, useGate0Status } from './infra-api';
 import { isManaged } from './infra-derive';
 import ServerList from './ServerList.vue';
