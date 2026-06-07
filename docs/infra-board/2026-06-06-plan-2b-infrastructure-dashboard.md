@@ -471,3 +471,13 @@ Onboarded sandbox-1 (the Daytona Docker host, 65.108.128.91, ~44 containers) as 
 **Durability caveats (sandbox-1):** the DOCKER-USER iptables rule is NOT persisted across reboot (re-add it, or use iptables-persistent). Sidecar is `--restart unless-stopped` so it survives reboot, but the firewall rule must too or the port re-opens to the world (still CA-cert-only auth, but un-scoped).
 
 **Next host:** repeat Part B only - stand up a CA-trusting socket-proxy on that host trusting `sanad-infra-ca.pub`, firewall it to press-ctrl (89.167.116.92), register. Gate 0 is done.
+
+---
+
+## Update 2026-06-07g: live host CPU/Mem/Disk for managed hosts (9780c72d)
+
+Managed Docker hosts now show REAL host metrics (not 0% / not n/a). The docker adapter's `enumerate` runs a FIXED read-only `ssh_command` (new in docker_tunnel) that reads the host `/proc/loadavg` + `/proc/meminfo` + `df` which the sidecar mounts read-only (`-v /proc:/host/proc:ro -v /:/host/root:ro`); `parse_host_stats` -> cpu(load/cores)/mem/disk %. Degrades to None -> UI shows "n/a" if the probe fails. `_overload` made null-safe; ServerList renders the gauge when present else "n/a". Verified live: sandbox-1 7/15/57, press-ctrl 11/25/46 (%); python tests 23 pass (3 new parse_host_stats).
+
+**Security notes:** (1) the sidecar now bind-mounts the host root READ-ONLY (a read exposure, but bounded by the existing docker-socket root-equivalence the sidecar already has). (2) `ssh_command` reintroduces shell exec to the host, a deliberate exception to plan-2a's "no shell" - mitigated by the command being FIXED with no host-controlled data (no injection). Harden later with the restricted tecnativa/docker-socket-proxy + a dedicated stats endpoint instead of shell.
+
+**Durability:** if a sidecar is recreated, re-add the host mounts (`-v /proc:/host/proc:ro -v /:/host/root:ro`) or its metrics fall back to n/a. (Plus the earlier caveats: sandbox-1 firewall rule + the bench SANAD_SSH_CA_PRIVATE_PATH env are not reboot-persistent.)
