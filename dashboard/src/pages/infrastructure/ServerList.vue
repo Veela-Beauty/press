@@ -67,8 +67,16 @@
                 >Server {{ sortCaret('name') }}</th>
                 <th
                   class="cursor-pointer select-none px-3 py-2 text-left font-medium text-gray-600 hover:text-gray-900"
+                  @click="toggleSort('cpu')"
+                >CPU {{ sortCaret('cpu') }}</th>
+                <th
+                  class="cursor-pointer select-none px-3 py-2 text-left font-medium text-gray-600 hover:text-gray-900"
                   @click="toggleSort('mem')"
                 >Mem {{ sortCaret('mem') }}</th>
+                <th
+                  class="cursor-pointer select-none px-3 py-2 text-left font-medium text-gray-600 hover:text-gray-900"
+                  @click="toggleSort('disk')"
+                >Disk {{ sortCaret('disk') }}</th>
                 <th
                   class="cursor-pointer select-none px-3 py-2 text-left font-medium text-gray-600 hover:text-gray-900"
                   @click="toggleSort('benches')"
@@ -114,7 +122,15 @@
                 </td>
                 <td class="py-2.5 pr-3 font-mono font-medium text-gray-900">{{ node.name }}</td>
                 <td class="px-3 py-2.5">
+                  <MeterBar v-if="node.host?.cpu?.used_pct != null" :value="node.host.cpu.used_pct" />
+                  <span v-else class="text-gray-400">-</span>
+                </td>
+                <td class="px-3 py-2.5">
                   <MeterBar v-if="node.host?.memory?.used_pct != null" :value="node.host.memory.used_pct" />
+                  <span v-else class="text-gray-400">-</span>
+                </td>
+                <td class="px-3 py-2.5">
+                  <MeterBar v-if="node.host?.disk?.used_pct != null" :value="node.host.disk.used_pct" />
                   <span v-else class="text-gray-400">-</span>
                 </td>
                 <td class="px-3 py-2.5 tabular-nums text-gray-700">{{ (node.benches || []).length }}</td>
@@ -178,14 +194,26 @@
 
           <!-- Server card metrics -->
           <template v-if="nav === 'servers'">
-            <div class="flex items-center justify-between text-xs text-gray-500">
-              <span>Mem</span>
-              <MeterBar v-if="node.host?.memory?.used_pct != null" :value="node.host.memory.used_pct" />
-              <span v-else class="text-gray-400">-</span>
-            </div>
-            <div class="mt-1.5 flex items-center justify-between text-xs text-gray-500">
-              <span>Benches</span>
-              <span class="tabular-nums text-gray-700">{{ (node.benches || []).length }}</span>
+            <div class="flex flex-col gap-1.5">
+              <div class="flex items-center justify-between text-xs text-gray-500">
+                <span>CPU</span>
+                <MeterBar v-if="node.host?.cpu?.used_pct != null" :value="node.host.cpu.used_pct" />
+                <span v-else class="text-gray-400">-</span>
+              </div>
+              <div class="flex items-center justify-between text-xs text-gray-500">
+                <span>Mem</span>
+                <MeterBar v-if="node.host?.memory?.used_pct != null" :value="node.host.memory.used_pct" />
+                <span v-else class="text-gray-400">-</span>
+              </div>
+              <div class="flex items-center justify-between text-xs text-gray-500">
+                <span>Disk</span>
+                <MeterBar v-if="node.host?.disk?.used_pct != null" :value="node.host.disk.used_pct" />
+                <span v-else class="text-gray-400">-</span>
+              </div>
+              <div class="flex items-center justify-between text-xs text-gray-500">
+                <span>Benches</span>
+                <span class="tabular-nums text-gray-700">{{ (node.benches || []).length }}</span>
+              </div>
             </div>
           </template>
 
@@ -303,8 +331,14 @@ const filtered = computed(() => {
         av = props.nav === 'servers' ? (a.host?.memory?.used_pct ?? -1) : (a.metrics?.mem ?? -1);
         bv = props.nav === 'servers' ? (b.host?.memory?.used_pct ?? -1) : (b.metrics?.mem ?? -1);
         break;
-      case 'cpu':     av = a.metrics?.cpu  ?? -1; bv = b.metrics?.cpu  ?? -1; break;
-      case 'disk':    av = a.metrics?.disk ?? -1; bv = b.metrics?.disk ?? -1; break;
+      case 'cpu':
+        av = props.nav === 'servers' ? (a.host?.cpu?.used_pct ?? -1) : (a.metrics?.cpu ?? -1);
+        bv = props.nav === 'servers' ? (b.host?.cpu?.used_pct ?? -1) : (b.metrics?.cpu ?? -1);
+        break;
+      case 'disk':
+        av = props.nav === 'servers' ? (a.host?.disk?.used_pct ?? -1) : (a.metrics?.disk ?? -1);
+        bv = props.nav === 'servers' ? (b.host?.disk?.used_pct ?? -1) : (b.metrics?.disk ?? -1);
+        break;
       case 'benches': av = (a.benches || []).length; bv = (b.benches || []).length; break;
       default:        av = a.name; bv = b.name; break;
     }

@@ -34,6 +34,42 @@ def _ssh_ok(server: str) -> bool:
 		return False
 
 
+def _cpu_disk(server: str):
+	"""1-min load average + root-disk usage in one SSH round-trip via the
+	same Ansible ad-hoc pattern as _memory. Cached 60s per server (the
+	round-trip is 3-10s). CPU% is load-average / cores (a cheap proxy that
+	needs no sampling), capped at 100. Disk% is root filesystem usage.
+	"""
+	cache_key = f"infra_board:cpu_disk:{server}"
+	cached = frappe.cache().get_value(cache_key)
+	if cached:
+		return cached
+
+	from press.press.doctype.ansible_console.ansible_console import AnsibleAdHoc
+
+	adhoc = AnsibleAdHoc(sources=f"{server},")
+	cmd = "echo CPU=$(awk '{print $1}' /proc/loadavg):$(nproc) DISK=$(df -P / | awk 'NR==2{print $5}' | tr -d %)"
+	out = ""
+	for host_result in adhoc.run(cmd, raw_params=True) or []:
+		out = host_result.get("output") or host_result.get("stdout") or ""
+		if "CPU=" in out:
+			break
+	if "CPU=" not in out or "DISK=" not in out:
+		return None
+
+	cpu_field = out.split("CPU=", 1)[1].split()[0]   # "0.42:4"
+	disk_field = out.split("DISK=", 1)[1].split()[0]  # "53"
+	load_s, cores_s = cpu_field.split(":")
+	cores = int(cores_s) or 1
+	data = {
+		"cpu": {"used_pct": min(100, round(float(load_s) / cores * 100)),
+			"load": float(load_s), "cores": cores},
+		"disk": {"used_pct": int(disk_field)},
+	}
+	frappe.cache().set_value(cache_key, data, expires_in_sec=60)
+	return data
+
+
 def _safe(fn, *args):
 	try:
 		return fn(*args)
@@ -55,10 +91,13 @@ def host_probes(server: str) -> dict:
 		mem_norm = {"verdict": mem.get("verdict"), "used_pct": used_pct,
 			"available_mb": avail, "total_mb": total}
 
+	cd = _safe(_cpu_disk, server) or {}
 	agent = _safe(_agent, server)
 	return {
 		"server": server,
 		"memory": mem_norm,
+		"cpu": cd.get("cpu"),
+		"disk": cd.get("disk"),
 		"agent": {"verdict": agent.get("verdict")} if agent else None,
 		"ssh": {"ok": _safe(_ssh_ok, server) or False},
 	}
