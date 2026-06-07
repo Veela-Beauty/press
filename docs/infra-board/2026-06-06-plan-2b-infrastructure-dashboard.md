@@ -414,3 +414,20 @@ A full BIG /code-review of the 3 bug-fix changes (Architecture/Code/Tests/Perfor
 Verification: vitest 35 passed (14 infra-derive + 21 notifications-derive); `bench run-tests press.api.tests.test_infra_board` 13 passed; live re-check - servers CPU/Mem/Disk render with fresh values, notifications page renders with correct "just now" labels.
 
 Deferred (note-only): Perf-2 notifications "load older" pagination -> T10; Arch-2B backend severity field -> when the Press Notification doctype is next touched.
+
+---
+
+## Update 2026-06-07d: Gate-0 long-term fix (silent-failure -> self-diagnosing) + 2nd /code-review
+
+Triggered by trying to register press-ctrl's own Docker for a "full cycle on real data" demo and discovering **Gate 0 is entirely unprovisioned** (no SSH CA, no control-plane key, no socket-proxy; the smoke's CA was ephemeral and gone). The dashboard just showed "0 hosts / Unreachable" with no reason. Ran a BIG /code-review of the managed-host Gate-0 backend, then shipped the approved long-term fix:
+
+- **classify_conn_error()** maps raw ssh/docker errors to actionable operator reasons (publickey -> "control-plane cert rejected: check Gate 0"; forward-fail -> "socket-proxy not reachable on :proxy_port"; not-provisioned -> "set SANAD_SSH_CA_PRIVATE_PATH"; timeout/refused/docker-api).
+- **Persist + surface:** `Managed Host` gains a `last_error` field; `_attach_cert` captures the sign-failure reason, `_enumerate_managed`/`test_connection` persist it (write-if-changed), `get_infra_tree` carries it so the host card shows WHY it is dark.
+- **gate0_status()** lightweight cached read-only preflight (control-plane key present + CA secret resolves+valid via `ssh-keygen -y`, never opens a tunnel) driving a **Gate-0 banner** in InfraDashboard that lists exactly what is missing. Verified live: banner shows "Generate it: ssh-keygen ... sanad-infra" + "Set SANAD_SSH_CA_PRIVATE_PATH ... and restart the bench".
+- **i18n + actionable** adapter throws (ssh_docker).
+- **Tests:** classify_conn_error, gate0_status, _attach_cert reason, _build_tree surfacing (python suite 13 -> 20, all pass).
+- Follow-up `20a00cf0`: cache the gate0 CA *hint* (not just the ok flag) so polled calls keep the specific reason.
+
+Commits: `c04bc3ef` (fix) + `20a00cf0` (hint-cache). press-ctrl + github at `20a00cf01`. Deploy: bench migrate (adds last_error) -> python run-tests -> yarn build -> bench restart.
+
+The throwaway demo path (CA-free sshd+socat sidecar on 127.0.0.1:2222) PROVED the adapter/tunnel cycle works on real Docker, then was fully torn down (no Managed Host persisted, press-ctrl restored). To actually register a real host long-term, do the real Gate-0 provisioning (CA in Infisical via SANAD_SSH_CA_PRIVATE_PATH + control-plane key + a persistent socket-proxy/ssh-proxy) - the banner now tells you exactly that.
