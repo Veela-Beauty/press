@@ -383,3 +383,17 @@ LIVE BUGS found in hand-test (fix next - all root-caused):
 - [ ] BUG3 Notifications page not like prototype - the de-slopped notifications redesign was PROTOTYPE-ONLY, never built (live = old objects/notification.js ObjectList). FIX: build Notifications.vue from `~/docs/prototypes/press-notifications.html` (severity chips, grouping, expandable msg, filters) wired to get_notifications/mark_as_read, replace the ObjectList route.
 
 Decisions this session: light-mode only; managed hosts have FLAT units (no stack level); commit SOURCE ONLY per task (bundle gitignored, deploy = build from source); vitest needs a dedicated dashboard/vitest.config.js; cache pre-warm via scheduler keeps get_infra_tree instant.
+
+---
+
+## Update 2026-06-07b: 3 live bugs FIXED + verified live (Playwright)
+
+All three hand-test bugs are fixed, deployed to autodeploypanel.mvpstorm.com, and verified live (logged in as eng.elgogary@gmail.com); screenshots captured.
+
+- [x] BUG1 toggle moved inline (1c4013b6) - the Servers/Infrastructure toggle is now a prominent segmented control in the page body with a per-surface description; removed from the Header actions. Verified: toggle visible + switches surfaces (Infrastructure <-> Servers).
+- [x] BUG2 server CPU + Disk (a8ad60db) - added a _cpu_disk SSH probe (1-min load average / cores for CPU%, root df for Disk%) to host_probes, cached 60s like memory; added CPU/Disk columns + card rows + sort to ServerList for the servers nav. Verified live: press-f1 15/43/61, u4 15/43/61, u5 22/77/49 (CPU/Mem/Disk %). Backend change required `bench restart` + a `warm_infra_tree` run to repopulate the cache.
+- [x] BUG3 Notifications page (5cdd7cfa) - bespoke Notifications.vue (+ notifications-derive.js) replacing the bare ObjectList: derived severity (icon tint + chip), Today/Yesterday/Earlier grouping, summary chips, tab/type/severity filters, expandable messages, per-row Mark read + Review/View, Mark all as read. Route registered before generateRoutes() to shadow the generated one. Verified live: 98 unread / 0 attention / 11 errors chips, grouped feed, no ObjectList table.
+
+Watch-out: BUG2 adds one SSH round-trip per server to the warm-cache cron (now memory + cpu_disk + ssh_ok = 3 per server). It is backgrounded + 60s-cached, but if the warm build ever exceeds ~60s, batch the three probes into one SSH call.
+
+Deploy recipe used (press-ctrl cannot fetch github in non-interactive ssh, so commits relay IN via bundle): edit locally in a press_local worktree -> commit + push to github (the local clone can push) -> `git bundle create /tmp/x.bundle ^<base> HEAD` -> scp to press-ctrl -> `git fetch /tmp/x.bundle HEAD && git merge --ff-only FETCH_HEAD` -> `cd dashboard && yarn build`. Backend change also needs `bench restart` + `bench --site demo.mvpstorm.com execute press.api.infra_board.warm_infra_tree`.
