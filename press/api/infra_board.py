@@ -408,8 +408,11 @@ def _gate0_ca_probe():
 	ck = "infra_board:gate0_ca_ok"
 	cached = frappe.cache().get_value(ck, expires=True)
 	if cached is not None:
-		ok = cached == "1"
-		return ok, ("" if ok else "CA secret missing or not a usable SSH key; see the Error Log.")
+		try:
+			d = json.loads(cached) if isinstance(cached, (str, bytes)) else cached
+			return bool(d.get("ok")), d.get("hint", "")
+		except (ValueError, TypeError, AttributeError):
+			pass
 	import subprocess
 
 	from press.infra.secrets import get_infisical_secret
@@ -422,7 +425,8 @@ def _gate0_ca_probe():
 	except Exception as e:
 		ok = False
 		hint = classify_conn_error(str(getattr(e, "message", "") or str(e)))
-	frappe.cache().set_value(ck, "1" if ok else "0", expires_in_sec=300)
+	# Cache the hint, not just the flag, so polled (cached) calls keep the specific reason.
+	frappe.cache().set_value(ck, json.dumps({"ok": ok, "hint": hint}), expires_in_sec=300)
 	return ok, hint
 
 
