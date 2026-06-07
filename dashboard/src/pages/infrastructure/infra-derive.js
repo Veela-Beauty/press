@@ -5,6 +5,12 @@ const STATE_LABEL = { run: 'running', heal: 'healthy', unhealth: 'unhealthy', ac
 const STATE_THEME = { run: 'green', heal: 'green', active: 'green', unhealth: 'orange', stop: 'red', down: 'red', exit2: 'red', dead: 'red', restart: 'orange', pause: 'gray', exit0: 'gray' };
 
 export const isManaged = (n) => n.kind === 'managed';
+const num = (v) => (typeof v === 'number' ? v : null);
+export const cpuPct  = (n) => (isManaged(n) ? num(n.metrics?.cpu)  : num(n.host?.cpu?.used_pct));
+export const memPct  = (n) => (isManaged(n) ? num(n.metrics?.mem)  : num(n.host?.memory?.used_pct));
+export const diskPct = (n) => (isManaged(n) ? num(n.metrics?.disk) : num(n.host?.disk?.used_pct));
+export const downServers = (nodes = []) =>
+  nodes.filter((n) => !isManaged(n) && (n.health === 'down' || n.health === 'unknown'));
 export function partition(nodes = []) {
   return { servers: nodes.filter((n) => !isManaged(n)), infra: nodes.filter(isManaged) };
 }

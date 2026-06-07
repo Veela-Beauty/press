@@ -37,3 +37,31 @@ describe('triage', () => {
     expect(d.summary([dockerNode, plainNode])).toMatchObject({ hosts: 2, unitsDown: 1, overloaded: 1, unreachable: 0 });
   });
 });
+describe('metric accessors (kind-aware)', () => {
+  it('managed reads node.metrics.{cpu,mem,disk}', () => {
+    expect(d.cpuPct(dockerNode)).toBe(95);
+    expect(d.memPct(dockerNode)).toBe(40);
+    expect(d.diskPct(plainNode)).toBe(88);
+  });
+  it('press reads node.host.{cpu,memory,disk}.used_pct', () => {
+    const press = { name: 'p1', host: { cpu: { used_pct: 12 }, memory: { used_pct: 50 }, disk: { used_pct: 61 } } };
+    expect(d.cpuPct(press)).toBe(12);
+    expect(d.memPct(press)).toBe(50);
+    expect(d.diskPct(press)).toBe(61);
+  });
+  it('returns null when the metric is missing', () => {
+    expect(d.cpuPct({ name: 'x', kind: 'managed', metrics: {} })).toBeNull();
+    expect(d.cpuPct({ name: 'y' })).toBeNull();
+    expect(d.memPct(pressNode)).toBe(50);   // pressNode has host.memory only
+    expect(d.cpuPct(pressNode)).toBeNull();  // no host.cpu in the sample
+  });
+});
+describe('downServers', () => {
+  it('returns only Press (non-managed) nodes that are down or unreachable', () => {
+    const up = { name: 'p-up', health: 'up' };
+    const dn = { name: 'p-dn', health: 'down' };
+    const un = { name: 'p-un', health: 'unknown' };
+    const res = d.downServers([up, dn, un, dockerNode]); // dockerNode is managed+down -> excluded
+    expect(res.map(n => n.name)).toEqual(['p-dn', 'p-un']);
+  });
+});
