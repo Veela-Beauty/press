@@ -538,6 +538,11 @@ let router = createRouter({
 			name: 'Infrastructure',
 			component: () => import('./pages/infrastructure/InfraDashboard.vue'),
 		},
+		{
+			path: '/notifications',
+			name: 'NotificationsFeed',
+			component: () => import('./pages/notifications/Notifications.vue'),
+		},
 		...generateRoutes(),
 		// TODO: makeshift redirect fixes for /insights paths
 		{
