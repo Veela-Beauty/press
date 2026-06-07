@@ -4,6 +4,27 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 07-06-2026 - Infrastructure Control Panel: dashboard live, 3 bug fixes, two code-reviews, Gate-0 self-diagnosis
+
+The Press Infrastructure dashboard (Plan 2b) went live at /dashboard/infrastructure: one view over Press servers (server to bench to service, read-only) and managed Docker/plain hosts (drill to units to start/stop/restart to logs), System-Manager-gated, served from a scheduler-pre-warmed get_infra_tree cache.
+
+### Added
+- Infrastructure dashboard: Servers/Infrastructure toggle, summary cards, filters/search/sort, NeedsAttention, 3-step Add-host wizard, unit control + logs drawer, 15s poll.
+- Server CPU + Disk metrics: a host_probes cpu/disk SSH probe (1-min load over cores, root df) shown alongside Mem for Press servers.
+- Bespoke Notifications page replacing the bare ObjectList: derived severity, Today/Yesterday/Earlier grouping, summary chips, tab/type/severity filters, mark read / mark all.
+- gate0_status() preflight + a dashboard banner that names exactly what is missing (control-plane key, CA secret) with the fix commands, so an unprovisioned control plane no longer fails silently.
+
+### Fixed
+- Servers/Infrastructure toggle moved inline into the page body (it was hidden in the Header actions slot).
+- get_infra_tree pre-warmed by a scheduler cron (TTL 15 to 90s); the dashboard no longer waits ~12s on first load.
+- Notifications relative-time clamps future timestamps to "just now" (server/browser clock skew).
+- Managed-host failures captured + surfaced: classify_conn_error maps raw ssh/docker errors to actionable reasons, persisted on Managed Host.last_error and shown on the card.
+
+### Changed
+- Two BIG /code-review passes: DRY (dayjs.fromNow, centralized severity map), robustness (defensive _parse_cpu_disk, list reload over optimistic mutation, dropped a redundant SSH round-trip), i18n + actionable adapter throws, plus vitest + python tests (python 13 to 20).
+
+---
+
 ## 22-05-2026 — MCP deploy-chain hardening: 4 new tools + 2 fixes + scope expansion
 
 Six commits closing the gap that bit us during the `fingerprint_external` /

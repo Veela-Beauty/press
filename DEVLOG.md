@@ -1,5 +1,23 @@
 # Press Fork Dev Log
 
+### Session 8 - 2026-06-07: Infrastructure dashboard polish, two code-reviews, Gate-0 self-diagnosis
+
+**What we did:**
+1. Shipped the Plan-2b Infrastructure dashboard live, then fixed 3 hand-test bugs: Servers/Infrastructure toggle moved inline, server CPU/Disk probes added to host_probes, and a bespoke Notifications page replacing the bare ObjectList.
+2. Two BIG /code-review passes (dashboard + managed-host backend); implemented the approved DRY/robustness/test fixes (python tests 13 to 20, vitest 35).
+3. Gate-0 long-term fix: the control plane no longer fails silently. classify_conn_error + Managed Host.last_error + a gate0_status() banner name exactly what is missing to connect a managed host.
+4. Proved the managed-host adapter/tunnel/control/logs cycle on real Docker via a throwaway CA-free sidecar, then tore it down (press-ctrl restored, 0 managed hosts).
+
+**Files:** `press/api/infra_board.py`, `press/infra/adapters/ssh_docker.py`, `press/press/doctype/managed_host/`, `dashboard/src/pages/infrastructure/*`, `dashboard/src/pages/notifications/*`, `docs/infra-board/2026-06-06-plan-2b-*.md`
+
+**Decisions:**
+- CA-free demo sidecar (frappe default key, `_attach_cert` fails open) to prove the cycle without provisioning Gate 0; a real registration still needs Gate 0 (CA + control-plane key + socket-proxy).
+- Surface failures over silent best-effort: every connection error now carries an actionable reason.
+
+**Commits:** 1c4013b6, a8ad60db, 5cdd7cfa, ba0955b5, 12416b35, c04bc3ef, 20a00cf0 (+ docs). HEAD 8d6201606.
+
+**Lesson:** alpine `adduser -D` leaves the account password-locked (`!`), which sshd reports as "invalid user" even for pubkey auth. Fix the shadow field `!` to `*`.
+
 ### Session 7 — 2026-05-06: get_bench_update double team-check + router.js defensive redirect + press-f1 MariaDB firewall
 
 **What we did:**
