@@ -431,3 +431,27 @@ Triggered by trying to register press-ctrl's own Docker for a "full cycle on rea
 Commits: `c04bc3ef` (fix) + `20a00cf0` (hint-cache). press-ctrl + github at `20a00cf01`. Deploy: bench migrate (adds last_error) -> python run-tests -> yarn build -> bench restart.
 
 The throwaway demo path (CA-free sshd+socat sidecar on 127.0.0.1:2222) PROVED the adapter/tunnel cycle works on real Docker, then was fully torn down (no Managed Host persisted, press-ctrl restored). To actually register a real host long-term, do the real Gate-0 provisioning (CA in Infisical via SANAD_SSH_CA_PRIVATE_PATH + control-plane key + a persistent socket-proxy/ssh-proxy) - the banner now tells you exactly that.
+
+---
+
+## Update 2026-06-07e: Gate 0 PROVISIONED on press-ctrl + first real host onboarded (live)
+
+The managed-host control plane is now LIVE on prod. Onboarded the first real host (press-ctrl's own Docker) through the correct flow end-to-end:
+
+**Part A - Gate 0 (one-time, control plane on press-ctrl):**
+- SSH CA keypair: `/home/frappe/keys/sanad-infra-ca` (+ `.pub`), 0600 frappe.
+- Control-plane key: `/home/frappe/.ssh/sanad-infra` (+ `.pub`), 0600 frappe. This is the key test_connection signs per host.
+- Env wired: `SANAD_SSH_CA_PRIVATE_PATH=/home/frappe/keys/sanad-infra-ca` added to the bench supervisor.conf for 4 program blocks (frappe-web, frappe-schedule, short-worker, long-worker), applied via `supervisorctl reread && update`. get_infisical_secret reads this env. Backup at `config/supervisor.conf.bak-gate0`.
+- Verified: gate0_status().ready == true, the dashboard Gate-0 banner disappeared.
+
+**Part B/C - first host (press-controller-docker):**
+- Persistent CA-trusting sidecar `sanad-infra-proxy` (alpine sshd + socat to /var/run/docker.sock, TrustedUserCAKeys = the CA pubkey, AllowTcpForwarding, frappe user unlocked), `--restart unless-stopped`, published `127.0.0.1:2222:22`. Build files at `/opt/sanad-infra/`.
+- Registered via the Add-host wizard: ssh_host=127.0.0.1, ssh_user=frappe, ssh_port=2222, proxy_port=2375, type=docker. test_connection: SSH ok, Docker API ok, 8 containers -> status Active.
+- Steady-state enumerate verified: health=up, last_error=None, 8 real containers (sanad-infra-proxy, log-kibana, log-elasticsearch, portainer-press, code-analysis, borgmatic, minio, registry). Shows live in the dashboard (1 Hosts).
+
+**DURABILITY CAVEATS (must address for true long-term):**
+1. **The supervisor env is fragile** - `bench setup supervisor` (run during some deploys) REGENERATES supervisor.conf and WIPES the SANAD_SSH_CA_PRIVATE_PATH lines. After any such run, re-add them + `supervisorctl reread && update`, or Gate 0 breaks (banner returns). A durable fix is a supervisor template override or a system-level `[supervisord] environment=`.
+2. **CA private key is on disk only**, not yet in Infisical at `infra/ssh_ca_private`. A press-ctrl rebuild loses it (and every managed host's trust). Back it up to Infisical.
+3. **The socket-proxy is socat (full Docker access)**, not the restricted `tecnativa/docker-socket-proxy` (EXEC/BUILD/VOLUMES=0). Harden before exposing more hosts. Auth is CA-cert-only + 8h TTL + localhost-bound, so the surface is gated, but the proxy itself is unrestricted.
+
+**To onboard the NEXT host:** repeat Part B only (stand up a CA-trusting socket-proxy on that host that trusts `/home/frappe/keys/sanad-infra-ca.pub`, then Add-host wizard). Gate 0 (Part A) is already done.
