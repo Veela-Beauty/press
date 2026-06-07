@@ -179,7 +179,7 @@ def _press_servers() -> list:
 def _managed_hosts() -> list:
 	return frappe.get_all(
 		"Managed Host", filters={"status": ["!=", "Pending"]},
-		fields=["name as host_name", "server_type", "ssh_host", "ssh_port", "ssh_user", "proxy_port", "status"],
+		fields=["name as host_name", "server_type", "ssh_host", "ssh_port", "ssh_user", "proxy_port", "status", "last_error"],
 	)
 
 
@@ -190,10 +190,13 @@ def _enumerate_managed(host) -> dict:
 		_attach_cert(host)
 		out = get_adapter(host).enumerate(host)
 		out.setdefault("reach", "ok")
+		_set_last_error(host.host_name, "")
 		return out
-	except Exception:
+	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), f"infra enumerate failed: {host.host_name}")
-		return {"units": [], "metrics": {"cpu": 0, "mem": 0, "disk": 0, "req": 0}, "reach": "fail"}
+		reason = getattr(host, "_provision_error", None) or classify_conn_error(str(getattr(e, "message", "") or str(e)))
+		_set_last_error(host.host_name, reason)
+		return {"units": [], "metrics": {"cpu": 0, "mem": 0, "disk": 0, "req": 0}, "reach": "fail", "reason": reason}
 
 
 def _overload(m: dict):
@@ -213,6 +216,7 @@ def _build_tree() -> dict:
 			"benches": [],
 			"units": units, "metrics": en["metrics"], "overload": overload,
 			"host": {"server": h.host_name},
+			"last_error": en.get("reason") or h.get("last_error") or None,
 			"health": ("unknown" if (h.status == "Unreachable" or en.get("reach") == "fail") else "down" if (down or overload == "crit") else "up"),
 		})
 	return {"servers": servers}
@@ -282,6 +286,39 @@ def get_host_log(host: str, unit_id: str, tail: int = 200) -> list:
 		raise
 
 
+def classify_conn_error(text: str) -> str:
+	"""Map a raw SSH/Docker connection error into a short, actionable operator
+	reason (what failed + what to check). Pure + unit-tested; falls back to the
+	trimmed raw text so nothing is ever fully swallowed."""
+	t = (text or "").lower()
+	if "not provisioned" in t or "gate 0" in t or "gate0" in t:
+		return ("Gate 0 not provisioned: the SSH CA secret is missing. Set "
+			"SANAD_SSH_CA_PRIVATE_PATH (or store infra/ssh_ca_private) and restart the bench.")
+	if "permission denied" in t or "publickey" in t:
+		return ("Control-plane cert rejected. Check Gate 0: the CA, the control-plane key, "
+			"and the host's TrustedUserCAKeys trust for this principal.")
+	if "forward" in t and ("fail" in t or "did not come up" in t):
+		return ("Socket-proxy not reachable through the tunnel. Confirm the docker-socket-proxy "
+			"listens on 127.0.0.1:<proxy_port> on the host.")
+	if "timed out" in t or "timeout" in t:
+		return "Host did not respond in time (network, sshd, or socket-proxy down)."
+	if "connection refused" in t:
+		return "Connection refused: no sshd listening on the configured ssh_port."
+	if "docker api" in t:
+		return "Reached the host, but the Docker API returned an error (check the socket-proxy allowlist)."
+	return (text or "Unknown connection error").strip()[:300]
+
+
+def _set_last_error(host_name: str, reason: str) -> None:
+	"""Persist the latest connection reason on a Managed Host, only when it
+	changed, so the steady-state warm cron does not write on every poll."""
+	if not host_name:
+		return
+	current = frappe.db.get_value("Managed Host", host_name, "last_error")
+	if (current or "") != (reason or ""):
+		frappe.db.set_value("Managed Host", host_name, "last_error", reason or "", update_modified=False)
+
+
 # Gate-0 provisions a dedicated control-plane keypair at this path; test_connection
 # signs its pubkey with the CA to mint a short-TTL cert. Until provisioned, sign_cert
 # fails and test_connection honestly reports the host Unreachable.
@@ -305,8 +342,9 @@ def _attach_cert(host):
 		try:
 			cert = ssh_ca.sign_cert(principal=user, pubkey_path=f"{INFRA_KEY}.pub")
 			frappe.cache().set_value(ck, cert, expires_in_sec=6 * 3600)
-		except Exception:
+		except Exception as e:
 			frappe.log_error(frappe.get_traceback(), "infra cert sign failed")
+			host._provision_error = classify_conn_error(str(getattr(e, "message", "") or str(e)))
 			return host
 	host.ssh_identity = INFRA_KEY
 	host.ssh_cert = cert
@@ -353,10 +391,60 @@ def test_connection(host) -> dict:
 		if doc.server_type == "docker":
 			out["docker_ok"] = True
 			out["containers"] = sum(1 for u in en.get("units", []) if u.get("kind") == "container")
-		frappe.db.set_value("Managed Host", host, {"status": "Active", "last_seen": frappe.utils.now_datetime()})
+		frappe.db.set_value("Managed Host", host, {"status": "Active", "last_seen": frappe.utils.now_datetime(), "last_error": ""})
 		log_infra_action(host=host, unit="-", action="test_connection", outcome="success", detail=str(out))
 		return out
 	except Exception as e:
-		frappe.db.set_value("Managed Host", host, "status", "Unreachable")
+		reason = getattr(doc, "_provision_error", None) or classify_conn_error(str(getattr(e, "message", "") or str(e)))
+		frappe.db.set_value("Managed Host", host, {"status": "Unreachable", "last_error": reason})
 		log_infra_action(host=host, unit="-", action="test_connection", outcome="error", detail=str(e))
-		raise
+		frappe.throw(reason)
+
+
+def _gate0_ca_probe():
+	"""5-min cached, read-only probe that the CA secret resolves AND is a valid SSH
+	key (`ssh-keygen -y`, which produces no cert and opens no tunnel). Returns
+	(ok, hint)."""
+	ck = "infra_board:gate0_ca_ok"
+	cached = frappe.cache().get_value(ck, expires=True)
+	if cached is not None:
+		ok = cached == "1"
+		return ok, ("" if ok else "CA secret missing or not a usable SSH key; see the Error Log.")
+	import subprocess
+
+	from press.infra.secrets import get_infisical_secret
+
+	try:
+		ca_path = get_infisical_secret("infra/ssh_ca_private")
+		r = subprocess.run(["ssh-keygen", "-y", "-f", ca_path], capture_output=True, text=True, timeout=10)
+		ok = r.returncode == 0
+		hint = "" if ok else "CA key is unreadable or not a valid SSH private key."
+	except Exception as e:
+		ok = False
+		hint = classify_conn_error(str(getattr(e, "message", "") or str(e)))
+	frappe.cache().set_value(ck, "1" if ok else "0", expires_in_sec=300)
+	return ok, hint
+
+
+def _control_key_present() -> bool:
+	import os
+
+	return os.path.exists(INFRA_KEY) and os.path.exists(f"{INFRA_KEY}.pub")
+
+
+@frappe.whitelist()
+def gate0_status() -> dict:
+	"""Preflight for the managed-host control plane: is it provisioned enough to
+	reach hosts? Cheap local checks + the cached CA probe; never opens an SSH
+	tunnel. System-Manager only. Drives the dashboard's Gate-0 banner so an
+	operator sees what is missing instead of an unexplained 'Unreachable'."""
+	frappe.only_for("System Manager")
+
+	key_ok = _control_key_present()
+	ca_ok, ca_hint = _gate0_ca_probe()
+	checks = [
+		{"name": "Control-plane key", "ok": key_ok,
+			"hint": "" if key_ok else f"Generate it: ssh-keygen -t ed25519 -f {INFRA_KEY} -N ''"},
+		{"name": "SSH CA secret", "ok": ca_ok, "hint": ca_hint},
+	]
+	return {"ready": all(c["ok"] for c in checks), "checks": checks}

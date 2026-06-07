@@ -5,6 +5,12 @@ export function useInfraTree() {
 	return createResource({ url: 'press.api.infra_board.get_infra_tree', auto: true });
 }
 
+// Gate-0 preflight: is the managed-host control plane provisioned? Drives the
+// banner that tells an operator what is missing instead of a silent "Unreachable".
+export function useGate0Status() {
+	return createResource({ url: 'press.api.infra_board.gate0_status', auto: true });
+}
+
 // Promise wrapper for a one-shot whitelisted call (mirrors utils/backupApi.js).
 function call(url, params) {
 	return new Promise((resolve, reject) => {

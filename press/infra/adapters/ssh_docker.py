@@ -64,22 +64,22 @@ class SshDockerAdapter(Adapter):
 
 	def control(self, host, unit_id: str, action: str) -> dict:
 		if action not in _VERBS:
-			frappe.throw(f"Invalid action {action!r}; allowed: {_VERBS}", frappe.ValidationError)
+			frappe.throw(frappe._("Unknown action {0}. Allowed actions: {1}.").format(action, ", ".join(_VERBS)), frappe.ValidationError)
 		if not _ID_RE.match(unit_id or ""):
-			frappe.throw("Invalid container id", frappe.ValidationError)
+			frappe.throw(frappe._("That container id is not valid (expected a 12-64 character hex id)."), frappe.ValidationError)
 		if unit_id not in self._live_ids(host):
-			frappe.throw("Container not found on host", frappe.ValidationError)
+			frappe.throw(frappe._("Container {0} is no longer on {1}; refresh the host.").format((unit_id or "")[:12], host.host_name), frappe.ValidationError)
 		self._api(host, "POST", f"/containers/{unit_id}/{action}")
 		return {"ok": True, "host": host.host_name, "unit": unit_id, "action": action}
 
 	def logs(self, host, unit_id: str, tail: int = 200) -> list:
 		if not _ID_RE.match(unit_id or ""):
-			frappe.throw("Invalid container id", frappe.ValidationError)
+			frappe.throw(frappe._("That container id is not valid (expected a 12-64 character hex id)."), frappe.ValidationError)
 		if unit_id not in self._live_ids(host):
-			frappe.throw("Container not found on host", frappe.ValidationError)
+			frappe.throw(frappe._("Container {0} is no longer on {1}; refresh the host.").format((unit_id or "")[:12], host.host_name), frappe.ValidationError)
 		try:
 			tail_n = max(1, min(int(tail or 200), 5000))
 		except (TypeError, ValueError):
-			frappe.throw("Invalid tail value", frappe.ValidationError)
+			frappe.throw(frappe._("Invalid tail value; use a number of lines (1-5000)."), frappe.ValidationError)
 		raw = self._api(host, "GET", f"/containers/{unit_id}/logs?stdout=1&stderr=1&tail={tail_n}", raw=True)
 		return (raw or "").splitlines()

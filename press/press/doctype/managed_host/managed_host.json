@@ -15,6 +15,7 @@
   "tls_fingerprint",
   "status",
   "last_seen",
+  "last_error",
   "tags",
   "notes"
  ],
@@ -81,6 +82,13 @@
    "fieldtype": "Datetime",
    "label": "Last Seen",
    "read_only": 1
+  },
+  {
+   "fieldname": "last_error",
+   "fieldtype": "Small Text",
+   "label": "Last Error",
+   "read_only": 1,
+   "description": "Most recent connection failure reason, surfaced on the dashboard."
   },
   {
    "fieldname": "tags",

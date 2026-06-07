@@ -66,6 +66,25 @@
               {{ nav === 'infra' ? 'Managed Docker and host machines you control' : 'Press servers and benches (read-only)' }}
             </span>
           </div>
+
+          <!-- Gate-0 preflight banner: tells the operator what is missing before a host can connect -->
+          <div
+            v-if="nav === 'infra' && gate0.data && !gate0.data.ready"
+            class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm"
+          >
+            <div class="flex items-start gap-2">
+              <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+              <div>
+                <p class="font-medium text-amber-900">Gate 0 is not provisioned, so managed hosts cannot connect yet.</p>
+                <ul class="mt-1.5 space-y-1 text-amber-800">
+                  <li v-for="c in gate0.data.checks.filter((x) => !x.ok)" :key="c.name">
+                    <span class="font-medium">{{ c.name }}:</span> {{ c.hint }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
           <NeedsAttention v-if="nav === 'infra'" :nodes="navNodes" class="mb-4" @view="drill" />
           <ServerList
             :nav="nav"
@@ -117,7 +136,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import Header from '../../components/Header.vue';
 import { Button } from 'frappe-ui';
-import { useInfraTree } from './infra-api';
+import { useInfraTree, useGate0Status } from './infra-api';
 import { partition } from './infra-derive';
 import ServerList from './ServerList.vue';
 import NeedsAttention from './NeedsAttention.vue';
@@ -127,6 +146,7 @@ import AddHostWizard from './AddHostWizard.vue';
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 const tree = useInfraTree();
+const gate0 = useGate0Status();
 
 // ─── UI state ─────────────────────────────────────────────────────────────────
 const nav   = ref('infra');       // 'servers' | 'infra'

@@ -186,3 +186,87 @@ class TestInfraTree(FrappeTestCase):
 		bench_c = tree["servers"][0]["benches"][0]
 		self.assertEqual(bench_c["health"], "unknown")
 		self.assertEqual(tree["servers"][0]["health"], "down")
+
+
+class TestClassifyConnError(FrappeTestCase):
+	def test_maps_known_failures_to_actionable_reasons(self):
+		from press.api import infra_board as ib
+
+		self.assertIn("Gate 0", ib.classify_conn_error("infra secret infra/ssh_ca_private is not provisioned; Gate 0 pending"))
+		self.assertIn("cert rejected", ib.classify_conn_error("ssh exited 255: Permission denied (publickey)"))
+		self.assertIn("socket-proxy", ib.classify_conn_error("SSH forward to host did not come up within 15s").lower())
+		self.assertIn("respond", ib.classify_conn_error("operation timed out"))
+		self.assertIn("refused", ib.classify_conn_error("connect: Connection refused").lower())
+
+	def test_unknown_error_passes_through_trimmed(self):
+		from press.api import infra_board as ib
+
+		self.assertEqual(ib.classify_conn_error("  some weird thing  "), "some weird thing")
+		self.assertEqual(ib.classify_conn_error(""), "Unknown connection error")
+
+
+class TestGate0Status(FrappeTestCase):
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_ready_when_key_and_ca_pass(self):
+		from press.api import infra_board as ib
+
+		with patch.object(ib, "_control_key_present", return_value=True), patch.object(
+			ib, "_gate0_ca_probe", return_value=(True, "")
+		):
+			r = ib.gate0_status()
+		self.assertTrue(r["ready"])
+		self.assertTrue(all(c["ok"] for c in r["checks"]))
+
+	def test_not_ready_missing_control_key_gives_hint(self):
+		from press.api import infra_board as ib
+
+		with patch.object(ib, "_control_key_present", return_value=False), patch.object(
+			ib, "_gate0_ca_probe", return_value=(True, "")
+		):
+			r = ib.gate0_status()
+		self.assertFalse(r["ready"])
+		key = next(c for c in r["checks"] if c["name"] == "Control-plane key")
+		self.assertFalse(key["ok"])
+		self.assertIn("ssh-keygen", key["hint"])
+
+	def test_not_ready_when_ca_missing_surfaces_ca_hint(self):
+		from press.api import infra_board as ib
+
+		with patch.object(ib, "_control_key_present", return_value=True), patch.object(
+			ib, "_gate0_ca_probe", return_value=(False, "CA secret missing")
+		):
+			r = ib.gate0_status()
+		self.assertFalse(r["ready"])
+		ca = next(c for c in r["checks"] if c["name"] == "SSH CA secret")
+		self.assertIn("CA secret missing", ca["hint"])
+
+
+class TestProvisionReasonSurfacing(FrappeTestCase):
+	def test_attach_cert_captures_reason_on_sign_failure(self):
+		from press.api import infra_board as ib
+
+		frappe.cache().delete_value("infra_board:cert:frappe")
+		host = frappe._dict(ssh_user="frappe")
+		with patch("press.infra.ssh_ca.sign_cert", side_effect=Exception("infra secret infra/ssh_ca_private is not provisioned; Gate 0 pending")):
+			out = ib._attach_cert(host)
+		self.assertIsNone(out.get("ssh_cert"))
+		self.assertIn("Gate 0", out._provision_error)
+
+	def test_build_tree_surfaces_managed_host_last_error(self):
+		from press.api import infra_board as ib
+
+		mh = frappe._dict(host_name="demo-1", server_type="docker", ssh_host="127.0.0.1",
+			ssh_port=2222, ssh_user="frappe", proxy_port=2375, status="Unreachable", last_error=None)
+		failed = {"units": [], "metrics": {"cpu": 0, "mem": 0, "disk": 0, "req": 0},
+			"reach": "fail", "reason": "Gate 0 not provisioned: the SSH CA secret is missing."}
+		with patch.object(ib, "_press_servers", return_value=[]), patch.object(
+			ib, "_managed_hosts", return_value=[mh]
+		), patch.object(ib, "_enumerate_managed", return_value=failed):
+			tree = ib._build_tree()
+
+		node = tree["servers"][0]
+		self.assertEqual(node["kind"], "managed")
+		self.assertEqual(node["health"], "unknown")
+		self.assertIn("Gate 0", node["last_error"])
