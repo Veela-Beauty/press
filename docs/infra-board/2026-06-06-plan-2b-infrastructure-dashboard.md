@@ -455,3 +455,19 @@ The managed-host control plane is now LIVE on prod. Onboarded the first real hos
 3. **The socket-proxy is socat (full Docker access)**, not the restricted `tecnativa/docker-socket-proxy` (EXEC/BUILD/VOLUMES=0). Harden before exposing more hosts. Auth is CA-cert-only + 8h TTL + localhost-bound, so the surface is gated, but the proxy itself is unrestricted.
 
 **To onboard the NEXT host:** repeat Part B only (stand up a CA-trusting socket-proxy on that host that trusts `/home/frappe/keys/sanad-infra-ca.pub`, then Add-host wizard). Gate 0 (Part A) is already done.
+
+---
+
+## Update 2026-06-07f: 2nd host onboarded - daytona-sandbox-1 (remote, firewalled) + cert-cache gotcha
+
+Onboarded sandbox-1 (the Daytona Docker host, 65.108.128.91, ~44 containers) as the 2nd managed host, one-by-one with safety verified before each risk (user: "make sure before go on risk").
+
+**Recon (read-only) findings:** press-ctrl can REACH sandbox-1 (ping/:22/:9101 open) but cannot SSH-auth; THIS dev box has root SSH to it (ssh alias `sandbox-1` -> 65.108.128.91). Port 2222 already taken there -> used 22022.
+
+**Safe approach (isolated sidecar + firewall, user-approved):** built the CA-trusting sidecar on sandbox-1 via dev-box root, on a dedicated docker network `sanad-infra-net` (172.31.255.0/29) with static IP 172.31.255.2, published `22022:22`, `--restart unless-stopped`, CA pubkey + docker.sock mounted. Build files at sandbox-1:/opt/sanad-infra/. Firewalled with a DOCKER-USER rule SCOPED TO THE SIDECAR IP so the 42 sandboxes are untouched: `iptables -I DOCKER-USER -p tcp -d 172.31.255.2 --dport 22 ! -s 89.167.116.92 -j DROP` (89.167.116.92 = press-ctrl). VERIFIED: dev-box -> :22022 BLOCKED, press-ctrl -> :22022 OPEN. CA-cert tunnel press-ctrl->sandbox-1 returned 44 containers. Registered (host_name daytona-sandbox-1, ssh 65.108.128.91:22022 user frappe proxy 2375) -> test_connection ssh/docker ok / 44 -> Active, health up, last_error None. Dashboard shows 2 Hosts.
+
+**GOTCHA found (real robustness gap):** after onboarding, BOTH hosts suddenly showed "Control-plane cert rejected". Root cause: a manual verification ran `rm -f sanad-infra-cert.pub`, deleting the cert file that `_attach_cert`'s 6h Redis cache (`infra_board:cert:frappe`) still pointed at - and `_attach_cert` caches the cert PATH without checking the file still exists, so it served a dead path for every host sharing that ssh_user. Fix now: `frappe.cache().delete_value("infra_board:cert:frappe")` -> re-sign. **Code follow-up:** `_attach_cert` should `os.path.exists()` the cached cert (and re-sign if missing) before using it.
+
+**Durability caveats (sandbox-1):** the DOCKER-USER iptables rule is NOT persisted across reboot (re-add it, or use iptables-persistent). Sidecar is `--restart unless-stopped` so it survives reboot, but the firewall rule must too or the port re-opens to the world (still CA-cert-only auth, but un-scoped).
+
+**Next host:** repeat Part B only - stand up a CA-trusting socket-proxy on that host trusting `sanad-infra-ca.pub`, firewall it to press-ctrl (89.167.116.92), register. Gate 0 is done.
