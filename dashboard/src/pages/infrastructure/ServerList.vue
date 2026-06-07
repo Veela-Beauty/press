@@ -149,9 +149,18 @@
                 </td>
                 <td class="py-2.5 pr-3 font-mono font-medium text-gray-900">{{ node.name }}</td>
                 <td class="px-3 py-2.5 text-gray-500">{{ node.server_type }}</td>
-                <td class="px-3 py-2.5 text-gray-400" :title="HOST_STATS_NOTE">n/a</td>
-                <td class="px-3 py-2.5 text-gray-400" :title="HOST_STATS_NOTE">n/a</td>
-                <td class="px-3 py-2.5 text-gray-400" :title="HOST_STATS_NOTE">n/a</td>
+                <td class="px-3 py-2.5">
+                  <MeterBar v-if="node.metrics?.cpu != null" :value="node.metrics.cpu" />
+                  <span v-else class="text-gray-400" :title="HOST_STATS_NOTE">n/a</span>
+                </td>
+                <td class="px-3 py-2.5">
+                  <MeterBar v-if="node.metrics?.mem != null" :value="node.metrics.mem" />
+                  <span v-else class="text-gray-400" :title="HOST_STATS_NOTE">n/a</span>
+                </td>
+                <td class="px-3 py-2.5">
+                  <MeterBar v-if="node.metrics?.disk != null" :value="node.metrics.disk" />
+                  <span v-else class="text-gray-400" :title="HOST_STATS_NOTE">n/a</span>
+                </td>
                 <td class="px-3 py-2.5">
                   <span class="flex items-center gap-1.5">
                     <span class="inline-block h-[7px] w-[7px] shrink-0 rounded-full" :class="dotClass(statusInfo(node).dot)" />
@@ -211,11 +220,24 @@
             </div>
           </template>
 
-          <!-- Infra card metrics: host CPU/Mem/Disk are not collected for managed hosts in v1 -->
+          <!-- Infra card metrics: live host CPU/Mem/Disk via the sidecar host-stats probe -->
           <template v-else>
-            <div class="flex items-center justify-between text-xs text-gray-400" :title="HOST_STATS_NOTE">
-              <span>CPU / Mem / Disk</span>
-              <span>not collected (v1)</span>
+            <div class="flex flex-col gap-1.5">
+              <div class="flex items-center justify-between text-xs text-gray-500">
+                <span>CPU</span>
+                <MeterBar v-if="node.metrics?.cpu != null" :value="node.metrics.cpu" />
+                <span v-else class="text-gray-400" :title="HOST_STATS_NOTE">n/a</span>
+              </div>
+              <div class="flex items-center justify-between text-xs text-gray-500">
+                <span>Mem</span>
+                <MeterBar v-if="node.metrics?.mem != null" :value="node.metrics.mem" />
+                <span v-else class="text-gray-400" :title="HOST_STATS_NOTE">n/a</span>
+              </div>
+              <div class="flex items-center justify-between text-xs text-gray-500">
+                <span>Disk</span>
+                <MeterBar v-if="node.metrics?.disk != null" :value="node.metrics.disk" />
+                <span v-else class="text-gray-400" :title="HOST_STATS_NOTE">n/a</span>
+              </div>
             </div>
           </template>
 
@@ -250,9 +272,9 @@ const props = defineProps({
 });
 defineEmits(['drill', 'add']);
 
-// Managed hosts are reached only through the Docker socket-proxy, which exposes
-// no host CPU/Mem/Disk usage; live host stats are not collected for them in v1.
-const HOST_STATS_NOTE = 'Live host CPU/Mem/Disk are not collected for managed hosts in v1 (reached via the Docker socket-proxy, which has no host-usage API).';
+// Managed-host CPU/Mem/Disk come from the sidecar host-stats probe; "n/a" means
+// the probe could not read them (sidecar missing the host /proc mount, or offline).
+const HOST_STATS_NOTE = 'Host stats unavailable: the sidecar could not read the host /proc (re-run it with the host /proc + root mounts).';
 
 // ─── Filter / sort state ──────────────────────────────────────────────────────
 const q         = ref('');

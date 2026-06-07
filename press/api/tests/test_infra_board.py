@@ -270,3 +270,29 @@ class TestProvisionReasonSurfacing(FrappeTestCase):
 		self.assertEqual(node["kind"], "managed")
 		self.assertEqual(node["health"], "unknown")
 		self.assertIn("Gate 0", node["last_error"])
+
+
+class TestParseHostStats(FrappeTestCase):
+	def test_valid_line(self):
+		from press.infra.adapters.ssh_docker import parse_host_stats
+
+		r = parse_host_stats("CPU=2.0:4 MEM=37 DISK=53")
+		self.assertEqual(r["cpu"], 50)
+		self.assertEqual(r["mem"], 37)
+		self.assertEqual(r["disk"], 53)
+
+	def test_caps_cpu_and_handles_zero_cores(self):
+		from press.infra.adapters.ssh_docker import parse_host_stats
+
+		self.assertEqual(parse_host_stats("CPU=16.0:4 MEM=1 DISK=1")["cpu"], 100)
+		self.assertEqual(parse_host_stats("CPU=0.5:0 MEM=1 DISK=1")["cpu"], 50)
+
+	def test_missing_or_malformed_fields_become_none(self):
+		from press.infra.adapters.ssh_docker import parse_host_stats
+
+		r = parse_host_stats("CPU=oops MEM=x DISK=")
+		self.assertIsNone(r["cpu"])
+		self.assertIsNone(r["mem"])
+		self.assertIsNone(r["disk"])
+		empty = parse_host_stats("")
+		self.assertEqual(empty, {"cpu": None, "mem": None, "disk": None, "req": 0})

@@ -200,7 +200,8 @@ def _enumerate_managed(host) -> dict:
 
 
 def _overload(m: dict):
-	hi = max(m.get("cpu", 0), m.get("mem", 0), m.get("disk", 0))
+	# metrics may be None when host stats are not collected; treat None as 0.
+	hi = max(m.get("cpu") or 0, m.get("mem") or 0, m.get("disk") or 0)
 	return "crit" if hi >= 90 else "high" if hi >= 80 else None
 
 

@@ -14,6 +14,35 @@ from press.infra.adapters.base import Adapter
 _ID_RE = re.compile(r"\A[a-f0-9]{12,64}\Z")
 _VERBS = ("start", "stop", "restart", "kill")
 
+# Read-only host-stats probe (a FIXED command, no host-controlled data -> no
+# injection). Reads the host /proc + root fs the sidecar mounts read-only.
+# Output: "CPU=<load>:<cores> MEM=<pct> DISK=<pct>".
+_HOST_STATS_CMD = (
+	"echo CPU=$(awk '{print $1}' /host/proc/loadavg):$(nproc) "
+	"MEM=$(awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{if(t)printf \"%d\",(t-a)*100/t}' /host/proc/meminfo) "
+	"DISK=$(df -P /host/root 2>/dev/null | awk 'NR==2{print $5}' | tr -d %)"
+)
+
+
+def _int_after(out: str, key: str):
+	try:
+		return int(out.split(key, 1)[1].split()[0])
+	except (ValueError, IndexError):
+		return None
+
+
+def parse_host_stats(out: str) -> dict:
+	"""Parse the host-stats probe line into {cpu, mem, disk} percentages, each None
+	on a missing/malformed field. Pure + unit-tested."""
+	if not out or "CPU=" not in out:
+		return {"cpu": None, "mem": None, "disk": None, "req": 0}
+	try:
+		load_s, cores_s = out.split("CPU=", 1)[1].split()[0].split(":")
+		cpu = min(100, round(float(load_s) / (int(cores_s) or 1) * 100))
+	except (ValueError, IndexError):
+		cpu = None
+	return {"cpu": cpu, "mem": _int_after(out, "MEM="), "disk": _int_after(out, "DISK="), "req": 0}
+
 
 class SshDockerAdapter(Adapter):
 	def _api(self, host, method: str, path: str, **kw):
@@ -56,8 +85,17 @@ class SshDockerAdapter(Adapter):
 				"state": self._container_state(c), "uptime": c.get("Status", "-"),
 				"restarts": 0, "ports": "-", "health": "-", "pid": "-", "_id": c.get("Id"),
 			})
-		# host metrics come from the shared host_probes (disk/mem) + /info; cpu approximated
-		return {"units": units, "metrics": {"cpu": 0, "mem": 0, "disk": 0, "req": 0}}
+		return {"units": units, "metrics": self._host_metrics(host)}
+
+	def _host_metrics(self, host) -> dict:
+		"""Live host CPU/Mem/Disk via the read-only stats probe; degrades to None
+		(rendered 'n/a') if the sidecar lacks the host mounts or the probe fails."""
+		from press.infra.docker_tunnel import ssh_command
+
+		try:
+			return parse_host_stats(ssh_command(host, _HOST_STATS_CMD))
+		except Exception:
+			return {"cpu": None, "mem": None, "disk": None, "req": 0}
 
 	def _live_ids(self, host) -> set:
 		return {c.get("Id") for c in (self._api(host, "GET", "/containers/json?all=1") or [])}

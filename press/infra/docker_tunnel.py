@@ -106,3 +106,17 @@ def docker_request(host, method: str, path: str, raw: bool = False, **kw):
 				tunnel.wait(timeout=2)
 			except Exception:
 				pass
+
+
+def ssh_command(host, cmd: str, timeout: int = 12) -> str:
+	"""Run a single FIXED command on the host over the cert-authed SSH connection
+	(no -L forward). Returns stdout. Used only for the read-only host-stats probe;
+	`cmd` must never include host-controlled data (no injection surface)."""
+	p = subprocess.run(
+		["ssh", *_ident_opts(host),
+			"-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new",
+			"-o", f"ConnectTimeout={timeout}",
+			"-p", str(host.ssh_port or 22), "--", f"{host.ssh_user}@{host.ssh_host}", cmd],
+		capture_output=True, text=True, timeout=timeout + 5,
+	)
+	return p.stdout or ""
