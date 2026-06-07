@@ -29,6 +29,7 @@
 		"@vueuse/core": "^10.3.0",
 		"codemirror": "^6.0.1",
 		"core-js": "^3.6.4",
+		"d3": "7.9.0",
 		"dayjs": "^1.10.7",
 		"echarts": "^5.4.3",
 		"feather-icons": "^4.26.0",
