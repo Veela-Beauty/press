@@ -1,7 +1,7 @@
 <template>
   <Dialog
     :modelValue="!!node"
-    :options="{ size: '4xl' }"
+    :options="{ size: '4xl', title: node ? node.name : '' }"
     @update:modelValue="(v) => { if (!v) $emit('close'); }"
   >
     <template #body-content>
