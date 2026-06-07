@@ -30,7 +30,7 @@ The backend already returns one merged tree: `get_infra_tree().servers` mixes bo
 ## Design
 
 ### 1. One flat list (remove the toggle)
-- `InfraDashboard.vue`: delete `nav`, `setNav`, and the toggle markup (lines ~51-68, 152, 187-191). `navNodes` -> just `allNodes` (`tree.data?.servers || []`). Breadcrumb label is always "Infrastructure".
+- `InfraDashboard.vue`: delete `nav`, `setNav`, and the toggle markup (lines ~51-68, 152, 187-191). `navNodes` -> `allNodes` directly (`tree.data?.servers || []`). Breadcrumb label is always "Infrastructure".
 - `ServerList.vue`: collapse the two per-`nav` column templates (`v-if="nav==='servers'"` / `v-if="nav==='infra'"`) into ONE row template that renders every node, with a Type badge column. The `nav` prop is removed.
 
 ### 2. Type badge + filter
