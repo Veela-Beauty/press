@@ -85,4 +85,13 @@ The CA private key is stored in Infisical (project `optiflow-secrets` `3137bc4e-
 
 **Residual** (follow-up, lower severity): the RUNTIME still reads the CA via `SANAD_SSH_CA_PRIVATE_PATH` -> the hand-placed `/home/frappe/keys/sanad-infra-ca`. To fully source it from the vault + drop the hand-placed copy: install the Infisical CLI + the universal-auth machine identity on press-ctrl, launch the bench via `infisical run --projectId=3137bc4e-69db-4d2d-b09e-563c78901729 --env=prod -- <bench cmd>` so `SANAD_SSH_CA_PRIVATE` is injected; `secrets.py` then materializes a transient 0600 copy and the hand-placed key can be deleted. (ssh-keygen requires a key file at sign time, so a transient on-disk materialization is inherent - "zero on disk" is not achievable.)
 
-## Status after remediation: INFRA-001 FIXED, INFRA-002 ADDRESSED (vault). Open: INFRA-003/004 (MED), INFRA-005/006 (LOW).
+### INFRA-003 - FIXED 2026-06-07 (sidecar host mount narrowed)
+Both sidecars are recreated with `-v /etc/hostname:/host/root:ro` instead of `-v /:/host/root:ro`. The disk probe (`df -P /host/root`) still resolves to the host root filesystem (a bind of a single file still reports the filesystem that holds it), so disk% stays correct, but the sidecar can no longer read arbitrary host files. Verified: press-ctrl `df /host/root` = 47% (host 47%), sandbox-1 = 57% (host ~58%); reading any other host path from inside the sidecar now fails.
+
+### INFRA-004 - FIXED 2026-06-07 (firewall rule reboot-persistent)
+On sandbox-1 the `DOCKER-USER` allow-only-press-ctrl rule is now a systemd one-shot unit `sanad-infra-firewall.service` (`After=docker.service`, `WantedBy=multi-user.target`, enabled). It re-applies the idempotent `iptables -C ... || iptables -I DOCKER-USER -p tcp -d 172.31.255.2 --dport 22 ! -s 89.167.116.92 -j DROP` on every boot after Docker starts, so a reboot no longer re-opens :22022 to the internet. Verified: unit enabled + active, rule present in `DOCKER-USER`.
+
+### INFRA-006 - FIXED 2026-06-07 (cert cache validated against the file, commit f06f1c1b)
+`_attach_cert` now `os.path.exists()`-checks the Redis-cached cert path and re-signs if the file is gone, so a deleted or rotated cert no longer serves a dead reference. Unit test `TestAttachCertCacheValidation` added. Verified: `bench restart` + the full `test_infra_board` suite (24 tests) pass; both managed hosts report `health=up` with `last_error=None` and correct disk% (press-ctrl 47%, sandbox-1 57%) after the change.
+
+## Status after remediation: INFRA-001 FIXED, INFRA-002 ADDRESSED (vault, residual follow-up noted), INFRA-003/004/006 FIXED. Only INFRA-005 (LOW: retire the `ssh_command` shell stats probe for a dedicated read-only stats endpoint) remains as documented backlog.
