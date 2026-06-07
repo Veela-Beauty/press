@@ -48,7 +48,12 @@ export function timeAgo(creation, now = new Date()) {
   if (!creation) return '';
   const d = dayjs(String(creation).replace(' ', 'T'));
   if (!d.isValid()) return '';
-  return d.from(dayjs(now));
+  const ref = dayjs(now);
+  // A stored event can't be in the future from the reader's view; minor
+  // server/browser clock skew or timezone offset would otherwise render
+  // "in 5 minutes" for a just-created notification.
+  if (d.isAfter(ref)) return 'just now';
+  return d.from(ref);
 }
 
 // Strip every HTML tag except <b> from the message (mirrors the old ObjectList).

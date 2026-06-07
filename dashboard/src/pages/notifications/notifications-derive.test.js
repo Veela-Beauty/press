@@ -52,6 +52,9 @@ describe('timeAgo', () => {
     expect(d.timeAgo(null, NOW)).toBe('');
     expect(d.timeAgo('not-a-date', NOW)).toBe('');
   });
+  it('clamps future timestamps (clock skew) to just now', () => {
+    expect(d.timeAgo('2026-06-07 13:00:00', NOW)).toBe('just now');
+  });
 });
 
 describe('cleanMessage / plainLength', () => {
