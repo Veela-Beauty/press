@@ -1,7 +1,7 @@
 # Unified Infrastructure View - Design Spec
 
 **Date:** 2026-06-07
-**Status:** Approved (design), pending implementation plan
+**Status:** Shipped 2026-06-07 (built green on press-ctrl, verified live, code-reviewed)
 **Scope:** Dashboard only (`dashboard/src/pages/infrastructure/*`). Backend, native Servers pages, and Gate-0 logic are untouched.
 
 ## Goal
@@ -77,15 +77,15 @@ The Gate-0 preflight banner is about managed hosts (they cannot connect without 
 
 ## Definition of Done
 
-- [ ] Infrastructure shows ONE list with both Press and managed nodes; no in-page toggle.
-- [ ] Each row has a Type badge; the All/Press/Managed filter works.
-- [ ] CPU/Mem/Disk render for both kinds via the shared accessors.
-- [ ] Clicking a managed host opens the drawer with working units control + logs.
-- [ ] Clicking a Press server opens a read-only drawer with an "Open full server page" link to `/servers/<name>`.
-- [ ] Needs-attention surfaces both a down managed host and a down Press server.
-- [ ] Gate-0 banner still appears when managed hosts exist and Gate 0 is not ready.
-- [ ] `infra-derive.test.js` passes (accessors + attention set); existing vitest stays green.
-- [ ] Verified live on press-ctrl after `yarn build` (full-width, filter, drawer for each type).
+- [x] Infrastructure shows ONE list with both Press and managed nodes; no in-page toggle.
+- [x] Each row has a Type badge; the All/Press/Managed filter works.
+- [x] CPU/Mem/Disk render for both kinds via the shared accessors.
+- [x] Clicking a managed host opens the drawer with working units control + logs.
+- [x] Clicking a Press server opens a read-only drawer with an "Open full server page" link to `/servers/<name>`.
+- [x] Needs-attention surfaces both a down managed host and a down Press server.
+- [x] Gate-0 banner still appears when managed hosts exist and Gate 0 is not ready.
+- [x] `infra-derive.test.js` passes (accessors + attention set); existing vitest stays green.
+- [x] Verified live on press-ctrl after `yarn build` (full-width, filter, drawer for each type).
 
 ## Before / After
 

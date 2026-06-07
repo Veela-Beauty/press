@@ -699,3 +699,22 @@ Expected: `HAS_BADGE`, `TOGGLE_GONE`, `HTTP 200`.
 **Placeholder scan:** no TBD/TODO; every code step shows complete code; the only checkboxes are DoD/steps. Clear.
 
 **Type consistency:** `cpuPct/memPct/diskPct/downServers` defined in Task 1 are imported/used with the same names in Tasks 2, 3, 4. The row-open event is named `open` in both ServerList (emit, Task 2) and InfraDashboard (`@open="onOpen"`, Task 5). The drawer prop is `node` in HostDrawer (Task 3) and bound `:node="detailNode"` in InfraDashboard (Task 5). `hasManaged`/`allNodes`/`detailNode` defined and used consistently in Task 5. Consistent.
+
+---
+
+## Status: SHIPPED 2026-06-07
+
+All 6 tasks complete, built green on press-ctrl (BUILD_EXIT=0), verified live at
+`/dashboard/infrastructure`, final code review PASS_WITH_WARNINGS (2 cheap findings fixed,
+rest noted as nice-to-have). Commits (on cloudflare-dns):
+- `7ef95a4d` derive accessors + downServers (18/18 vitest)
+- `702199fd` ServerList merged list + Type badge + filter
+- `79995470` HostDrawer slide-over
+- `39fd1ba3` NeedsAttention down Press servers
+- `9160b0b8` InfraDashboard unify (toggle removed, drawer wired)
+- `144cd9b8` dialog title fix
+- `9b02be62` code-review fixes (host fallback, dead import)
+
+Verified live: one list of 5 nodes with Type badges, All/Press/Managed + Status + Runtime
+filters, down Press servers in Needs-attention, managed row -> unit control drawer, Press row
+-> read-only drawer with "Open server page". Native Servers nav untouched.
