@@ -62,3 +62,20 @@
 
 ## Methodology
 Static review of the infra control-plane source + the live deployment context (the reviewer built and deployed this). Categories: Secrets, Auth, Injection/XSS, API/Data, Dependencies/Infra. Upstream Press code out of scope.
+
+---
+
+## Remediation log
+
+### INFRA-001 - FIXED 2026-06-07 (nginx method+path allowlist, NOT tecnativa)
+Raw `socat -> /var/run/docker.sock` is replaced on BOTH hosts by a 2-container setup on `sanad-infra-net`:
+- `sanad-dsp`: a tiny nginx **allowlist** proxy (image `sanad-dsp-allowlist`, build at `/opt/sanad-dsp/`) that proxies ONLY `GET /containers/json`, `GET /containers/<id>/logs`, `POST /containers/<id>/(start|stop|restart|kill)`, `GET /(info|version|_ping)`, and returns **403** for everything else. It mounts the docker socket; nginx workers run as root for socket access.
+- the sshd sidecar's socat now forwards to `TCP:sanad-dsp:2375` and **no longer mounts the docker socket**.
+
+**Why not tecnativa** (tested live): its `POST` flag is all-or-nothing per path group - `CONTAINERS=1 POST=1` STILL allowed `POST /containers/create` (a privileged container -> host-root escape, returned 404 "no such image", i.e. passed to Docker), and `POST=0` blocked `restart` (403). tecnativa cannot allow restart while blocking create; the nginx allowlist gives the method+path granularity it lacks.
+
+**Verified** through the cert tunnel on both hosts: enumerate 200, logs 200, restart 204, info 200; exec-start 403, container-create 403 (privileged), container-exec 403, volumes 403. Post-fix both hosts health=up with full enumerate + host-stats (sandbox-1 45 units, press-ctrl 9 units).
+
+**Durability:** the proxy + sidecar are `--restart unless-stopped`. If recreated, both must be on `sanad-infra-net` so the sidecar's socat resolves `sanad-dsp`.
+
+### INFRA-002 - STILL OPEN (CA private key on disk; move to Infisical).
