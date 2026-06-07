@@ -397,3 +397,20 @@ All three hand-test bugs are fixed, deployed to autodeploypanel.mvpstorm.com, an
 Watch-out: BUG2 adds one SSH round-trip per server to the warm-cache cron (now memory + cpu_disk + ssh_ok = 3 per server). It is backgrounded + 60s-cached, but if the warm build ever exceeds ~60s, batch the three probes into one SSH call.
 
 Deploy recipe used (press-ctrl cannot fetch github in non-interactive ssh, so commits relay IN via bundle): edit locally in a press_local worktree -> commit + push to github (the local clone can push) -> `git bundle create /tmp/x.bundle ^<base> HEAD` -> scp to press-ctrl -> `git fetch /tmp/x.bundle HEAD && git merge --ff-only FETCH_HEAD` -> `cd dashboard && yarn build`. Backend change also needs `bench restart` + `bench --site demo.mvpstorm.com execute press.api.infra_board.warm_infra_tree`.
+
+---
+
+## Update 2026-06-07c: /code-review pass (BIG) landed + re-verified
+
+A full BIG /code-review of the 3 bug-fix changes (Architecture/Code/Tests/Performance) ran; verdict PASS_WITH_WARNINGS (0 critical). Approved fixes implemented, deployed, and re-verified live:
+
+- Arch-1A + Code-4A + Tests-2A (ba0955b5): infra_board extracts a pure `_parse_cpu_disk` (defensive parse + logs raw output on bad lines) and drops the separate `_ssh_ok` SSH round-trip (reachability derives from the cpu/disk probe) - 3 SSH trips/server down to 2, watch_tower dep removed.
+- Code-1A + Arch-2B (ba0955b5): notifications `timeAgo` reuses the dashboard dayjs (relativeTime, locale-correct); severity inference centralized into a documented INTERIM map (delete when a backend severity field lands).
+- Code-2B + 3A (ba0955b5): Notifications mark-read/mark-all reload the list (authoritative read state, not an optimistic mutation); PAGE_LENGTH + MSG_EXPAND_CHARS extracted.
+- Arch-3A (ba0955b5): objects/notification.js comments that its generated route is superseded.
+- Tests-1A + 2A (ba0955b5): new notifications-derive.test.js (21 vitest) + `_parse_cpu_disk` tests; host_probes tests updated for the dropped `_ssh_ok`.
+- Follow-up (12416b35): re-verification caught dayjs rendering "in 30 minutes" for just-created notifications (server/browser clock skew) - clamp future relative-times to "just now".
+
+Verification: vitest 35 passed (14 infra-derive + 21 notifications-derive); `bench run-tests press.api.tests.test_infra_board` 13 passed; live re-check - servers CPU/Mem/Disk render with fresh values, notifications page renders with correct "just now" labels.
+
+Deferred (note-only): Perf-2 notifications "load older" pagination -> T10; Arch-2B backend severity field -> when the Press Notification doctype is next touched.
