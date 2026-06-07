@@ -355,3 +355,31 @@ Translate the prototype's meter bar / status badge / summary cards to Tailwind. 
 - Next up: Task 0 (scaffold route + nav + stub), then 1..12 in order.
 - Execution: subagent-driven; push after each task (bundle->worktree, never from press-ctrl) + /code-review after each.
 - Decisions: light-mode only; managed-host control only (benches read-only v1); one polled get_infra_tree; derive logic TDD'd, Vue verified by build+Playwright.
+
+---
+
+## Resume here (2026-06-07) - Plan 2b status
+
+DONE + PUSHED + DEPLOYED LIVE at `/dashboard/infrastructure` (bundle gitignored; redeploy with `cd dashboard && yarn build`):
+- [x] T0 route + nav + stub (623ee9a)
+- [x] T1 infra-derive.js + 14 vitest (f2e31d2)
+- [x] T2 infra-api.js (cae7c68)
+- [x] T3 atoms MeterBar/StatusBadge/SummaryCards (a7ce8dd)
+- [x] T4 ServerList.vue (1abe34c)
+- [x] T5 shell: nav-toggle + breadcrumb + 15s poll + routing (96a04b3)
+- [x] T6 HostDetail + UnitTable - live restart/stop/kill (f572f4e)
+- [x] T7 UnitDrawer - logs/inspect (73342f6a)
+- [x] T8 NeedsAttention (67320d75)
+- [x] T9 AddHostWizard (f0c137da)
+- [x] T12 build + deploy live; + warm-cache fix (dd281471): get_infra_tree now under 1s via a scheduler pre-warm (cron every minute, CACHE_TTL 15->90s) - it had been ~12s, hanging the page on "Loading...".
+
+REMAINING:
+- [ ] T10 polish (skeleton loaders + consistency) - most polish already shipped in T4-T9
+- [ ] T11 Playwright human-flow assert (rule #9). NOTE: a DRAFT narrated walkthrough was already published at `~/docs/tests/press/infrastructure-dashboard/player.html` (Arabic, status draft) + COMPARISON.md (prototype vs live).
+
+LIVE BUGS found in hand-test (fix next - all root-caused):
+- [ ] BUG1 toggle reposition - the Servers/Infrastructure toggle IS deployed but sits in the `<Header>` `#actions` (top-right), not inline like the prototype. Move it into the page body. Presentation only (InfraDashboard.vue ~lines 9-22).
+- [ ] BUG2 server CPU/Disk metrics not showing - BACKEND gap: `host_probes()` collects only `memory` for Press servers (not cpu/disk), so ServerList can only show Mem for the servers nav. FIX: add cpu(load) + disk probes to host_probes in press/api/infra_board.py, then add the columns in ServerList.vue for the servers nav. (Mem renders from host.memory.used_pct - verify.)
+- [ ] BUG3 Notifications page not like prototype - the de-slopped notifications redesign was PROTOTYPE-ONLY, never built (live = old objects/notification.js ObjectList). FIX: build Notifications.vue from `~/docs/prototypes/press-notifications.html` (severity chips, grouping, expandable msg, filters) wired to get_notifications/mark_as_read, replace the ObjectList route.
+
+Decisions this session: light-mode only; managed hosts have FLAT units (no stack level); commit SOURCE ONLY per task (bundle gitignored, deploy = build from source); vitest needs a dedicated dashboard/vitest.config.js; cache pre-warm via scheduler keeps get_infra_tree instant.
