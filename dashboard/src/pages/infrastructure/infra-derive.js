@@ -9,8 +9,11 @@ const num = (v) => (typeof v === 'number' ? v : null);
 export const cpuPct  = (n) => (isManaged(n) ? num(n.metrics?.cpu)  : num(n.host?.cpu?.used_pct));
 export const memPct  = (n) => (isManaged(n) ? num(n.metrics?.mem)  : num(n.host?.memory?.used_pct));
 export const diskPct = (n) => (isManaged(n) ? num(n.metrics?.disk) : num(n.host?.disk?.used_pct));
-export const downServers = (nodes = []) =>
-  nodes.filter((n) => !isManaged(n) && (n.health === 'down' || n.health === 'unknown'));
+// Only Press servers that are genuinely UNREACHABLE (the probe failed). A reachable server whose
+// rollup is 'down' from a single down/unknown bench is a service-level issue, not a server outage,
+// so it is not raised as a top-level alarm (it still shows its status in the row).
+export const unreachableServers = (nodes = []) =>
+  nodes.filter((n) => !isManaged(n) && n.health === 'unknown');
 export function partition(nodes = []) {
   return { servers: nodes.filter((n) => !isManaged(n)), infra: nodes.filter(isManaged) };
 }

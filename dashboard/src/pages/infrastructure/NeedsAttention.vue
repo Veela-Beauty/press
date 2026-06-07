@@ -11,7 +11,7 @@
       </h2>
       <span class="text-xs text-gray-500">
         {{ hasIssues
-          ? `${down.length + servers.length} down, ${over.length} overloaded`
+          ? `${down.length} down, ${servers.length} unreachable, ${over.length} overloaded`
           : 'Nothing needs attention.' }}
       </span>
     </div>
@@ -47,7 +47,7 @@
         <Button variant="subtle" @click="$emit('view', o.name)">View</Button>
       </div>
 
-      <!-- Down Press-server rows -->
+      <!-- Unreachable Press-server rows -->
       <div
         v-for="s in shownServers"
         :key="`srv-${s.name}`"
@@ -55,7 +55,7 @@
       >
         <span class="inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-red-500" />
         <span class="font-mono text-sm text-gray-900">{{ s.name }}</span>
-        <span class="text-xs text-gray-400">server {{ s.health === 'unknown' ? 'unreachable' : 'down' }}</span>
+        <span class="text-xs text-gray-400">server unreachable</span>
         <div class="flex-1" />
         <Button variant="subtle" @click="$emit('view', s.name)">View</Button>
       </div>
@@ -73,7 +73,7 @@
 <script setup>
 import { computed } from 'vue';
 import { Button } from 'frappe-ui';
-import { issues, overloaded, downServers, loadState, stateLabel } from './infra-derive';
+import { issues, overloaded, unreachableServers, loadState, stateLabel } from './infra-derive';
 
 const props = defineProps({
   nodes: { type: Array, default: () => [] },
@@ -82,11 +82,11 @@ defineEmits(['view']);
 
 const down    = computed(() => issues(props.nodes));
 const over    = computed(() => overloaded(props.nodes));
-const servers = computed(() => downServers(props.nodes));
+const servers = computed(() => unreachableServers(props.nodes));
 const total   = computed(() => down.value.length + over.value.length + servers.value.length);
 const hasIssues = computed(() => total.value > 0);
 
-// Down units first, then overloaded hosts, then down servers; max 4 combined.
+// Down units first, then overloaded hosts, then unreachable servers; max 4 combined.
 const shownDown    = computed(() => down.value.slice(0, 4));
 const shownOver    = computed(() => over.value.slice(0, Math.max(0, 4 - shownDown.value.length)));
 const shownServers = computed(() => servers.value.slice(0, Math.max(0, 4 - shownDown.value.length - shownOver.value.length)));

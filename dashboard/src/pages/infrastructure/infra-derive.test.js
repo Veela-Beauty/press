@@ -56,12 +56,12 @@ describe('metric accessors (kind-aware)', () => {
     expect(d.cpuPct(pressNode)).toBeNull();  // no host.cpu in the sample
   });
 });
-describe('downServers', () => {
-  it('returns only Press (non-managed) nodes that are down or unreachable', () => {
+describe('unreachableServers', () => {
+  it('returns only Press (non-managed) nodes that are unreachable (health unknown)', () => {
     const up = { name: 'p-up', health: 'up' };
-    const dn = { name: 'p-dn', health: 'down' };
-    const un = { name: 'p-un', health: 'unknown' };
-    const res = d.downServers([up, dn, un, dockerNode]); // dockerNode is managed+down -> excluded
-    expect(res.map(n => n.name)).toEqual(['p-dn', 'p-un']);
+    const dn = { name: 'p-dn', health: 'down' };       // reachable, service-level issue -> NOT alarmed
+    const un = { name: 'p-un', health: 'unknown' };    // unreachable -> alarmed
+    const res = d.unreachableServers([up, dn, un, dockerNode]); // dockerNode is managed -> excluded
+    expect(res.map(n => n.name)).toEqual(['p-un']);
   });
 });

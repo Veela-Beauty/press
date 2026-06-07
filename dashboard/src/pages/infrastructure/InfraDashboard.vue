@@ -92,6 +92,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import Header from '../../components/Header.vue';
 import { useInfraTree, useGate0Status } from './infra-api';
 import { isManaged } from './infra-derive';
@@ -103,6 +104,7 @@ import AddHostWizard from './AddHostWizard.vue';
 // --- Data ---
 const tree = useInfraTree();
 const gate0 = useGate0Status();
+const router = useRouter();
 
 // --- UI state ---
 const view       = ref('list');   // 'list' | 'cards'
@@ -123,9 +125,12 @@ const hasManaged = computed(() => allNodes.value.some(isManaged));
 // --- Breadcrumbs ---
 const crumbs = computed(() => [{ label: 'Infrastructure', route: { name: 'Infrastructure' } }]);
 
-// --- Open a node in the drawer ---
+// --- Open a node: managed hosts open the container drawer, Press servers go to the native server page ---
 function onOpen(name) {
-  detailNode.value = allNodes.value.find((n) => n.name === name) || null;
+  const node = allNodes.value.find((n) => n.name === name);
+  if (!node) return;
+  if (isManaged(node)) detailNode.value = node;
+  else router.push('/servers/' + node.name);
 }
 
 // --- Add-host wizard ---
