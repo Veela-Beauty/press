@@ -149,15 +149,9 @@
                 </td>
                 <td class="py-2.5 pr-3 font-mono font-medium text-gray-900">{{ node.name }}</td>
                 <td class="px-3 py-2.5 text-gray-500">{{ node.server_type }}</td>
-                <td class="px-3 py-2.5">
-                  <MeterBar :value="node.metrics?.cpu ?? 0" />
-                </td>
-                <td class="px-3 py-2.5">
-                  <MeterBar :value="node.metrics?.mem ?? 0" />
-                </td>
-                <td class="px-3 py-2.5">
-                  <MeterBar :value="node.metrics?.disk ?? 0" />
-                </td>
+                <td class="px-3 py-2.5 text-gray-400" :title="HOST_STATS_NOTE">n/a</td>
+                <td class="px-3 py-2.5 text-gray-400" :title="HOST_STATS_NOTE">n/a</td>
+                <td class="px-3 py-2.5 text-gray-400" :title="HOST_STATS_NOTE">n/a</td>
                 <td class="px-3 py-2.5">
                   <span class="flex items-center gap-1.5">
                     <span class="inline-block h-[7px] w-[7px] shrink-0 rounded-full" :class="dotClass(statusInfo(node).dot)" />
@@ -217,21 +211,11 @@
             </div>
           </template>
 
-          <!-- Infra card metrics -->
+          <!-- Infra card metrics: host CPU/Mem/Disk are not collected for managed hosts in v1 -->
           <template v-else>
-            <div class="flex flex-col gap-1.5">
-              <div class="flex items-center justify-between text-xs text-gray-500">
-                <span>CPU</span>
-                <MeterBar :value="node.metrics?.cpu ?? 0" />
-              </div>
-              <div class="flex items-center justify-between text-xs text-gray-500">
-                <span>Mem</span>
-                <MeterBar :value="node.metrics?.mem ?? 0" />
-              </div>
-              <div class="flex items-center justify-between text-xs text-gray-500">
-                <span>Disk</span>
-                <MeterBar :value="node.metrics?.disk ?? 0" />
-              </div>
+            <div class="flex items-center justify-between text-xs text-gray-400" :title="HOST_STATS_NOTE">
+              <span>CPU / Mem / Disk</span>
+              <span>not collected (v1)</span>
             </div>
           </template>
 
@@ -265,6 +249,10 @@ const props = defineProps({
   view:  { type: String, default: 'list' },    // 'list' | 'cards'
 });
 defineEmits(['drill', 'add']);
+
+// Managed hosts are reached only through the Docker socket-proxy, which exposes
+// no host CPU/Mem/Disk usage; live host stats are not collected for them in v1.
+const HOST_STATS_NOTE = 'Live host CPU/Mem/Disk are not collected for managed hosts in v1 (reached via the Docker socket-proxy, which has no host-usage API).';
 
 // ─── Filter / sort state ──────────────────────────────────────────────────────
 const q         = ref('');
