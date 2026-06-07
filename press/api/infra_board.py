@@ -332,6 +332,8 @@ def _attach_cert(host):
 	re-signed well before its 8h TTL. Best-effort: if signing fails (Gate 0 not yet
 	provisioned) the host is returned without a cert and the adapter call surfaces
 	the auth failure honestly."""
+	import os
+
 	from press.infra import ssh_ca
 
 	user = host.get("ssh_user")
@@ -339,6 +341,8 @@ def _attach_cert(host):
 		return host
 	ck = f"infra_board:cert:{user}"
 	cert = frappe.cache().get_value(ck, expires=True)
+	if cert and not os.path.exists(cert):
+		cert = None  # cached cert file was deleted/rotated -> re-sign instead of serving a dead path
 	if not cert:
 		try:
 			cert = ssh_ca.sign_cert(principal=user, pubkey_path=f"{INFRA_KEY}.pub")

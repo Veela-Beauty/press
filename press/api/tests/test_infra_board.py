@@ -296,3 +296,16 @@ class TestParseHostStats(FrappeTestCase):
 		self.assertIsNone(r["disk"])
 		empty = parse_host_stats("")
 		self.assertEqual(empty, {"cpu": None, "mem": None, "disk": None, "req": 0})
+
+
+class TestAttachCertCacheValidation(FrappeTestCase):
+	def test_resigns_when_cached_cert_file_missing(self):
+		from press.api import infra_board as ib
+
+		# A stale cache entry whose cert file no longer exists must NOT be served.
+		frappe.cache().set_value("infra_board:cert:frappe", "/nonexistent/sanad-infra-cert.pub")
+		host = frappe._dict(ssh_user="frappe")
+		with patch("press.infra.ssh_ca.sign_cert", return_value="/tmp/fresh-cert.pub"):
+			out = ib._attach_cert(host)
+		self.assertEqual(out.ssh_cert, "/tmp/fresh-cert.pub")
+		frappe.cache().delete_value("infra_board:cert:frappe")
