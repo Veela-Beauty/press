@@ -443,6 +443,15 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"bench_update_dependencies",
 		# Obj 10
 		"release_group_create_deploy_candidate",
+		# Bench-control surface (name = Release Group docname)
+		"release_group_add_app",
+		"release_group_remove_app",
+		"release_group_list_branches",
+		"release_group_versions",
+		"release_group_installable_apps",
+		"release_group_rename",
+		"release_group_redeploy",
+		"release_group_archive",
 	}:
 		if rg:
 			return "Release Group", rg
@@ -471,6 +480,8 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"bench_provision_progress",
 		# Obj 10
 		"bench_run_repo_script",
+		# Bench-control surface (name = Bench docname)
+		"bench_rebuild_assets",
 	}:
 		parent_rg = frappe.db.get_value("Bench", bench_name, "group")
 		if parent_rg:
@@ -522,6 +533,11 @@ RESOURCELESS_TOOLS: set[str] = {
 	"app_source_fetch_latest",  # app-scoped via App Source.team
 	"list_pending_releases",    # filtered by app/source/RG in handler
 	"register_existing_app",    # creates new App Source for current team
+	# Creates a brand-new Release Group — no pre-existing resource to scope to.
+	# Server-side new() still gates on team.enabled + server ownership. Its args
+	# (title/version/new_apps/cluster/server/saas_app) deliberately avoid the
+	# _RESOURCE_ARG_NAMES set so the fail-closed guard doesn't trip.
+	"release_group_create",
 }
 
 # Argument names that, when present, indicate the tool operates on a specific

@@ -84,6 +84,24 @@ _ARG_FRAGMENTS: dict[str, dict] = {
 	"force": {"type": "boolean", "description": "Bypass safety checks (e.g. last_github_poll_failed flag)"},
 	"team": {"type": "string", "description": "Team docname (defaults to current team)"},
 	"limit": {"type": "integer", "minimum": 1, "maximum": 200, "description": "Max rows to return"},
+	"source": {"type": "string", "description": "App Source docname to add to the group (e.g. 'SRC-erpnext-001')"},
+	"title": {"type": "string", "description": "Release Group display title"},
+	"version": {"type": "string", "description": "Frappe version, e.g. 'Version 15'"},
+	"cluster": {"type": "string", "description": "Cluster docname, e.g. 'Default'"},
+	"saas_app": {"type": "string", "description": "Saas App docname (optional; '' if none)"},
+	"dc_name": {"type": "string", "description": "Deploy Candidate docname to redeploy from"},
+	"new_apps": {
+		"type": "array",
+		"items": {
+			"type": "object",
+			"properties": {
+				"name": {"type": "string", "description": "App name, e.g. 'erpnext'"},
+				"source": {"type": "string", "description": "App Source docname for that app"},
+			},
+			"required": ["name", "source"],
+		},
+		"description": "Apps for the NEW Release Group: list of {name, source} dicts (note: 'name' here is the app name, not a release/hash).",
+	},
 }
 
 
@@ -781,6 +799,83 @@ TOOLS: dict[str, dict] = {
 		"description": "Register your SSH public key with Press so bench_ssh_cert_generate can sign it. One-time setup; idempotent on re-call.",
 		"required_args": ["public_key"],
 		"args_schema": _schema(["public_key"]),
+		"risk": "medium",
+	},
+	# ── Bench (Release Group) composition + lifecycle ──────────────────────
+	# Full bench-control surface so an agent never has to fall back to the
+	# Desk for add/remove app, switch source, rename, redeploy, archive,
+	# rebuild, or create-fresh. Backed by press.api.bench.* via bench_ops.py.
+	"release_group_add_app": {
+		"method": "press.mcp_server.bench_ops.release_group_add_app",
+		"description": "Add an app to a Release Group (bench). 'source' is an App Source docname (create one first with register_existing_app if the repo isn't registered). After this, trigger release_group_create_deploy_candidate + deploy to apply. To SWITCH an app's repo: add the new source, then release_group_remove_app the old app.",
+		"required_args": ["name", "source", "app"],
+		"args_schema": _schema(["name", "source", "app"]),
+		"risk": "medium",
+	},
+	"release_group_remove_app": {
+		"method": "press.mcp_server.bench_ops.release_group_remove_app",
+		"description": "Remove an app from a Release Group (bench). The app stays on running benches until the next deploy — trigger release_group_create_deploy_candidate + deploy to drop it. Cannot remove 'frappe'. This is the tool to use instead of the Desk's 'Remove app' action.",
+		"required_args": ["name", "app"],
+		"args_schema": _schema(["name", "app"]),
+		"risk": "high",
+	},
+	"release_group_list_branches": {
+		"method": "press.mcp_server.bench_ops.release_group_list_branches",
+		"description": "List git branches available for an app in a Release Group (from the configured GitHub repo). Use before bench_set_app_branch to discover valid branch names.",
+		"required_args": ["name", "app"],
+		"args_schema": _schema(["name", "app"]),
+		"risk": "low",
+	},
+	"release_group_versions": {
+		"method": "press.mcp_server.bench_ops.release_group_versions",
+		"description": "List the deployed benches (versions) of a Release Group plus the sites on each. Use to see what would be touched by a rebuild/deploy and which bench a site currently runs on.",
+		"required_args": ["name"],
+		"args_schema": _schema(["name"]),
+		"risk": "low",
+	},
+	"release_group_installable_apps": {
+		"method": "press.mcp_server.bench_ops.release_group_installable_apps",
+		"description": "List apps that can be added to a Release Group (available App Sources for the team/version). Use to find the 'source' value for release_group_add_app.",
+		"required_args": ["name"],
+		"args_schema": _schema(["name"]),
+		"risk": "low",
+	},
+	"release_group_rename": {
+		"method": "press.mcp_server.bench_ops.release_group_rename",
+		"description": "Rename a Release Group (changes its display title only, not the docname).",
+		"required_args": ["name", "title"],
+		"args_schema": _schema(["name", "title"]),
+		"risk": "medium",
+	},
+	"release_group_redeploy": {
+		"method": "press.mcp_server.bench_ops.release_group_redeploy",
+		"description": "Redeploy a Release Group from an existing Deploy Candidate (dc_name) — rebuilds without creating a new candidate. Get dc_name from deploy_candidate_status or bench_deploy_information. Returns the new candidate name.",
+		"required_args": ["name", "dc_name"],
+		"args_schema": _schema(["name", "dc_name"]),
+		"risk": "medium",
+	},
+	"release_group_archive": {
+		"method": "press.mcp_server.bench_ops.release_group_archive",
+		"description": "DESTRUCTIVE: archive a Release Group — archives ALL its active benches and disables the group (title suffixed '.archived'). Sites must already be moved/archived. High-risk; requires a risky-enabled token.",
+		"required_args": ["name"],
+		"args_schema": _schema(["name"]),
+		"risk": "high",
+	},
+	"bench_rebuild_assets": {
+		"method": "press.mcp_server.bench_ops.bench_rebuild_assets",
+		"description": "Rebuild a Bench's assets via the supported Press agent job (NOT a raw in-container 'bench build', which desyncs the edge asset snapshot). 'name' is a Bench docname (from release_group_versions), not a Release Group. High-risk: rebuilds assets for the bench.",
+		"required_args": ["name"],
+		"args_schema": _schema(["name"]),
+		"risk": "high",
+	},
+	"release_group_create": {
+		"method": "press.mcp_server.bench_ops.release_group_create",
+		"description": "Create a fresh Release Group (bench). 'new_apps' is a list of {name, source} dicts (name = app name, source = App Source docname); must include frappe. 'server' optional ('' lets Press auto-pick). Returns the new Release Group docname. Use clone_bench instead if you want a copy of an existing group.",
+		"required_args": ["title", "version", "new_apps", "cluster"],
+		"args_schema": _schema(
+			["title", "version", "new_apps", "cluster"],
+			{"server": None, "saas_app": None},
+		),
 		"risk": "medium",
 	},
 }
