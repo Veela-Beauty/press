@@ -396,6 +396,111 @@ class TestMCPServer(FrappeTestCase):
 		self.assertEqual((td, tn), (None, None))
 		self.assertIn("bench_ssh_register_key", RESOURCELESS_TOOLS)
 
+	def test_bench_control_tools_registered_with_risk(self):
+		"""The 10 bench-control tools (2026-06-18) must be in the catalog with the
+		expected risk, so the destructive ones gate on risky_tools_enabled."""
+		from press.mcp_server.tools import get_tool_risk, get_tool_spec
+
+		expected = {
+			"release_group_add_app": "medium",
+			"release_group_remove_app": "high",
+			"release_group_list_branches": "low",
+			"release_group_versions": "low",
+			"release_group_installable_apps": "low",
+			"release_group_rename": "medium",
+			"release_group_redeploy": "medium",
+			"release_group_archive": "high",
+			"bench_rebuild_assets": "high",
+			"release_group_create": "medium",
+		}
+		for tool, risk in expected.items():
+			spec = get_tool_spec(tool)
+			self.assertIsNotNone(spec, f"tool {tool} missing from catalog")
+			self.assertIn("method", spec)
+			self.assertEqual(get_tool_risk(tool), risk, f"{tool}: wrong risk")
+
+	def test_bench_control_rg_tools_resource_scoped(self):
+		"""RG-composition tools take the Release Group docname as `name` and MUST
+		resolve to ("Release Group", name) so the token RG allowlist is enforced.
+		A regression here = a token scoped to RG-A could mutate RG-B."""
+		from press.mcp_server.server import _extract_target
+
+		args = {"name": "RG-Z", "app": "erpnext", "source": "S", "title": "T", "dc_name": "D"}
+		for tool in (
+			"release_group_add_app",
+			"release_group_remove_app",
+			"release_group_list_branches",
+			"release_group_versions",
+			"release_group_installable_apps",
+			"release_group_rename",
+			"release_group_redeploy",
+			"release_group_archive",
+		):
+			td, tn = _extract_target(tool, args)
+			self.assertEqual(
+				(td, tn),
+				("Release Group", "RG-Z"),
+				f"{tool!r}: expected RG resolution, got ({td!r}, {tn!r}) — scope bypass.",
+			)
+
+	def test_bench_rebuild_assets_resolves_bench_to_parent_rg(self):
+		"""bench_rebuild_assets takes a Bench docname as `name`; it must resolve to
+		the parent Release Group via the Bench->group lookup."""
+		from press.mcp_server.server import _extract_target
+
+		with patch(
+			"press.mcp_server.server.frappe.db.get_value",
+			return_value="rg-from-bench",
+		):
+			td, tn = _extract_target("bench_rebuild_assets", {"name": "bench-X-001-press-f1"})
+		self.assertEqual((td, tn), ("Release Group", "rg-from-bench"))
+
+	def test_release_group_create_is_resourceless(self):
+		"""release_group_create has no pre-existing resource to scope to; it must be
+		in RESOURCELESS_TOOLS and _extract_target must return (None, None). Its args
+		avoid _RESOURCE_ARG_NAMES so the fail-closed guard won't trip."""
+		from press.mcp_server.server import RESOURCELESS_TOOLS, _extract_target
+
+		td, tn = _extract_target(
+			"release_group_create",
+			{"title": "New RG", "version": "Version 15", "new_apps": [], "cluster": "Default"},
+		)
+		self.assertEqual((td, tn), (None, None))
+		self.assertIn("release_group_create", RESOURCELESS_TOOLS)
+
+	def test_normalize_arg_aliases_rewrites_to_canonical(self):
+		"""LLM arg-name guesses (site/bench/name) rewrite to the tool's canonical arg
+		so the call doesn't reject with missing-required-args."""
+		from press.mcp_server.server import _normalize_arg_aliases
+		from press.mcp_server.tools import get_tool_spec
+
+		cases = [
+			("site_status", "site", {"site": "x.com"}, "site_name", "x.com"),
+			("site_config_get", "name", {"name": "x.com"}, "site_name", "x.com"),
+			("app_git_status", "bench", {"bench": "b-1"}, "bench_name", "b-1"),
+			("deploy_failure_details", "name", {"name": "DCB-1"}, "dn", "DCB-1"),
+		]
+		for tool, alias_key, sent, canon, val in cases:
+			out = _normalize_arg_aliases(get_tool_spec(tool), sent)
+			self.assertEqual(out.get(canon), val, f"{tool}: {sent} should map {canon}={val}")
+			self.assertNotIn(alias_key, out, f"{tool}: alias {alias_key!r} not consumed")
+
+	def test_normalize_arg_aliases_leaves_legit_args_untouched(self):
+		"""Guard: tools that legitimately declare `site`/`name` must NOT be rewritten
+		(clone_site uses `site`, bench_deploy uses `name` for the Release Group)."""
+		from press.mcp_server.server import _normalize_arg_aliases
+		from press.mcp_server.tools import get_tool_spec
+
+		clone = _normalize_arg_aliases(
+			get_tool_spec("clone_site"),
+			{"site": "src.com", "target_release_group": "RG"},
+		)
+		self.assertEqual(clone.get("site"), "src.com")
+		self.assertNotIn("site_name", clone)
+
+		deploy = _normalize_arg_aliases(get_tool_spec("bench_deploy"), {"name": "RG-1", "apps": []})
+		self.assertEqual(deploy.get("name"), "RG-1")
+
 	def test_extract_target_bench_restart_resolves_name_to_parent_rg(self):
 		"""REGRESSION (2026-06-02): bench_restart / bench_update take the Bench
 		docname as the `name` arg (per tools.py required_args). _extract_target
