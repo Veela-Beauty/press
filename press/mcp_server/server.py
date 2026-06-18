@@ -92,6 +92,52 @@ def _as_user(user: str):
 		frappe.set_user(original)
 
 
+# Common arg-name aliases. LLM clients routinely guess the natural short name
+# ('site', 'bench') or a generic 'name' instead of the catalog's canonical name
+# ('site_name', 'bench_name', 'dn'). Without normalization every such call
+# rejects with "missing required args", the agent calls help, then retries —
+# wasted round-trips that read as the agent stalling mid-task. We rewrite an
+# alias to its canonical name ONLY when the tool's schema declares the canonical
+# arg AND the caller did not already pass it, so tools that legitimately use
+# 'site'/'name' (clone_site, bench_deploy, agent_job_list) stay untouched.
+_GLOBAL_ARG_ALIASES: dict[str, tuple[str, ...]] = {
+	"site_name": ("site", "sitename", "site_url", "fqdn"),
+	"bench_name": ("bench", "benchname"),
+	"release_group": ("rg", "group", "release_group_name"),
+	"query": ("sql",),
+	"public_key": ("pubkey", "ssh_key", "ssh_public_key"),
+}
+# Canonical resource identifiers a bare 'name' might mean. When a tool does NOT
+# declare 'name' but declares exactly one of these (and it's missing), a sent
+# 'name' is rewritten to it (covers deploy_failure_details wanting 'dn',
+# site_* tools wanting 'site_name', etc.). If 2+ candidates match we leave it
+# alone and let validation surface the canonical names.
+_NAME_FALLBACK_CANONICALS: tuple[str, ...] = (
+	"site_name", "bench_name", "dn", "release_group", "candidate_name", "dc_name",
+)
+
+
+def _normalize_arg_aliases(spec: dict, args: dict) -> dict:
+	"""Rewrite common arg-name aliases to the tool's canonical arg names."""
+	if not isinstance(args, dict):
+		return args
+	props = set(spec.get("args_schema", {}).get("properties", {}).keys())
+	if not props:
+		return args
+	out = dict(args)
+	for canon, aliases in _GLOBAL_ARG_ALIASES.items():
+		if canon in props and canon not in out:
+			for alias in aliases:
+				if alias in out:
+					out[canon] = out.pop(alias)
+					break
+	if "name" in out and "name" not in props:
+		candidates = [c for c in _NAME_FALLBACK_CANONICALS if c in props and c not in out]
+		if len(candidates) == 1:
+			out[candidates[0]] = out.pop("name")
+	return out
+
+
 @frappe.whitelist(allow_guest=True)
 def handle(tool: str, args: dict | str | None = None, token: str | None = None) -> dict[str, Any]:
 	"""Single MCP entry point. Returns structured result.
@@ -138,6 +184,11 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 
 		if not token:
 			raise frappe.PermissionError("token is required")
+
+		# Rewrite common arg aliases (site→site_name, bench→bench_name, name→dn,
+		# etc.) BEFORE scope extraction + validation, so an agent's natural guess
+		# succeeds instead of round-tripping through a 'missing required args' error.
+		args = _normalize_arg_aliases(spec, args)
 
 		target_doctype, target_name = _extract_target(tool, args)
 		# SECURITY: fail-closed guard against missing _extract_target entries.

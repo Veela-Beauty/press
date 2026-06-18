@@ -99,6 +99,18 @@ export const TOOL_CATALOG = {
 	bench_ssh_cert_generate:   { category: 'dangerous', risk: 'high', label: 'Bench — Generate SSH Certificate', desc: 'Generate SSH cert (grants shell access to bench)' },
 	bench_update_dependencies: { category: 'dangerous', risk: 'high', label: 'Bench — Update Dependencies',     desc: 'Update bench dependency versions (Python / Node / etc)' },
 	bench_run_repo_script:     { category: 'dangerous', risk: 'high', label: 'Bench — Run Repo Script',         desc: 'Fetch + run a Python script from an allowlisted GitHub repo' },
+
+	// BENCH-CONTROL — Release Group composition + lifecycle (added 2026-06-18)
+	release_group_versions:         { category: 'readonly', risk: 'low',    label: 'Release Group — Versions',          desc: 'List deployed benches (versions) of a Release Group + sites on each' },
+	release_group_list_branches:    { category: 'readonly', risk: 'low',    label: 'Release Group — List Branches',     desc: 'List git branches available for an app in a Release Group' },
+	release_group_installable_apps: { category: 'readonly', risk: 'low',    label: 'Release Group — Installable Apps',  desc: 'List apps that can be added to a Release Group (find a source for add_app)' },
+	release_group_add_app:          { category: 'bench_rg', risk: 'medium', label: 'Release Group — Add App',           desc: 'Add an app (App Source) to a bench; deploy to apply' },
+	release_group_rename:           { category: 'bench_rg', risk: 'medium', label: 'Release Group — Rename',            desc: 'Rename a Release Group (display title only)' },
+	release_group_redeploy:         { category: 'bench_rg', risk: 'medium', label: 'Release Group — Redeploy',          desc: 'Redeploy from an existing Deploy Candidate without creating a new one' },
+	release_group_create:           { category: 'bench_rg', risk: 'medium', label: 'Release Group — Create',            desc: 'Create a fresh Release Group (bench) from {name, source} apps' },
+	release_group_remove_app:       { category: 'dangerous', risk: 'high',  label: 'Release Group — Remove App',        desc: 'Remove an app from a bench; dropped from running benches on next deploy' },
+	release_group_archive:          { category: 'dangerous', risk: 'high',  label: 'Release Group — Archive',           desc: 'Archive a Release Group + all its active benches (destructive)' },
+	bench_rebuild_assets:           { category: 'dangerous', risk: 'high',  label: 'Bench — Rebuild Assets',            desc: 'Rebuild a Bench\'s assets via the supported Press agent job (name = Bench docname)' },
 };
 
 // All tool names sorted alphabetically — useful for stable iteration
@@ -114,6 +126,13 @@ export const PRESETS = {
 		'site_migrate', 'site_backup',
 	],
 	'All clone': ['clone_bench', 'clone_site'],
+	'All bench control': [
+		'list_release_groups', 'release_group_versions', 'release_group_list_branches',
+		'release_group_installable_apps', 'release_group_add_app', 'release_group_remove_app',
+		'release_group_rename', 'release_group_redeploy', 'release_group_create',
+		'release_group_archive', 'bench_rebuild_assets', 'bench_set_app_branch',
+		'register_existing_app', 'release_group_create_deploy_candidate', 'bench_deploy',
+	],
 	'All deploy': [
 		'app_source_fetch_latest', 'list_pending_releases',
 		'app_release_approve', 'release_group_create_deploy_candidate',
