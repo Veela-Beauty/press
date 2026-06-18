@@ -4,6 +4,23 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 19-06-2026: MCP bench-control tools + arg-alias normalization + dev-box stdio proxy
+
+Ten Release-Group (bench) tools so an agent can compose a bench without the Desk, a server-side fix that stops agents stalling on wrong arg names, and a stdio proxy that lets a standard MCP client (Claude Code) connect to the Frappe-RPC MCP.
+
+### Added
+- 10 bench-control MCP tools (press/mcp_server/bench_ops.py): release_group_add_app, remove_app, list_branches, versions, installable_apps, rename, redeploy, archive; bench_rebuild_assets; release_group_create. Catalog 72 to 82. Registered in the dashboard _tool_catalog.js scope picker + an "All bench control" preset.
+- Dev-box stdio MCP proxy (press/mcp_server/devbox_proxy/): bridges a standard MCP stdio client to the single-call handle() RPC: tools/list from a catalog snapshot (82 tools with inputSchema), tools/call forwards to handle().
+- 6 tests for the new tools resource-scope wiring + the arg-alias normalizer (module: 45 green).
+
+### Fixed
+- Agents stalling on "missing required args": server.py _normalize_arg_aliases() rewrites common arg-name guesses (site to site_name, bench to bench_name, name to dn) before validation, guarded so clone_site(site) and bench_deploy(name) stay untouched.
+
+### Changed
+- /clean-code + /code-review (PASS) on all new code.
+
+---
+
 ## 07-06-2026 - Infrastructure Control Panel: dashboard live, 3 bug fixes, two code-reviews, Gate-0 self-diagnosis
 
 The Press Infrastructure dashboard (Plan 2b) went live at /dashboard/infrastructure: one view over Press servers (server to bench to service, read-only) and managed Docker/plain hosts (drill to units to start/stop/restart to logs), System-Manager-gated, served from a scheduler-pre-warmed get_infra_tree cache.

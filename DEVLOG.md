@@ -1,5 +1,26 @@
 # Press Fork Dev Log
 
+### Session 9 - 2026-06-19: MCP bench-control tools + arg-alias fix + dev-box proxy
+
+**What we did:**
+1. Added 10 Release-Group bench-control MCP tools (bench_ops.py) so an agent composes a bench (add/remove/switch app, versions, branches, rename, redeploy, archive, rebuild, create) without the Desk. Catalog 72 to 82.
+2. Fixed the recurring "missing required args" agent stall: _normalize_arg_aliases() in server.py rewrites site/bench/name to the canonical arg before validation, guarded so clone_site/bench_deploy stay untouched.
+3. Registered all 10 in the dashboard _tool_catalog.js + rebuilt the Vue dashboard (yarn build).
+4. Wrote a dev-box stdio proxy (devbox_proxy/) so Claude Code (type:stdio) can call the Frappe-RPC MCP; wired as "press-cloud" in ~/.claude.json (token MCPT-2465 via get_password). 6 tests added (module 45 green).
+
+**Files:** press/mcp_server/bench_ops.py (new), server.py (alias norm + scoping), tools.py (10 entries + fragments), dashboard/src/components/mcp/_tool_catalog.js, press/mcp_server/test_server.py, press/mcp_server/devbox_proxy/ (new)
+
+**Decisions:**
+- Arg aliases fixed server-side, not in agent guidance: a guide cannot stop agents guessing; normalization makes the natural name work.
+- Press MCP is a Frappe single-call RPC, not MCP-protocol, so a stdio proxy bridges it (type:http cannot talk to it directly).
+- token_plaintext is a Password field: read with doc.get_password(), not db.get_value (returns the encrypted value and fails auth).
+
+**Commits:** bb72c6ee0, 475ad4196, 9de191ad9, 9ee6d764f.
+
+**Lesson:** Frappe Password fields return the ENCRYPTED value via db.get_value; use get_password() to read the usable plaintext.
+
+
+
 ### Session 8 - 2026-06-07: Infrastructure dashboard polish, two code-reviews, Gate-0 self-diagnosis
 
 **What we did:**
