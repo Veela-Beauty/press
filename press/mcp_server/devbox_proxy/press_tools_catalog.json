@@ -1,0 +1,1749 @@
+{
+ "clone_bench": {
+  "description": "Clone a Release Group on the same server with the same apps",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "release_group": {
+     "type": "string",
+     "description": "Release Group docname"
+    },
+    "new_title": {
+     "type": "string",
+     "description": "Display title for the new doc"
+    },
+    "lifetime": {
+     "type": "string",
+     "enum": [
+      "persistent",
+      "sandbox"
+     ],
+     "description": "How long the clone lives. 'persistent' = forever; 'sandbox' = 24h TTL."
+    }
+   },
+   "required": [
+    "release_group",
+    "new_title"
+   ]
+  }
+ },
+ "clone_site": {
+  "description": "Clone a Site onto a target bench (3 modes)",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "site": {
+     "type": "string",
+     "description": "Site name (FQDN), e.g. 'example.sandbox.mvpstorm.com'"
+    },
+    "target_bench": {
+     "type": "string",
+     "description": "Target Bench docname to host the cloned/moved site"
+    },
+    "new_subdomain": {
+     "type": "string",
+     "description": "Subdomain for the new site (without the root domain)"
+    },
+    "mode": {
+     "type": "string",
+     "enum": [
+      "latest_backup",
+      "fresh_backup",
+      "empty"
+     ],
+     "description": "Data source. 'latest_backup' (default) restores most recent offsite backup; 'fresh_backup' queues a new backup first; 'empty' installs apps only."
+    },
+    "plan": {
+     "type": "string",
+     "description": "Site Plan docname for the new site (defaults to source's plan)"
+    }
+   },
+   "required": [
+    "site",
+    "target_bench",
+    "new_subdomain"
+   ]
+  }
+ },
+ "move_site_to_release_group": {
+  "description": "Move a Site to a different Release Group",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "site": {
+     "type": "string",
+     "description": "Site name (FQDN), e.g. 'example.sandbox.mvpstorm.com'"
+    },
+    "target_release_group": {
+     "type": "string",
+     "description": "Destination Release Group docname"
+    }
+   },
+   "required": [
+    "site",
+    "target_release_group"
+   ]
+  }
+ },
+ "lock_acquire": {
+  "description": "Acquire an advisory lock on Site or Release Group",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "target_doctype": {
+     "type": "string",
+     "enum": [
+      "Site",
+      "Release Group",
+      "Bench"
+     ],
+     "description": "DocType the lock targets"
+    },
+    "target_name": {
+     "type": "string",
+     "description": "Docname the lock targets (matches target_doctype)"
+    },
+    "reason": {
+     "type": "string",
+     "description": "Free-text reason; appears in audit log"
+    },
+    "ttl_minutes": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 1440,
+     "description": "Lock TTL in minutes (default 30, max 1440)"
+    },
+    "override": {
+     "type": "boolean",
+     "description": "Force-override an existing lock (use sparingly)"
+    }
+   },
+   "required": [
+    "target_doctype",
+    "target_name",
+    "reason"
+   ]
+  }
+ },
+ "lock_release": {
+  "description": "Release an advisory lock you hold",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "target_doctype": {
+     "type": "string",
+     "enum": [
+      "Site",
+      "Release Group",
+      "Bench"
+     ],
+     "description": "DocType the lock targets"
+    },
+    "target_name": {
+     "type": "string",
+     "description": "Docname the lock targets (matches target_doctype)"
+    }
+   },
+   "required": [
+    "target_doctype",
+    "target_name"
+   ]
+  }
+ },
+ "lock_status": {
+  "description": "Inspect lock state of Site or Release Group",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "target_doctype": {
+     "type": "string",
+     "enum": [
+      "Site",
+      "Release Group",
+      "Bench"
+     ],
+     "description": "DocType the lock targets"
+    },
+    "target_name": {
+     "type": "string",
+     "description": "Docname the lock targets (matches target_doctype)"
+    }
+   },
+   "required": [
+    "target_doctype",
+    "target_name"
+   ]
+  }
+ },
+ "list_release_groups": {
+  "description": "List Release Groups visible to the calling user",
+  "inputSchema": {
+   "type": "object",
+   "properties": {},
+   "required": []
+  }
+ },
+ "list_sites": {
+  "description": "List Sites visible to the calling user. Note: this is the broad team-scoped list with status/tag filters only \u2014 does NOT accept a release_group arg. Use list_sites_on_release_group to filter by RG.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {},
+   "required": []
+  }
+ },
+ "list_sites_on_release_group": {
+  "description": "List sites belonging to a specific Release Group (team-scoped for non-System users). Use this when you want to know 'which sites would be touched by a bench rebuild of RG X'. Returns {name, status, bench, team, host_name, group} per site.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "release_group": {
+     "type": "string",
+     "description": "Release Group docname"
+    },
+    "status": {
+     "type": "string",
+     "enum": [
+      "Active",
+      "Inactive",
+      "Suspended",
+      "Pending",
+      "Broken",
+      "Archived"
+     ],
+     "description": "Optional status filter (default: all statuses)"
+    }
+   },
+   "required": [
+    "release_group"
+   ]
+  }
+ },
+ "bench_set_app_branch": {
+  "description": "Change the Git branch an App Source uses for a Release Group. Use BEFORE triggering a deploy candidate when you want to deploy a feature branch instead of whatever Press is currently pointed at. Args: release_group, app, branch. After this call, use release_group_create_deploy_candidate + deploy_candidate_schedule_build (or bench_deploy_and_wait). The branch must exist on the configured repository \u2014 no pre-validation here. Affects every RG that shares this App Source; for per-RG isolation, create a new App Source first via the Desk.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "release_group": {
+     "type": "string",
+     "description": "Release Group docname"
+    },
+    "app": {
+     "type": "string",
+     "description": "App name, e.g. 'erpnext', 'frappe', 'press'"
+    },
+    "branch": {
+     "type": "string",
+     "description": "Git branch or commit SHA"
+    }
+   },
+   "required": [
+    "release_group",
+    "app",
+    "branch"
+   ]
+  }
+ },
+ "list_my_tokens": {
+  "description": "List active MCP tokens for the calling user",
+  "inputSchema": {
+   "type": "object",
+   "properties": {},
+   "required": []
+  }
+ },
+ "revoke_my_token": {
+  "description": "Revoke an MCP token by docname",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "token_id": {
+     "type": "string",
+     "description": "Press MCP Token docname"
+    }
+   },
+   "required": [
+    "token_id"
+   ]
+  }
+ },
+ "app_git_status": {
+  "description": "Get git branch/commit/dirty status for apps in a bench (per-site)",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "bench_name": {
+     "type": "string",
+     "description": "Bench docname, e.g. 'bench-0011-000187-press-f1'"
+    },
+    "site_name": {
+     "type": "string",
+     "description": "Site name (FQDN), e.g. 'example.sandbox.mvpstorm.com'"
+    }
+   },
+   "required": [
+    "bench_name"
+   ]
+  }
+ },
+ "app_git_push": {
+  "description": "Commit + push an app's working tree to GitHub from inside the bench container",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "bench_name": {
+     "type": "string",
+     "description": "Bench docname, e.g. 'bench-0011-000187-press-f1'"
+    },
+    "app": {
+     "type": "string",
+     "description": "App name, e.g. 'erpnext', 'frappe', 'press'"
+    },
+    "message": {
+     "type": "string",
+     "description": "Git commit message"
+    }
+   },
+   "required": [
+    "bench_name",
+    "app",
+    "message"
+   ]
+  }
+ },
+ "app_create_locally": {
+  "description": "Run `bench new-app` inside a bench container",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "bench_name": {
+     "type": "string",
+     "description": "Bench docname, e.g. 'bench-0011-000187-press-f1'"
+    },
+    "app_name": {
+     "type": "string",
+     "description": "App name (lowercase, underscores)"
+    },
+    "app_title": {
+     "type": "string",
+     "description": "Human-readable app title"
+    }
+   },
+   "required": [
+    "bench_name",
+    "app_name",
+    "app_title"
+   ]
+  }
+ },
+ "app_init_github": {
+  "description": "Create a GitHub repo for an existing local app and register it in Press",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "bench_name": {
+     "type": "string",
+     "description": "Bench docname, e.g. 'bench-0011-000187-press-f1'"
+    },
+    "app_name": {
+     "type": "string",
+     "description": "App name (lowercase, underscores)"
+    },
+    "github_owner": {
+     "type": "string",
+     "description": "GitHub user or org name that will own the new repo"
+    }
+   },
+   "required": [
+    "bench_name",
+    "app_name",
+    "github_owner"
+   ]
+  }
+ },
+ "site_run_python": {
+  "description": "Run a Python snippet on a site in the bench console (full power, system-manager only)",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "site_name": {
+     "type": "string",
+     "description": "Site name (FQDN), e.g. 'example.sandbox.mvpstorm.com'"
+    },
+    "code": {
+     "type": "string",
+     "description": "Python source to execute in the site's bench console"
+    }
+   },
+   "required": [
+    "site_name",
+    "code"
+   ]
+  }
+ },
+ "site_run_sql": {
+  "description": "Run SQL on the site database (default read-only; commit=true for writes)",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "site_name": {
+     "type": "string",
+     "description": "Site name (FQDN), e.g. 'example.sandbox.mvpstorm.com'"
+    },
+    "query": {
+     "type": "string",
+     "description": "SQL query string. Default is read-only \u2014 pass commit=true to allow writes."
+    },
+    "commit": {
+     "type": "boolean",
+     "description": "Allow writes (INSERT/UPDATE/DELETE/DDL). Default false (read-only)."
+    }
+   },
+   "required": [
+    "site_name",
+    "query"
+   ]
+  }
+ },
+ "bench_recent_logs": {
+  "description": "Tail recent bench logs (frappe.log, scheduler.log, error.log, etc.)",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "bench_name": {
+     "type": "string",
+     "description": "Bench docname, e.g. 'bench-0011-000187-press-f1'"
+    },
+    "log_type": {
+     "type": "string",
+     "description": "Log file name, e.g. 'frappe.log', 'scheduler.log', 'error.log'"
+    },
+    "limit": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 5000,
+     "description": "Number of trailing lines to return (default 200, max 5000)"
+    }
+   },
+   "required": [
+    "bench_name"
+   ]
+  }
+ },
+ "site_db_processlist": {
+  "description": "MariaDB SHOW PROCESSLIST for the site DB",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "site_name": {
+     "type": "string",
+     "description": "Site name (FQDN), e.g. 'example.sandbox.mvpstorm.com'"
+    }
+   },
+   "required": [
+    "site_name"
+   ]
+  }
+ },
+ "deploy_failure_details": {
+  "description": "Inspect a failed Deploy Candidate Build (failed step, stage, output)",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "dn": {
+     "type": "string",
+     "description": "Deploy Candidate Build docname (sometimes called 'dcb name')"
+    }
+   },
+   "required": [
+    "dn"
+   ]
+  }
+ },
+ "bench_deploy": {
+  "description": "Trigger a deploy for a Release Group. Args: name (Release Group docname, e.g. 'bench-0005'); apps (list of DICTS, NOT strings \u2014 each item {app, release, hash}). Get release+hash from bench_deploy_information(name).apps[*].releases[0]. Returns the Deploy Candidate docname \u2014 pass it to wait_for_bench_flip's target_candidate.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "apps": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "app": {
+        "type": "string",
+        "description": "App name, e.g. 'accubuild_core'"
+       },
+       "release": {
+        "type": "string",
+        "description": "App Release docname (from bench_deploy_information next_release)"
+       },
+       "hash": {
+        "type": "string",
+        "description": "Commit hash for that release (from bench_deploy_information releases[].hash)"
+       }
+      },
+      "required": [
+       "app",
+       "release",
+       "hash"
+      ]
+     },
+     "description": "List of {app, release, hash} dicts. Get release+hash from bench_deploy_information(name).apps[*].releases[0] or .next_release + matching releases[] entry. NOT a flat list of app names \u2014 each entry must be a dict."
+    }
+   },
+   "required": [
+    "name",
+    "apps"
+   ]
+  }
+ },
+ "bench_deploy_information": {
+  "description": "Get deploy candidate / pending updates info for a Release Group",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
+ },
+ "bench_restart": {
+  "description": "Restart a Bench (gunicorn + workers)",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
+ },
+ "bench_update": {
+  "description": "Update a Bench to the latest deploy",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
+ },
+ "site_migrate": {
+  "description": "Run `bench --site X migrate` on the site",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "skip_failing_patches": {
+     "type": "boolean",
+     "description": "Skip patches that fail during migration (not recommended)"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
+ },
+ "site_backup": {
+  "description": "Trigger a site backup. Note: this endpoint does NOT take an `offsite` flag \u2014 site backups via this API are always local + offsite per the team's configured backup schedule. For an explicit offsite-only backup, use Site.backup() directly via console.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "with_files": {
+     "type": "boolean",
+     "description": "Include public + private files in the backup"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
+ },
+ "site_install_app": {
+  "description": "Install an app on a site",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "app": {
+     "type": "string",
+     "description": "App name, e.g. 'erpnext', 'frappe', 'press'"
+    }
+   },
+   "required": [
+    "name",
+    "app"
+   ]
+  }
+ },
+ "site_uninstall_app": {
+  "description": "Uninstall an app from a site",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "app": {
+     "type": "string",
+     "description": "App name, e.g. 'erpnext', 'frappe', 'press'"
+    }
+   },
+   "required": [
+    "name",
+    "app"
+   ]
+  }
+ },
+ "site_activate": {
+  "description": "Activate a previously deactivated site",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
+ },
+ "site_deactivate": {
+  "description": "Deactivate a site (puts it in maintenance mode)",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
+ },
+ "site_update": {
+  "description": "Update a site to the latest bench deploy. Wraps press.api.site.update with pre-flight checks. If no newer Deploy Candidate exists yet, returns {ok:false, reason:'no_destination_candidate', hint:'...'} instead of throwing the misleading 'Could not find suitable Destination Bench' error. Args: name (site FQDN). Optional: skip_failing_patches (bool).",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "skip_failing_patches": {
+     "type": "boolean",
+     "description": "Skip failing patches during migrate (default false)"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
+ },
+ "bench_ssh_cert_get": {
+  "description": "Get the existing SSH certificate for a bench (returns None if not yet generated)",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "bench_name": {
+     "type": "string",
+     "description": "Bench docname, e.g. 'bench-0011-000187-press-f1'"
+    }
+   },
+   "required": [
+    "bench_name"
+   ]
+  }
+ },
+ "bench_ssh_cert_generate": {
+  "description": "Generate an SSH certificate for a bench so the agent can SSH into the bench container",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "bench_name": {
+     "type": "string",
+     "description": "Bench docname, e.g. 'bench-0011-000187-press-f1'"
+    }
+   },
+   "required": [
+    "bench_name"
+   ]
+  }
+ },
+ "bench_dev_info": {
+  "description": "Get bench dev connection info: server IP, SSH port, is_development_bench flag",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "bench_name": {
+     "type": "string",
+     "description": "Bench docname, e.g. 'bench-0011-000187-press-f1'"
+    }
+   },
+   "required": [
+    "bench_name"
+   ]
+  }
+ },
+ "site_config_get": {
+  "description": "Read site_config.json keys (sensitive keys redacted)",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "site_name": {
+     "type": "string",
+     "description": "Site name (FQDN), e.g. 'example.sandbox.mvpstorm.com'"
+    }
+   },
+   "required": [
+    "site_name"
+   ]
+  }
+ },
+ "site_config_set": {
+  "description": "Set a single site_config.json key (sensitive keys forbidden)",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "site_name": {
+     "type": "string",
+     "description": "Site name (FQDN), e.g. 'example.sandbox.mvpstorm.com'"
+    },
+    "key": {
+     "type": "string",
+     "description": "site_config.json key to set"
+    },
+    "value": {
+     "description": "Value for the site_config.json key (string/number/bool \u2014 type matches the key)"
+    }
+   },
+   "required": [
+    "site_name",
+    "key",
+    "value"
+   ]
+  }
+ },
+ "site_file_read": {
+  "description": "Read a file from the site's public/files/ or private/files/ folder",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "site_name": {
+     "type": "string",
+     "description": "Site name (FQDN), e.g. 'example.sandbox.mvpstorm.com'"
+    },
+    "relative_path": {
+     "type": "string",
+     "description": "Path relative to the site's public/files or private/files folder"
+    }
+   },
+   "required": [
+    "site_name",
+    "relative_path"
+   ]
+  }
+ },
+ "site_file_write": {
+  "description": "Write a file to the site's public/files/ or private/files/ folder",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "site_name": {
+     "type": "string",
+     "description": "Site name (FQDN), e.g. 'example.sandbox.mvpstorm.com'"
+    },
+    "relative_path": {
+     "type": "string",
+     "description": "Path relative to the site's public/files or private/files folder"
+    },
+    "content": {
+     "type": "string",
+     "description": "File content to write (UTF-8)"
+    }
+   },
+   "required": [
+    "site_name",
+    "relative_path",
+    "content"
+   ]
+  }
+ },
+ "site_domains_list": {
+  "description": "List domains attached to a site",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
+ },
+ "site_add_domain": {
+  "description": "Attach a custom domain to a site",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "domain": {
+     "type": "string",
+     "description": "Custom domain name, e.g. 'app.example.com'"
+    }
+   },
+   "required": [
+    "name",
+    "domain"
+   ]
+  }
+ },
+ "site_remove_domain": {
+  "description": "Detach a custom domain from a site",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "domain": {
+     "type": "string",
+     "description": "Custom domain name, e.g. 'app.example.com'"
+    }
+   },
+   "required": [
+    "name",
+    "domain"
+   ]
+  }
+ },
+ "site_set_host_name": {
+  "description": "Set the primary domain (host name) for a site",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "domain": {
+     "type": "string",
+     "description": "Custom domain name, e.g. 'app.example.com'"
+    }
+   },
+   "required": [
+    "name",
+    "domain"
+   ]
+  }
+ },
+ "site_update_config_bulk": {
+  "description": "Bulk-update site_config.json keys (passes through Press's update_config \u2014 uses Press internal allow-list)",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "config": {
+     "type": "object",
+     "description": "Dict of config keys \u2192 values to merge"
+    }
+   },
+   "required": [
+    "name",
+    "config"
+   ]
+  }
+ },
+ "bench_update_config": {
+  "description": "Bulk-update bench common_site_config keys",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "config": {
+     "type": "object",
+     "description": "Dict of config keys \u2192 values to merge"
+    }
+   },
+   "required": [
+    "name",
+    "config"
+   ]
+  }
+ },
+ "bench_update_dependencies": {
+  "description": "Update bench dependency versions (Python/Node/etc) \u2014 triggers rebuild",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "dependencies": {
+     "type": "object",
+     "description": "Dict of dependency name \u2192 version"
+    }
+   },
+   "required": [
+    "name",
+    "dependencies"
+   ]
+  }
+ },
+ "app_release_approve": {
+  "description": "Approve a Draft App Release for inclusion in Deploy Candidates",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "release_name": {
+     "type": "string",
+     "description": "App Release docname"
+    }
+   },
+   "required": [
+    "release_name"
+   ]
+  }
+ },
+ "app_source_fetch_latest": {
+  "description": "Poll an App Source's upstream Git remote and create a Draft App Release for any new commit on its branch. Equivalent to the dashboard's 'Fetch Latest' button. Pass either app_source explicitly, OR app + release_group to walk the link. Returns the new release docname or marks no_new_release=true when upstream has no new commits. Pass force=true to retry after last_github_poll_failed.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "app_source": {
+     "type": "string",
+     "description": "App Source docname (e.g. 'SRC-frappe_theme_switcher-001')"
+    },
+    "app": {
+     "type": "string",
+     "description": "App name, e.g. 'erpnext', 'frappe', 'press'"
+    },
+    "release_group": {
+     "type": "string",
+     "description": "Release Group docname"
+    },
+    "force": {
+     "type": "boolean",
+     "description": "Bypass safety checks (e.g. last_github_poll_failed flag)"
+    }
+   },
+   "required": []
+  }
+ },
+ "list_pending_releases": {
+  "description": "List Draft App Releases waiting for approval. Filter by app_source, OR app + release_group, OR app alone. Returns count + array of {name, app, source, hash, status, creation}.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "app": {
+     "type": "string",
+     "description": "App name, e.g. 'erpnext', 'frappe', 'press'"
+    },
+    "release_group": {
+     "type": "string",
+     "description": "Release Group docname"
+    },
+    "app_source": {
+     "type": "string",
+     "description": "App Source docname (e.g. 'SRC-frappe_theme_switcher-001')"
+    },
+    "limit": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 200,
+     "description": "Max rows to return"
+    }
+   },
+   "required": []
+  }
+ },
+ "register_existing_app": {
+  "description": "Register an EXISTING GitHub repository as a new App Source. Different from app_create_locally (which scaffolds a NEW app). Use when a teammate or external maintainer pushed an app to GitHub and you need Press to track it. Args: repository_url (https URL or owner/repo), branch, app_name (must match hooks.py). Optional: app_title, versions (list of Frappe Versions like ['Version 15']; auto-resolved from a version-NN branch or the latest on record if omitted), team. Creates App Source + tries to fetch first release. Returns app_source docname.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "repository_url": {
+     "type": "string",
+     "description": "GitHub repository URL (https://github.com/owner/repo) or owner/repo shorthand"
+    },
+    "branch": {
+     "type": "string",
+     "description": "Git branch or commit SHA"
+    },
+    "app_name": {
+     "type": "string",
+     "description": "App name (lowercase, underscores)"
+    },
+    "app_title": {
+     "type": "string",
+     "description": "Human-readable app title"
+    },
+    "versions": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Frappe Versions to tag, e.g. ['Version 15']. Auto-resolved from a version-NN branch or the latest on record if omitted."
+    },
+    "team": {
+     "type": "string",
+     "description": "Team docname (defaults to current team)"
+    }
+   },
+   "required": [
+    "repository_url",
+    "branch",
+    "app_name"
+   ]
+  }
+ },
+ "release_group_create_deploy_candidate": {
+  "description": "Create a new Deploy Candidate for a Release Group",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
+ },
+ "deploy_candidate_schedule_build": {
+  "description": "Schedule build + deploy for a Deploy Candidate; returns the build job name",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "candidate_name": {
+     "type": "string",
+     "description": "Deploy Candidate docname"
+    }
+   },
+   "required": [
+    "candidate_name"
+   ]
+  }
+ },
+ "deploy_candidate_status": {
+  "description": "Status of a Deploy Candidate Build OR a Deploy Candidate. `name` may be either; response contains a `kind: build|candidate` discriminator.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
+ },
+ "site_schedule_update": {
+  "description": "Schedule a Site Update (migrate to latest bench in same Release Group)",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "site_name": {
+     "type": "string",
+     "description": "Site name (FQDN), e.g. 'example.sandbox.mvpstorm.com'"
+    }
+   },
+   "required": [
+    "site_name"
+   ]
+  }
+ },
+ "site_status": {
+  "description": "Current site bench + status + recent agent jobs (polling primitive)",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "site_name": {
+     "type": "string",
+     "description": "Site name (FQDN), e.g. 'example.sandbox.mvpstorm.com'"
+    }
+   },
+   "required": [
+    "site_name"
+   ]
+  }
+ },
+ "agent_job_list": {
+  "description": "List recent Agent Jobs filtered by site/status/window",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "site": {
+     "type": "string",
+     "description": "Site name (FQDN) \u2014 filter to jobs for this site only"
+    },
+    "status": {
+     "type": "string",
+     "enum": [
+      "Pending",
+      "Running",
+      "Success",
+      "Failure",
+      "Undelivered"
+     ],
+     "description": "Filter by job status"
+    },
+    "since_minutes": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 10080,
+     "description": "Window in minutes to look back (default 1440 = 24h, max 10080 = 7d)"
+    },
+    "limit": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 200,
+     "description": "Max rows to return (default 50)"
+    }
+   },
+   "required": []
+  }
+ },
+ "wait_for_bench_flip": {
+  "description": "Single-shot poll (NOT a blocking wait \u2014 call it again to re-poll). Returns {status: 'flipped'|'pending'|'no_build'|'flip_not_triggered'|'flip_failed', current_bench, current_candidate, target_candidate, site, hint?}. Args: site_name (site FQDN, NOT the bench docname); target_candidate (Deploy Candidate docname returned by bench_deploy). NO timeout arg \u2014 caller decides cadence. SAFETY GATES: 'no_build' = the candidate has no Deploy Candidate Build, STOP polling. 'flip_not_triggered' = build succeeded but no Update Site Migrate job exists, STOP polling and call site_update_and_wait. 'flip_failed' = the Update Site Migrate FAILED and was rolled back; call agent_job_traceback on the failed_migrate_job to see the error. Returned hint tells you exactly what to do next.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "site_name": {
+     "type": "string",
+     "description": "Site name (FQDN), e.g. 'example.sandbox.mvpstorm.com'"
+    },
+    "target_candidate": {
+     "type": "string",
+     "description": "Deploy Candidate to wait for the site to flip onto"
+    }
+   },
+   "required": [
+    "site_name",
+    "target_candidate"
+   ]
+  }
+ },
+ "bench_deploy_and_wait": {
+  "description": "ONE-SHOT deploy + wait. Triggers bench_deploy and BLOCKS until the site flips to the new Deploy Candidate, or until max_wait_seconds expires (default 25 min). Use this instead of bench_deploy + a manual wait_for_bench_flip loop. Returns {candidate, status: 'flipped'|'timeout', elapsed_seconds, ...}. Args: name (Release Group docname); apps (list of {app, release, hash} dicts from bench_deploy_information); site_name (one site on the RG to watch \u2014 multiple sites can be on the RG but this only waits for the named one).",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "apps": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "app": {
+        "type": "string",
+        "description": "App name, e.g. 'accubuild_core'"
+       },
+       "release": {
+        "type": "string",
+        "description": "App Release docname (from bench_deploy_information next_release)"
+       },
+       "hash": {
+        "type": "string",
+        "description": "Commit hash for that release (from bench_deploy_information releases[].hash)"
+       }
+      },
+      "required": [
+       "app",
+       "release",
+       "hash"
+      ]
+     },
+     "description": "List of {app, release, hash} dicts. Get release+hash from bench_deploy_information(name).apps[*].releases[0] or .next_release + matching releases[] entry. NOT a flat list of app names \u2014 each entry must be a dict."
+    },
+    "site_name": {
+     "type": "string",
+     "description": "Site name (FQDN), e.g. 'example.sandbox.mvpstorm.com'"
+    },
+    "max_wait_seconds": {
+     "type": "integer",
+     "minimum": 30,
+     "maximum": 1700,
+     "description": "Hard cap on the wait (default 1500 = 25 min; max 1700 to stay under Press's 1800s gunicorn timeout)"
+    },
+    "poll_interval_seconds": {
+     "type": "integer",
+     "minimum": 5,
+     "maximum": 300,
+     "description": "How often to re-check (default 30s, min 5s)"
+    }
+   },
+   "required": [
+    "name",
+    "apps",
+    "site_name"
+   ]
+  }
+ },
+ "host_memory_pressure": {
+  "description": "Snapshot of memory pressure on an app server (SSH-based, no Prometheus needed). Verdict 'ok' / 'elevated' / 'critical' / 'unknown' + memory_total_mb + memory_available_mb + swap_used_pct + recent OOM-kills + actionable hint. Results CACHED for 60s per server \u2014 repeated polls return cached data in <100ms (look at _cached:true in the response). Pass force_refresh=true to bypass cache. Use BEFORE memory-heavy ops, FIRST when multiple sites on a server 500. Shipped 2026-05-23 after press-f1 OOM incident.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "server": {
+     "type": "string",
+     "description": "App server docname, e.g. 'press-f1.sandbox.mvpstorm.com'"
+    },
+    "force_refresh": {
+     "type": "boolean",
+     "description": "Bypass 60s cache and SSH fresh"
+    }
+   },
+   "required": [
+    "server"
+   ]
+  }
+ },
+ "agent_health": {
+  "description": "Diagnose whether an app server's agent is healthy/slow/stuck/no_activity from Press-side Agent Job records. Use BEFORE recommending an agent restart \u2014 restarting a busy worker mid-migrate can corrupt the live DB. Verdict 'slow' = worker is on a long job, DO NOT restart. Verdict 'stuck' = Undelivered jobs piling up with no recent activity, investigate. Returns {verdict, reason, recent_jobs, last_success_seconds_ago, running_jobs, undelivered_jobs}. Args: server (app server docname); lookback_minutes (default 10, max 60).",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "server": {
+     "type": "string",
+     "description": "App server docname, e.g. 'press-f1.sandbox.mvpstorm.com'"
+    },
+    "lookback_minutes": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 60,
+     "description": "Window in minutes to consider for activity (default 10, max 60)"
+    }
+   },
+   "required": [
+    "server"
+   ]
+  }
+ },
+ "agent_job_traceback": {
+  "description": "One-shot diagnostic: returns {status, job_type, site, output_tail, traceback_tail, age_seconds} for an Agent Job. Use this whenever a job lands in Failure/Pending/Undelivered for >2 min and you need to see the actual error before deciding to restart anything. Replaces the 4-roundtrip ssh+console+get_doc dance.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "job_name": {
+     "type": "string",
+     "description": "Agent Job docname (10-char ID), e.g. 'jqc727far7'"
+    },
+    "output_chars": {
+     "type": "integer",
+     "minimum": 500,
+     "maximum": 20000,
+     "description": "Chars of output + traceback tail to return (default 4000, max 20000)"
+    }
+   },
+   "required": [
+    "job_name"
+   ]
+  }
+ },
+ "mint_dashboard_login_url": {
+  "description": "Mint a one-shot ?sid= URL that logs the browser in as the MCP token's user on the Press dashboard. Designed for Playwright / E2E tests \u2014 no password typing, no password rotation. Default redirect is /dashboard; pass redirect_to for any other path. The login is audit-logged.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "redirect_to": {
+     "type": "string",
+     "description": "Dashboard path to land on (default '/dashboard'). Examples: '/dashboard/devtools/mcp', '/dashboard/sites/<site>/overview'"
+    }
+   },
+   "required": []
+  }
+ },
+ "bench_provision_progress": {
+  "description": "Aggregate progress for a bench going through Press's provision chain (Build \u2192 New Bench \u2192 Setup Bench \u2192 Site Migrate \u2192 Ready). Replaces the 'is the filesystem populated yet?' polling pattern. Returns {bench, candidate, bench_status, stage, stage_label, elapsed_seconds, chain[], dashboard_url}. Stage is one of: queued | build | new_bench | setup_bench | site_migrate | ready | failed | archived \u2014 each with a human label. Poll this every 10s instead of checking the filesystem; it tells you WHICH phase is running so you know the expected duration.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "bench_name": {
+     "type": "string",
+     "description": "Bench docname, e.g. 'bench-0011-000187-press-f1'"
+    }
+   },
+   "required": [
+    "bench_name"
+   ]
+  }
+ },
+ "agent_job_progress": {
+  "description": "LIVE in-flight progress for an Agent Job \u2014 Cursor-style streaming. Returns {status, current_step, steps[], steps_summary, output_tail, dashboard_url}. Each step has its own status + output_tail + duration. Mirrors the dashboard's /dashboard/sites/<site>/jobs/<job> page. Call this in a loop (every 3-10s) while a deploy/migrate is in-flight to see exactly which step is running and what it's printing. Use agent_job_traceback for post-mortem on Failure rows; use THIS for live watching.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "job_name": {
+     "type": "string",
+     "description": "Agent Job docname (10-char ID), e.g. 'jqc727far7'"
+    },
+    "step_output_chars": {
+     "type": "integer",
+     "minimum": 200,
+     "maximum": 5000,
+     "description": "Chars of each step's output tail (default 1500, max 5000 \u2014 keeps response under cap)"
+    },
+    "job_output_chars": {
+     "type": "integer",
+     "minimum": 500,
+     "maximum": 20000,
+     "description": "Chars of the parent job's output/traceback tail (default 4000, max 20000)"
+    }
+   },
+   "required": [
+    "job_name"
+   ]
+  }
+ },
+ "site_update_and_wait": {
+  "description": "ONE-SHOT site_update + wait. Triggers Site Update Migrate and BLOCKS until the site flips onto target_candidate or max_wait_seconds expires. Use AFTER bench_deploy_and_wait reports build Success but the site still hasn't flipped (standalone Press doesn't auto-flip \u2014 each site needs an explicit site_update). Returns {site, status: 'flipped'|'timeout', site_update_job, elapsed_seconds, current_bench, current_candidate}. Args: site_name (site FQDN); target_candidate (Deploy Candidate the site should end up on).",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "site_name": {
+     "type": "string",
+     "description": "Site name (FQDN), e.g. 'example.sandbox.mvpstorm.com'"
+    },
+    "target_candidate": {
+     "type": "string",
+     "description": "Deploy Candidate to wait for the site to flip onto"
+    },
+    "skip_failing_patches": {
+     "type": "boolean",
+     "description": "Pass through to schedule_update; rarely needed (default false)"
+    },
+    "skip_backups": {
+     "type": "boolean",
+     "description": "Pass through to schedule_update; speeds up dev flips (default false)"
+    },
+    "max_wait_seconds": {
+     "type": "integer",
+     "minimum": 30,
+     "maximum": 1700,
+     "description": "Hard cap on the wait (default 1500 = 25 min; max 1700 to stay under Press's 1800s gunicorn timeout)"
+    },
+    "poll_interval_seconds": {
+     "type": "integer",
+     "minimum": 5,
+     "maximum": 300,
+     "description": "How often to re-check (default 30s, min 5s)"
+    }
+   },
+   "required": [
+    "site_name",
+    "target_candidate"
+   ]
+  }
+ },
+ "bench_run_repo_script": {
+  "description": "Fetch a Python script from an allowlisted GitHub repo and run it in a bench (high-risk; gated)",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "bench_name": {
+     "type": "string",
+     "description": "Bench docname, e.g. 'bench-0011-000187-press-f1'"
+    },
+    "repo": {
+     "type": "string",
+     "description": "GitHub repo in 'owner/name' form (must be in the allowlist)"
+    },
+    "branch": {
+     "type": "string",
+     "description": "Git branch or commit SHA"
+    },
+    "script_path": {
+     "type": "string",
+     "description": "Repo-relative path to the Python script to execute"
+    }
+   },
+   "required": [
+    "bench_name",
+    "repo",
+    "branch",
+    "script_path"
+   ]
+  }
+ },
+ "audit_verify_chain": {
+  "description": "System-User-only: walk the MCP Call Log hash chain and report any tampering/missing rows",
+  "inputSchema": {
+   "type": "object",
+   "properties": {},
+   "required": []
+  }
+ },
+ "bench_read_app_file": {
+  "description": "Read a source file from an app installed in the bench (e.g. erpnext/accounts/report/general_ledger/general_ledger.py). Read-only, 1 MB cap.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "bench_name": {
+     "type": "string",
+     "description": "Bench docname, e.g. 'bench-0011-000187-press-f1'"
+    },
+    "app": {
+     "type": "string",
+     "description": "App name, e.g. 'erpnext', 'frappe', 'press'"
+    },
+    "relative_path": {
+     "type": "string",
+     "description": "Path relative to the site's public/files or private/files folder"
+    }
+   },
+   "required": [
+    "bench_name",
+    "app",
+    "relative_path"
+   ]
+  }
+ },
+ "bench_list_app_files": {
+  "description": "List files under apps/<app>/<relative_path>/ in the bench container. Optional glob pattern. Capped at 200 entries.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "bench_name": {
+     "type": "string",
+     "description": "Bench docname, e.g. 'bench-0011-000187-press-f1'"
+    },
+    "app": {
+     "type": "string",
+     "description": "App name, e.g. 'erpnext', 'frappe', 'press'"
+    },
+    "relative_path": {
+     "type": "string",
+     "description": "Path relative to the site's public/files or private/files folder"
+    },
+    "pattern": {
+     "type": "string",
+     "description": "Optional glob pattern, e.g. '*.py'"
+    }
+   },
+   "required": [
+    "bench_name",
+    "app"
+   ]
+  }
+ },
+ "bench_ssh_connect": {
+  "description": "One call: SSH instructions + freshly-minted cert + a ready-to-run ssh command with the LIVE port (which changes on every redeploy). Re-call after a redeploy instead of reusing an old port.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "bench_name": {
+     "type": "string",
+     "description": "Bench docname, e.g. 'bench-0011-000187-press-f1'"
+    }
+   },
+   "required": [
+    "bench_name"
+   ]
+  }
+ },
+ "bench_ssh_instructions": {
+  "description": "Get SSH connection instructions for a bench (real port, paths, do/don't, prerequisite). Does NOT grant access \u2014 see bench_ssh_register_key + bench_ssh_cert_generate for that.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "bench_name": {
+     "type": "string",
+     "description": "Bench docname, e.g. 'bench-0011-000187-press-f1'"
+    }
+   },
+   "required": [
+    "bench_name"
+   ]
+  }
+ },
+ "bench_ssh_register_key": {
+  "description": "Register your SSH public key with Press so bench_ssh_cert_generate can sign it. One-time setup; idempotent on re-call.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "public_key": {
+     "type": "string",
+     "description": "OpenSSH-format public key (e.g. 'ssh-ed25519 AAAA... user@host')"
+    }
+   },
+   "required": [
+    "public_key"
+   ]
+  }
+ },
+ "release_group_add_app": {
+  "description": "Add an app to a Release Group (bench). 'source' is an App Source docname (create one first with register_existing_app if the repo isn't registered). After this, trigger release_group_create_deploy_candidate + deploy to apply. To SWITCH an app's repo: add the new source, then release_group_remove_app the old app.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "source": {
+     "type": "string",
+     "description": "App Source docname to add to the group (e.g. 'SRC-erpnext-001')"
+    },
+    "app": {
+     "type": "string",
+     "description": "App name, e.g. 'erpnext', 'frappe', 'press'"
+    }
+   },
+   "required": [
+    "name",
+    "source",
+    "app"
+   ]
+  }
+ },
+ "release_group_remove_app": {
+  "description": "Remove an app from a Release Group (bench). The app stays on running benches until the next deploy \u2014 trigger release_group_create_deploy_candidate + deploy to drop it. Cannot remove 'frappe'. This is the tool to use instead of the Desk's 'Remove app' action.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "app": {
+     "type": "string",
+     "description": "App name, e.g. 'erpnext', 'frappe', 'press'"
+    }
+   },
+   "required": [
+    "name",
+    "app"
+   ]
+  }
+ },
+ "release_group_list_branches": {
+  "description": "List git branches available for an app in a Release Group (from the configured GitHub repo). Use before bench_set_app_branch to discover valid branch names.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "app": {
+     "type": "string",
+     "description": "App name, e.g. 'erpnext', 'frappe', 'press'"
+    }
+   },
+   "required": [
+    "name",
+    "app"
+   ]
+  }
+ },
+ "release_group_versions": {
+  "description": "List the deployed benches (versions) of a Release Group plus the sites on each. Use to see what would be touched by a rebuild/deploy and which bench a site currently runs on.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
+ },
+ "release_group_installable_apps": {
+  "description": "List apps that can be added to a Release Group (available App Sources for the team/version). Use to find the 'source' value for release_group_add_app.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
+ },
+ "release_group_rename": {
+  "description": "Rename a Release Group (changes its display title only, not the docname).",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "title": {
+     "type": "string",
+     "description": "Release Group display title"
+    }
+   },
+   "required": [
+    "name",
+    "title"
+   ]
+  }
+ },
+ "release_group_redeploy": {
+  "description": "Redeploy a Release Group from an existing Deploy Candidate (dc_name) \u2014 rebuilds without creating a new candidate. Get dc_name from deploy_candidate_status or bench_deploy_information. Returns the new candidate name.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "dc_name": {
+     "type": "string",
+     "description": "Deploy Candidate docname to redeploy from"
+    }
+   },
+   "required": [
+    "name",
+    "dc_name"
+   ]
+  }
+ },
+ "release_group_archive": {
+  "description": "DESTRUCTIVE: archive a Release Group \u2014 archives ALL its active benches and disables the group (title suffixed '.archived'). Sites must already be moved/archived. High-risk; requires a risky-enabled token.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
+ },
+ "bench_rebuild_assets": {
+  "description": "Rebuild a Bench's assets via the supported Press agent job (NOT a raw in-container 'bench build', which desyncs the edge asset snapshot). 'name' is a Bench docname (from release_group_versions), not a Release Group. High-risk: rebuilds assets for the bench.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
+ },
+ "release_group_create": {
+  "description": "Create a fresh Release Group (bench). 'new_apps' is a list of {name, source} dicts (name = app name, source = App Source docname); must include frappe. 'server' optional ('' lets Press auto-pick). Returns the new Release Group docname. Use clone_bench instead if you want a copy of an existing group.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "title": {
+     "type": "string",
+     "description": "Release Group display title"
+    },
+    "version": {
+     "type": "string",
+     "description": "Frappe version, e.g. 'Version 15'"
+    },
+    "new_apps": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string",
+        "description": "App name, e.g. 'erpnext'"
+       },
+       "source": {
+        "type": "string",
+        "description": "App Source docname for that app"
+       }
+      },
+      "required": [
+       "name",
+       "source"
+      ]
+     },
+     "description": "Apps for the NEW Release Group: list of {name, source} dicts (note: 'name' here is the app name, not a release/hash)."
+    },
+    "cluster": {
+     "type": "string",
+     "description": "Cluster docname, e.g. 'Default'"
+    },
+    "server": {
+     "type": "string",
+     "description": "App server docname, e.g. 'press-f1.sandbox.mvpstorm.com'"
+    },
+    "saas_app": {
+     "type": "string",
+     "description": "Saas App docname (optional; '' if none)"
+    }
+   },
+   "required": [
+    "title",
+    "version",
+    "new_apps",
+    "cluster"
+   ]
+  }
+ }
+}
