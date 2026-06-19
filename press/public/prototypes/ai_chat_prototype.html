@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Dev Assistant — Chat Panel Prototype</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<style>
+:root {
+  --bg: #0a0a0a; --surface: #141414; --surface-2: #1e1e1e; --surface-3: #282828;
+  --border: #2a2a2a; --border-light: #333; --text: #e4e4e4; --text-muted: #888;
+  --text-dim: #666; --primary: #3b82f6; --primary-hover: #2563eb;
+  --green: #22c55e; --yellow: #eab308; --red: #ef4444; --orange: #f97316;
+  --user-bg: #1a2744; --user-border: #1e3a5f;
+  --code-bg: #0d1117; --code-border: #30363d;
+  --violation-bg: #1c1017; --violation-border: #4a1c2a;
+  --warning-bg: #1c1a0e; --warning-border: #4a3f1c;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); }
+
+/* Layout: Dev Tab (left) + AI Panel (right) */
+.layout { display: flex; height: 100vh; }
+.dev-tab-placeholder {
+  flex: 1; background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px;
+  color: var(--text-muted); font-size: 14px;
+}
+.dev-tab-placeholder i { font-size: 48px; color: var(--text-dim); }
+
+/* AI Panel */
+.ai-panel {
+  width: 420px; display: flex; flex-direction: column; background: var(--bg);
+  border-left: 1px solid var(--border);
+}
+
+/* Header */
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--surface);
+}
+.panel-title { display: flex; align-items: center; gap: 8px; }
+.panel-title .icon { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); display: flex; align-items: center; justify-content: center; }
+.panel-title .icon i { color: white; font-size: 12px; }
+.panel-title span { font-size: 13px; font-weight: 600; }
+.status-badge { font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 600; }
+.status-badge.active { background: #14532d; color: #4ade80; }
+.status-badge.idle { background: var(--surface-3); color: var(--text-muted); }
+.header-actions { display: flex; gap: 4px; }
+.header-actions button {
+  background: none; border: none; color: var(--text-muted); cursor: pointer;
+  width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+}
+.header-actions button:hover { background: var(--surface-3); color: var(--text); }
+
+/* Budget bar */
+.budget-bar { padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.budget-info { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-bottom: 4px; }
+.budget-track { height: 3px; border-radius: 2px; background: var(--surface-3); }
+.budget-fill { height: 100%; border-radius: 2px; background: var(--primary); transition: width 0.3s; }
+.budget-fill.warn { background: var(--orange); }
+.budget-fill.danger { background: var(--red); }
+
+/* Context pills */
+.context-bar { padding: 8px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 6px; flex-wrap: wrap; }
+.ctx-pill {
+  font-size: 10px; padding: 3px 8px; border-radius: 12px; background: var(--surface-3);
+  color: var(--text-muted); display: flex; align-items: center; gap: 4px;
+}
+.ctx-pill i { font-size: 9px; }
+.ctx-pill.active { background: #1e3a5f; color: #60a5fa; }
+
+/* Messages area */
+.messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+/* Quick prompts */
+.quick-prompts { display: flex; flex-direction: column; gap: 8px; padding: 8px 0; }
+.quick-prompts .label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+.qp-btn {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 14px; cursor: pointer; text-align: left; color: var(--text); font-size: 12px;
+  transition: all 0.15s; display: flex; align-items: center; gap: 10px;
+}
+.qp-btn:hover { border-color: var(--primary); background: var(--surface-3); }
+.qp-btn .qp-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--surface-3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.qp-btn .qp-icon i { color: var(--text-muted); font-size: 13px; }
+.qp-btn:hover .qp-icon { background: #1e3a5f; }
+.qp-btn:hover .qp-icon i { color: #60a5fa; }
+.qp-title { font-weight: 500; }
+.qp-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+/* User message */
+.msg-user {
+  margin-left: 48px; background: var(--user-bg); border: 1px solid var(--user-border);
+  border-radius: 12px 12px 4px 12px; padding: 10px 14px; font-size: 13px; line-height: 1.5;
+}
+
+/* AI message */
+.msg-ai { display: flex; flex-direction: column; gap: 6px; }
+.msg-ai-content {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 4px 12px 12px 12px; padding: 12px 14px; font-size: 13px; line-height: 1.6;
+}
+.msg-ai-content p { margin-bottom: 8px; }
+.msg-ai-content p:last-child { margin-bottom: 0; }
+.msg-ai-content strong { color: #fff; }
+.msg-ai-content ul, .msg-ai-content ol { margin: 6px 0 6px 20px; }
+.msg-ai-content li { margin-bottom: 4px; }
+
+/* Code blocks inside messages */
+.msg-ai-content pre {
+  margin: 8px 0; border-radius: 8px; border: 1px solid var(--code-border);
+  background: var(--code-bg) !important; overflow-x: auto; position: relative;
+}
+.msg-ai-content pre code { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.5; }
+.code-lang { position: absolute; top: 6px; right: 8px; font-size: 10px; color: var(--text-dim); font-family: sans-serif; }
+.copy-btn {
+  position: absolute; top: 6px; right: 50px; font-size: 10px; color: var(--text-dim);
+  background: var(--surface-3); border: 1px solid var(--code-border); border-radius: 4px;
+  padding: 2px 8px; cursor: pointer; font-family: sans-serif;
+}
+.copy-btn:hover { color: var(--text); background: var(--surface); }
+
+/* Violation banner */
+.violation-banner {
+  border-radius: 8px; padding: 10px 12px; font-size: 11px; line-height: 1.5;
+  display: flex; gap: 8px; align-items: flex-start;
+}
+.violation-banner.cat1 { background: var(--violation-bg); border: 1px solid var(--violation-border); color: #fca5a5; }
+.violation-banner.cat2 { background: var(--warning-bg); border: 1px solid var(--warning-border); color: #fde68a; }
+.violation-banner.cat3 { background: #0e1a1c; border: 1px solid #1c3a40; color: #67e8f9; }
+.violation-banner i { margin-top: 1px; flex-shrink: 0; }
+.violation-list { margin-top: 4px; padding-left: 16px; }
+.violation-list li { margin-bottom: 2px; }
+
+/* Token/meta line */
+.msg-meta { display: flex; align-items: center; gap: 8px; font-size: 10px; color: var(--text-dim); padding-left: 4px; }
+
+/* Loading */
+.loading-indicator { display: flex; align-items: center; gap: 8px; padding: 8px 0; }
+.loading-dots { display: flex; gap: 4px; }
+.loading-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); animation: pulse 1.4s infinite; }
+.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes pulse { 0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
+.loading-text { font-size: 12px; color: var(--text-muted); }
+
+/* Staging banner */
+.staging-banner {
+  padding: 8px 16px; background: #1c1a0e; border-top: 1px solid var(--warning-border);
+  font-size: 11px; color: #fde68a; display: flex; align-items: center; gap: 6px;
+}
+
+/* Input area */
+.input-area { padding: 12px 16px; border-top: 1px solid var(--border); background: var(--surface); }
+.input-row { display: flex; gap: 8px; align-items: flex-end; }
+.input-row textarea {
+  flex: 1; resize: none; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface-2); color: var(--text); padding: 10px 14px; font-size: 13px;
+  font-family: inherit; outline: none; line-height: 1.4;
+}
+.input-row textarea:focus { border-color: var(--primary); }
+.input-row textarea::placeholder { color: var(--text-dim); }
+.send-btn {
+  width: 36px; height: 36px; border-radius: 10px; border: none;
+  background: var(--primary); color: white; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.15s;
+}
+.send-btn:hover { background: var(--primary-hover); }
+.send-btn:disabled { background: var(--surface-3); color: var(--text-dim); cursor: not-allowed; }
+.input-hint { font-size: 10px; color: var(--text-dim); margin-top: 6px; display: flex; justify-content: space-between; }
+.input-hint kbd { background: var(--surface-3); padding: 1px 4px; border-radius: 3px; font-size: 9px; }
+
+/* API config bar */
+.api-config {
+  padding: 8px 16px; border-top: 1px solid var(--border); background: var(--surface);
+  display: flex; gap: 8px; align-items: center;
+}
+.api-config label { font-size: 10px; color: var(--text-muted); }
+.api-config input, .api-config select {
+  font-size: 11px; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 8px; color: var(--text); outline: none; flex: 1;
+}
+.api-config select { flex: 0; width: 120px; }
+.api-config .status { font-size: 10px; }
+.api-config .status.ok { color: var(--green); }
+.api-config .status.err { color: var(--red); }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- Left: Dev Tab placeholder -->
+  <div class="dev-tab-placeholder">
+    <i class="fa fa-terminal"></i>
+    <span>Site Dev Tab</span>
+    <span style="font-size:12px;color:var(--text-dim)">The AI panel sits here →</span>
+  </div>
+
+  <!-- Right: AI Panel -->
+  <div class="ai-panel" id="panel">
+    <!-- Header -->
+    <div class="panel-header">
+      <div class="panel-title">
+        <div class="icon"><i class="fa fa-magic"></i></div>
+        <span>AI Assistant</span>
+        <span class="status-badge idle" id="statusBadge">Idle</span>
+      </div>
+      <div class="header-actions">
+        <button onclick="resetSession()" title="New session" aria-label="New session"><i class="fa fa-plus"></i></button>
+        <button title="Settings" aria-label="Settings" onclick="toggleConfig()"><i class="fa fa-cog"></i></button>
+      </div>
+    </div>
+
+    <!-- Budget bar -->
+    <div class="budget-bar" id="budgetBar">
+      <div class="budget-info">
+        <span id="budgetText">0 / 100,000 tokens</span>
+        <span id="budgetPct">0%</span>
+      </div>
+      <div class="budget-track"><div class="budget-fill" id="budgetFill" style="width:0%"></div></div>
+    </div>
+
+    <!-- Context pills -->
+    <div class="context-bar" id="contextBar">
+      <span class="ctx-pill active"><i class="fa fa-server"></i> Dev site</span>
+      <span class="ctx-pill"><i class="fa fa-code-fork"></i> dev-test</span>
+      <span class="ctx-pill"><i class="fa fa-cube"></i> Frappe 15</span>
+    </div>
+
+    <!-- Messages -->
+    <div class="messages" id="messages">
+      <!-- Quick prompts (shown when empty) -->
+      <div class="quick-prompts" id="quickPrompts">
+        <div class="label">Quick actions</div>
+        <button class="qp-btn" onclick="sendQuick('Load the latest error log and explain the traceback. Suggest a fix with a code patch.')">
+          <div class="qp-icon"><i class="fa fa-bug"></i></div>
+          <div><div class="qp-title">Debug last error</div><div class="qp-desc">Load traceback, explain, suggest fix</div></div>
+        </button>
+        <button class="qp-btn" onclick="sendQuick('I want to create a new Frappe DocType. Ask me what it should do, then generate the JSON definition and Python controller.')">
+          <div class="qp-icon"><i class="fa fa-cube"></i></div>
+          <div><div class="qp-title">Scaffold a DocType</div><div class="qp-desc">Generate JSON + controller from description</div></div>
+        </button>
+        <button class="qp-btn" onclick="sendQuick('I want to add a custom field to an existing DocType. Ask me which DocType and what field type.')">
+          <div class="qp-icon"><i class="fa fa-plus-square"></i></div>
+          <div><div class="qp-title">Add a field</div><div class="qp-desc">Custom Field on existing DocType</div></div>
+        </button>
+        <button class="qp-btn" onclick="sendQuick('Write a Server Script for a Document Event. Ask me which DocType and what logic.')">
+          <div class="qp-icon"><i class="fa fa-file-code-o"></i></div>
+          <div><div class="qp-title">Write a server script</div><div class="qp-desc">Server Script with validation logic</div></div>
+        </button>
+        <button class="qp-btn" onclick="sendQuick('Explain the architecture of this bench: what apps are installed, how they connect, and what DocTypes they define.')">
+          <div class="qp-icon"><i class="fa fa-sitemap"></i></div>
+          <div><div class="qp-title">Explain architecture</div><div class="qp-desc">Apps, DocTypes, connections overview</div></div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Input area -->
+    <div class="input-area">
+      <div class="input-row">
+        <textarea id="inputArea" rows="2" placeholder="Ask AI to debug, scaffold, or extend..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()" aria-label="Send message"><i class="fa fa-arrow-up"></i></button>
+      </div>
+      <div class="input-hint">
+        <span><kbd>Enter</kbd> send · <kbd>Shift+Enter</kbd> newline</span>
+        <span id="tokenCounter"></span>
+      </div>
+    </div>
+
+    <!-- API Config (hidden by default) -->
+    <div class="api-config" id="apiConfig" style="display:none">
+      <label>Key:</label>
+      <input type="password" id="apiKeyInput" placeholder="sk-or-v1-..." value="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">
+      <label>Model:</label>
+      <select id="modelSelect">
+        <option value="z-ai/glm-4.5-air">GLM-4.5 Air</option>
+        <option value="z-ai/glm-4.5">GLM-4.5</option>
+        <option value="z-ai/glm-5">GLM-5</option>
+        <option value="z-ai/glm-5-turbo">GLM-5 Turbo</option>
+        <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet</option>
+      </select>
+      <span class="status ok" id="apiStatus">Ready</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- State ---
+let messages = [];
+let loading = false;
+let sessionId = null;
+let totalTokens = 0;
+const budgetCap = 100000;
+
+// --- API ---
+// Two modes: Press backend API (when on Press domain) or direct OpenRouter (standalone)
+const USE_PRESS_API = window.location.hostname.includes('mvpstorm') || window.location.hostname.includes('localhost');
+
+async function callAPI(userPrompt) {
+  if (USE_PRESS_API) return callPressAPI(userPrompt);
+  return callOpenRouterDirect(userPrompt);
+}
+
+// Mode 1: Call through Press backend (handles key resolution, context, linting server-side)
+async function callPressAPI(userPrompt) {
+  const resp = await fetch('/api/method/press.api.ai_chat.chat', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Frappe-CSRF-Token': await getCsrfToken(),
+    },
+    body: JSON.stringify({
+      prompt: userPrompt,
+      site_name: '',
+      bench_name: '',
+      site_type: 'Dev',
+      branch: 'dev-test',
+      session_id: sessionId,
+    }),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err?._server_messages ? JSON.parse(err._server_messages)[0] : err?.exc || `API error ${resp.status}`);
+  }
+
+  const data = await resp.json();
+  const result = data.message || data;
+
+  if (!result.success) throw new Error(result.error || 'Request failed');
+
+  // Update session ID from server
+  if (result.session_id) sessionId = result.session_id;
+
+  return {
+    text: result.response_text || '',
+    input_tokens: Math.round((result.tokens_used || 0) * 0.7),
+    output_tokens: Math.round((result.tokens_used || 0) * 0.3),
+    model: 'openrouter',
+    violations: result.violations || [],
+    budget: result.budget || null,
+  };
+}
+
+// Mode 2: Direct OpenRouter call (for standalone prototype testing)
+async function callOpenRouterDirect(userPrompt) {
+  const key = document.getElementById('apiKeyInput').value;
+  const model = document.getElementById('modelSelect').value;
+  if (!key) throw new Error('No API key configured. Click gear icon to set key.');
+
+  const systemPrompt = `You are a Frappe/ERPNext development assistant. Frappe 15.103.0. Apps: frappe, erpnext, accubuild_core.
+NEVER generate DELETE/DROP/TRUNCATE SQL. NEVER suggest rm -rf or bench destroy. Use frappe ORM instead.`;
+
+  const msgs = [{ role: 'system', content: systemPrompt }];
+  const recent = messages.slice(-6);
+  for (const m of recent) {
+    msgs.push({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text });
+  }
+  msgs.push({ role: 'user', content: userPrompt });
+
+  const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${key}`,
+      'HTTP-Referer': window.location.origin,
+      'X-Title': 'Press AI Developer Assistant',
+    },
+    body: JSON.stringify({ model, messages: msgs, max_tokens: 4096, temperature: 0.3 }),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `API error ${resp.status}`);
+  }
+
+  const data = await resp.json();
+  const choice = data.choices?.[0] || {};
+  const usage = data.usage || {};
+  return {
+    text: choice.message?.content || '',
+    input_tokens: usage.prompt_tokens || 0,
+    output_tokens: usage.completion_tokens || 0,
+    model: data.model || model,
+    violations: [],
+    budget: null,
+  };
+}
+
+let _csrfToken = null;
+async function getCsrfToken() {
+  if (_csrfToken) return _csrfToken;
+  // Fetch CSRF token from Frappe
+  try {
+    const r = await fetch('/api/method/frappe.auth.get_csrf_token', { method: 'GET', credentials: 'include' });
+    const d = await r.json();
+    _csrfToken = d.message || 'none';
+    return _csrfToken;
+  } catch { return 'none'; }
+}
+
+// --- Linter (client-side check) ---
+function lintResponse(text) {
+  const violations = [];
+  const patterns = [
+    { re: /\bDELETE\s+FROM\b/gi, name: 'DELETE SQL', cat: 1, desc: 'Raw SQL DELETE — data loss risk' },
+    { re: /\bDROP\s+(TABLE|DATABASE)\b/gi, name: 'DROP statement', cat: 1, desc: 'DROP statement — permanent deletion' },
+    { re: /\bTRUNCATE\b/gi, name: 'TRUNCATE', cat: 1, desc: 'TRUNCATE — deletes all rows' },
+    { re: /\brm\s+(-rf|-r\s+-f)\s/gi, name: 'rm -rf', cat: 1, desc: 'Recursive force delete' },
+    { re: /\bbench\s+(destroy|drop-site|uninstall-app)\b/gi, name: 'bench destructive', cat: 1, desc: 'Destructive bench command' },
+    { re: /\bbench\s+.*migrate\b/gi, name: 'bench migrate', cat: 3, desc: 'Database migration — confirm before running' },
+    { re: /frappe\.delete_doc\s*\(/gi, name: 'delete_doc', cat: 3, desc: 'Document deletion — confirm first' },
+  ];
+  for (const p of patterns) {
+    for (const m of text.matchAll(p.re)) {
+      violations.push({ category: p.cat, pattern: p.name, description: p.desc, matched: m[0] });
+    }
+  }
+  return violations;
+}
+
+// --- Markdown rendering ---
+function renderMarkdown(text) {
+  // Use marked.js for proper markdown
+  marked.setOptions({ breaks: true, gfm: true });
+  let html = marked.parse(text);
+  // Syntax highlighting for code blocks
+  html = html.replace(/<pre><code class="language-(\w+)">([\s\S]*?)<\/code><\/pre>/g, (_, lang, code) => {
+    const decoded = code.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
+    try {
+      const highlighted = hljs.highlight(decoded, { language: lang }).value;
+      return `<pre style="position:relative"><span class="code-lang">${lang}</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code class="hljs language-${lang}">${highlighted}</code></pre>`;
+    } catch { return `<pre><code>${code}</code></pre>`; }
+  });
+  // Highlight untagged code blocks
+  html = html.replace(/<pre><code>([\s\S]*?)<\/code><\/pre>/g, (_, code) => {
+    const decoded = code.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+    const result = hljs.highlightAuto(decoded);
+    return `<pre style="position:relative"><span class="code-lang">${result.language||'text'}</span><button class="copy-btn" onclick="copyCode(this)">Copy</button><code class="hljs">${result.value}</code></pre>`;
+  });
+  return DOMPurify.sanitize(html);
+}
+
+function copyCode(btn) {
+  const code = btn.nextElementSibling.textContent;
+  navigator.clipboard.writeText(code);
+  btn.textContent = 'Copied!';
+  setTimeout(() => btn.textContent = 'Copy', 1500);
+}
+
+// --- UI helpers ---
+function updateBudget(tokens) {
+  totalTokens += tokens;
+  const pct = Math.min(100, Math.round((totalTokens / budgetCap) * 100));
+  document.getElementById('budgetText').textContent = `${totalTokens.toLocaleString()} / ${budgetCap.toLocaleString()} tokens`;
+  document.getElementById('budgetPct').textContent = `${pct}%`;
+  const fill = document.getElementById('budgetFill');
+  fill.style.width = pct + '%';
+  fill.className = 'budget-fill' + (pct >= 80 ? ' warn' : pct >= 95 ? ' danger' : '');
+}
+
+function setStatus(status) {
+  const badge = document.getElementById('statusBadge');
+  if (status === 'thinking') { badge.textContent = 'Thinking...'; badge.className = 'status-badge active'; }
+  else { badge.textContent = 'Idle'; badge.className = 'status-badge idle'; }
+}
+
+function addMessage(role, text, meta = {}) {
+  const container = document.getElementById('messages');
+  document.getElementById('quickPrompts').style.display = 'none';
+
+  if (role === 'user') {
+    const div = document.createElement('div');
+    div.className = 'msg-user';
+    div.textContent = text;
+    container.appendChild(div);
+  } else {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'msg-ai';
+
+    const content = document.createElement('div');
+    content.className = 'msg-ai-content';
+    content.innerHTML = renderMarkdown(text);
+    wrapper.appendChild(content);
+
+    // Violations
+    if (meta.violations && meta.violations.length > 0) {
+      const maxCat = Math.min(...meta.violations.map(v => v.category));
+      const banner = document.createElement('div');
+      banner.className = `violation-banner cat${maxCat}`;
+      const icon = maxCat === 1 ? 'fa-exclamation-triangle' : maxCat === 2 ? 'fa-exclamation-circle' : 'fa-info-circle';
+      let html = `<i class="fa ${icon}"></i><div><strong>${meta.violations.length} violation(s) detected</strong>`;
+      if (maxCat === 1) html += ' — dangerous code flagged in this response';
+      html += '<ul class="violation-list">';
+      for (const v of meta.violations) {
+        html += `<li>[Cat ${v.category}] <strong>${v.pattern}</strong>: ${v.description}</li>`;
+      }
+      html += '</ul></div>';
+      banner.innerHTML = DOMPurify.sanitize(html);
+      wrapper.appendChild(banner);
+    }
+
+    // Meta line
+    if (meta.tokens || meta.model) {
+      const metaDiv = document.createElement('div');
+      metaDiv.className = 'msg-meta';
+      const parts = [];
+      if (meta.tokens) parts.push(`${meta.tokens.toLocaleString()} tokens`);
+      if (meta.model) parts.push(meta.model.split('/').pop());
+      if (meta.duration) parts.push(`${meta.duration}s`);
+      metaDiv.textContent = parts.join(' · ');
+      wrapper.appendChild(metaDiv);
+    }
+
+    container.appendChild(wrapper);
+  }
+
+  container.scrollTop = container.scrollHeight;
+}
+
+function addLoading() {
+  const container = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.id = 'loadingMsg';
+  div.className = 'loading-indicator';
+  div.innerHTML = '<div class="loading-dots"><span></span><span></span><span></span></div><span class="loading-text">Thinking...</span>';
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function removeLoading() {
+  const el = document.getElementById('loadingMsg');
+  if (el) el.remove();
+}
+
+// --- Actions ---
+async function sendMessage() {
+  const input = document.getElementById('inputArea');
+  const text = input.value.trim();
+  if (!text || loading) return;
+
+  // Guard: check status before mutation (Claude Code pattern)
+  if (loading) return;
+  loading = true;
+
+  messages.push({ role: 'user', text });
+  addMessage('user', text);
+  input.value = '';
+  input.style.height = 'auto';
+  document.getElementById('sendBtn').disabled = true;
+  setStatus('thinking');
+  addLoading();
+
+  const startTime = Date.now();
+  try {
+    const result = await callAPI(text);
+    removeLoading();
+
+    // Use server-side violations if available, otherwise lint client-side
+    const violations = (result.violations && result.violations.length > 0) ? result.violations : lintResponse(result.text);
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    const totalTk = result.input_tokens + result.output_tokens;
+
+    // Update budget from server response
+    if (result.budget) {
+      totalTokens = result.budget.used || 0;
+      updateBudget(0);
+    }
+
+    messages.push({ role: 'assistant', text: result.text });
+    addMessage('assistant', result.text, {
+      violations,
+      tokens: totalTk,
+      model: result.model,
+      duration,
+    });
+    updateBudget(totalTk);
+
+    if (!sessionId) sessionId = 'sess_' + Math.random().toString(36).slice(2, 14);
+  } catch (err) {
+    removeLoading();
+    addMessage('assistant', `**Error:** ${err.message}`, {});
+  }
+
+  loading = false;
+  document.getElementById('sendBtn').disabled = false;
+  setStatus('idle');
+}
+
+function sendQuick(prompt) {
+  document.getElementById('inputArea').value = prompt;
+  sendMessage();
+}
+
+function resetSession() {
+  messages = [];
+  sessionId = null;
+  totalTokens = 0;
+  const container = document.getElementById('messages');
+  container.innerHTML = '';
+  document.getElementById('quickPrompts').style.display = '';
+  container.appendChild(document.getElementById('quickPrompts'));
+  updateBudget(0);
+  totalTokens = 0;
+  document.getElementById('budgetText').textContent = '0 / 100,000 tokens';
+  document.getElementById('budgetPct').textContent = '0%';
+  document.getElementById('budgetFill').style.width = '0%';
+}
+
+function toggleConfig() {
+  const el = document.getElementById('apiConfig');
+  el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+}
+
+// Auto-resize textarea
+document.getElementById('inputArea').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+</script>
+
+</body>
+</html>
