@@ -1,7 +1,7 @@
 <template>
 	<div class="space-y-4">
 		<!-- Cost summary -->
-		<div class="grid grid-cols-3 gap-3">
+		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
 				<p class="text-xs font-medium uppercase text-gray-500">Cost This Month</p>
 				<p class="mt-1 text-2xl font-bold">${{ totalCost.toFixed(2) }}</p>
@@ -16,6 +16,11 @@
 				<p class="text-xs font-medium uppercase text-gray-500">Sessions</p>
 				<p class="mt-1 text-2xl font-bold">{{ totalSessions }}</p>
 				<p class="text-xs text-gray-400">avg {{ avgDuration }} min / session</p>
+			</div>
+			<div class="rounded-lg border border-gray-200 bg-white p-4">
+				<p class="text-xs font-medium uppercase text-gray-500">Gross margin</p>
+				<p class="mt-1 text-2xl font-bold text-gray-400">${{ totalCost.toFixed(2) }}</p>
+				<p class="text-xs text-gray-400">margin n/a — revenue add-on</p>
 			</div>
 		</div>
 
