@@ -58,6 +58,8 @@
 </template>
 
 <script>
+import { call } from 'frappe-ui';
+
 export default {
 	name: 'AiUsageCost',
 	data() {
@@ -73,7 +75,32 @@ export default {
 			userUsage: [],
 		};
 	},
+	mounted() {
+		this.load();
+	},
+	watch: {
+		period() {
+			this.load();
+		},
+	},
 	methods: {
+		async load() {
+			// Live per-seat usage from the gateway control plane (same site).
+			// Soft-fail: if the control-center app isn't reachable, keep zeros.
+			try {
+				const d = await call('sanad_ai_control_center.api.get_usage_cost', { period: this.period });
+				this.totalCost = d.total_cost;
+				this.totalTokens = d.total_tokens;
+				this.inputTokens = d.input_tokens;
+				this.outputTokens = d.output_tokens;
+				this.totalSessions = d.total_sessions;
+				this.avgDuration = d.avg_duration;
+				this.providerBreakdown = d.provider_breakdown;
+				this.userUsage = d.user_usage;
+			} catch (e) {
+				// control-center unreachable — leave the empty state
+			}
+		},
 		formatTokens(n) {
 			if (!n) return '0';
 			if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
