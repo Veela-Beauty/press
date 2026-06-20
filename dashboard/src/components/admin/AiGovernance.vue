@@ -3,10 +3,10 @@
 		<!-- KPI row — 4 cards (matches prototype) -->
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<p class="text-xs font-medium uppercase text-gray-500">Spend MTD</p>
+				<p class="text-xs font-medium uppercase text-gray-500">Spend, MTD</p>
 				<p class="mt-1 text-2xl font-bold">${{ fmtMoney(kpi.spend_mtd) }}</p>
 				<p class="text-xs text-gray-400">
-					{{ budgetPct }}% of ${{ fmtMoney(kpi.budget_mtd) }} budget
+					{{ budgetPct }}% of ${{ fmtMoney(kpi.budget) }} budget
 				</p>
 			</div>
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
@@ -15,35 +15,32 @@
 					{{ kpi.active_seats || 0 }}
 					<span class="text-sm font-normal text-gray-400">/ {{ kpi.total_seats || 0 }}</span>
 				</p>
-				<p class="text-xs text-gray-400">{{ kpi.seats_note || 'live seat usage' }}</p>
+				<p class="text-xs text-gray-400">{{ seatsNote }}</p>
 			</div>
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
 				<p class="text-xs font-medium uppercase text-gray-500">Subscriptions</p>
 				<p class="mt-1 text-2xl font-bold">{{ kpi.subscriptions || subscriptions.length }}</p>
-				<p class="text-xs text-gray-400">{{ kpi.subscriptions_note || 'active plans' }}</p>
+				<p class="text-xs text-gray-400">{{ subscriptionsNote }}</p>
 			</div>
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
 				<p class="text-xs font-medium uppercase text-gray-500">Open incidents</p>
-				<p class="mt-1 text-2xl font-bold" :class="kpi.open_incidents > 0 ? 'text-orange-600' : ''">
-					{{ kpi.open_incidents || 0 }}
+				<p class="mt-1 text-2xl font-bold" :class="openIncidents > 0 ? 'text-orange-600' : ''">
+					{{ openIncidents }}
 				</p>
-				<p class="text-xs text-gray-400">{{ kpi.incidents_note || 'seats paused on budget' }}</p>
+				<p class="text-xs text-gray-400">seats paused on budget</p>
 			</div>
 		</div>
 
 		<!-- Seats table -->
 		<div class="rounded-lg border border-gray-200 bg-white p-4">
 			<div class="mb-3 flex items-center justify-between">
-				<h3 class="text-sm font-semibold">
-					<i class="fa fa-user-circle mr-1 text-blue-600"></i>
-					Seats
-				</h3>
-				<Button size="sm" variant="solid" @click="$emit('edit-rules')">Edit Policy</Button>
+				<h3 class="text-sm font-semibold">Seats</h3>
+				<Button size="sm" variant="solid" @click="openProvision">Provision seat</Button>
 			</div>
 			<table class="w-full text-xs">
 				<thead>
 					<tr class="border-b border-gray-100 text-left text-gray-500">
-						<th class="py-2">User</th>
+						<th class="py-2">Seat (user)</th>
 						<th>Subscription</th>
 						<th>Tier</th>
 						<th>Budget</th>
@@ -93,10 +90,7 @@
 		<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
 			<!-- Subscriptions table -->
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<h3 class="mb-3 text-sm font-semibold">
-					<i class="fa fa-credit-card mr-1 text-blue-600"></i>
-					Subscriptions
-				</h3>
+				<h3 class="mb-3 text-sm font-semibold">Subscriptions</h3>
 				<table class="w-full text-xs">
 					<thead>
 						<tr class="border-b border-gray-100 text-left text-gray-500">
@@ -110,7 +104,7 @@
 						<tr v-for="sub in subscriptions" :key="sub.client" class="border-b border-gray-50">
 							<td class="py-2 font-semibold text-gray-800">{{ sub.client }}</td>
 							<td>{{ sub.plan }}</td>
-							<td>{{ sub.seats_used || 0 }}/{{ sub.seats_total || 0 }}</td>
+							<td>{{ sub.seats || 0 }}<span v-if="sub.seats_allowed">/{{ sub.seats_allowed }}</span></td>
 							<td class="font-mono">${{ fmtMoney(sub.spend) }} / ${{ fmtMoney(sub.budget) }}</td>
 						</tr>
 						<tr v-if="subscriptions.length === 0">
@@ -122,15 +116,12 @@
 
 			<!-- Providers table -->
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<h3 class="mb-3 text-sm font-semibold">
-					<i class="fa fa-plug mr-1 text-blue-600"></i>
-					Providers
-				</h3>
+				<h3 class="mb-3 text-sm font-semibold">Providers</h3>
 				<table class="w-full text-xs">
 					<thead>
 						<tr class="border-b border-gray-100 text-left text-gray-500">
 							<th class="py-2">Provider</th>
-							<th>Tier / model</th>
+							<th>Tier</th>
 							<th>Region</th>
 							<th>Cost MTD</th>
 						</tr>
@@ -152,15 +143,36 @@
 				</table>
 			</div>
 		</div>
+
+		<!-- Provision seat dialog — wired to sanad_ai_control_center.api.provision_seat -->
+		<Dialog :options="{ title: 'Provision seat', size: 'md' }" v-model="showProvision">
+			<template #body-content>
+				<div class="space-y-3">
+					<FormControl label="User" v-model="provision.user" placeholder="user@client-site" />
+					<FormControl label="Client site" v-model="provision.client_site" placeholder="lipton.eg" />
+					<FormControl
+						label="Monthly budget (USD)"
+						type="number"
+						v-model="provision.monthly_budget_usd"
+						placeholder="20"
+					/>
+					<FormControl label="Tier access" v-model="provision.tier_access" placeholder="smart,fast" />
+				</div>
+			</template>
+			<template #actions>
+				<Button variant="solid" :loading="provisioning" @click="submitProvision">Provision seat</Button>
+			</template>
+		</Dialog>
 	</div>
 </template>
 
 <script>
-import { Button, call } from 'frappe-ui';
+import { Button, Dialog, FormControl, call } from 'frappe-ui';
+import { toast } from 'vue-sonner';
 
 export default {
 	name: 'AiGovernance',
-	components: { Button },
+	components: { Button, Dialog, FormControl },
 	emits: ['edit-rules'],
 	data() {
 		return {
@@ -168,12 +180,31 @@ export default {
 			seats: [],
 			subscriptions: [],
 			providers: [],
+			showProvision: false,
+			provisioning: false,
+			provision: { user: '', client_site: '', monthly_budget_usd: 20, tier_access: 'smart,fast' },
 		};
 	},
 	computed: {
 		budgetPct() {
-			if (!this.kpi.budget_mtd || !this.kpi.spend_mtd) return 0;
-			return Math.round((this.kpi.spend_mtd / this.kpi.budget_mtd) * 100);
+			if (!this.kpi.budget || !this.kpi.spend_mtd) return 0;
+			return Math.round((this.kpi.spend_mtd / this.kpi.budget) * 100);
+		},
+		// API returns kpis.paused + kpis.revoked (ints) — derive the sub-label the prototype shows.
+		seatsNote() {
+			const parts = [];
+			if (this.kpi.paused) parts.push(`${this.kpi.paused} paused`);
+			if (this.kpi.revoked) parts.push(`${this.kpi.revoked} revoked`);
+			return parts.join(', ');
+		},
+		openIncidents() {
+			return this.kpi.paused || 0;
+		},
+		subscriptionsNote() {
+			const active = this.subscriptions.filter((s) => (s.status || 'active') === 'active').length;
+			const trial = this.subscriptions.filter((s) => s.status === 'trial').length;
+			if (trial) return `${active} active, ${trial} trial`;
+			return `${active} active`;
 		},
 	},
 	mounted() {
@@ -185,7 +216,7 @@ export default {
 			// sanad_ai_control_center app isn't reachable, keep the empty state.
 			try {
 				const g = await call('sanad_ai_control_center.api.get_governance_overview');
-				this.kpi = g.kpi || {};
+				this.kpi = g.kpis || g.kpi || {};
 				this.seats = g.seats || [];
 				this.subscriptions = g.subscriptions || [];
 			} catch (e) {
@@ -198,7 +229,33 @@ export default {
 				// control-center unreachable — leave providers empty
 			}
 		},
-		// get_accounts_overview shape: { groups: [{ model, accounts: [{ provider, region, cost, connected }] }] }
+		openProvision() {
+			this.provision = { user: '', client_site: '', monthly_budget_usd: 20, tier_access: 'smart,fast' };
+			this.showProvision = true;
+		},
+		async submitProvision() {
+			if (!this.provision.user || !this.provision.client_site) {
+				toast.error('User and client site are required');
+				return;
+			}
+			this.provisioning = true;
+			try {
+				await call('sanad_ai_control_center.api.provision_seat', {
+					user: this.provision.user,
+					client_site: this.provision.client_site,
+					monthly_budget_usd: this.provision.monthly_budget_usd,
+					tier_access: this.provision.tier_access,
+				});
+				toast.success('Seat provisioned');
+				this.showProvision = false;
+				this.load();
+			} catch (e) {
+				toast.error(e.messages?.[0] || 'Could not provision seat');
+			}
+			this.provisioning = false;
+		},
+		// get_accounts_overview shape: { groups: [{ model, accounts: [{ account_label, provider,
+		//   serve_as_model, spend_to_date, region, connected }] }] }
 		// Flatten each group's accounts into provider rows, carrying the group's model/tier.
 		mapProviders(data) {
 			const groups = (data && data.groups) || [];
@@ -217,10 +274,13 @@ export default {
 				}
 				accounts.forEach((acc) => {
 					rows.push({
-						provider: acc.provider || acc.name || grp.model || '—',
-						tier: acc.tier || grp.tier || grp.model || '—',
+						// account_label is the friendly name ('Anthropic (Claude)'); provider is the short key.
+						provider: acc.account_label || acc.provider || grp.model || '—',
+						// Tier = the model this account serves as ('smart'/'fast'/'cheap').
+						tier: acc.serve_as_model || acc.tier || grp.tier || grp.model || '—',
 						region: acc.region || '—',
-						cost: acc.cost != null ? acc.cost : 0,
+						// Real spend field is spend_to_date.
+						cost: acc.spend_to_date != null ? acc.spend_to_date : acc.cost != null ? acc.cost : 0,
 						connected: acc.connected != null ? acc.connected : true,
 					});
 				});
