@@ -37,6 +37,9 @@ import Users from '~icons/lucide/users';
 import Bot from '~icons/lucide/bot';
 import FileText from '~icons/lucide/file-text';
 import Lock from '~icons/lucide/lock';
+import Plug from '~icons/lucide/plug';
+import RefreshCw from '~icons/lucide/refresh-cw';
+import ShoppingCart from '~icons/lucide/shopping-cart';
 import { unreadNotificationsCount } from '../data/notifications';
 
 export default {
@@ -336,6 +339,59 @@ export default {
 					condition: Boolean(this.$team.doc.is_desk_user) && this.hasFeature('partner_admin'),
 				},
 				{
+					name: 'Sanad AI',
+					icon: () => h(Bot),
+					route: '/admin/ai-governance',
+					condition: Boolean(this.$team.doc.is_desk_user),
+					children: [
+						{
+							name: 'AI Governance',
+							icon: () => h(ShieldCheck),
+							route: '/admin/ai-governance',
+							isActive: routeName === 'Admin Panel' && adminTab === 'ai-governance',
+						},
+						{
+							name: 'Usage & Cost',
+							icon: () => h(LayoutDashboard),
+							route: '/admin/usage-cost',
+							isActive: routeName === 'Admin Panel' && adminTab === 'usage-cost',
+						},
+						{
+							name: 'Seats',
+							icon: () => h(Users),
+							route: '/admin/seats',
+							isActive: routeName === 'Admin Panel' && adminTab === 'seats',
+						},
+						{
+							name: 'Providers',
+							icon: () => h(Plug),
+							route: '/admin/providers',
+							isActive: routeName === 'Admin Panel' && adminTab === 'providers',
+						},
+						{
+							name: 'Subscriptions',
+							icon: () => h(RefreshCw),
+							route: '/admin/subscriptions',
+							isActive: routeName === 'Admin Panel' && adminTab === 'subscriptions',
+						},
+						{
+							name: 'Escalations',
+							icon: () => h(Bell),
+							route: '/admin/escalations',
+							isActive: routeName === 'Admin Panel' && adminTab === 'escalations',
+						},
+						{
+							name: 'Buy seats',
+							icon: () => h(ShoppingCart),
+							route: '/admin/buy-seats',
+							isActive: routeName === 'Admin Panel' && adminTab === 'buy-seats',
+						},
+					],
+					isActive:
+						routeName === 'Admin Panel' &&
+						['ai-governance', 'usage-cost', 'seats', 'providers', 'subscriptions', 'escalations', 'buy-seats'].includes(adminTab),
+				},
+				{
 					name: 'Admin Panel',
 					icon: () => h(ShieldCheck),
 					route: '/admin/teams',
@@ -352,24 +408,6 @@ export default {
 							icon: () => h(Server),
 							route: '/admin/servers',
 							isActive: routeName === 'Admin Panel' && adminTab === 'servers',
-						},
-						{
-							name: 'AI Governance',
-							icon: () => h(Bot),
-							route: '/admin/ai-governance',
-							isActive: routeName === 'Admin Panel' && adminTab === 'ai-governance',
-						},
-						{
-							name: 'Escalations',
-							icon: () => h(Bell),
-							route: '/admin/escalations',
-							isActive: routeName === 'Admin Panel' && adminTab === 'escalations',
-						},
-						{
-							name: 'Usage & Cost',
-							icon: () => h(LayoutDashboard),
-							route: '/admin/usage-cost',
-							isActive: routeName === 'Admin Panel' && adminTab === 'usage-cost',
 						},
 						{
 							name: 'Policy',
@@ -390,7 +428,10 @@ export default {
 							isActive: routeName === 'Admin Panel MCP',
 						},
 					],
-					isActive: ['Admin Panel', 'Admin Panel MCP'].includes(routeName),
+					isActive:
+						(routeName === 'Admin Panel' &&
+							['', 'teams', 'servers', 'policy', 'security'].includes(adminTab)) ||
+						routeName === 'Admin Panel MCP',
 				},
 			].filter((item) => item.condition ?? true);
 		},
