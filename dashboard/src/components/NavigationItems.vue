@@ -34,6 +34,9 @@ import ListOrdered from '~icons/lucide/list-ordered';
 import LayoutDashboard from '~icons/lucide/layout-dashboard';
 import PlayCircle from '~icons/lucide/play-circle';
 import Users from '~icons/lucide/users';
+import Bot from '~icons/lucide/bot';
+import FileText from '~icons/lucide/file-text';
+import Lock from '~icons/lucide/lock';
 import { unreadNotificationsCount } from '../data/notifications';
 
 export default {
@@ -46,6 +49,7 @@ export default {
 			if (!this.$team?.doc) return [];
 
 			const routeName = this.$route?.name || '';
+			const adminTab = this.$route?.params?.tab || '';
 			const onboardingComplete = this.$team.doc.onboarding.complete;
 			const isSaasUser = this.$team.doc.is_saas_user;
 			const enforce2FA = Boolean(
@@ -334,9 +338,59 @@ export default {
 				{
 					name: 'Admin Panel',
 					icon: () => h(ShieldCheck),
-					route: '/admin',
-					isActive: routeName === 'Admin Panel',
+					route: '/admin/teams',
 					condition: Boolean(this.$team.doc.is_desk_user),
+					children: [
+						{
+							name: 'Teams',
+							icon: () => h(Users),
+							route: '/admin/teams',
+							isActive: routeName === 'Admin Panel' && (adminTab === 'teams' || adminTab === ''),
+						},
+						{
+							name: 'Servers',
+							icon: () => h(Server),
+							route: '/admin/servers',
+							isActive: routeName === 'Admin Panel' && adminTab === 'servers',
+						},
+						{
+							name: 'AI Governance',
+							icon: () => h(Bot),
+							route: '/admin/ai-governance',
+							isActive: routeName === 'Admin Panel' && adminTab === 'ai-governance',
+						},
+						{
+							name: 'Escalations',
+							icon: () => h(Bell),
+							route: '/admin/escalations',
+							isActive: routeName === 'Admin Panel' && adminTab === 'escalations',
+						},
+						{
+							name: 'Usage & Cost',
+							icon: () => h(LayoutDashboard),
+							route: '/admin/usage-cost',
+							isActive: routeName === 'Admin Panel' && adminTab === 'usage-cost',
+						},
+						{
+							name: 'Policy',
+							icon: () => h(FileText),
+							route: '/admin/policy',
+							isActive: routeName === 'Admin Panel' && adminTab === 'policy',
+						},
+						{
+							name: 'Security',
+							icon: () => h(Lock),
+							route: '/admin/security',
+							isActive: routeName === 'Admin Panel' && adminTab === 'security',
+						},
+						{
+							name: 'MCP',
+							icon: () => h(Key),
+							route: '/admin/mcp',
+							isActive: routeName === 'Admin Panel MCP',
+						},
+					],
+					isActive: ['Admin Panel', 'Admin Panel MCP'].includes(routeName),
 				},
 			].filter((item) => item.condition ?? true);
 		},

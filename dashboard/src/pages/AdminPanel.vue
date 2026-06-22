@@ -20,7 +20,7 @@
 				v-for="tab in mainTabs"
 				:key="tab.id"
 				:class="tabClass(activeMainTab === tab.id)"
-				@click="activeMainTab = tab.id"
+				@click="goTab(tab.id)"
 			>
 				<i
 					:class="tab.icon"
@@ -152,7 +152,7 @@
 
 		<!-- TAB: AI Governance -->
 		<template v-if="activeMainTab === 'ai-governance'">
-			<AiGovernance @edit-rules="activeMainTab = 'policy'" />
+			<AiGovernance @edit-rules="goTab('policy')" />
 		</template>
 
 		<!-- TAB: Escalations -->
@@ -171,7 +171,7 @@
 		</template>
 
 		<template v-if="activeMainTab === 'policy'">
-			<AiPolicyGate @acknowledged="activeMainTab = 'teams'" />
+			<AiPolicyGate @acknowledged="goTab('teams')" />
 		</template>
 
 		<!-- TAB: MCP -->
@@ -260,8 +260,28 @@ export default {
 			return list;
 		},
 	},
-	mounted() { this.loadData(); },
+	mounted() {
+		this.activeMainTab = this.$route.params.tab || 'teams';
+		this.loadData();
+	},
+	watch: {
+		'$route.params.tab'(v) {
+			if (v && v !== this.activeMainTab) this.activeMainTab = v;
+		},
+	},
 	methods: {
+		// Tab clicks deep-link to /admin/<id> so the sidebar group highlights the
+		// active child. MCP has its own page/route. replace() keeps history clean.
+		goTab(id) {
+			if (id === 'mcp') {
+				this.$router.push({ name: 'Admin Panel MCP' });
+				return;
+			}
+			this.activeMainTab = id;
+			if (this.$route.params.tab !== id) {
+				this.$router.replace('/admin/' + id).catch(() => {});
+			}
+		},
 		async loadData() {
 			this.loading = true;
 			try {
