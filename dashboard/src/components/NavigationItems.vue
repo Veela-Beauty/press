@@ -386,16 +386,10 @@ export default {
 							route: '/admin/buy-seats',
 							isActive: routeName === 'Admin Panel' && adminTab === 'buy-seats',
 						},
-						{
-							name: 'Own-use Logins',
-							icon: () => h(Key),
-							route: '/admin/own-use',
-							isActive: routeName === 'Admin Panel' && adminTab === 'own-use',
-						},
 					],
 					isActive:
 						routeName === 'Admin Panel' &&
-						['ai-governance', 'usage-cost', 'seats', 'providers', 'subscriptions', 'escalations', 'buy-seats', 'own-use'].includes(adminTab),
+						['ai-governance', 'usage-cost', 'seats', 'providers', 'subscriptions', 'escalations', 'buy-seats'].includes(adminTab),
 				},
 				{
 					name: 'Admin Panel',
