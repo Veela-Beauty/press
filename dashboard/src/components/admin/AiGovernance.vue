@@ -116,7 +116,10 @@
 
 			<!-- Providers table -->
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<h3 class="mb-3 text-sm font-semibold">Providers</h3>
+				<div class="mb-3 flex items-center justify-between">
+					<h3 class="text-sm font-semibold">Providers</h3>
+					<Button size="sm" variant="subtle" @click="openConnect()">Add provider</Button>
+				</div>
 				<table class="w-full text-xs">
 					<thead>
 						<tr class="border-b border-gray-100 text-left text-gray-500">
@@ -133,7 +136,7 @@
 							<td>{{ p.region || '—' }}</td>
 							<td>
 								<span v-if="p.connected" class="font-mono">${{ fmtMoney(p.cost) }}</span>
-								<Button v-else size="sm" variant="outline">Connect</Button>
+								<Button v-else size="sm" variant="outline" @click="openConnect(p.tier)">Connect</Button>
 							</td>
 						</tr>
 						<tr v-if="providers.length === 0">
@@ -163,6 +166,52 @@
 				<Button variant="solid" :loading="provisioning" @click="submitProvision">Provision seat</Button>
 			</template>
 		</Dialog>
+
+		<!-- Connect provider dialog — wired to sanad_ai_control_center.api.connect_account -->
+		<Dialog :options="{ title: 'Connect provider', size: 'md' }" v-model="showConnect">
+			<template #body-content>
+				<div class="space-y-3">
+					<FormControl
+						type="select"
+						label="Provider"
+						v-model="connectForm.provider"
+						:options="providerOptions"
+					/>
+					<FormControl
+						type="password"
+						label="API key"
+						v-model="connectForm.token"
+						placeholder="paste the provider API key"
+					/>
+					<FormControl
+						label="Account label"
+						v-model="connectForm.account_label"
+						placeholder="e.g. Z.AI #2"
+					/>
+					<FormControl
+						label="Serve as model"
+						v-model="connectForm.serve_as_model"
+						placeholder="glm-4.5-air"
+					/>
+					<div class="grid grid-cols-2 gap-3">
+						<FormControl type="number" label="Weight" v-model="connectForm.weight" placeholder="1" />
+						<FormControl
+							type="number"
+							label="Monthly budget (USD)"
+							v-model="connectForm.monthly_budget"
+							placeholder="optional"
+						/>
+					</div>
+					<p class="text-xs text-gray-400">
+						Two accounts with the same “Serve as model” load-balance by weight. Subscription logins
+						(Claude/ChatGPT) are own-use only and can’t be connected here.
+					</p>
+				</div>
+			</template>
+			<template #actions>
+				<Button variant="solid" :loading="connecting" @click="submitConnect">Test &amp; connect</Button>
+			</template>
+		</Dialog>
 	</div>
 </template>
 
@@ -183,6 +232,10 @@ export default {
 			showProvision: false,
 			provisioning: false,
 			provision: { user: '', client_site: '', monthly_budget_usd: 20, tier_access: 'smart,fast' },
+			showConnect: false,
+			connecting: false,
+			catalog: [],
+			connectForm: { provider: '', token: '', account_label: '', serve_as_model: '', weight: 1, monthly_budget: null },
 		};
 	},
 	computed: {
@@ -205,6 +258,13 @@ export default {
 			const trial = this.subscriptions.filter((s) => s.status === 'trial').length;
 			if (trial) return `${active} active, ${trial} trial`;
 			return `${active} active`;
+		},
+		// Only api_key providers can join the gateway pool (connectable). Subscription
+		// logins (Claude/ChatGPT) are filtered out — connect_account refuses them anyway.
+		providerOptions() {
+			return (this.catalog || [])
+				.filter((r) => r.connectable)
+				.map((r) => ({ label: r.label || r.provider_key, value: r.provider_key }));
 		},
 	},
 	mounted() {
@@ -253,6 +313,52 @@ export default {
 				toast.error(e.messages?.[0] || 'Could not provision seat');
 			}
 			this.provisioning = false;
+		},
+		async openConnect(prefillModel) {
+			this.connectForm = {
+				provider: '',
+				token: '',
+				account_label: '',
+				serve_as_model: prefillModel || '',
+				weight: 1,
+				monthly_budget: null,
+			};
+			if (!this.catalog.length) {
+				try {
+					this.catalog = await call('sanad_ai_control_center.gateway.catalog.get_provider_catalog');
+				} catch (e) {
+					toast.error('Could not load the provider catalog');
+					return;
+				}
+			}
+			if (!this.connectForm.provider && this.providerOptions.length) {
+				this.connectForm.provider = this.providerOptions[0].value;
+			}
+			this.showConnect = true;
+		},
+		async submitConnect() {
+			const f = this.connectForm;
+			if (!f.provider || !f.token || !f.serve_as_model) {
+				toast.error('Provider, API key, and Serve-as-model are required');
+				return;
+			}
+			this.connecting = true;
+			try {
+				await call('sanad_ai_control_center.api.connect_account', {
+					provider: f.provider,
+					token: f.token,
+					account_label: f.account_label || f.provider,
+					serve_as_model: f.serve_as_model,
+					weight: f.weight || 1,
+					monthly_budget: f.monthly_budget || null,
+				});
+				toast.success('Provider connected to the gateway pool');
+				this.showConnect = false;
+				this.load();
+			} catch (e) {
+				toast.error(e.messages?.[0] || 'Could not connect the provider');
+			}
+			this.connecting = false;
 		},
 		// get_accounts_overview shape: { groups: [{ model, accounts: [{ account_label, provider,
 		//   serve_as_model, spend_to_date, region, connected }] }] }
