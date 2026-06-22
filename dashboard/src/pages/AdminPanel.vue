@@ -1,9 +1,12 @@
 <template>
 	<div class="mx-auto max-w-7xl p-4">
 		<div class="mb-4 flex items-center justify-between">
-			<h1 class="text-xl font-bold text-gray-900">Admin Panel</h1>
+			<div>
+				<p class="text-xs font-medium uppercase tracking-wide text-gray-400">{{ activeGroupLabel }}</p>
+				<h1 class="text-xl font-bold text-gray-900">{{ activeTabLabel }}</h1>
+			</div>
 			<div class="flex gap-2">
-				<Button variant="solid" @click="showCreateTeam = true">
+				<Button v-if="activeMainTab === 'teams'" variant="solid" @click="showCreateTeam = true">
 					<template #prefix><lucide-plus class="h-4 w-4" /></template>
 					Create Team
 				</Button>
@@ -11,29 +14,6 @@
 					<template #icon><lucide-refresh-ccw class="h-4 w-4" /></template>
 				</Button>
 			</div>
-		</div>
-
-		<!-- Top Navigation Tabs — uses shared tabClasses.js so style stays
-		     identical across the dashboard (see _shared/tabClasses.js). -->
-		<div :class="TAB_STRIP_BASE" class="mb-4 gap-1">
-			<button
-				v-for="tab in mainTabs"
-				:key="tab.id"
-				:class="tabClass(activeMainTab === tab.id)"
-				@click="goTab(tab.id)"
-			>
-				<i
-					:class="tab.icon"
-					class="text-sm inline-flex items-center justify-center"
-					:style="{ width: '1rem', height: '1rem', opacity: activeMainTab === tab.id ? 1 : 0.6 }"
-				></i>
-				<span>{{ tab.label }}</span>
-				<span
-					v-if="tab.badge"
-					class="rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none text-white"
-					:class="tab.badgeColor || 'bg-red-500'"
-				>{{ tab.badge }}</span>
-			</button>
 		</div>
 
 		<!-- TAB: Teams (default) -->
@@ -286,6 +266,15 @@ export default {
 				list = list.filter(t => t.user?.toLowerCase().includes(q) || t.name?.toLowerCase().includes(q));
 			}
 			return list;
+		},
+		// The sidebar group now drives navigation; the page heading reflects the active tab.
+		activeTabLabel() {
+			const t = this.mainTabs.find((x) => x.id === this.activeMainTab);
+			return t ? t.label : 'Admin Panel';
+		},
+		activeGroupLabel() {
+			const ai = ['ai-governance', 'usage-cost', 'seats', 'providers', 'subscriptions', 'escalations', 'buy-seats'];
+			return ai.includes(this.activeMainTab) ? 'Sanad AI' : 'Admin';
 		},
 	},
 	mounted() {
