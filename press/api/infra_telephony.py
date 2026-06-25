@@ -272,3 +272,219 @@ def telephony_describe(host) -> dict:
 		"active_calls": st["active_calls"],
 		"listener_connected": st["listener_connected"],
 	}
+
+
+# ─── Plan-3 dashboard reads + actions ─────────────────────────────────────────
+# Whitelisted surface for the Vue Telephony page. Each method gates to Telephony
+# Ops / System Manager, audits write actions like host_unit_action, and delegates
+# heavy/pure logic to the sibling modules (telephony_tree / _targets / _secrets).
+
+# host_action allowlist: the container-level verbs the page can request. A
+# trunk re-register is an in-container asterisk reload, not a docker verb, so it
+# maps to a fixed asterisk -rx command (no host-controlled data).
+_HOST_ACTIONS = ("restart", "stop", "reregister")
+
+
+@frappe.whitelist()
+def get_pbx_tree() -> dict:
+	"""Telephony view of the infra tree: { hosts, summary, generated }. Polled by
+	the page (server-side cached like get_infra_tree). Telephony Ops / System
+	Manager only; read-only (no audit row - it is a poll, not a control action)."""
+	_only_telephony()
+	import json
+
+	from press.api.telephony_tree import build_pbx_tree
+
+	cache_key = "infra_telephony:pbx_tree"
+	cached = frappe.cache().get_value(cache_key, expires=True)
+	if cached is not None:
+		if isinstance(cached, bytes):
+			cached = cached.decode("utf-8")
+		return json.loads(cached) if isinstance(cached, str) else cached
+	tree = build_pbx_tree()
+	frappe.cache().set_value(cache_key, json.dumps(tree), expires_in_sec=15)
+	return tree
+
+
+@frappe.whitelist()
+def host_action(host, action) -> dict:
+	"""Start/stop/restart the oc-asterisk container, or re-register its trunk, on a
+	managed PBX host. Mirrors host_unit_action: Telephony Ops / System Manager
+	only; the action is allowlisted; every call is audited on success AND error.
+	(The UI confirms when there are active calls; the backend accepts the action
+	regardless - the guard is a UX concern, not an authorization one.)"""
+	_only_telephony()
+	if action not in _HOST_ACTIONS:
+		frappe.throw(frappe._("Unknown action {0}. Allowed: {1}.").format(action, ", ".join(_HOST_ACTIONS)), frappe.ValidationError)
+	from press.infra import host_exec
+
+	try:
+		doc = _managed_doc(host)
+		if action == "reregister":
+			# In-container asterisk reload of pjsip (re-sends REGISTER). Fixed cmd.
+			script = (
+				"docker exec oc-asterisk asterisk -rx 'pjsip send register *all' "
+				"|| docker exec oc-asterisk asterisk -rx 'core reload'\n"
+			)
+		elif action == "stop":
+			script = f"cd {HOST_DIR}\ndocker compose stop oc-asterisk\ndocker compose ps\n"
+		else:  # restart
+			script = f"cd {HOST_DIR}\ndocker compose restart oc-asterisk\ndocker compose ps\n"
+		out = host_exec.run_host_script(doc, script, timeout=90)
+		log_infra_action(host=host, unit="oc-asterisk", action=f"telephony_{action}", outcome="success", detail=out.strip()[:300])
+		return {"ok": True, "host": host, "action": action, "detail": f"{action} done"}
+	except Exception as e:
+		log_infra_action(host=host, unit="oc-asterisk", action=f"telephony_{action}", outcome="error", detail=str(e))
+		raise
+
+
+@frappe.whitelist()
+def get_listener_log(host, tail: int = 200) -> list:
+	"""Tail the oc-listener container log on a managed PBX host. Telephony Ops /
+	System Manager only; audited as a read. Returns [{ts, level, msg}] rows the
+	page renders. A fixed `docker logs` command (no host-controlled data)."""
+	_only_telephony()
+	from press.infra import host_exec
+
+	try:
+		tail_n = max(1, min(int(tail or 200), 5000))
+	except (TypeError, ValueError):
+		frappe.throw(frappe._("Invalid tail value; use a number of lines (1-5000)."), frappe.ValidationError)
+	try:
+		doc = _managed_doc(host)
+		raw = host_exec.run_host_script(
+			doc, f"docker logs --tail {tail_n} oc-listener 2>&1 || true", timeout=30
+		)
+		log_infra_action(host=host, unit="oc-listener", action="listener_logs", outcome="read")
+		return _parse_log_lines(raw)
+	except Exception as e:
+		log_infra_action(host=host, unit="oc-listener", action="listener_logs", outcome="error", detail=str(e))
+		raise
+
+
+_LOG_RE = re.compile(
+	r"^(?P<ts>[\d\-T:.\sZ]+?)\s+(?P<level>ERROR|ERR|WARNING|WARN|INFO|DEBUG)\b[:\s]*(?P<msg>.*)$",
+	re.IGNORECASE,
+)
+_LEVEL_MAP = {"ERROR": "ERR", "ERR": "ERR", "WARNING": "WARN", "WARN": "WARN", "INFO": "INFO", "DEBUG": "INFO"}
+
+
+def _parse_log_lines(raw: str) -> list:
+	"""Parse raw container log text into [{ts, level, msg}]. Unmatched lines keep
+	the full text as the message with an INFO level. Pure + unit-tested."""
+	out = []
+	for line in (raw or "").splitlines():
+		if not line.strip():
+			continue
+		m = _LOG_RE.match(line)
+		if m:
+			level = _LEVEL_MAP.get(m.group("level").upper(), "INFO")
+			out.append({"ts": m.group("ts").strip(), "level": level, "msg": m.group("msg").strip()})
+		else:
+			out.append({"ts": "", "level": "INFO", "msg": line.rstrip()})
+	return out
+
+
+@frappe.whitelist()
+def rotate_secret(host, secret_id=None, instance=None, which=None) -> dict:
+	"""Regenerate the AMI password OR the listener API token, rewrite the host .env,
+	and reload the container. Telephony Ops / System Manager only; audited. The new
+	secret is written to the host file only and is NEVER returned.
+
+	The page sends `secret_id` (e.g. 'ami_password' / 'api_token'); `which` is the
+	explicit alias. When the instance is not supplied we resolve the single Active
+	PBX instance on the host (the common single-tenant case)."""
+	_only_telephony()
+	which = which or secret_id
+	if not which:
+		frappe.throw(frappe._("Specify which secret to rotate (ami_password or api_token)."), frappe.ValidationError)
+	resolved_instance = instance or _sole_active_instance(host)
+	from press.api.telephony_secrets import normalize_which, rotate_on_host
+
+	target = normalize_which(which)  # validates before any host I/O
+	try:
+		res = rotate_on_host(host=host, instance=resolved_instance, which=target)
+		log_infra_action(host=host, unit=resolved_instance, action=f"rotate_{target}", outcome="success", detail=res.get("detail", "")[:300])
+		return res
+	except Exception as e:
+		log_infra_action(host=host, unit=resolved_instance, action=f"rotate_{target}", outcome="error", detail=str(e))
+		raise
+
+
+def _sole_active_instance(host) -> str:
+	"""The single Active PBX instance on a host. Throws if the host has zero or
+	several, so a rotate without an explicit instance can never hit the wrong one."""
+	names = frappe.get_all("Telephony PBX", filters={"host": host, "status": "Active"}, pluck="instance")
+	if len(names) == 1:
+		return names[0]
+	if not names:
+		frappe.throw(frappe._("No Active PBX instance on host {0}.").format(host), frappe.ValidationError)
+	frappe.throw(frappe._("Host {0} serves several instances; specify which one to rotate.").format(host), frappe.ValidationError)
+
+
+@frappe.whitelist()
+def list_provision_targets(site_url=None) -> dict:
+	"""VoIP OC Channel Instances available to provision + the managed hosts that can
+	run a PBX. Self-hosted Press reads instances locally; Frappe-Cloud/external
+	returns an empty sites list gracefully (the operator supplies the instance).
+	Telephony Ops / System Manager only; read-only."""
+	_only_telephony()
+	from press.api.telephony_targets import build_provision_targets
+
+	return build_provision_targets(site_url=site_url)
+
+
+@frappe.whitelist()
+def validate_instance_auth(site_url=None, instance=None, api_token=None) -> dict:
+	"""Confirm the trunk secret is PRESENT on an instance (boolean + human detail,
+	never the secret). Self-hosted: read the co-hosted OC Channel Instance. External
+	/Frappe-Cloud: use the supplied api_token to query the site over HTTPS. Telephony
+	Ops / System Manager only; read-only."""
+	_only_telephony()
+	if not instance:
+		frappe.throw(frappe._("instance is required."), frappe.ValidationError)
+	from press.api.telephony_targets import _is_local, _validate_external, _validate_local
+
+	if _is_local(site_url):
+		return _validate_local(instance)
+	return _validate_external(site_url=site_url, instance=instance, api_token=api_token)
+
+
+@frappe.whitelist()
+def test_host_connection(host_name=None, ssh_host=None, ssh_user="sanad", ssh_port=22) -> dict:
+	"""New-host onboarding reachability test for the provision wizard. If the host
+	is already a Managed Host, reuse test_connection; otherwise register it Pending
+	then test (add_managed_host + test_connection both audit). Telephony Ops /
+	System Manager only. Returns { ok, docker_ok, detail }."""
+	_only_telephony()
+	from press.api.infra_board import add_managed_host, test_connection
+
+	target = host_name or ssh_host
+	if not target:
+		frappe.throw(frappe._("Provide a host name or ssh_host to test."), frappe.ValidationError)
+	try:
+		if not frappe.db.exists("Managed Host", target):
+			if not ssh_host:
+				frappe.throw(frappe._("ssh_host is required to register a new managed host."), frappe.ValidationError)
+			add_managed_host(host_name=target, server_type="docker", ssh_host=ssh_host, ssh_user=ssh_user or "sanad", ssh_port=ssh_port)
+		out = test_connection(target)  # flips Active on success, throws with a reason otherwise
+		return {"ok": bool(out.get("ssh_ok")), "docker_ok": bool(out.get("docker_ok")), "detail": "connection ok"}
+	except Exception as e:
+		return {"ok": False, "docker_ok": False, "detail": (getattr(e, "message", None) or str(e))[:300]}
+
+
+@frappe.whitelist()
+def provision_status(job_id=None) -> dict:
+	"""Provision-job status for the page's poller. telephony_provision is SYNCHRONOUS
+	today, so there is no real job to poll: return a TERMINAL success with the four
+	provision steps marked done so the poller resolves immediately. Forward-compatible
+	with a future async job (when job_id maps to a real Background Job, report its
+	state). Telephony Ops / System Manager only."""
+	_only_telephony()
+	steps = [
+		{"key": "env", "label": "Write the generated .env on the host", "state": "done"},
+		{"key": "firewall", "label": "Open the firewall to the trunk IP", "state": "done"},
+		{"key": "compose", "label": "docker compose up -d (oc-asterisk + oc-listener)", "state": "done"},
+		{"key": "register", "label": "Wait for trunk registration + first heartbeat", "state": "done"},
+	]
+	return {"state": "done", "steps": steps, "failure": None}
