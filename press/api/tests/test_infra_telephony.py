@@ -183,3 +183,268 @@ class TestStatusReader(_Base):
 		self.assertTrue(out["trunk_registered"])
 		self.assertEqual(out["active_calls"], 3)
 		self.assertTrue(out["listener_connected"])
+
+
+# ─── Plan-3 dashboard reads + actions ─────────────────────────────────────────
+
+
+class TestGetPbxTreeGate(_Base):
+	def test_get_pbx_tree_requires_telephony_role(self):
+		from press.api import infra_telephony as it
+
+		with patch.object(it, "_only_telephony", side_effect=frappe.PermissionError) as gate, \
+			patch.object(it.frappe, "cache"):
+			with self.assertRaises(frappe.PermissionError):
+				it.get_pbx_tree()
+		gate.assert_called_once()
+
+
+class TestHostAction(_Base):
+	def test_reregister_runs_fixed_asterisk_reload_and_audits(self):
+		from press.api import infra_telephony as it
+
+		with patch.object(it, "_only_telephony"), \
+			patch.object(it, "_managed_doc", return_value=self._doc()), \
+			patch("press.infra.host_exec.run_host_script", return_value="ok\n") as run, \
+			patch.object(it, "log_infra_action") as audit:
+			out = it.host_action(host="pbx-1", action="reregister")
+
+		script = run.call_args[0][1]
+		self.assertIn("pjsip send register", script)
+		# no host-controlled interpolation in the action script
+		self.assertNotIn("pbx-1", script)
+		self.assertEqual(audit.call_args.kwargs["outcome"], "success")
+		self.assertTrue(out["ok"])
+
+	def test_restart_targets_oc_asterisk_via_compose(self):
+		from press.api import infra_telephony as it
+
+		with patch.object(it, "_only_telephony"), \
+			patch.object(it, "_managed_doc", return_value=self._doc()), \
+			patch("press.infra.host_exec.run_host_script", return_value="ok\n") as run, \
+			patch.object(it, "log_infra_action"):
+			it.host_action(host="pbx-1", action="restart")
+		script = run.call_args[0][1]
+		self.assertIn("docker compose restart oc-asterisk", script)
+
+	def test_rejects_unknown_action(self):
+		from press.api import infra_telephony as it
+
+		with patch.object(it, "_only_telephony"), patch.object(it, "_managed_doc", return_value=self._doc()):
+			with self.assertRaises(frappe.ValidationError):
+				it.host_action(host="pbx-1", action="nuke")
+
+	def test_error_path_audits_and_reraises(self):
+		from press.api import infra_telephony as it
+
+		with patch.object(it, "_only_telephony"), \
+			patch.object(it, "_managed_doc", return_value=self._doc()), \
+			patch("press.infra.host_exec.run_host_script", side_effect=RuntimeError("down")), \
+			patch.object(it, "log_infra_action") as audit:
+			with self.assertRaises(RuntimeError):
+				it.host_action(host="pbx-1", action="stop")
+		self.assertEqual(audit.call_args.kwargs["outcome"], "error")
+
+
+class TestListenerLog(_Base):
+	def test_log_tails_oc_listener_and_audits_read(self):
+		from press.api import infra_telephony as it
+
+		raw = "2026-06-25T10:00:00 INFO listener started\n2026-06-25T10:00:01 ERROR ami auth failed\n"
+		with patch.object(it, "_only_telephony"), \
+			patch.object(it, "_managed_doc", return_value=self._doc()), \
+			patch("press.infra.host_exec.run_host_script", return_value=raw) as run, \
+			patch.object(it, "log_infra_action") as audit:
+			out = it.get_listener_log(host="pbx-1", tail=50)
+
+		self.assertIn("docker logs --tail 50 oc-listener", run.call_args[0][1])
+		self.assertEqual(audit.call_args.kwargs["outcome"], "read")
+		self.assertEqual(out[0]["level"], "INFO")
+		self.assertEqual(out[1]["level"], "ERR")
+		self.assertIn("ami auth failed", out[1]["msg"])
+
+	def test_rejects_bad_tail(self):
+		from press.api import infra_telephony as it
+
+		with patch.object(it, "_only_telephony"):
+			with self.assertRaises(frappe.ValidationError):
+				it.get_listener_log(host="pbx-1", tail="abc")
+
+	def test_parse_log_lines_keeps_unmatched_as_info(self):
+		from press.api import infra_telephony as it
+
+		out = it._parse_log_lines("a plain line with no level\n\n  WARN something\n")
+		self.assertEqual(out[0], {"ts": "", "level": "INFO", "msg": "a plain line with no level"})
+		self.assertEqual(out[1]["level"], "WARN")
+
+
+class TestRotateSecret(_Base):
+	def test_rotate_gates_validates_and_never_returns_secret(self):
+		from press.api import infra_telephony as it
+		from press.api import telephony_secrets as ts
+
+		env_before = "AMI_PASSWORD=old\nOC_API_TOKEN=k:s\nOC_SITE=https://x\n"
+		with patch.object(it, "_only_telephony"), \
+			patch.object(it, "_sole_active_instance", return_value="i"), \
+			patch.object(it, "_managed_doc", return_value=self._doc()), \
+			patch.object(ts, "_managed_doc", return_value=self._doc()), \
+			patch("press.infra.host_exec.run_host_script", side_effect=[env_before, "recreated\n"]) as run, \
+			patch("press.infra.telephony_bundle.gen_secret", return_value="NEWAMIPW"), \
+			patch.object(it, "log_infra_action") as audit:
+			out = it.rotate_secret(host="pbx-1", secret_id="ami_password")
+
+		# the .env push carries the rewritten AMI line, the rest preserved
+		pushed = run.call_args.kwargs["files"]["/srv/oc-asterisk/.env"]
+		self.assertIn("AMI_PASSWORD=NEWAMIPW", pushed)
+		self.assertIn("OC_API_TOKEN=k:s", pushed)        # untouched
+		self.assertIn("OC_SITE=https://x", pushed)        # untouched
+		self.assertEqual(audit.call_args.kwargs["outcome"], "success")
+		# the new secret is NOT echoed back
+		self.assertNotIn("NEWAMIPW", str(out))
+
+	def test_rotate_requires_a_secret_id(self):
+		from press.api import infra_telephony as it
+
+		with patch.object(it, "_only_telephony"):
+			with self.assertRaises(frappe.ValidationError):
+				it.rotate_secret(host="pbx-1")
+
+	def test_normalize_which_maps_aliases_and_rejects_unknown(self):
+		from press.api import telephony_secrets as ts
+
+		self.assertEqual(ts.normalize_which("ami_password"), "ami")
+		self.assertEqual(ts.normalize_which("api_token"), "token")
+		self.assertEqual(ts.normalize_which("AMI"), "ami")
+		with self.assertRaises(frappe.ValidationError):
+			ts.normalize_which("trunk_password")
+
+	def test_rewrite_env_line_replaces_only_target_and_appends_when_missing(self):
+		from press.api import telephony_secrets as ts
+
+		text = "A=1\nAMI_PASSWORD=old\nB=2\n"
+		out = ts._rewrite_env_line(text, "AMI_PASSWORD", "new")
+		self.assertEqual(out, "A=1\nAMI_PASSWORD=new\nB=2\n")
+		# appended when absent
+		out2 = ts._rewrite_env_line("A=1\n", "OC_API_TOKEN", "k:s")
+		self.assertEqual(out2, "A=1\nOC_API_TOKEN=k:s\n")
+
+
+class TestProvisionTargets(_Base):
+	def test_external_site_returns_empty_sites_gracefully(self):
+		from press.api import telephony_targets as tt
+
+		with patch.object(tt, "_provisionable_hosts", return_value=[{"name": "h", "label": "h", "has_headroom": True}]):
+			out = tt.build_provision_targets(site_url="https://acme.frappe.cloud")
+		self.assertEqual(out["sites"], [])
+		self.assertEqual(len(out["hosts"]), 1)
+
+	def test_local_site_lists_voip_instances_with_presence_only(self):
+		from press.api import telephony_targets as tt
+
+		rows = [{"name": "i1", "instance_name": "Acme VoIP", "company": "Acme", "trunk_password": "secret"}]
+		with patch.object(tt, "_oc_doctype_present", return_value=True), \
+			patch.object(tt, "_provisionable_hosts", return_value=[]), \
+			patch("press.api.telephony_targets.frappe.get_all", return_value=rows):
+			out = tt.build_provision_targets(site_url="self")
+		inst = out["sites"][0]["instances"][0]
+		self.assertTrue(inst["has_auth"])
+		# the actual trunk secret never leaks into the payload
+		self.assertNotIn("secret", str(out))
+
+
+class TestValidateInstanceAuth(_Base):
+	def test_local_presence_true_when_trunk_password_set(self):
+		from press.api import telephony_targets as tt
+
+		with patch.object(tt, "_oc_doctype_present", return_value=True), \
+			patch("press.api.telephony_targets.frappe.db.get_value", return_value="x"):
+			out = tt._validate_local("i")
+		self.assertTrue(out["has_auth"])
+		self.assertNotIn("x", out["detail"])  # the value is not echoed
+
+	def test_local_presence_false_when_missing(self):
+		from press.api import telephony_targets as tt
+
+		with patch.object(tt, "_oc_doctype_present", return_value=True), \
+			patch("press.api.telephony_targets.frappe.db.get_value", return_value=None):
+			out = tt._validate_local("i")
+		self.assertFalse(out["has_auth"])
+
+	def test_external_without_token_is_unauthenticated(self):
+		from press.api import telephony_targets as tt
+
+		out = tt._validate_external(site_url="https://x", instance="i", api_token=None)
+		self.assertFalse(out["has_auth"])
+
+
+class TestTestHostConnection(_Base):
+	def test_existing_host_reuses_test_connection(self):
+		from press.api import infra_telephony as it
+
+		with patch.object(it, "_only_telephony"), \
+			patch("press.api.telephony_targets.frappe.db.exists"), \
+			patch("press.api.infra_telephony.frappe.db.exists", return_value=True), \
+			patch("press.api.infra_board.test_connection", return_value={"ssh_ok": True, "docker_ok": True}) as tc, \
+			patch("press.api.infra_board.add_managed_host") as add:
+			out = it.test_host_connection(host_name="pbx-1")
+		add.assert_not_called()
+		tc.assert_called_once()
+		self.assertTrue(out["ok"])
+		self.assertTrue(out["docker_ok"])
+
+	def test_failure_returns_ok_false_with_detail_not_raises(self):
+		from press.api import infra_telephony as it
+
+		with patch.object(it, "_only_telephony"), \
+			patch("press.api.infra_telephony.frappe.db.exists", return_value=True), \
+			patch("press.api.infra_board.test_connection", side_effect=RuntimeError("refused")):
+			out = it.test_host_connection(host_name="pbx-1")
+		self.assertFalse(out["ok"])
+		self.assertIn("refused", out["detail"])
+
+
+class TestProvisionStatus(_Base):
+	def test_sync_backend_returns_terminal_done_with_all_steps(self):
+		from press.api import infra_telephony as it
+
+		with patch.object(it, "_only_telephony"):
+			out = it.provision_status(job_id=None)
+		self.assertEqual(out["state"], "done")
+		self.assertEqual(len(out["steps"]), 4)
+		self.assertTrue(all(s["state"] == "done" for s in out["steps"]))
+
+
+class TestPbxTreeShape(_Base):
+	def test_host_status_pure_mapping(self):
+		from press.api import telephony_tree as tr
+
+		self.assertEqual(tr._host_status(reach_ok=False, listener_connected=True, any_unreg=False), "unknown")
+		self.assertEqual(tr._host_status(reach_ok=True, listener_connected=False, any_unreg=False), "warn")
+		self.assertEqual(tr._host_status(reach_ok=True, listener_connected=True, any_unreg=True), "warn")
+		self.assertEqual(tr._host_status(reach_ok=True, listener_connected=True, any_unreg=False), "up")
+
+	def test_build_host_shape_matches_page_contract(self):
+		from press.api import telephony_tree as tr
+
+		status = {"trunk_registered": True, "active_calls": 2, "listener_connected": True}
+		with patch("press.api.infra_telephony._managed_doc", return_value=self._doc()), \
+			patch("press.api.infra_telephony.telephony_status", return_value=status), \
+			patch.object(tr, "_instance_meta", return_value={"trunk": "Acme", "did": "+966"}):
+			h = tr._build_host("pbx-1", [{"instance": "i", "site_url": "https://s", "public_ip": "9.9.9.9"}])
+		for key in ("name", "ip", "status", "container", "listener", "active_calls", "cpu_pct", "uptime", "instances"):
+			self.assertIn(key, h)
+		self.assertEqual(h["listener"], "connected")
+		self.assertEqual(h["active_calls"], 2)
+		self.assertEqual(h["instances"][0]["reg"], "reg")
+		self.assertEqual(h["instances"][0]["site"], "s")
+
+	def test_roll_up_matches_tele_derive_summary(self):
+		from press.api import telephony_tree as tr
+
+		hosts = [
+			{"listener": "connected", "active_calls": 1, "instances": [{"reg": "reg"}, {"reg": "reg"}]},
+			{"listener": "connected", "active_calls": 0, "instances": [{"reg": "unreg"}]},
+			{"listener": "disconnected", "active_calls": 0, "instances": []},
+		]
+		s = tr._roll_up(hosts)
+		self.assertEqual(s, {"hosts": 3, "trunks": 3, "registered": 2, "trunkDown": 1, "activeCalls": 1, "listenersUp": 2})
