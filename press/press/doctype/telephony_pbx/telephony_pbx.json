@@ -1,0 +1,36 @@
+{
+ "actions": [],
+ "autoname": "field:pbx_id",
+ "creation": "2026-06-25 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "pbx_id", "host", "instance", "site_url", "source", "public_ip",
+  "status", "last_seen", "last_error", "notes"
+ ],
+ "fields": [
+  {"fieldname": "pbx_id", "fieldtype": "Data", "label": "PBX Id", "reqd": 1, "unique": 1, "description": "host:instance"},
+  {"fieldname": "host", "fieldtype": "Link", "options": "Managed Host", "label": "Host", "reqd": 1},
+  {"fieldname": "instance", "fieldtype": "Data", "label": "OC Channel Instance", "reqd": 1},
+  {"fieldname": "site_url", "fieldtype": "Data", "label": "Site URL", "reqd": 1},
+  {"fieldname": "source", "fieldtype": "Select", "options": "self\nexternal", "default": "self", "label": "Token Source"},
+  {"fieldname": "public_ip", "fieldtype": "Data", "label": "Public IP"},
+  {"fieldname": "status", "fieldtype": "Select", "options": "Provisioning\nActive\nDecommissioned\nError", "default": "Provisioning", "label": "Status"},
+  {"fieldname": "last_seen", "fieldtype": "Datetime", "read_only": 1, "label": "Last Seen"},
+  {"fieldname": "last_error", "fieldtype": "Small Text", "read_only": 1, "label": "Last Error"},
+  {"fieldname": "notes", "fieldtype": "Small Text", "label": "Notes"}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-06-25 00:00:00",
+ "module": "Press",
+ "name": "Telephony PBX",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1},
+  {"create": 1, "delete": 0, "export": 1, "print": 1, "read": 1, "report": 1, "role": "Telephony Ops", "share": 0, "write": 1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}
