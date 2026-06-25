@@ -10,23 +10,18 @@ import { createResource } from 'frappe-ui';
 //   mint_listener_token(site, instance, listener_user=None, supplied_key_secret=None) -> "key:secret"
 //   decommission_pbx(host, instance)                 -> { ok, host, instance, recordings }
 //
-// PENDING from the infra-telephony backend roadmap (Plan 3 must add these to
-// infra_telephony.py with these EXACT names before the live page works end to
-// end - the consumer is wired and unit-tested against them now):
-//   get_pbx_tree()                                   -> { hosts:[Host], summary, generated }  (the polled read; no tree endpoint exists yet)
-//   host_action(host, action)                        action in restart|stop|reregister  (firewall_test already maps to firewall_rule)
+// IMPLEMENTED by the infra-telephony backend (Plan 3, added to infra_telephony.py
+// with these EXACT names; all gated to Telephony Ops / System Manager + audited):
+//   get_pbx_tree()                                   -> { hosts:[Host], summary, generated }  (15s server-side cache)
+//   host_action(host, action)                        action in restart|stop|reregister  (firewall_test maps to firewall_rule)
 //   get_listener_log(host, tail=200)                 -> [{ ts, level, msg }]
-//   rotate_secret(host, secret_id)                   -> { ok, detail }
-//   list_provision_targets()                         -> { sites:[{site,instances:[{instance,has_auth,auth_age}]}], hosts:[{name,label,has_headroom}] }
-//   validate_instance_auth(site, instance)           -> { has_auth, detail }
+//   rotate_secret(host, secret_id)                   -> { ok, detail }  (secret_id in ami_password|api_token; secret never returned)
+//   list_provision_targets(site_url=null)            -> { sites:[{site,instances:[{instance,has_auth,auth_age}]}], hosts:[{name,label,has_headroom}] }
+//   validate_instance_auth(site_url, instance, api_token=null) -> { has_auth, detail }
 //   test_host_connection(host_name, ssh_host, ssh_user, ssh_port) -> { ok, docker_ok, detail }
-//   provision_status(job_id)                         -> { state, steps:[{key,label,state}], failure }
-//
-// Until those land, the dev server points the missing reads at a stub; the page
-// is built + unit-tested against the contract and the live integration is the
-// last gated step (see plan Task 14 / Definition of Done).
+//   provision_status(job_id)                         -> { state, steps:[{key,label,state}], failure }  (terminal 'done' today; telephony_provision is synchronous)
 
-// Polled read of the whole PBX tree (server-side 15s cache; Plan 3 endpoint).
+// Polled read of the whole PBX tree (server-side 15s cache).
 export function usePbxTree() {
 	return createResource({ url: 'press.api.infra_telephony.get_pbx_tree', auto: true });
 }
@@ -52,11 +47,11 @@ export function hostAction(host, action) {
 export const firewallRule = (host, trunk_ip, action = 'allow') =>
 	call('press.api.infra_telephony.firewall_rule', { host, trunk_ip, action });
 
-// Plan-3 endpoints the page consumes (not yet in the backend).
+// Plan-3 endpoints the page consumes (now implemented in infra_telephony.py).
 export const listenerLog       = (host, tail = 200)        => call('press.api.infra_telephony.get_listener_log', { host, tail });
 export const rotateSecret      = (host, secret_id)         => call('press.api.infra_telephony.rotate_secret', { host, secret_id });
 export const provisionTargets  = ()                        => call('press.api.infra_telephony.list_provision_targets', {});
-export const validateAuth      = (site, instance)          => call('press.api.infra_telephony.validate_instance_auth', { site, instance });
+export const validateAuth      = (site, instance)          => call('press.api.infra_telephony.validate_instance_auth', { site_url: site, instance });
 export const testHostConnection = (p)                      => call('press.api.infra_telephony.test_host_connection', p);
 export const provisionStatus   = (job_id)                  => call('press.api.infra_telephony.provision_status', { job_id });
 
