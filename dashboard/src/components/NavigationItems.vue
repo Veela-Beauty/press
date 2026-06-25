@@ -329,6 +329,13 @@ export default {
 					isActive: routeName === 'Admin Panel',
 					condition: Boolean(this.$team.doc.is_desk_user),
 				},
+				{
+					name: 'Tessera',
+					icon: () => h(Key),
+					route: '/tessera',
+					isActive: routeName === 'TesseraAdmin',
+					condition: Boolean(this.$team.doc.is_desk_user),
+				},
 			].filter((item) => item.condition ?? true);
 		},
 	},

@@ -533,6 +533,11 @@ let router = createRouter({
 			name: 'Admin Panel MCP',
 			component: () => import('./pages/admin/AdminPanelMcp.vue'),
 		},
+		{
+			path: '/tessera',
+			name: 'TesseraAdmin',
+			component: () => import('./pages/TesseraAdmin.vue'),
+		},
 		...generateRoutes(),
 		// TODO: makeshift redirect fixes for /insights paths
 		{
