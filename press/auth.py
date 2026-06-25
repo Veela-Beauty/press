@@ -51,6 +51,9 @@ ALLOWED_PATHS = [
 	# Sanad AI control center: client sites self-provision AI seats here, authed
 	# by a per-site service token (not a Press login). Scoped to this one path.
 	"/api/method/sanad_ai_control_center.api.provision_for_site",
+	# Tessera License Manager: client sites validate their license here, authed
+	# by the license key (not a Press login). Scoped to this one path.
+	"/api/method/tessera_server.api.validate",
 ]
 
 ALLOWED_WILDCARD_PATHS = [
