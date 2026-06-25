@@ -187,6 +187,37 @@ class TestInfraTree(FrappeTestCase):
 		self.assertEqual(bench_c["health"], "unknown")
 		self.assertEqual(tree["servers"][0]["health"], "down")
 
+	def test_build_tree_attaches_telephony_for_pbx_hosts(self):
+		from press.api import infra_board
+
+		mh = frappe._dict(host_name="pbx-1", server_type="docker", ssh_host="1.2.3.4",
+			ssh_port=22, ssh_user="sanad", proxy_port=2375, status="Active", last_error=None)
+		ok = {"units": [], "metrics": {"cpu": 1, "mem": 1, "disk": 1, "req": 0}, "reach": "ok"}
+		tele = {"trunk_registered": True, "active_calls": 4, "listener_connected": True}
+		with patch.object(infra_board, "_press_servers", return_value=[]), \
+			patch.object(infra_board, "_managed_hosts", return_value=[mh]), \
+			patch.object(infra_board, "_enumerate_managed", return_value=ok), \
+			patch.object(infra_board, "_telephony_for", return_value=tele):
+			tree = infra_board._build_tree()
+
+		node = tree["servers"][0]
+		self.assertEqual(node["telephony"]["active_calls"], 4)
+		self.assertTrue(node["telephony"]["trunk_registered"])
+
+	def test_build_tree_omits_telephony_for_non_pbx_hosts(self):
+		from press.api import infra_board
+
+		mh = frappe._dict(host_name="plain-1", server_type="plain", ssh_host="h",
+			ssh_port=22, ssh_user="sanad", proxy_port=2375, status="Active", last_error=None)
+		ok = {"units": [], "metrics": {"cpu": 1, "mem": 1, "disk": 1, "req": 0}, "reach": "ok"}
+		with patch.object(infra_board, "_press_servers", return_value=[]), \
+			patch.object(infra_board, "_managed_hosts", return_value=[mh]), \
+			patch.object(infra_board, "_enumerate_managed", return_value=ok), \
+			patch.object(infra_board, "_telephony_for", return_value=None):
+			tree = infra_board._build_tree()
+
+		self.assertNotIn("telephony", tree["servers"][0])
+
 
 class TestClassifyConnError(FrappeTestCase):
 	def test_maps_known_failures_to_actionable_reasons(self):

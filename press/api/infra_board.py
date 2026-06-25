@@ -183,6 +183,21 @@ def _managed_hosts() -> list:
 	)
 
 
+def _telephony_for(host_name: str):
+	"""Telephony telemetry for a managed host that carries a Telephony PBX record,
+	else None. Soft + best-effort: a probe failure or a missing module never
+	breaks the tree build."""
+	if not frappe.db.exists("Telephony PBX", {"host": host_name, "status": "Active"}):
+		return None
+	try:
+		from press.api.infra_telephony import _managed_doc, telephony_status
+
+		return telephony_status(_managed_doc(host_name))
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), f"telephony_status failed: {host_name}")
+		return None
+
+
 def _enumerate_managed(host) -> dict:
 	from press.infra.adapters.base import get_adapter
 
@@ -212,14 +227,18 @@ def _build_tree() -> dict:
 		units = en["units"]
 		down = sum(1 for u in units if u.get("state") in ("stop", "exit2", "down"))
 		overload = _overload(en["metrics"])
-		servers.append({
+		node = {
 			"name": h.host_name, "kind": "managed", "server_type": h.server_type,
 			"benches": [],
 			"units": units, "metrics": en["metrics"], "overload": overload,
 			"host": {"server": h.host_name},
 			"last_error": en.get("reason") or h.get("last_error") or None,
 			"health": ("unknown" if (h.status == "Unreachable" or en.get("reach") == "fail") else "down" if (down or overload == "crit") else "up"),
-		})
+		}
+		tele = _telephony_for(h.host_name)
+		if tele is not None:
+			node["telephony"] = tele
+		servers.append(node)
 	return {"servers": servers}
 
 
