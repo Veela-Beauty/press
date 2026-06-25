@@ -539,6 +539,11 @@ let router = createRouter({
 			component: () => import('./pages/infrastructure/InfraDashboard.vue'),
 		},
 		{
+			path: '/telephony',
+			name: 'Telephony',
+			component: () => import('./pages/telephony/TelephonyDashboard.vue'),
+		},
+		{
 			path: '/notifications',
 			name: 'NotificationsFeed',
 			component: () => import('./pages/notifications/Notifications.vue'),
