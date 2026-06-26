@@ -109,8 +109,8 @@ def _build_host(host_name: str, pbx_rows: list[dict]) -> dict:
 		"container": _container_word(reach_ok, listener_connected),
 		"listener": "connected" if listener_connected else ("disconnected" if reach_ok else "unknown"),
 		"active_calls": int(tele.get("active_calls") or 0),
-		"cpu_pct": None,
-		"uptime": "",
+		"cpu_pct": tele.get("cpu_pct"),
+		"uptime": tele.get("uptime") or "",
 		"instances": instances,
 	}
 

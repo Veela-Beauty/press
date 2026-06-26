@@ -235,31 +235,43 @@ def _parse_active_calls(text: str) -> int:
 	return int(m.group(1)) if m else 0
 
 
-def _listener_connected(doc) -> bool:
-	"""True when the oc-listener container is up, read via the Docker API enumerate
-	(the same read-only socket-proxy path that powers the infra board). The managed
-	host is an alpine sidecar with NO docker CLI, so a `docker ps` shell probe always
-	read empty and falsely reported the listener disconnected; the API never needs a
-	CLI. Best-effort: any failure degrades to False, never raises."""
+_RUNNING_STATES = ("run", "heal", "unhealth")
+
+
+def _enumerate(doc) -> dict:
+	"""Docker API container enumerate for ONE host (the read-only socket-proxy path
+	that powers the infra board): { units: [...], metrics: {...} }. The managed host
+	is an alpine sidecar with NO docker CLI, so shell `docker` probes read empty/error;
+	the API never needs a CLI. Best-effort: degrades to {} on any failure."""
 	from press.infra.adapters.base import get_adapter
 
 	try:
-		units = (get_adapter(doc).enumerate(doc) or {}).get("units") or []
+		return get_adapter(doc).enumerate(doc) or {}
 	except Exception:
-		return False
-	for u in units:
-		if (u.get("name") or "").startswith("oc-listener"):
-			return u.get("state") in ("run", "heal", "unhealth")
-	return False
+		return {}
+
+
+def _find_unit(units, prefix: str):
+	"""First container unit whose name starts with `prefix`, or None."""
+	for u in units or []:
+		if (u.get("name") or "").startswith(prefix):
+			return u
+	return None
+
+
+def _oc_unit(doc, prefix: str):
+	"""Resolve one oc-* container unit (carrying its `_id`) by name prefix via the
+	Docker API enumerate, or None."""
+	return _find_unit(_enumerate(doc).get("units"), prefix)
 
 
 def telephony_status(doc) -> dict:
-	"""Read-only telephony telemetry for ONE host: trunk registration, active-call
-	count, listener-connected. listener-connected comes from the Docker API container
-	enumerate; trunk registration + active calls need `asterisk -rx` (docker exec),
-	which the read-only socket-proxy blocks, so they stay best-effort over the cert SSH
-	channel and default safe (False/0 - accurate while the trunk is down). Never
-	raises. NOT whitelisted - called by telephony_describe + _build_tree."""
+	"""Read-only telephony telemetry for ONE host. Container state (listener-connected,
+	asterisk uptime) + host CPU come from a single Docker API enumerate; trunk
+	registration + active calls need `asterisk -rx` (docker exec), which the read-only
+	socket-proxy blocks, so they stay best-effort over the cert SSH channel and default
+	safe (False/0 - accurate while the trunk is down). Never raises. NOT whitelisted -
+	called by telephony_describe + _build_tree."""
 	from press.infra import host_exec
 
 	def _safe(cmd, default):
@@ -270,10 +282,18 @@ def telephony_status(doc) -> dict:
 
 	reg = _safe("docker exec oc-asterisk asterisk -rx 'pjsip show registrations' 2>/dev/null || true", "")
 	chans = _safe("docker exec oc-asterisk asterisk -rx 'core show channels count' 2>/dev/null || true", "")
+
+	enum = _enumerate(doc)
+	units = enum.get("units") or []
+	listener = _find_unit(units, "oc-listener")
+	asterisk = _find_unit(units, "oc-asterisk")
 	return {
 		"trunk_registered": _parse_registered(reg),
 		"active_calls": _parse_active_calls(chans),
-		"listener_connected": _listener_connected(doc),
+		"listener_connected": bool(listener) and listener.get("state") in _RUNNING_STATES,
+		"container_running": bool(asterisk) and asterisk.get("state") in _RUNNING_STATES,
+		"uptime": (asterisk or {}).get("uptime") or "",
+		"cpu_pct": (enum.get("metrics") or {}).get("cpu"),
 	}
 
 
@@ -360,10 +380,11 @@ def host_action(host, action) -> dict:
 @frappe.whitelist()
 def get_listener_log(host, tail: int = 200) -> list:
 	"""Tail the oc-listener container log on a managed PBX host. Telephony Ops /
-	System Manager only; audited as a read. Returns [{ts, level, msg}] rows the
-	page renders. A fixed `docker logs` command (no host-controlled data)."""
+	System Manager only; audited as a read. Returns [{ts, level, msg}] rows the page
+	renders. Reads via the Docker API (the managed-host sidecar has no docker CLI, so
+	a `docker logs` shell probe failed with 'sh: docker: not found')."""
 	_only_telephony()
-	from press.infra import host_exec
+	from press.infra.adapters.base import get_adapter
 
 	try:
 		tail_n = max(1, min(int(tail or 200), 5000))
@@ -371,11 +392,13 @@ def get_listener_log(host, tail: int = 200) -> list:
 		frappe.throw(frappe._("Invalid tail value; use a number of lines (1-5000)."), frappe.ValidationError)
 	try:
 		doc = _managed_doc(host)
-		raw = host_exec.run_host_script(
-			doc, f"docker logs --tail {tail_n} oc-listener 2>&1 || true", timeout=30
-		)
+		unit = _oc_unit(doc, "oc-listener")
+		if not unit or not unit.get("_id"):
+			log_infra_action(host=host, unit="oc-listener", action="listener_logs", outcome="read")
+			return []
+		lines = get_adapter(doc).logs(doc, unit["_id"], tail=tail_n)
 		log_infra_action(host=host, unit="oc-listener", action="listener_logs", outcome="read")
-		return _parse_log_lines(raw)
+		return _parse_log_lines("\n".join(lines))
 	except Exception as e:
 		log_infra_action(host=host, unit="oc-listener", action="listener_logs", outcome="error", detail=str(e))
 		raise
