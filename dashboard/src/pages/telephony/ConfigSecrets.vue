@@ -4,7 +4,7 @@
       <h3 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Rendered config (pulled from ERPNext)</h3>
       <dl class="grid grid-cols-2 gap-x-6 gap-y-1.5 rounded-md border border-gray-200 p-3 text-sm">
         <dt class="text-gray-500">Last reload</dt>
-        <dd class="font-mono text-gray-900">{{ host.last_reload || '—' }}</dd>
+        <dd class="font-mono text-gray-900">{{ host.last_reload || 'n/a' }}</dd>
         <dt class="text-gray-500">Firewall</dt>
         <dd class="text-gray-900">{{ host.firewall || 'SIP/RTP to trunk IPs only' }}</dd>
       </dl>

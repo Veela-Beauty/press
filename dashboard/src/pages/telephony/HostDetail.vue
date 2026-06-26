@@ -7,8 +7,8 @@
         <dt class="text-gray-500">Listener</dt><dd class="font-mono text-gray-900">{{ host.listener }}</dd>
         <dt class="text-gray-500">Active calls</dt><dd class="font-mono text-gray-900">{{ host.active_calls }}</dd>
         <dt class="text-gray-500">CPU</dt><dd class="font-mono text-gray-900">{{ host.cpu_pct != null ? host.cpu_pct + '%' : 'n/a' }}</dd>
-        <dt class="text-gray-500">Uptime</dt><dd class="font-mono text-gray-900">{{ host.uptime }}</dd>
-        <dt class="text-gray-500">Recordings</dt><dd class="font-mono text-gray-900">{{ host.recordings || '—' }}</dd>
+        <dt class="text-gray-500">Uptime</dt><dd class="font-mono text-gray-900">{{ host.uptime || 'n/a' }}</dd>
+        <dt class="text-gray-500">Recordings</dt><dd class="font-mono text-gray-900">{{ host.recordings || 'n/a' }}</dd>
       </dl>
       <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Companies served on this host</h3>
       <CompaniesTable :instances="host.instances || []" />
