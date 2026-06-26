@@ -235,10 +235,30 @@ def _parse_active_calls(text: str) -> int:
 	return int(m.group(1)) if m else 0
 
 
+def _listener_connected(doc) -> bool:
+	"""True when the oc-listener container is up, read via the Docker API enumerate
+	(the same read-only socket-proxy path that powers the infra board). The managed
+	host is an alpine sidecar with NO docker CLI, so a `docker ps` shell probe always
+	read empty and falsely reported the listener disconnected; the API never needs a
+	CLI. Best-effort: any failure degrades to False, never raises."""
+	from press.infra.adapters.base import get_adapter
+
+	try:
+		units = (get_adapter(doc).enumerate(doc) or {}).get("units") or []
+	except Exception:
+		return False
+	for u in units:
+		if (u.get("name") or "").startswith("oc-listener"):
+			return u.get("state") in ("run", "heal", "unhealth")
+	return False
+
+
 def telephony_status(doc) -> dict:
 	"""Read-only telephony telemetry for ONE host: trunk registration, active-call
-	count, listener-connected. Three FIXED commands (no host-controlled data) over
-	the cert SSH channel. Best-effort: any probe failure degrades that field, never
+	count, listener-connected. listener-connected comes from the Docker API container
+	enumerate; trunk registration + active calls need `asterisk -rx` (docker exec),
+	which the read-only socket-proxy blocks, so they stay best-effort over the cert SSH
+	channel and default safe (False/0 - accurate while the trunk is down). Never
 	raises. NOT whitelisted - called by telephony_describe + _build_tree."""
 	from press.infra import host_exec
 
@@ -250,11 +270,10 @@ def telephony_status(doc) -> dict:
 
 	reg = _safe("docker exec oc-asterisk asterisk -rx 'pjsip show registrations' 2>/dev/null || true", "")
 	chans = _safe("docker exec oc-asterisk asterisk -rx 'core show channels count' 2>/dev/null || true", "")
-	listener = _safe("docker ps --filter name=oc-listener --filter status=running --format '{{.Names}}' || true", "")
 	return {
 		"trunk_registered": _parse_registered(reg),
 		"active_calls": _parse_active_calls(chans),
-		"listener_connected": "oc-listener" in (listener or ""),
+		"listener_connected": _listener_connected(doc),
 	}
 
 
