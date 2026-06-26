@@ -433,6 +433,45 @@ export default {
 							['', 'teams', 'servers', 'policy', 'security'].includes(adminTab)) ||
 						routeName === 'Admin Panel MCP',
 				},
+			{
+				name: 'Tessera',
+				icon: () => h(Key),
+				route: '/tessera/overview',
+				condition: Boolean(this.$team.doc.is_desk_user),
+				children: [
+					{
+						name: 'Overview',
+						icon: () => h(LayoutDashboard),
+						route: '/tessera/overview',
+						isActive: routeName === 'TesseraAdmin' && adminTab === 'overview',
+					},
+					{
+						name: 'Licenses',
+						icon: () => h(Key),
+						route: '/tessera/licenses',
+						isActive: routeName === 'TesseraAdmin' && adminTab === 'licenses',
+					},
+					{
+						name: 'Seats',
+						icon: () => h(Users),
+						route: '/tessera/seats',
+						isActive: routeName === 'TesseraAdmin' && adminTab === 'seats',
+					},
+					{
+						name: 'Heartbeat',
+						icon: () => h(Bell),
+						route: '/tessera/heartbeat',
+						isActive: routeName === 'TesseraAdmin' && adminTab === 'heartbeat',
+					},
+					{
+						name: 'Offline',
+						icon: () => h(Plug),
+						route: '/tessera/offline',
+						isActive: routeName === 'TesseraAdmin' && adminTab === 'offline',
+					},
+				],
+				isActive: routeName === 'TesseraAdmin' && ['overview', 'licenses', 'seats', 'heartbeat', 'offline'].includes(adminTab),
+			},
 			].filter((item) => item.condition ?? true);
 		},
 	},

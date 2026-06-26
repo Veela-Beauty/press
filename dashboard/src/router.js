@@ -536,6 +536,11 @@ let router = createRouter({
 			component: () => import('./pages/admin/AdminPanelMcp.vue'),
 		},
 		{
+			path: '/tessera/:tab?',
+			name: 'TesseraAdmin',
+			component: () => import('./pages/TesseraAdmin.vue'),
+		},
+		{
 			path: '/infrastructure',
 			name: 'Infrastructure',
 			component: () => import('./pages/infrastructure/InfraDashboard.vue'),
