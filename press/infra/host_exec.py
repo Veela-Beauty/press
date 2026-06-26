@@ -48,10 +48,10 @@ def run_host_script(host, script: str, files: dict | None = None, timeout: int =
 	audit + surface the real reason.
 
 	The argv ends with `user@host` (no remote command); the login shell reads the
-	piped body whose first line `exec bash -s` hands off to a strict bash, so a
+	piped body whose first line `exec sh -s` hands off to a strict bash, so a
 	secret/script never lands in argv. Files are base64-decoded host-side."""
-	body = "exec bash -s <<'__OC_PBX_EOF__'\n"
-	body += "set -euo pipefail\n"
+	body = "exec sh -s <<'__OC_PBX_EOF__'\n"
+	body += "set -eu\n"
 	if files:
 		body += _file_prelude(files) + "\n"
 	body += script + "\n"
