@@ -1,9 +1,12 @@
 <template>
 	<div class="mx-auto max-w-7xl p-4">
 		<div class="mb-4 flex items-center justify-between">
-			<h1 class="text-xl font-bold text-gray-900">Admin Panel</h1>
+			<div>
+				<p class="text-xs font-medium uppercase tracking-wide text-gray-400">{{ activeGroupLabel }}</p>
+				<h1 class="text-xl font-bold text-gray-900">{{ activeTabLabel }}</h1>
+			</div>
 			<div class="flex gap-2">
-				<Button variant="solid" @click="showCreateTeam = true">
+				<Button v-if="activeMainTab === 'teams'" variant="solid" @click="showCreateTeam = true">
 					<template #prefix><lucide-plus class="h-4 w-4" /></template>
 					Create Team
 				</Button>
@@ -11,29 +14,6 @@
 					<template #icon><lucide-refresh-ccw class="h-4 w-4" /></template>
 				</Button>
 			</div>
-		</div>
-
-		<!-- Top Navigation Tabs — uses shared tabClasses.js so style stays
-		     identical across the dashboard (see _shared/tabClasses.js). -->
-		<div :class="TAB_STRIP_BASE" class="mb-4 gap-1">
-			<button
-				v-for="tab in mainTabs"
-				:key="tab.id"
-				:class="tabClass(activeMainTab === tab.id)"
-				@click="activeMainTab = tab.id"
-			>
-				<i
-					:class="tab.icon"
-					class="text-sm inline-flex items-center justify-center"
-					:style="{ width: '1rem', height: '1rem', opacity: activeMainTab === tab.id ? 1 : 0.6 }"
-				></i>
-				<span>{{ tab.label }}</span>
-				<span
-					v-if="tab.badge"
-					class="rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none text-white"
-					:class="tab.badgeColor || 'bg-red-500'"
-				>{{ tab.badge }}</span>
-			</button>
 		</div>
 
 		<!-- TAB: Teams (default) -->
@@ -152,7 +132,7 @@
 
 		<!-- TAB: AI Governance -->
 		<template v-if="activeMainTab === 'ai-governance'">
-			<AiGovernance @edit-rules="activeMainTab = 'policy'" />
+			<AiGovernance @edit-rules="goTab('policy')" />
 		</template>
 
 		<!-- TAB: Escalations -->
@@ -165,13 +145,34 @@
 			<AiUsageCost />
 		</template>
 
+		<!-- TAB: Seats -->
+		<template v-if="activeMainTab === 'seats'">
+			<AiSeats />
+		</template>
+
+		<!-- TAB: Providers -->
+		<template v-if="activeMainTab === 'providers'">
+			<AiProviders />
+		</template>
+
+		<!-- TAB: Subscriptions -->
+		<template v-if="activeMainTab === 'subscriptions'">
+			<AiSubscriptions />
+		</template>
+
+		<!-- TAB: Buy seats -->
+		<template v-if="activeMainTab === 'buy-seats'">
+			<AiBuySeats />
+		</template>
+
+
 		<!-- TAB: Policy -->
 		<template v-if="activeMainTab === 'security'">
 			<ConfidentialSecurity />
 		</template>
 
 		<template v-if="activeMainTab === 'policy'">
-			<AiPolicyGate @acknowledged="activeMainTab = 'teams'" />
+			<AiPolicyGate @acknowledged="goTab('teams')" />
 		</template>
 
 		<!-- TAB: MCP -->
@@ -209,6 +210,10 @@ import ConfidentialSecurity from '../components/admin/ConfidentialSecurity.vue';
 import AiEscalations from '../components/admin/AiEscalations.vue';
 import AiUsageCost from '../components/admin/AiUsageCost.vue';
 import AiPolicyGate from '../components/admin/AiPolicyGate.vue';
+import AiSeats from '../components/admin/AiSeats.vue';
+import AiProviders from '../components/admin/AiProviders.vue';
+import AiSubscriptions from '../components/admin/AiSubscriptions.vue';
+import AiBuySeats from '../components/admin/AiBuySeats.vue';
 import AdminPanelMcp from './admin/AdminPanelMcp.vue';
 import { TAB_STRIP_BASE, tabClass } from '../components/_shared/tabClasses.js';
 import StatCard from '../components/_shared/StatCard.vue';
@@ -217,7 +222,7 @@ const API = 'press.api.admin_panel';
 
 export default {
 	name: 'AdminPanel',
-	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate, AdminPanelMcp, StatCard, ConfidentialSecurity },
+	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate, AdminPanelMcp, StatCard, ConfidentialSecurity, AiSeats, AiProviders, AiSubscriptions, AiBuySeats },
 	setup() {
 		// Expose shared tab constants to the template
 		return { TAB_STRIP_BASE, tabClass };
@@ -242,6 +247,10 @@ export default {
 				{ id: 'ai-governance', label: 'AI Governance', icon: 'fa fa-robot', badge: '2', badgeColor: 'bg-red-500' },
 				{ id: 'escalations', label: 'Escalations', icon: 'fa fa-exclamation-circle', badge: '1', badgeColor: 'bg-orange-500' },
 				{ id: 'usage-cost', label: 'Usage & Cost', icon: 'fa fa-bar-chart' },
+				{ id: 'seats', label: 'Seats', icon: 'fa fa-id-badge' },
+				{ id: 'providers', label: 'Providers', icon: 'fa fa-plug' },
+				{ id: 'subscriptions', label: 'Subscriptions', icon: 'fa fa-refresh' },
+				{ id: 'buy-seats', label: 'Buy seats', icon: 'fa fa-shopping-cart' },
 				{ id: 'policy', label: 'Policy', icon: 'fa fa-file-text-o' },
 				{ id: 'mcp', label: 'MCP', icon: 'fa fa-key' },
 				{ id: 'security', label: 'Security', icon: 'fa fa-lock' },
@@ -259,9 +268,38 @@ export default {
 			}
 			return list;
 		},
+		// The sidebar group now drives navigation; the page heading reflects the active tab.
+		activeTabLabel() {
+			const t = this.mainTabs.find((x) => x.id === this.activeMainTab);
+			return t ? t.label : 'Admin Panel';
+		},
+		activeGroupLabel() {
+			const ai = ['ai-governance', 'usage-cost', 'seats', 'providers', 'subscriptions', 'escalations', 'buy-seats'];
+			return ai.includes(this.activeMainTab) ? 'Sanad AI' : 'Admin';
+		},
 	},
-	mounted() { this.loadData(); },
+	mounted() {
+		this.activeMainTab = this.$route.params.tab || 'teams';
+		this.loadData();
+	},
+	watch: {
+		'$route.params.tab'(v) {
+			if (v && v !== this.activeMainTab) this.activeMainTab = v;
+		},
+	},
 	methods: {
+		// Tab clicks deep-link to /admin/<id> so the sidebar group highlights the
+		// active child. MCP has its own page/route. replace() keeps history clean.
+		goTab(id) {
+			if (id === 'mcp') {
+				this.$router.push({ name: 'Admin Panel MCP' });
+				return;
+			}
+			this.activeMainTab = id;
+			if (this.$route.params.tab !== id) {
+				this.$router.replace('/admin/' + id).catch(() => {});
+			}
+		},
 		async loadData() {
 			this.loading = true;
 			try {

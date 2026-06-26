@@ -1,160 +1,418 @@
 <template>
 	<div class="space-y-4">
-		<!-- Stats row -->
+		<!-- KPI row — 4 cards (matches prototype) -->
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<p class="text-xs font-medium uppercase text-gray-500">Active AI Users</p>
-				<p class="mt-1 text-2xl font-bold">{{ stats.active_users || 0 }}</p>
-				<p class="text-xs text-gray-400">of {{ stats.total_users || 0 }} members</p>
-			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<p class="text-xs font-medium uppercase text-gray-500">Tokens Today</p>
-				<p class="mt-1 text-2xl font-bold" :class="tokenPct >= 80 ? 'text-orange-600' : ''">
-					{{ formatTokens(stats.tokens_today) }}
+				<p class="text-xs font-medium uppercase text-gray-500">Spend, MTD</p>
+				<p class="mt-1 text-2xl font-bold">${{ fmtMoney(kpi.spend_mtd) }}</p>
+				<p class="text-xs text-gray-400">
+					{{ budgetPct }}% of ${{ fmtMoney(kpi.budget) }} budget
 				</p>
-				<p class="text-xs text-gray-400">{{ tokenPct }}% of daily pool</p>
 			</div>
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<p class="text-xs font-medium uppercase text-gray-500">Blocked Actions</p>
-				<p class="mt-1 text-2xl font-bold text-red-600">{{ stats.blocked_today || 0 }}</p>
-				<p class="text-xs text-gray-400">linter catches today</p>
-			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<p class="text-xs font-medium uppercase text-gray-500">Open Escalations</p>
-				<p class="mt-1 text-2xl font-bold" :class="stats.open_escalations > 0 ? 'text-orange-600' : ''">
-					{{ stats.open_escalations || 0 }}
+				<p class="text-xs font-medium uppercase text-gray-500">Active seats</p>
+				<p class="mt-1 text-2xl font-bold">
+					{{ kpi.active_seats || 0 }}
+					<span class="text-sm font-normal text-gray-400">/ {{ kpi.total_seats || 0 }}</span>
 				</p>
-				<p class="text-xs text-gray-400">pending review</p>
+				<p class="text-xs text-gray-400">{{ seatsNote }}</p>
+			</div>
+			<div class="rounded-lg border border-gray-200 bg-white p-4">
+				<p class="text-xs font-medium uppercase text-gray-500">Subscriptions</p>
+				<p class="mt-1 text-2xl font-bold">{{ kpi.subscriptions || subscriptions.length }}</p>
+				<p class="text-xs text-gray-400">{{ subscriptionsNote }}</p>
+			</div>
+			<div class="rounded-lg border border-gray-200 bg-white p-4">
+				<p class="text-xs font-medium uppercase text-gray-500">Open incidents</p>
+				<p class="mt-1 text-2xl font-bold" :class="openIncidents > 0 ? 'text-orange-600' : ''">
+					{{ openIncidents }}
+				</p>
+				<p class="text-xs text-gray-400">seats paused on budget</p>
 			</div>
 		</div>
 
-		<!-- Anomaly alerts -->
-		<div v-if="anomalies.length > 0" class="rounded-lg border border-gray-200 bg-white p-4">
-			<div class="mb-3 flex items-center justify-between">
-				<h3 class="text-sm font-semibold">Anomaly Alerts</h3>
-				<span class="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-700">
-					{{ anomalies.length }} active
-				</span>
-			</div>
-			<div class="space-y-2">
-				<div
-					v-for="a in anomalies"
-					:key="a.id"
-					class="flex items-start gap-3 rounded-lg p-3 text-xs"
-					:class="a.severity === 'danger' ? 'bg-red-50 text-red-700' : 'bg-orange-50 text-orange-700'"
-				>
-					<i class="fa fa-exclamation-triangle mt-0.5 flex-shrink-0"></i>
-					<div class="flex-1">
-						<strong>{{ a.title }}</strong> — {{ a.description }}
-						<div class="mt-0.5 opacity-75">{{ a.detail }}</div>
-					</div>
-					<span class="text-[10px] text-gray-400">{{ a.time }}</span>
-				</div>
-			</div>
-		</div>
-
-		<!-- Global AI Rules -->
+		<!-- Seats table -->
 		<div class="rounded-lg border border-gray-200 bg-white p-4">
 			<div class="mb-3 flex items-center justify-between">
-				<h3 class="text-sm font-semibold">Global AI Rules — Technical</h3>
-				<Button size="sm" variant="solid" @click="$emit('edit-rules')">Edit Policy</Button>
+				<h3 class="text-sm font-semibold">Seats</h3>
+				<Button size="sm" variant="solid" @click="openProvision">Provision seat</Button>
 			</div>
-			<div class="space-y-2">
-				<div v-for="rule in technicalRules" :key="rule.name" class="flex items-center gap-3 rounded-lg border border-gray-100 px-3 py-2">
-					<span
-						class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-[10px] font-bold text-white"
-						:class="rule.level === 'block' ? 'bg-red-500' : 'bg-orange-500'"
-					>
-						{{ rule.level === 'block' ? 'X' : '!' }}
-					</span>
-					<div class="flex-1">
-						<p class="text-xs font-medium text-gray-800">{{ rule.name }}</p>
-						<p class="text-[10px] text-gray-500">{{ rule.description }}</p>
-					</div>
-					<span
-						class="rounded-full px-2 py-0.5 text-[10px] font-medium"
-						:class="rule.level === 'block' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'"
-					>
-						{{ rule.level === 'block' ? 'Hard block' : 'Soft block' }}
-					</span>
-				</div>
-			</div>
-		</div>
-
-		<!-- Role-Level AI Limits -->
-		<div class="rounded-lg border border-gray-200 bg-white p-4">
-			<h3 class="mb-3 text-sm font-semibold">
-				<i class="fa fa-id-badge mr-1 text-blue-600"></i>
-				Role-Level AI Limits
-			</h3>
 			<table class="w-full text-xs">
 				<thead>
 					<tr class="border-b border-gray-100 text-left text-gray-500">
-						<th class="py-2">Role</th>
-						<th>Token Cap / Day</th>
-						<th>AI on Prod</th>
-						<th>Review Required</th>
+						<th class="py-2">Seat (user)</th>
+						<th>Subscription</th>
+						<th>Tier</th>
+						<th>Budget</th>
+						<th>Spend</th>
+						<th>Status</th>
+						<th></th>
 					</tr>
 				</thead>
 				<tbody>
-					<tr v-for="role in roleLimits" :key="role.name" class="border-b border-gray-50">
-						<td class="py-2">
-							<span class="rounded-full px-2 py-0.5 text-[10px] font-medium" :style="{ background: role.bg, color: role.fg }">
-								{{ role.name }}
-							</span>
-						</td>
-						<td>{{ role.tokenCap === 0 ? 'Unlimited' : role.tokenCap.toLocaleString() }}</td>
+					<tr v-for="seat in seats" :key="seat.user" class="border-b border-gray-50">
+						<td class="py-2 font-mono text-gray-700">{{ seat.user }}</td>
+						<td>{{ seat.subscription }}</td>
+						<td class="text-gray-500">{{ seat.tier }}</td>
+						<td class="font-mono">${{ fmtMoney(seat.budget) }}</td>
 						<td>
-							<span :class="role.prodAccess === 'blocked' ? 'text-red-600' : role.prodAccess === 'read-only' ? 'text-orange-600' : 'text-green-600'">
-								{{ role.prodAccess }}
+							<div class="font-mono">${{ fmtMoney(seat.spend) }}</div>
+							<div class="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-100">
+								<div
+									class="h-full rounded-full"
+									:class="seatBarClass(seat)"
+									:style="{ width: seatPct(seat) + '%' }"
+								></div>
+							</div>
+						</td>
+						<td>
+							<span
+								class="rounded-full px-2 py-0.5 text-[10px] font-medium"
+								:class="statusBadgeClass(seat.status)"
+							>
+								{{ seat.status || 'Active' }}
 							</span>
 						</td>
-						<td>{{ role.reviewRequired }}</td>
+						<td class="text-right">
+							<Button size="sm" variant="outline">
+								{{ (seat.status || '').toLowerCase() === 'paused' ? 'Resume' : 'Manage' }}
+							</Button>
+						</td>
+					</tr>
+					<tr v-if="seats.length === 0">
+						<td colspan="7" class="py-6 text-center text-gray-400">No seats provisioned yet.</td>
 					</tr>
 				</tbody>
 			</table>
 		</div>
+
+		<!-- Subscriptions + Providers (two-up) -->
+		<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+			<!-- Subscriptions table -->
+			<div class="rounded-lg border border-gray-200 bg-white p-4">
+				<h3 class="mb-3 text-sm font-semibold">Subscriptions</h3>
+				<table class="w-full text-xs">
+					<thead>
+						<tr class="border-b border-gray-100 text-left text-gray-500">
+							<th class="py-2">Client</th>
+							<th>Plan</th>
+							<th>Seats</th>
+							<th>Spend / Budget</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr v-for="sub in subscriptions" :key="sub.client" class="border-b border-gray-50">
+							<td class="py-2 font-semibold text-gray-800">{{ sub.client }}</td>
+							<td>{{ sub.plan }}</td>
+							<td>{{ sub.seats || 0 }}<span v-if="sub.seats_allowed">/{{ sub.seats_allowed }}</span></td>
+							<td class="font-mono">${{ fmtMoney(sub.spend) }} / ${{ fmtMoney(sub.budget) }}</td>
+						</tr>
+						<tr v-if="subscriptions.length === 0">
+							<td colspan="4" class="py-6 text-center text-gray-400">No subscriptions yet.</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Providers table -->
+			<div class="rounded-lg border border-gray-200 bg-white p-4">
+				<div class="mb-3 flex items-center justify-between">
+					<h3 class="text-sm font-semibold">Providers</h3>
+					<Button size="sm" variant="subtle" @click="openConnect()">Add provider</Button>
+				</div>
+				<table class="w-full text-xs">
+					<thead>
+						<tr class="border-b border-gray-100 text-left text-gray-500">
+							<th class="py-2">Provider</th>
+							<th>Tier</th>
+							<th>Region</th>
+							<th>Cost MTD</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr v-for="(p, i) in providers" :key="i" class="border-b border-gray-50">
+							<td class="py-2 text-gray-800">{{ p.provider }}</td>
+							<td class="text-gray-500">{{ p.tier }}</td>
+							<td>{{ p.region || '—' }}</td>
+							<td>
+								<span v-if="p.connected" class="font-mono">${{ fmtMoney(p.cost) }}</span>
+								<Button v-else size="sm" variant="outline" @click="openConnect(p.tier)">Connect</Button>
+							</td>
+						</tr>
+						<tr v-if="providers.length === 0">
+							<td colspan="4" class="py-6 text-center text-gray-400">No providers configured.</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+
+		<!-- Provision seat dialog — wired to sanad_ai_control_center.api.provision_seat -->
+		<Dialog :options="{ title: 'Provision seat', size: 'md' }" v-model="showProvision">
+			<template #body-content>
+				<div class="space-y-3">
+					<FormControl label="User" v-model="provision.user" placeholder="user@client-site" />
+					<FormControl label="Client site" v-model="provision.client_site" placeholder="lipton.eg" />
+					<FormControl
+						label="Monthly budget (USD)"
+						type="number"
+						v-model="provision.monthly_budget_usd"
+						placeholder="20"
+					/>
+					<FormControl label="Tier access" v-model="provision.tier_access" placeholder="smart,fast" />
+				</div>
+			</template>
+			<template #actions>
+				<Button variant="solid" :loading="provisioning" @click="submitProvision">Provision seat</Button>
+			</template>
+		</Dialog>
+
+		<!-- Connect provider dialog — wired to sanad_ai_control_center.api.connect_account -->
+		<Dialog :options="{ title: 'Connect provider', size: 'md' }" v-model="showConnect">
+			<template #body-content>
+				<div class="space-y-3">
+					<FormControl
+						type="select"
+						label="Provider"
+						v-model="connectForm.provider"
+						:options="providerOptions"
+					/>
+					<FormControl
+						type="password"
+						label="API key"
+						v-model="connectForm.token"
+						placeholder="paste the provider API key"
+					/>
+					<FormControl
+						label="Account label"
+						v-model="connectForm.account_label"
+						placeholder="e.g. Z.AI #2"
+					/>
+					<FormControl
+						label="Serve as model"
+						v-model="connectForm.serve_as_model"
+						placeholder="glm-4.5-air"
+					/>
+					<div class="grid grid-cols-2 gap-3">
+						<FormControl type="number" label="Weight" v-model="connectForm.weight" placeholder="1" />
+						<FormControl
+							type="number"
+							label="Monthly budget (USD)"
+							v-model="connectForm.monthly_budget"
+							placeholder="optional"
+						/>
+					</div>
+					<p class="text-xs text-gray-400">
+						Two accounts with the same “Serve as model” load-balance by weight. Subscription logins
+						(Claude/ChatGPT) are own-use only and can’t be connected here.
+					</p>
+				</div>
+			</template>
+			<template #actions>
+				<Button variant="solid" :loading="connecting" @click="submitConnect">Test &amp; connect</Button>
+			</template>
+		</Dialog>
 	</div>
 </template>
 
 <script>
-import { Button } from 'frappe-ui';
+import { Button, Dialog, FormControl, call } from 'frappe-ui';
+import { toast } from 'vue-sonner';
 
 export default {
 	name: 'AiGovernance',
-	components: { Button },
+	components: { Button, Dialog, FormControl },
 	emits: ['edit-rules'],
 	data() {
 		return {
-			stats: {},
-			anomalies: [],
-			technicalRules: [
-				{ name: 'Raw SQL blocked', description: 'DELETE / DROP / TRUNCATE — removed from response + escalation', level: 'block' },
-				{ name: 'App uninstall / destroy blocked', description: 'bench uninstall-app, bench destroy, rm -rf', level: 'block' },
-				{ name: 'Production sites blocked', description: 'AI panel is read-only on production sites', level: 'block' },
-				{ name: 'Daily token cap', description: 'Default 100K tokens/day per user. Warning at 80%.', level: 'warn' },
-			],
-			roleLimits: [
-				{ name: 'Platform Admin', tokenCap: 0, prodAccess: 'full', reviewRequired: 'Optional', bg: '#ede9fe', fg: '#6d28d9' },
-				{ name: 'DevOps Admin', tokenCap: 200_000, prodAccess: 'read-only', reviewRequired: 'Recommended', bg: '#dbeafe', fg: '#1d4ed8' },
-				{ name: 'Developer', tokenCap: 100_000, prodAccess: 'blocked', reviewRequired: 'Recommended', bg: '#dcfce7', fg: '#15803d' },
-				{ name: 'Implementor', tokenCap: 50_000, prodAccess: 'blocked', reviewRequired: 'Mandatory', bg: '#fef3c7', fg: '#a16207' },
-				{ name: 'Viewer', tokenCap: 0, prodAccess: 'blocked', reviewRequired: 'N/A', bg: '#f3f4f6', fg: '#6b7280' },
-			],
+			kpi: {},
+			seats: [],
+			subscriptions: [],
+			providers: [],
+			showProvision: false,
+			provisioning: false,
+			provision: { user: '', client_site: '', monthly_budget_usd: 20, tier_access: 'smart,fast' },
+			showConnect: false,
+			connecting: false,
+			catalog: [],
+			connectForm: { provider: '', token: '', account_label: '', serve_as_model: '', weight: 1, monthly_budget: null },
 		};
 	},
 	computed: {
-		tokenPct() {
-			if (!this.stats.daily_pool || !this.stats.tokens_today) return 0;
-			return Math.round((this.stats.tokens_today / this.stats.daily_pool) * 100);
+		budgetPct() {
+			if (!this.kpi.budget || !this.kpi.spend_mtd) return 0;
+			return Math.round((this.kpi.spend_mtd / this.kpi.budget) * 100);
+		},
+		// API returns kpis.paused + kpis.revoked (ints) — derive the sub-label the prototype shows.
+		seatsNote() {
+			const parts = [];
+			if (this.kpi.paused) parts.push(`${this.kpi.paused} paused`);
+			if (this.kpi.revoked) parts.push(`${this.kpi.revoked} revoked`);
+			return parts.join(', ');
+		},
+		openIncidents() {
+			return this.kpi.paused || 0;
+		},
+		subscriptionsNote() {
+			const active = this.subscriptions.filter((s) => (s.status || 'active') === 'active').length;
+			const trial = this.subscriptions.filter((s) => s.status === 'trial').length;
+			if (trial) return `${active} active, ${trial} trial`;
+			return `${active} active`;
+		},
+		// Only api_key providers can join the gateway pool (connectable). Subscription
+		// logins (Claude/ChatGPT) are filtered out — connect_account refuses them anyway.
+		providerOptions() {
+			return (this.catalog || [])
+				.filter((r) => r.connectable)
+				.map((r) => ({ label: r.label || r.provider_key, value: r.provider_key }));
 		},
 	},
+	mounted() {
+		this.load();
+	},
 	methods: {
-		formatTokens(n) {
-			if (!n) return '0';
-			if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-			if (n >= 1_000) return (n / 1_000).toFixed(0) + 'K';
-			return n.toString();
+		async load() {
+			// Live gateway control-plane data (same site). Soft-fail: if the
+			// sanad_ai_control_center app isn't reachable, keep the empty state.
+			try {
+				const g = await call('sanad_ai_control_center.api.get_governance_overview');
+				this.kpi = g.kpis || g.kpi || {};
+				this.seats = g.seats || [];
+				this.subscriptions = g.subscriptions || [];
+			} catch (e) {
+				// control-center unreachable — leave KPIs/seats/subscriptions empty
+			}
+			try {
+				const a = await call('sanad_ai_control_center.api.get_accounts_overview');
+				this.providers = this.mapProviders(a);
+			} catch (e) {
+				// control-center unreachable — leave providers empty
+			}
+		},
+		openProvision() {
+			this.provision = { user: '', client_site: '', monthly_budget_usd: 20, tier_access: 'smart,fast' };
+			this.showProvision = true;
+		},
+		async submitProvision() {
+			if (!this.provision.user || !this.provision.client_site) {
+				toast.error('User and client site are required');
+				return;
+			}
+			this.provisioning = true;
+			try {
+				await call('sanad_ai_control_center.api.provision_seat', {
+					user: this.provision.user,
+					client_site: this.provision.client_site,
+					monthly_budget_usd: this.provision.monthly_budget_usd,
+					tier_access: this.provision.tier_access,
+				});
+				toast.success('Seat provisioned');
+				this.showProvision = false;
+				this.load();
+			} catch (e) {
+				toast.error(e.messages?.[0] || 'Could not provision seat');
+			}
+			this.provisioning = false;
+		},
+		async openConnect(prefillModel) {
+			this.connectForm = {
+				provider: '',
+				token: '',
+				account_label: '',
+				serve_as_model: prefillModel || '',
+				weight: 1,
+				monthly_budget: null,
+			};
+			if (!this.catalog.length) {
+				try {
+					this.catalog = await call('sanad_ai_control_center.gateway.catalog.get_provider_catalog');
+				} catch (e) {
+					toast.error('Could not load the provider catalog');
+					return;
+				}
+			}
+			if (!this.connectForm.provider && this.providerOptions.length) {
+				this.connectForm.provider = this.providerOptions[0].value;
+			}
+			this.showConnect = true;
+		},
+		async submitConnect() {
+			const f = this.connectForm;
+			if (!f.provider || !f.token || !f.serve_as_model) {
+				toast.error('Provider, API key, and Serve-as-model are required');
+				return;
+			}
+			this.connecting = true;
+			try {
+				await call('sanad_ai_control_center.api.connect_account', {
+					provider: f.provider,
+					token: f.token,
+					account_label: f.account_label || f.provider,
+					serve_as_model: f.serve_as_model,
+					weight: f.weight || 1,
+					monthly_budget: f.monthly_budget || null,
+				});
+				toast.success('Provider connected to the gateway pool');
+				this.showConnect = false;
+				this.load();
+			} catch (e) {
+				toast.error(e.messages?.[0] || 'Could not connect the provider');
+			}
+			this.connecting = false;
+		},
+		// get_accounts_overview shape: { groups: [{ model, accounts: [{ account_label, provider,
+		//   serve_as_model, spend_to_date, region, connected }] }] }
+		// Flatten each group's accounts into provider rows, carrying the group's model/tier.
+		mapProviders(data) {
+			const groups = (data && data.groups) || [];
+			const rows = [];
+			groups.forEach((grp) => {
+				const accounts = grp.accounts || [];
+				if (accounts.length === 0) {
+					rows.push({
+						provider: grp.model || '—',
+						tier: grp.tier || grp.model || '—',
+						region: grp.region || '—',
+						cost: grp.cost || 0,
+						connected: false,
+					});
+					return;
+				}
+				accounts.forEach((acc) => {
+					rows.push({
+						// account_label is the friendly name ('Anthropic (Claude)'); provider is the short key.
+						provider: acc.account_label || acc.provider || grp.model || '—',
+						// Tier = the model this account serves as ('smart'/'fast'/'cheap').
+						tier: acc.serve_as_model || acc.tier || grp.tier || grp.model || '—',
+						region: acc.region || '—',
+						// Real spend field is spend_to_date.
+						cost: acc.spend_to_date != null ? acc.spend_to_date : acc.cost != null ? acc.cost : 0,
+						connected: acc.connected != null ? acc.connected : true,
+					});
+				});
+			});
+			return rows;
+		},
+		fmtMoney(n) {
+			const v = Number(n);
+			if (!v) return '0.00';
+			return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+		},
+		seatPct(seat) {
+			if (!seat.budget || !seat.spend) return 0;
+			return Math.min(100, Math.round((seat.spend / seat.budget) * 100));
+		},
+		seatBarClass(seat) {
+			const pct = this.seatPct(seat);
+			if (pct >= 100) return 'bg-red-500';
+			if (pct >= 90) return 'bg-orange-500';
+			return 'bg-gray-800';
+		},
+		statusBadgeClass(status) {
+			const s = (status || 'active').toLowerCase();
+			if (s === 'paused') return 'bg-orange-100 text-orange-700';
+			if (s === 'revoked') return 'bg-red-100 text-red-700';
+			return 'bg-green-100 text-green-700';
 		},
 	},
 };

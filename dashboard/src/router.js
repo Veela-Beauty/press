@@ -524,7 +524,9 @@ let router = createRouter({
 			component: () => import('./pages/CodeHealth.vue'),
 		},
 		{
-			path: '/admin',
+			// :tab? deep-links each Admin Panel tab from the sidebar group.
+			// Vue Router 4 ranks the static /admin/mcp above this dynamic route.
+			path: '/admin/:tab?',
 			name: 'Admin Panel',
 			component: () => import('./pages/AdminPanel.vue'),
 		},
@@ -532,6 +534,11 @@ let router = createRouter({
 			path: '/admin/mcp',
 			name: 'Admin Panel MCP',
 			component: () => import('./pages/admin/AdminPanelMcp.vue'),
+		},
+		{
+			path: '/tessera/:tab?',
+			name: 'TesseraAdmin',
+			component: () => import('./pages/TesseraAdmin.vue'),
 		},
 		{
 			path: '/infrastructure',

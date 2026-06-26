@@ -48,6 +48,12 @@ ALLOWED_PATHS = [
 	"/api/method/frappe.core.doctype.user.user.test_password_strength",
 	"/api/method/frappe.core.doctype.user.user.update_password",
 	"/api/method/get_central_migration_data",
+	# Sanad AI control center: client sites self-provision AI seats here, authed
+	# by a per-site service token (not a Press login). Scoped to this one path.
+	"/api/method/sanad_ai_control_center.api.provision_for_site",
+	# Tessera License Manager: client sites validate their license here, authed
+	# by the license key (not a Press login). Scoped to this one path.
+	"/api/method/tessera_server.api.validate",
 ]
 
 ALLOWED_WILDCARD_PATHS = [
