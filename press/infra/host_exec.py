@@ -48,8 +48,9 @@ def run_host_script(host, script: str, files: dict | None = None, timeout: int =
 	audit + surface the real reason.
 
 	The argv ends with `user@host` (no remote command); the login shell reads the
-	piped body whose first line `exec sh -s` hands off to a strict bash, so a
-	secret/script never lands in argv. Files are base64-decoded host-side."""
+	piped body whose first line `exec sh -s` hands off to POSIX sh (the managed-host
+	sidecar is alpine busybox - no bash), so a secret/script never lands in argv.
+	Files are base64-decoded host-side."""
 	body = "exec sh -s <<'__OC_PBX_EOF__'\n"
 	body += "set -eu\n"
 	if files:
