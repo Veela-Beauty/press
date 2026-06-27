@@ -481,6 +481,27 @@ export default {
 				],
 				isActive: routeName === 'TesseraAdmin' && ['overview', 'licenses', 'seats', 'heartbeat', 'offline'].includes(adminTab),
 			},
+			{
+				name: 'Customers',
+				icon: () => h(Users),
+				route: '/customers/overview',
+				condition: Boolean(this.$team.doc.is_desk_user),
+				children: [
+					{
+						name: 'Overview',
+						icon: () => h(LayoutDashboard),
+						route: '/customers/overview',
+						isActive: routeName === 'CustomersAdmin' && adminTab === 'overview',
+					},
+					{
+						name: 'Accounts',
+						icon: () => h(Users),
+						route: '/customers/accounts',
+						isActive: routeName === 'CustomersAdmin' && adminTab === 'accounts',
+					},
+				],
+				isActive: routeName === 'CustomersAdmin' && ['overview', 'accounts'].includes(adminTab),
+			},
 			].filter((item) => item.condition ?? true);
 		},
 	},
