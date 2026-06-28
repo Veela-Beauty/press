@@ -442,6 +442,17 @@ scheduler_events = {
 	},
 }
 
+# Watch Tower (press-infra alerting) - appended post-definition to avoid editing the literal
+scheduler_events.setdefault("hourly", []).append("press.watch_tower.jobs.run_hourly_watch_tower")
+scheduler_events.setdefault("daily", []).extend([
+    "press.watch_tower.jobs.run_daily_watch_tower",
+    "press.watch_tower.press_alerts.cleanup_old_error_logs",
+    "press.watch_tower.site_activity_sync.sync_site_activity",
+    "press.watch_tower.site_lifecycle.run_site_lifecycle",
+])
+scheduler_events.setdefault("weekly", []).append("press.watch_tower.jobs.run_weekly_watch_tower")
+
+
 deploy_hours = [1, 2, 3, 4, 5, 21, 22, 23]  # Purposefully avoiding 0
 
 fixtures = [
