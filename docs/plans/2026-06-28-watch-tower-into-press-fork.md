@@ -340,5 +340,6 @@ Expected: `dash=200`, `app=200|301`.
 Watch Tower is Press-infra monitoring (it reads Site / Deploy Candidate Build / TLS Certificate and sits beside press's `Infrastructure` + `Incident Management` modules), so the Press fork is its correct, github-durable home. Moving here also lets us uninstall tamkeen (a client suite) from the control room, removing ~15 empty doctypes + its desk `app_include_js`. The tamkeen licensing gate is dropped (press infra is unlicensed) via a no-op `_nolicense` shim, keeping all 9 call sites working with minimal edits.
 
 ## Resume here (2026-06-28)
-- Status: PLAN WRITTEN, not started. Supersedes the tamkeen-consolidation plan (that move is done; this relocates it to press + uninstalls tamkeen).
-- Next up: Task 1 (backup + pre-flight).
+- Status: **SHIPPED + VERIFIED.** press is sole owner of Watch Tower on demo.mvpstorm.com; 18 rules on press.watch_tower; 6 press scheduler jobs (hourly enabled); tamkeen UNINSTALLED (0 residue); 20 rules preserved; control room 200 throughout; 3 new rules execute Success via press.
+- Commit `850721647` on `Veela-Beauty/press` branch `feat/watch-tower-module` (pushed via bundle relay). **OPEN: user merges the PR into cloudflare-dns**; bench is checked out on feat/watch-tower-module until then.
+- Key deviations: de-coupled tamkeen licensing via _nolicense shim; uninstall needed clear-cache-before-restart (stale cache caused a brief 500, recovered).
