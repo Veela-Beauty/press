@@ -1,0 +1,80 @@
+<template>
+	<div class="mx-auto max-w-7xl p-4">
+		<div class="mb-4 flex items-center justify-between">
+			<h1 class="text-xl font-bold text-gray-900">Tessera License Manager</h1>
+		</div>
+
+		<!-- Top Navigation Tabs - uses shared tabClasses.js so style stays
+		     identical across the dashboard (see _shared/tabClasses.js). -->
+		<div :class="TAB_STRIP_BASE" class="mb-4 gap-1">
+			<button
+				v-for="tab in mainTabs"
+				:key="tab.id"
+				:class="tabClass(activeMainTab === tab.id)"
+				@click="activeMainTab = tab.id"
+			>
+				<i
+					:class="tab.icon"
+					class="text-sm inline-flex items-center justify-center"
+					:style="{ width: '1rem', height: '1rem', opacity: activeMainTab === tab.id ? 1 : 0.6 }"
+				></i>
+				<span>{{ tab.label }}</span>
+			</button>
+		</div>
+
+		<!-- TAB: Overview (default) -->
+		<template v-if="activeMainTab === 'overview'">
+			<TesseraOverview />
+		</template>
+
+		<!-- TAB: Licenses -->
+		<template v-if="activeMainTab === 'licenses'">
+			<TesseraLicenses />
+		</template>
+
+		<!-- TAB: Seats -->
+		<template v-if="activeMainTab === 'seats'">
+			<TesseraSeats />
+		</template>
+
+		<!-- TAB: Heartbeat -->
+		<template v-if="activeMainTab === 'heartbeat'">
+			<TesseraHeartbeat />
+		</template>
+
+		<!-- TAB: Offline -->
+		<template v-if="activeMainTab === 'offline'">
+			<TesseraOffline />
+		</template>
+	</div>
+</template>
+
+<script>
+import TesseraOverview from '../components/tessera/TesseraOverview.vue';
+import TesseraLicenses from '../components/tessera/TesseraLicenses.vue';
+import TesseraSeats from '../components/tessera/TesseraSeats.vue';
+import TesseraHeartbeat from '../components/tessera/TesseraHeartbeat.vue';
+import TesseraOffline from '../components/tessera/TesseraOffline.vue';
+import { TAB_STRIP_BASE, tabClass } from '../components/_shared/tabClasses.js';
+
+export default {
+	name: 'TesseraAdmin',
+	components: { TesseraOverview, TesseraLicenses, TesseraSeats, TesseraHeartbeat, TesseraOffline },
+	setup() {
+		// Expose shared tab constants to the template.
+		return { TAB_STRIP_BASE, tabClass };
+	},
+	data() {
+		return {
+			activeMainTab: 'overview',
+			mainTabs: [
+				{ id: 'overview', label: 'Overview', icon: 'fa fa-tachometer' },
+				{ id: 'licenses', label: 'Licenses', icon: 'fa fa-key' },
+				{ id: 'seats', label: 'Seats', icon: 'fa fa-users' },
+				{ id: 'heartbeat', label: 'Heartbeat', icon: 'fa fa-heartbeat' },
+				{ id: 'offline', label: 'Offline', icon: 'fa fa-download' },
+			],
+		};
+	},
+};
+</script>

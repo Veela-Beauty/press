@@ -11,7 +11,6 @@ import Package from '~icons/lucide/package';
 import Boxes from '~icons/lucide/boxes';
 import Server from '~icons/lucide/server';
 import ServerCog from '~icons/lucide/server-cog';
-import Phone from '~icons/lucide/phone';
 import WalletCards from '~icons/lucide/wallet-cards';
 import Key from '~icons/lucide/key';
 import Settings from '~icons/lucide/settings';
@@ -139,14 +138,6 @@ export default {
 					icon: () => h(ServerCog),
 					route: '/infrastructure',
 					isActive: routeName === 'Infrastructure',
-					condition: onboardingComplete && !isSaasUser && this.$session.isSystemUser,
-					disabled: enforce2FA,
-				},
-				{
-					name: 'Telephony',
-					icon: () => h(Phone),
-					route: '/telephony',
-					isActive: routeName === 'Telephony',
 					condition: onboardingComplete && !isSaasUser && this.$session.isSystemUser,
 					disabled: enforce2FA,
 				},
@@ -445,62 +436,9 @@ export default {
 			{
 				name: 'Tessera',
 				icon: () => h(Key),
-				route: '/tessera/overview',
+				route: '/tessera',
+				isActive: routeName === 'TesseraAdmin',
 				condition: Boolean(this.$team.doc.is_desk_user),
-				children: [
-					{
-						name: 'Overview',
-						icon: () => h(LayoutDashboard),
-						route: '/tessera/overview',
-						isActive: routeName === 'TesseraAdmin' && adminTab === 'overview',
-					},
-					{
-						name: 'Licenses',
-						icon: () => h(Key),
-						route: '/tessera/licenses',
-						isActive: routeName === 'TesseraAdmin' && adminTab === 'licenses',
-					},
-					{
-						name: 'Seats',
-						icon: () => h(Users),
-						route: '/tessera/seats',
-						isActive: routeName === 'TesseraAdmin' && adminTab === 'seats',
-					},
-					{
-						name: 'Heartbeat',
-						icon: () => h(Bell),
-						route: '/tessera/heartbeat',
-						isActive: routeName === 'TesseraAdmin' && adminTab === 'heartbeat',
-					},
-					{
-						name: 'Offline',
-						icon: () => h(Plug),
-						route: '/tessera/offline',
-						isActive: routeName === 'TesseraAdmin' && adminTab === 'offline',
-					},
-				],
-				isActive: routeName === 'TesseraAdmin' && ['overview', 'licenses', 'seats', 'heartbeat', 'offline'].includes(adminTab),
-			},
-			{
-				name: 'Customers',
-				icon: () => h(Users),
-				route: '/customers/overview',
-				condition: Boolean(this.$team.doc.is_desk_user),
-				children: [
-					{
-						name: 'Overview',
-						icon: () => h(LayoutDashboard),
-						route: '/customers/overview',
-						isActive: routeName === 'CustomersAdmin' && adminTab === 'overview',
-					},
-					{
-						name: 'Accounts',
-						icon: () => h(Users),
-						route: '/customers/accounts',
-						isActive: routeName === 'CustomersAdmin' && adminTab === 'accounts',
-					},
-				],
-				isActive: routeName === 'CustomersAdmin' && ['overview', 'accounts'].includes(adminTab),
 			},
 			].filter((item) => item.condition ?? true);
 		},
