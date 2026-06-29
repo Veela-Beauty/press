@@ -1,0 +1,175 @@
+{
+ "actions": [],
+ "autoname": "format:WT-LOG-{YYYY}-{#####}",
+ "creation": "2026-02-23 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "rule",
+  "rule_name",
+  "status",
+  "column_break_log1",
+  "alert_datetime",
+  "triggered_by",
+  "target_section",
+  "target_doctype",
+  "target_document",
+  "column_break_target",
+  "target_document_name",
+  "details_section",
+  "action_summary",
+  "before_values_json",
+  "after_values_json",
+  "error_section",
+  "error_message"
+ ],
+ "fields": [
+  {
+   "fieldname": "rule",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Rule",
+   "options": "Watch Tower Rules",
+   "reqd": 1
+  },
+  {
+   "fieldname": "rule_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Rule Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Success\nFailed\nSkipped",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_log1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Now",
+   "fieldname": "alert_datetime",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Alert Datetime",
+   "reqd": 1
+  },
+  {
+   "fieldname": "triggered_by",
+   "fieldtype": "Data",
+   "label": "Triggered By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "target_section",
+   "fieldtype": "Section Break",
+   "label": "Target Document"
+  },
+  {
+   "fieldname": "target_doctype",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Target DocType",
+   "options": "DocType",
+   "reqd": 1
+  },
+  {
+   "fieldname": "target_document",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "label": "Target Document",
+   "options": "target_doctype",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_target",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "target_document_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Document Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "details_section",
+   "fieldtype": "Section Break",
+   "label": "Action Details"
+  },
+  {
+   "fieldname": "action_summary",
+   "fieldtype": "Small Text",
+   "label": "Action Summary"
+  },
+  {
+   "fieldname": "before_values_json",
+   "fieldtype": "Code",
+   "label": "Before Values",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "after_values_json",
+   "fieldtype": "Code",
+   "label": "After Values",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "error_section",
+   "fieldtype": "Section Break",
+   "collapsible": 1,
+   "collapsible_depends_on": "eval:!doc.error_message",
+   "label": "Error"
+  },
+  {
+   "fieldname": "error_message",
+   "fieldtype": "Long Text",
+   "label": "Error Message",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-02-23 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Watch Tower",
+ "name": "Watch Tower Alert Log",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "All",
+   "share": 1
+  }
+ ],
+ "sort_field": "alert_datetime",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}
