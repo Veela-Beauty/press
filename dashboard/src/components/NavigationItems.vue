@@ -366,6 +366,12 @@ export default {
 							isActive: routeName === 'Admin Panel' && adminTab === 'usage-cost',
 						},
 						{
+							name: 'Insights',
+							icon: () => h(Activity),
+							route: '/admin/insights',
+							isActive: routeName === 'Admin Panel' && adminTab === 'insights',
+						},
+						{
 							name: 'Seats',
 							icon: () => h(Users),
 							route: '/admin/seats',
@@ -398,7 +404,7 @@ export default {
 					],
 					isActive:
 						routeName === 'Admin Panel' &&
-						['ai-governance', 'usage-cost', 'seats', 'providers', 'subscriptions', 'escalations', 'buy-seats'].includes(adminTab),
+						['ai-governance', 'usage-cost', 'insights', 'seats', 'providers', 'subscriptions', 'escalations', 'buy-seats'].includes(adminTab),
 				},
 				{
 					name: 'Admin Panel',
