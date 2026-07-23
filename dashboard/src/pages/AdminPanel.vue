@@ -145,6 +145,11 @@
 			<AiUsageCost />
 		</template>
 
+		<!-- TAB: Insights -->
+		<template v-if="activeMainTab === 'insights'">
+			<AiInsights />
+		</template>
+
 		<!-- TAB: Seats -->
 		<template v-if="activeMainTab === 'seats'">
 			<AiSeats />
@@ -209,6 +214,7 @@ import AiGovernance from '../components/admin/AiGovernance.vue';
 import ConfidentialSecurity from '../components/admin/ConfidentialSecurity.vue';
 import AiEscalations from '../components/admin/AiEscalations.vue';
 import AiUsageCost from '../components/admin/AiUsageCost.vue';
+import AiInsights from '../components/admin/AiInsights.vue';
 import AiPolicyGate from '../components/admin/AiPolicyGate.vue';
 import AiSeats from '../components/admin/AiSeats.vue';
 import AiProviders from '../components/admin/AiProviders.vue';
@@ -222,7 +228,7 @@ const API = 'press.api.admin_panel';
 
 export default {
 	name: 'AdminPanel',
-	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiPolicyGate, AdminPanelMcp, StatCard, ConfidentialSecurity, AiSeats, AiProviders, AiSubscriptions, AiBuySeats },
+	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiInsights, AiPolicyGate, AdminPanelMcp, StatCard, ConfidentialSecurity, AiSeats, AiProviders, AiSubscriptions, AiBuySeats },
 	setup() {
 		// Expose shared tab constants to the template
 		return { TAB_STRIP_BASE, tabClass };
@@ -247,6 +253,7 @@ export default {
 				{ id: 'ai-governance', label: 'AI Governance', icon: 'fa fa-robot', badge: '2', badgeColor: 'bg-red-500' },
 				{ id: 'escalations', label: 'Escalations', icon: 'fa fa-exclamation-circle', badge: '1', badgeColor: 'bg-orange-500' },
 				{ id: 'usage-cost', label: 'Usage & Cost', icon: 'fa fa-bar-chart' },
+				{ id: 'insights', label: 'Insights', icon: 'fa fa-line-chart' },
 				{ id: 'seats', label: 'Seats', icon: 'fa fa-id-badge' },
 				{ id: 'providers', label: 'Providers', icon: 'fa fa-plug' },
 				{ id: 'subscriptions', label: 'Subscriptions', icon: 'fa fa-refresh' },
@@ -274,7 +281,7 @@ export default {
 			return t ? t.label : 'Admin Panel';
 		},
 		activeGroupLabel() {
-			const ai = ['ai-governance', 'usage-cost', 'seats', 'providers', 'subscriptions', 'escalations', 'buy-seats'];
+			const ai = ['ai-governance', 'usage-cost', 'insights', 'seats', 'providers', 'subscriptions', 'escalations', 'buy-seats'];
 			return ai.includes(this.activeMainTab) ? 'Sanad AI' : 'Admin';
 		},
 	},
