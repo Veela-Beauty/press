@@ -27,7 +27,7 @@
 							</div>
 						</td>
 						<td><span class="rounded-full px-2 py-0.5 text-[10px] font-medium" :class="badge(seat.status)">{{ seat.status || 'Active' }}</span></td>
-						<td class="text-right"><Button size="sm" variant="outline">{{ (seat.status || '').toLowerCase() === 'paused' ? 'Resume' : 'Manage' }}</Button></td>
+						<td class="text-right"><Button size="sm" variant="outline" @click="openManage(seat)">Manage</Button></td>
 					</tr>
 					<tr v-if="loading"><td colspan="7" class="py-6 text-center text-gray-400">Loading…</td></tr>
 					<tr v-if="!loading && seats.length === 0"><td colspan="7" class="py-6 text-center text-gray-400">No seats provisioned yet.</td></tr>
@@ -45,11 +45,32 @@
 			</template>
 			<template #actions><Button variant="solid" :loading="saving" @click="submit">Provision seat</Button></template>
 		</Dialog>
+		<Dialog :options="{ title: 'Manage seat', size: 'md' }" v-model="showManage">
+			<template #body-content>
+				<div class="space-y-3">
+					<p class="text-xs text-gray-500">{{ manage.user }} — {{ manage.subscription }}</p>
+					<div v-if="manage.status === 'revoked'" class="rounded bg-red-50 px-3 py-2 text-xs text-red-700">
+						This seat is revoked — the user has no AI access. Re-provision it to restore access.
+					</div>
+					<template v-else>
+						<FormControl type="select" label="Tier" v-model="manage.tier_access" :options="tierOptions" />
+						<FormControl type="number" label="Monthly budget (USD)" v-model="manage.monthly_budget_usd" />
+						<p class="text-[11px] text-gray-400">Spend this month: ${{ fmt(manage.spend) }} of ${{ fmt(manage.monthly_budget_usd) }}</p>
+						<p class="text-[11px] text-gray-400">Revoking stops the user's AI access immediately and can't be undone here — you'd re-provision to restore it. Their app role is cleaned up on their site's next sync.</p>
+					</template>
+				</div>
+			</template>
+			<template #actions v-if="manage.status !== 'revoked'">
+				<Button variant="subtle" theme="red" :loading="managing" @click="confirmRevoke">Revoke seat</Button>
+				<Button variant="solid" :loading="managing" @click="doManage('update')">Save changes</Button>
+			</template>
+		</Dialog>
 	</div>
 </template>
 
 <script>
 import { Button, Dialog, FormControl, call } from 'frappe-ui';
+import { confirmDialog } from '../../utils/components';
 import { toast } from 'vue-sonner';
 
 export default {
@@ -59,6 +80,14 @@ export default {
 		return {
 			seats: [], loading: false, show: false, saving: false,
 			form: { user: '', client_site: '', monthly_budget_usd: 20, tier_access: 'smart,fast' },
+			showManage: false, managing: false,
+			manage: { name: '', user: '', subscription: '', tier_access: '', monthly_budget_usd: 20, spend: 0, status: 'active' },
+			tierOptions: [
+				{ label: 'Fast (DeepSeek)', value: 'fast' },
+				{ label: 'Smart (GLM)', value: 'smart' },
+				{ label: 'Cheap (Qwen)', value: 'cheap' },
+				{ label: 'Smart + Fast', value: 'smart,fast' },
+			],
 		};
 	},
 	mounted() { this.load(); },
@@ -85,6 +114,35 @@ export default {
 				this.load();
 			} catch (e) { toast.error(e.messages?.[0] || 'Could not provision seat'); }
 			this.saving = false;
+		},
+		openManage(seat) {
+			this.manage = {
+				name: seat.name, user: seat.user, subscription: seat.subscription,
+				tier_access: seat.tier || 'fast', monthly_budget_usd: seat.budget || 20,
+				spend: seat.spend || 0, status: (seat.status || 'active').toLowerCase(),
+			};
+			this.showManage = true;
+		},
+		confirmRevoke() {
+			confirmDialog({
+				title: 'Revoke seat',
+				message: `Revoke AI access for <b>${this.manage.user}</b>? Their access stops immediately and this can't be undone here — you'd re-provision to restore it.`,
+				onSuccess: ({ hide }) => { this.doManage('revoke'); hide(); },
+			});
+		},
+		async doManage(action) {
+			if (!this.manage.name) { toast.error('Seat id missing'); return; }
+			this.managing = true;
+			try {
+				await call('sanad_ai_control_center.api.manage_seat', {
+					seat: this.manage.name, action,
+					tier_access: this.manage.tier_access, monthly_budget_usd: this.manage.monthly_budget_usd,
+				});
+				toast.success(action === 'revoke' ? 'Seat revoked' : 'Seat updated');
+				this.showManage = false;
+				this.load();
+			} catch (e) { toast.error(e.messages?.[0] || 'Could not manage seat'); }
+			this.managing = false;
 		},
 		fmt(n) { const v = Number(n); return v ? v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'; },
 		pct(s) { if (!s.budget || !s.spend) return 0; return Math.min(100, Math.round((s.spend / s.budget) * 100)); },
