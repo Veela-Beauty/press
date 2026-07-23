@@ -111,6 +111,9 @@ export default {
 			// Live cross-client Insights from the control plane (same site).
 			// Soft-fail: keep the empty state if the control-center app is unreachable.
 			this.loading = true;
+			this.topTools = [];
+			this.topDoctypes = [];
+			this.perUser = [];
 			try {
 				const d = await call('sanad_ai_control_center.insights.get_insights', { period: this.period });
 				this.summary = d.summary || this.summary;
