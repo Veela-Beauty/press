@@ -8,9 +8,9 @@
 				<p class="text-xs text-gray-400">{{ activeSeats }} active × SAR {{ fmtSar(sellPrice) }}/seat</p>
 			</div>
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<p class="text-xs font-medium uppercase text-gray-500">Cost (SAR)</p>
-				<p class="mt-1 text-2xl font-bold">{{ fmtSar(costSar) }}</p>
-				<p class="text-xs text-gray-400">${{ totalCost.toFixed(2) }} gateway spend</p>
+				<p class="text-xs font-medium uppercase text-gray-500">Cost / 1K requests</p>
+				<p class="mt-1 text-2xl font-bold">${{ costPer1k.toFixed(4) }}</p>
+				<p class="text-xs text-gray-400">${{ totalCost.toFixed(2) }} spend · {{ fmtSar(costSar) }} SAR</p>
 			</div>
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
 				<p class="text-xs font-medium uppercase text-gray-500">Margin (SAR)</p>
@@ -84,6 +84,7 @@ export default {
 			costSar: 0,
 			marginSar: 0,
 			marginPct: 0,
+			costPer1k: 0,
 		};
 	},
 	mounted() {
@@ -114,6 +115,7 @@ export default {
 				this.costSar = d.cost_sar || 0;
 				this.marginSar = d.margin_sar || 0;
 				this.marginPct = d.margin_pct || 0;
+				this.costPer1k = d.cost_per_1k_usd || 0;
 			} catch (e) {
 				// control-center unreachable — leave the empty state
 			}

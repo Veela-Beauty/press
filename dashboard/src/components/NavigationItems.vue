@@ -354,22 +354,10 @@ export default {
 					condition: Boolean(this.$team.doc.is_desk_user),
 					children: [
 						{
-							name: 'AI Governance',
-							icon: () => h(ShieldCheck),
-							route: '/admin/ai-governance',
-							isActive: routeName === 'Admin Panel' && adminTab === 'ai-governance',
-						},
-						{
-							name: 'Usage & Cost',
-							icon: () => h(LayoutDashboard),
-							route: '/admin/usage-cost',
-							isActive: routeName === 'Admin Panel' && adminTab === 'usage-cost',
-						},
-						{
-							name: 'Insights',
+							name: 'Analytics & Governance',
 							icon: () => h(Activity),
-							route: '/admin/insights',
-							isActive: routeName === 'Admin Panel' && adminTab === 'insights',
+							route: '/admin/analytics',
+							isActive: routeName === 'Admin Panel' && adminTab === 'analytics',
 						},
 						{
 							name: 'Seats',
@@ -404,7 +392,7 @@ export default {
 					],
 					isActive:
 						routeName === 'Admin Panel' &&
-						['ai-governance', 'usage-cost', 'insights', 'seats', 'providers', 'subscriptions', 'escalations', 'buy-seats'].includes(adminTab),
+						['analytics', 'ai-governance', 'usage-cost', 'insights', 'seats', 'providers', 'subscriptions', 'escalations', 'buy-seats'].includes(adminTab),
 				},
 				{
 					name: 'Admin Panel',

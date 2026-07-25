@@ -130,7 +130,12 @@
 			<ServerAdmin @updated="$refs.adminData?.fetch?.()" />
 		</template>
 
-		<!-- TAB: AI Governance -->
+		<!-- TAB: Analytics & Governance (4-tab: Insights · Usage & Cost · Governance · Gateway Ops) -->
+		<template v-if="activeMainTab === 'analytics'">
+			<AnalyticsGovernance @edit-rules="goTab('policy')" />
+		</template>
+
+		<!-- TAB: AI Governance (legacy deep-link) -->
 		<template v-if="activeMainTab === 'ai-governance'">
 			<AiGovernance @edit-rules="goTab('policy')" />
 		</template>
@@ -215,6 +220,7 @@ import ConfidentialSecurity from '../components/admin/ConfidentialSecurity.vue';
 import AiEscalations from '../components/admin/AiEscalations.vue';
 import AiUsageCost from '../components/admin/AiUsageCost.vue';
 import AiInsights from '../components/admin/AiInsights.vue';
+import AnalyticsGovernance from '../components/admin/AnalyticsGovernance.vue';
 import AiPolicyGate from '../components/admin/AiPolicyGate.vue';
 import AiSeats from '../components/admin/AiSeats.vue';
 import AiProviders from '../components/admin/AiProviders.vue';
@@ -228,7 +234,7 @@ const API = 'press.api.admin_panel';
 
 export default {
 	name: 'AdminPanel',
-	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiInsights, AiPolicyGate, AdminPanelMcp, StatCard, ConfidentialSecurity, AiSeats, AiProviders, AiSubscriptions, AiBuySeats },
+	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiInsights, AnalyticsGovernance, AiPolicyGate, AdminPanelMcp, StatCard, ConfidentialSecurity, AiSeats, AiProviders, AiSubscriptions, AiBuySeats },
 	setup() {
 		// Expose shared tab constants to the template
 		return { TAB_STRIP_BASE, tabClass };
@@ -250,6 +256,7 @@ export default {
 			mainTabs: [
 				{ id: 'teams', label: 'Teams', icon: 'fa fa-users' },
 				{ id: 'servers', label: 'Servers', icon: 'fa fa-server' },
+				{ id: 'analytics', label: 'Analytics & Governance', icon: 'fa fa-line-chart' },
 				{ id: 'ai-governance', label: 'AI Governance', icon: 'fa fa-robot', badge: '2', badgeColor: 'bg-red-500' },
 				{ id: 'escalations', label: 'Escalations', icon: 'fa fa-exclamation-circle', badge: '1', badgeColor: 'bg-orange-500' },
 				{ id: 'usage-cost', label: 'Usage & Cost', icon: 'fa fa-bar-chart' },
@@ -281,7 +288,7 @@ export default {
 			return t ? t.label : 'Admin Panel';
 		},
 		activeGroupLabel() {
-			const ai = ['ai-governance', 'usage-cost', 'insights', 'seats', 'providers', 'subscriptions', 'escalations', 'buy-seats'];
+			const ai = ['analytics', 'ai-governance', 'usage-cost', 'insights', 'seats', 'providers', 'subscriptions', 'escalations', 'buy-seats'];
 			return ai.includes(this.activeMainTab) ? 'Sanad AI' : 'Admin';
 		},
 	},
