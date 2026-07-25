@@ -39,7 +39,7 @@
 			</div>
 			<div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
 				<div>
-					<p class="text-xs font-medium uppercase text-gray-500">High-risk pending</p>
+					<p class="text-xs font-medium uppercase text-gray-500">Pending approvals</p>
 					<p class="mt-1 text-2xl font-bold" :class="risk.pending > 0 ? 'text-orange-600' : ''">{{ risk.pending || 0 }}</p>
 					<p class="text-xs text-gray-400">awaiting approval now</p>
 				</div>
