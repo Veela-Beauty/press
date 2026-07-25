@@ -40,10 +40,11 @@
 				<h4 class="text-xs font-semibold uppercase text-gray-500">Reliability &amp; SLO</h4>
 				<p class="text-xs text-gray-400">A slow answer frustrates users even when it succeeds. Flag line: {{ sloSec }}s (set in AI Gateway Settings).</p>
 			</div>
+			<div v-if="error" class="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">Live gateway data is unavailable right now. Figures refresh once the control center responds.</div>
 			<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 				<div>
 					<p class="text-xs text-gray-500">Success rate</p>
-					<p class="mt-1 text-2xl font-bold" :class="rel.success_rate_pct >= 99 ? 'text-green-700' : rel.success_rate_pct >= 95 ? 'text-amber-600' : 'text-red-600'">{{ pct(rel.success_rate_pct) }}</p>
+					<p class="mt-1 text-2xl font-bold" :class="rel.served === 0 ? 'text-gray-400' : rel.success_rate_pct >= 99 ? 'text-green-700' : rel.success_rate_pct >= 95 ? 'text-amber-600' : 'text-red-600'">{{ rel.served === 0 ? 'n/a' : pct(rel.success_rate_pct) }}</p>
 					<p class="text-xs text-gray-400">{{ fmtNum(rel.served) }} served</p>
 				</div>
 				<div>
@@ -67,10 +68,10 @@
 				<div v-for="m in slowModels" :key="m.model" class="mb-2.5">
 					<div class="flex items-center justify-between text-xs">
 						<span class="font-mono text-gray-700">{{ short(m.model) }}</span>
-						<span class="text-gray-500">{{ m.slow }} slow / {{ m.success }} · p95 {{ fmtMs(m.p95_ms) }} · max {{ fmtMs(m.max_ms) }}</span>
+						<span class="text-gray-500"><template v-if="m.timeouts">{{ m.timeouts }} timeout / </template>{{ m.slow }} slow / {{ m.success }} ok · p95 {{ fmtMs(m.p95_ms) }} · max {{ fmtMs(m.max_ms) }}</span>
 					</div>
 					<div class="mt-1 h-2 rounded-full bg-gray-100">
-						<div class="h-full rounded-full" :class="m.p95_ms > sloMs ? 'bg-red-500' : m.p95_ms > sloMs * 0.5 ? 'bg-amber-500' : 'bg-green-600'" :style="{ width: barSlow(m.slow) }"></div>
+						<div class="h-full rounded-full" :class="(m.timeouts > 0 || m.p95_ms > sloMs) ? 'bg-red-500' : m.p95_ms > sloMs * 0.5 ? 'bg-amber-500' : 'bg-green-600'" :style="{ width: barSlow(m.slow + m.timeouts) }"></div>
 					</div>
 				</div>
 				<p class="mt-2 text-[11px] text-gray-400">Worst: {{ short(rel.worst_model && rel.worst_model.model) }}. Route complex queries to a faster model to cut the wait.</p>
@@ -142,6 +143,7 @@ export default {
 		return {
 			period: 'month',
 			loading: false,
+			error: false,
 			overall: { calls: 0, p50_ms: 0, p95_ms: 0, spend: 0 },
 			providers: [],
 			daily: [],
@@ -164,7 +166,7 @@ export default {
 	methods: {
 		async load() {
 			this.loading = true;
-			this.providers = []; this.daily = [];
+			this.error = false;
 			try {
 				const d = await call('sanad_ai_control_center.gateway.ops.get_gateway_ops', { period: this.period });
 				this.overall = d.overall || this.overall;
@@ -173,7 +175,14 @@ export default {
 				this.rel = d.reliability || this.rel;
 				this.throughputPerDay = d.throughput_per_day || 0;
 				this.peak = d.peak_per_day || 0;
-			} catch (e) { /* control-center unreachable */ }
+			} catch (e) {
+				// Control center unreachable: clear to an honest empty state, never leave the prior window's numbers on screen.
+				this.error = true;
+				this.overall = { calls: 0, p50_ms: 0, p95_ms: 0, spend: 0 };
+				this.providers = []; this.daily = [];
+				this.rel = { success_rate_pct: 0, slow_rate_pct: 0, served: 0, slow: 0, timeouts: 0, rejected: 0, slo_ms: this.sloMs, per_model: [], worst_model: {} };
+				this.throughputPerDay = 0; this.peak = 0;
+			}
 			this.loading = false;
 		},
 		fmtNum(n) { return Number(n || 0).toLocaleString('en-US'); },
@@ -181,7 +190,7 @@ export default {
 		pct(n) { return Number(n || 0).toFixed(1) + '%'; },
 		short(m) { return String(m || '').split('/').pop(); },
 		barMs(ms) { const max = Math.max(...this.providers.map((p) => p.p95_ms), 1); return Math.max(3, Math.round((ms / max) * 100)) + '%'; },
-		barSlow(c) { const max = Math.max(...this.slowModels.map((m) => m.slow), 1); return Math.max(6, Math.round((c / max) * 100)) + '%'; },
+		barSlow(c) { const max = Math.max(...this.slowModels.map((m) => m.slow + m.timeouts), 1); return Math.max(6, Math.round((c / max) * 100)) + '%'; },
 		barDay(c) { const max = Math.max(...this.daily.map((d) => d.calls), 1); return Math.max(4, Math.round((c / max) * 100)) + '%'; },
 	},
 };
