@@ -354,7 +354,7 @@ export default {
 					condition: Boolean(this.$team.doc.is_desk_user),
 					children: [
 						{
-							name: 'Analytics & Governance',
+							name: 'Analytics',
 							icon: () => h(Activity),
 							route: '/admin/analytics',
 							isActive: routeName === 'Admin Panel' && adminTab === 'analytics',

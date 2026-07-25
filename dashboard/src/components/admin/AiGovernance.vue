@@ -66,59 +66,58 @@
 			</div>
 		</div>
 
-		<!-- Seats table -->
+		<!-- Seats, grouped by customer (collapsed by default so a long customer list stays scannable) -->
 		<div class="rounded-lg border border-gray-200 bg-white p-4">
 			<div class="mb-3 flex items-center justify-between">
 				<h3 class="text-sm font-semibold">Seats</h3>
 				<Button size="sm" variant="solid" @click="openProvision">Provision seat</Button>
 			</div>
-			<table class="w-full text-xs">
-				<thead>
-					<tr class="border-b border-gray-100 text-left text-gray-500">
-						<th class="py-2">Seat (user)</th>
-						<th>Subscription</th>
-						<th>Tier</th>
-						<th>Budget</th>
-						<th>Spend</th>
-						<th>Status</th>
-						<th></th>
-					</tr>
-				</thead>
-				<tbody>
-					<tr v-for="seat in seats" :key="seat.user" class="border-b border-gray-50">
-						<td class="py-2 font-mono text-gray-700">{{ seat.user }}</td>
-						<td>{{ seat.subscription }}</td>
-						<td class="text-gray-500">{{ seat.tier }}</td>
-						<td class="font-mono">${{ fmtMoney(seat.budget) }}</td>
-						<td>
-							<div class="font-mono">${{ fmtMoney(seat.spend) }}</div>
-							<div class="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-100">
-								<div
-									class="h-full rounded-full"
-									:class="seatBarClass(seat)"
-									:style="{ width: seatPct(seat) + '%' }"
-								></div>
-							</div>
-						</td>
-						<td>
-							<span
-								class="rounded-full px-2 py-0.5 text-[10px] font-medium"
-								:class="statusBadgeClass(seat.status)"
-							>
-								{{ seat.status || 'Active' }}
-							</span>
-						</td>
-						<td class="text-right">
-							<Button size="sm" variant="outline">
-								{{ (seat.status || '').toLowerCase() === 'paused' ? 'Resume' : 'Manage' }}
-							</Button>
-						</td>
-					</tr>
-					<tr v-if="seats.length === 0">
-						<td colspan="7" class="py-6 text-center text-gray-400">No seats provisioned yet.</td>
-					</tr>
-				</tbody>
-			</table>
+			<div v-if="seats.length === 0" class="py-6 text-center text-xs text-gray-400">No seats provisioned yet.</div>
+			<div v-else class="divide-y divide-gray-100">
+				<div v-for="grp in seatGroups" :key="grp.client">
+					<button type="button" class="flex w-full items-center justify-between rounded-none py-2.5 text-left" @click="toggleGroup(grp.client)">
+						<span class="flex items-center gap-2">
+							<svg class="h-3 w-3 shrink-0 text-gray-400 transition-transform" :class="expanded[grp.client] ? 'rotate-90' : ''" viewBox="0 0 12 12" fill="none">
+								<path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+							</svg>
+							<span class="text-sm font-semibold text-gray-800">{{ grp.client }}</span>
+							<span class="text-xs text-gray-400">{{ grp.count }} seat{{ grp.count === 1 ? '' : 's' }}, {{ grp.active }} active</span>
+						</span>
+						<span class="font-mono text-xs text-gray-500">${{ fmtMoney(grp.spend) }}</span>
+					</button>
+					<table v-if="expanded[grp.client]" class="mb-2 w-full text-xs">
+						<thead>
+							<tr class="border-b border-gray-100 text-left text-gray-500">
+								<th class="py-2 pl-5">Seat (user)</th>
+								<th>Tier</th>
+								<th>Budget</th>
+								<th>Spend</th>
+								<th>Status</th>
+								<th></th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr v-for="seat in grp.seats" :key="seat.user" class="border-b border-gray-50">
+								<td class="py-2 pl-5 font-mono text-gray-700">{{ seat.user }}</td>
+								<td class="text-gray-500">{{ seat.tier }}</td>
+								<td class="font-mono">${{ fmtMoney(seat.budget) }}</td>
+								<td>
+									<div class="font-mono">${{ fmtMoney(seat.spend) }}</div>
+									<div class="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-100">
+										<div class="h-full rounded-full" :class="seatBarClass(seat)" :style="{ width: seatPct(seat) + '%' }"></div>
+									</div>
+								</td>
+								<td>
+									<span class="rounded-full px-2 py-0.5 text-[10px] font-medium" :class="statusBadgeClass(seat.status)">{{ seat.status || 'Active' }}</span>
+								</td>
+								<td class="text-right">
+									<Button size="sm" variant="outline">{{ (seat.status || '').toLowerCase() === 'paused' ? 'Resume' : 'Manage' }}</Button>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
 		</div>
 
 		<!-- Subscriptions + Providers (two-up) -->
@@ -262,6 +261,7 @@ export default {
 		return {
 			kpi: {},
 			risk: {},
+			expanded: {},
 			seats: [],
 			subscriptions: [],
 			providers: [],
@@ -275,6 +275,20 @@ export default {
 		};
 	},
 	computed: {
+		// Seats grouped by customer (subscription/client_site), busiest first. Collapsed
+		// by default via `expanded` so a long customer list stays scannable.
+		seatGroups() {
+			const map = {};
+			for (const s of this.seats) {
+				const key = s.subscription || '(unassigned)';
+				const g = (map[key] = map[key] || { client: key, seats: [], spend: 0, count: 0, active: 0 });
+				g.seats.push(s);
+				g.spend += Number(s.spend || 0);
+				g.count += 1;
+				if ((s.status || 'active').toLowerCase() === 'active') g.active += 1;
+			}
+			return Object.values(map).sort((a, b) => b.count - a.count);
+		},
 		budgetPct() {
 			if (!this.kpi.budget || !this.kpi.spend_mtd) return 0;
 			return Math.round((this.kpi.spend_mtd / this.kpi.budget) * 100);
@@ -441,6 +455,10 @@ export default {
 		},
 		fmtNum(n) {
 			return Number(n || 0).toLocaleString('en-US');
+		},
+		toggleGroup(client) {
+			// Reassign so Vue 2/3 reliably tracks the new key.
+			this.expanded = { ...this.expanded, [client]: !this.expanded[client] };
 		},
 		seatPct(seat) {
 			if (!seat.budget || !seat.spend) return 0;

@@ -256,7 +256,7 @@ export default {
 			mainTabs: [
 				{ id: 'teams', label: 'Teams', icon: 'fa fa-users' },
 				{ id: 'servers', label: 'Servers', icon: 'fa fa-server' },
-				{ id: 'analytics', label: 'Analytics & Governance', icon: 'fa fa-line-chart' },
+				{ id: 'analytics', label: 'Analytics', icon: 'fa fa-line-chart' },
 				{ id: 'ai-governance', label: 'AI Governance', icon: 'fa fa-robot', badge: '2', badgeColor: 'bg-red-500' },
 				{ id: 'escalations', label: 'Escalations', icon: 'fa fa-exclamation-circle', badge: '1', badgeColor: 'bg-orange-500' },
 				{ id: 'usage-cost', label: 'Usage & Cost', icon: 'fa fa-bar-chart' },
