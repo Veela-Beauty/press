@@ -3,24 +3,24 @@
 		<!-- Cost summary -->
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<p class="text-xs font-medium uppercase text-gray-500">Cost This Month</p>
-				<p class="mt-1 text-2xl font-bold">${{ totalCost.toFixed(2) }}</p>
-				<p class="text-xs text-gray-400">{{ providerBreakdown }}</p>
+				<p class="text-xs font-medium uppercase text-gray-500">Revenue (SAR)</p>
+				<p class="mt-1 text-2xl font-bold">{{ fmtSar(revenueSar) }}</p>
+				<p class="text-xs text-gray-400">{{ activeSeats }} active × SAR {{ fmtSar(sellPrice) }}/seat</p>
 			</div>
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<p class="text-xs font-medium uppercase text-gray-500">Total Tokens</p>
-				<p class="mt-1 text-2xl font-bold">{{ formatTokens(totalTokens) }}</p>
-				<p class="text-xs text-gray-400">Input {{ formatTokens(inputTokens) }} / Output {{ formatTokens(outputTokens) }}</p>
+				<p class="text-xs font-medium uppercase text-gray-500">Cost (SAR)</p>
+				<p class="mt-1 text-2xl font-bold">{{ fmtSar(costSar) }}</p>
+				<p class="text-xs text-gray-400">${{ totalCost.toFixed(2) }} gateway spend</p>
 			</div>
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<p class="text-xs font-medium uppercase text-gray-500">Sessions</p>
-				<p class="mt-1 text-2xl font-bold">{{ totalSessions }}</p>
-				<p class="text-xs text-gray-400">avg {{ avgDuration }} min / session</p>
+				<p class="text-xs font-medium uppercase text-gray-500">Margin (SAR)</p>
+				<p class="mt-1 text-2xl font-bold" :class="marginSar >= 0 ? 'text-green-600' : 'text-red-600'">{{ fmtSar(marginSar) }}</p>
+				<p class="text-xs text-gray-400">{{ marginPct }}% margin</p>
 			</div>
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
-				<p class="text-xs font-medium uppercase text-gray-500">Gross margin</p>
-				<p class="mt-1 text-2xl font-bold text-gray-400">${{ totalCost.toFixed(2) }}</p>
-				<p class="text-xs text-gray-400">margin n/a — revenue add-on</p>
+				<p class="text-xs font-medium uppercase text-gray-500">Active seats</p>
+				<p class="mt-1 text-2xl font-bold">{{ activeSeats }}</p>
+				<p class="text-xs text-gray-400">{{ totalSessions }} provisioned</p>
 			</div>
 		</div>
 
@@ -78,6 +78,12 @@ export default {
 			avgDuration: 0,
 			providerBreakdown: '',
 			userUsage: [],
+			activeSeats: 0,
+			sellPrice: 0,
+			revenueSar: 0,
+			costSar: 0,
+			marginSar: 0,
+			marginPct: 0,
 		};
 	},
 	mounted() {
@@ -102,6 +108,12 @@ export default {
 				this.avgDuration = d.avg_duration;
 				this.providerBreakdown = d.provider_breakdown;
 				this.userUsage = d.user_usage;
+				this.activeSeats = d.active_seats || 0;
+				this.sellPrice = d.sell_price_per_seat_sar || 0;
+				this.revenueSar = d.revenue_sar || 0;
+				this.costSar = d.cost_sar || 0;
+				this.marginSar = d.margin_sar || 0;
+				this.marginPct = d.margin_pct || 0;
 			} catch (e) {
 				// control-center unreachable — leave the empty state
 			}
@@ -111,6 +123,9 @@ export default {
 			if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
 			if (n >= 1_000) return (n / 1_000).toFixed(0) + 'K';
 			return n.toString();
+		},
+		fmtSar(n) {
+			return Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
 		},
 	},
 };
