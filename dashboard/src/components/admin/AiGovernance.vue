@@ -1,6 +1,6 @@
 <template>
 	<div class="space-y-4">
-		<!-- KPI row — 4 cards (matches prototype) -->
+		<!-- KPI row - 4 cards (matches prototype) -->
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
 				<p class="text-xs font-medium uppercase text-gray-500">Spend, MTD</p>
@@ -28,6 +28,41 @@
 					{{ openIncidents }}
 				</p>
 				<p class="text-xs text-gray-400">seats paused on budget</p>
+			</div>
+		</div>
+
+		<!-- Governance and Risk (5 cards) -->
+		<div class="rounded-lg border border-gray-200 bg-white p-4">
+			<div class="mb-3">
+				<h3 class="text-sm font-semibold">Governance and Risk</h3>
+				<p class="text-xs text-gray-400">Across all client sites: activity over the last 30 days; exposure is current state.</p>
+			</div>
+			<div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+				<div>
+					<p class="text-xs font-medium uppercase text-gray-500">High-risk pending</p>
+					<p class="mt-1 text-2xl font-bold" :class="risk.pending > 0 ? 'text-orange-600' : ''">{{ risk.pending || 0 }}</p>
+					<p class="text-xs text-gray-400">awaiting approval now</p>
+				</div>
+				<div>
+					<p class="text-xs font-medium uppercase text-gray-500">God-mode exposure</p>
+					<p class="mt-1 text-2xl font-bold" :class="risk.god_mode > 0 ? 'text-orange-600' : ''">{{ risk.god_mode || 0 }}</p>
+					<p class="text-xs text-gray-400">auto-accept agents{{ risk.open_access ? ', ' + risk.open_access + ' open to all' : '' }}</p>
+				</div>
+				<div>
+					<p class="text-xs font-medium uppercase text-gray-500">run_sql calls</p>
+					<p class="mt-1 text-2xl font-bold">{{ fmtNum(risk.run_sql) }}</p>
+					<p class="text-xs text-gray-400">{{ risk.ai_sql_users || 0 }} users with SQL access</p>
+				</div>
+				<div>
+					<p class="text-xs font-medium uppercase text-gray-500">Auto-accepted writes</p>
+					<p class="mt-1 text-2xl font-bold">{{ fmtNum(risk.auto_writes) }}</p>
+					<p class="text-xs text-gray-400">{{ fmtNum(risk.high_risk) }} high-risk actions</p>
+				</div>
+				<div>
+					<p class="text-xs font-medium uppercase text-gray-500">Gateway probes</p>
+					<p class="mt-1 text-2xl font-bold" :class="risk.probes > 0 ? 'text-red-600' : ''">{{ fmtNum(risk.probes) }}</p>
+					<p class="text-xs text-gray-400">rejected auth/SSRF attempts</p>
+				</div>
 			</div>
 		</div>
 
@@ -133,7 +168,7 @@
 						<tr v-for="(p, i) in providers" :key="i" class="border-b border-gray-50">
 							<td class="py-2 text-gray-800">{{ p.provider }}</td>
 							<td class="text-gray-500">{{ p.tier }}</td>
-							<td>{{ p.region || '—' }}</td>
+							<td>{{ p.region || '-' }}</td>
 							<td>
 								<span v-if="p.connected" class="font-mono">${{ fmtMoney(p.cost) }}</span>
 								<Button v-else size="sm" variant="outline" @click="openConnect(p.tier)">Connect</Button>
@@ -147,7 +182,7 @@
 			</div>
 		</div>
 
-		<!-- Provision seat dialog — wired to sanad_ai_control_center.api.provision_seat -->
+		<!-- Provision seat dialog - wired to sanad_ai_control_center.api.provision_seat -->
 		<Dialog :options="{ title: 'Provision seat', size: 'md' }" v-model="showProvision">
 			<template #body-content>
 				<div class="space-y-3">
@@ -167,7 +202,7 @@
 			</template>
 		</Dialog>
 
-		<!-- Connect provider dialog — wired to sanad_ai_control_center.api.connect_account -->
+		<!-- Connect provider dialog - wired to sanad_ai_control_center.api.connect_account -->
 		<Dialog :options="{ title: 'Connect provider', size: 'md' }" v-model="showConnect">
 			<template #body-content>
 				<div class="space-y-3">
@@ -226,6 +261,7 @@ export default {
 	data() {
 		return {
 			kpi: {},
+			risk: {},
 			seats: [],
 			subscriptions: [],
 			providers: [],
@@ -243,7 +279,7 @@ export default {
 			if (!this.kpi.budget || !this.kpi.spend_mtd) return 0;
 			return Math.round((this.kpi.spend_mtd / this.kpi.budget) * 100);
 		},
-		// API returns kpis.paused + kpis.revoked (ints) — derive the sub-label the prototype shows.
+		// API returns kpis.paused + kpis.revoked (ints) - derive the sub-label the prototype shows.
 		seatsNote() {
 			const parts = [];
 			if (this.kpi.paused) parts.push(`${this.kpi.paused} paused`);
@@ -260,7 +296,7 @@ export default {
 			return `${active} active`;
 		},
 		// Only api_key providers can join the gateway pool (connectable). Subscription
-		// logins (Claude/ChatGPT) are filtered out — connect_account refuses them anyway.
+		// logins (Claude/ChatGPT) are filtered out - connect_account refuses them anyway.
 		providerOptions() {
 			return (this.catalog || [])
 				.filter((r) => r.connectable)
@@ -280,13 +316,18 @@ export default {
 				this.seats = g.seats || [];
 				this.subscriptions = g.subscriptions || [];
 			} catch (e) {
-				// control-center unreachable — leave KPIs/seats/subscriptions empty
+				// control-center unreachable - leave KPIs/seats/subscriptions empty
 			}
 			try {
 				const a = await call('sanad_ai_control_center.api.get_accounts_overview');
 				this.providers = this.mapProviders(a);
 			} catch (e) {
-				// control-center unreachable — leave providers empty
+				// control-center unreachable: leave providers empty
+			}
+			try {
+				this.risk = (await call('sanad_ai_control_center.api.get_governance_risk')) || {};
+			} catch (e) {
+				// control-center unreachable: leave the risk cards at zero
 			}
 		},
 		openProvision() {
@@ -370,9 +411,9 @@ export default {
 				const accounts = grp.accounts || [];
 				if (accounts.length === 0) {
 					rows.push({
-						provider: grp.model || '—',
-						tier: grp.tier || grp.model || '—',
-						region: grp.region || '—',
+						provider: grp.model || '-',
+						tier: grp.tier || grp.model || '-',
+						region: grp.region || '-',
 						cost: grp.cost || 0,
 						connected: false,
 					});
@@ -381,10 +422,10 @@ export default {
 				accounts.forEach((acc) => {
 					rows.push({
 						// account_label is the friendly name ('Anthropic (Claude)'); provider is the short key.
-						provider: acc.account_label || acc.provider || grp.model || '—',
+						provider: acc.account_label || acc.provider || grp.model || '-',
 						// Tier = the model this account serves as ('smart'/'fast'/'cheap').
-						tier: acc.serve_as_model || acc.tier || grp.tier || grp.model || '—',
-						region: acc.region || '—',
+						tier: acc.serve_as_model || acc.tier || grp.tier || grp.model || '-',
+						region: acc.region || '-',
 						// Real spend field is spend_to_date.
 						cost: acc.spend_to_date != null ? acc.spend_to_date : acc.cost != null ? acc.cost : 0,
 						connected: acc.connected != null ? acc.connected : true,
@@ -397,6 +438,9 @@ export default {
 			const v = Number(n);
 			if (!v) return '0.00';
 			return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+		},
+		fmtNum(n) {
+			return Number(n || 0).toLocaleString('en-US');
 		},
 		seatPct(seat) {
 			if (!seat.budget || !seat.spend) return 0;
