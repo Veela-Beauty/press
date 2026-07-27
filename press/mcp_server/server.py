@@ -189,6 +189,7 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 		# etc.) BEFORE scope extraction + validation, so an agent's natural guess
 		# succeeds instead of round-tripping through a 'missing required args' error.
 		args = _normalize_arg_aliases(spec, args)
+		_coerce_config_arg(tool, args)
 
 		target_doctype, target_name = _extract_target(tool, args)
 		# SECURITY: fail-closed guard against missing _extract_target entries.
@@ -425,6 +426,40 @@ def _resolve_token_docname(token_plaintext: str) -> str | None:
 	return rows[0] if rows else None
 
 
+def _config_value_type(value) -> str:
+	"""Site Config Key types: Password / String / Number / Boolean / JSON."""
+	if isinstance(value, bool):
+		return "Boolean"
+	if isinstance(value, (int, float)):
+		return "Number"
+	if isinstance(value, (dict, list)):
+		return "JSON"
+	return "String"
+
+
+def _coerce_config_arg(tool: str, args: dict) -> None:
+	"""Accept `config` as the documented {key: value} dict.
+
+	press.api.bench.update_config does `[frappe._dict(c) for c in config]`, so it
+	needs a LIST of {key, value, type}. Passing the dict the tool description
+	advertises iterates its keys and dies with "dictionary update sequence
+	element #0 has length 1; 2 is required". Translate here so the documented
+	shape works; a list is passed through untouched. Press overrides `type` from
+	the Site Config Key row when the key is registered.
+	"""
+	if tool != "bench_update_config":
+		return
+
+	config = args.get("config")
+	if not isinstance(config, dict):
+		return
+
+	args["config"] = [
+		{"key": key, "value": value, "type": _config_value_type(value)}
+		for key, value in config.items()
+	]
+
+
 def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 	"""Map tool args → (target_doctype, target_name) for resource-scope checks.
 
@@ -464,6 +499,9 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"site_schedule_update",
 		"site_status",
 		"wait_for_bench_flip",
+		# Obj 11: *_and_wait wrappers. Without these the fail-closed guard
+		# _assert_target_extracted blocks them outright.
+		"site_update_and_wait",
 	}:
 		# api/site.py methods take 'name'; bench_dev_overview methods take 'site_name'
 		site = site or args.get("name")
@@ -503,6 +541,13 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"release_group_rename",
 		"release_group_redeploy",
 		"release_group_archive",
+		# Obj 11: scoped to the Release Group being deployed, matching
+		# bench_deploy. bench_deploy_and_wait also takes site_name, but that
+		# site is only polled for the flip -- the RG is the written resource.
+		"bench_deploy_and_wait",
+		"list_sites_on_release_group",
+		# Takes release_group; was never mapped, so the guard rejected it.
+		"bench_set_app_branch",
 	}:
 		if rg:
 			return "Release Group", rg
@@ -552,6 +597,25 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 			rg = _candidate_to_release_group(candidate_or_build)
 			if rg:
 				return "Release Group", rg
+
+	# Agent Job → the Site it ran against, falling back to the bench's
+	# parent Release Group for bench-level jobs. SECURITY: scoping these
+	# matters -- job output and tracebacks can carry site detail, so a
+	# token scoped to site-A must not read site-B's job.
+	if tool in {
+		"agent_job_progress",
+		"agent_job_traceback",
+	}:
+		job = args.get("name") or args.get("job_name") or args.get("dn")
+		if job:
+			row = frappe.db.get_value("Agent Job", job, ["site", "bench"], as_dict=True)
+			if row:
+				if row.get("site"):
+					return "Site", row["site"]
+				if row.get("bench"):
+					parent_rg = frappe.db.get_value("Bench", row["bench"], "group")
+					if parent_rg:
+						return "Release Group", parent_rg
 
 	return None, None
 

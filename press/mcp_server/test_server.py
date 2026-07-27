@@ -815,6 +815,88 @@ class TestMCPServer(FrappeTestCase):
 		self.assertEqual(td, "Release Group")
 		self.assertEqual(tn, "RG-X")
 
+	def test_wait_wrappers_have_resource_scope(self):
+		"""The *_and_wait wrappers were unusable: registered as tools but missing
+		from _extract_target, so _assert_target_extracted blocked every call."""
+		from press.mcp_server.server import _extract_target
+
+		td, tn = _extract_target("site_update_and_wait", {"site_name": "x.example.com"})
+		self.assertEqual((td, tn), ("Site", "x.example.com"))
+
+		# Scoped to the Release Group being deployed, matching bench_deploy —
+		# site_name is only polled for the flip.
+		td, tn = _extract_target(
+			"bench_deploy_and_wait", {"name": "RG-X", "site_name": "x.example.com"}
+		)
+		self.assertEqual((td, tn), ("Release Group", "RG-X"))
+
+		td, tn = _extract_target("list_sites_on_release_group", {"release_group": "RG-X"})
+		self.assertEqual((td, tn), ("Release Group", "RG-X"))
+
+	def test_every_tool_with_a_resource_arg_is_mapped(self):
+		"""Guard the whole bug class: a tool registered with a resource arg but
+		never named in _extract_target is dead on arrival — the fail-closed guard
+		rejects every call.
+
+		Checked statically against the function source rather than by probing with
+		a fake id: several mappings resolve through a DB lookup (bench → parent
+		Release Group), so a nonexistent probe value returns None and would report
+		perfectly good tools as unmapped.
+		"""
+		import inspect
+
+		from press.mcp_server import server as mcp_server
+		from press.mcp_server.tools import TOOLS
+
+		source = inspect.getsource(mcp_server._extract_target)
+
+		# Lock tools carry explicit target_doctype/target_name args and are
+		# resolved by the generic branch at the top of _extract_target, so they
+		# are never named individually.
+		generically_scoped = {"lock_acquire", "lock_release", "lock_status"}
+
+		unmapped = []
+		for name, spec in TOOLS.items():
+			if name in mcp_server.RESOURCELESS_TOOLS or name in generically_scoped:
+				continue
+			if not (set(spec.get("required_args", [])) & mcp_server._RESOURCE_ARG_NAMES):
+				continue
+			if f'"{name}"' not in source:
+				unmapped.append(name)
+
+		self.assertEqual(
+			sorted(unmapped),
+			[],
+			"tools carry a resource arg but are never named in _extract_target, so "
+			f"the fail-closed guard rejects every call: {sorted(unmapped)}",
+		)
+
+	def test_bench_update_config_accepts_documented_dict(self):
+		"""press.api.bench.update_config wants a LIST of {key,value,type}; the tool
+		description advertises a dict. Accept the documented shape."""
+		from press.mcp_server.server import _coerce_config_arg
+
+		args = {"config": {"server_script_enabled": 1, "some_flag": True, "a_name": "x"}}
+		_coerce_config_arg("bench_update_config", args)
+		self.assertEqual(
+			sorted(args["config"], key=lambda c: c["key"]),
+			[
+				{"key": "a_name", "value": "x", "type": "String"},
+				{"key": "server_script_enabled", "value": 1, "type": "Number"},
+				{"key": "some_flag", "value": True, "type": "Boolean"},
+			],
+		)
+
+		# A list is already correct — pass it through untouched.
+		already = {"config": [{"key": "k", "value": "v", "type": "String"}]}
+		_coerce_config_arg("bench_update_config", already)
+		self.assertEqual(already["config"], [{"key": "k", "value": "v", "type": "String"}])
+
+		# Other tools are not touched.
+		other = {"config": {"a": 1}}
+		_coerce_config_arg("site_update_config_bulk", other)
+		self.assertEqual(other["config"], {"a": 1})
+
 	def test_obj8_dependency_update_is_high_risk(self):
 		"""bench_update_dependencies must require risky_tools_enabled=True."""
 		from press.mcp_server.auth import issue_token
