@@ -900,6 +900,19 @@ def bench_deploy_and_wait(
 		# defensive — _bench_deploy normally returns a string but in case
 		candidate = candidate.get("name") or candidate.get("candidate") or str(candidate)
 
+	# On standalone Press, press.api.bench.deploy returns a Deploy Candidate BUILD name,
+	# not a Deploy Candidate. wait_for_bench_flip below compares against Deploy Candidate
+	# names, so without this translation the poll can never match and the tool always
+	# reports 'timeout' with the misleading hint "the Deploy Candidate itself does not
+	# exist" — while the build is in fact running fine.
+	build = None
+	if frappe.db.exists("Deploy Candidate Build", candidate):
+		build = candidate
+		candidate = (
+			frappe.db.get_value("Deploy Candidate Build", build, "deploy_candidate")
+			or candidate
+		)
+
 	# Step 2 — poll until flip or timeout. Frappe HTTP requests are blocked
 	# from sleeping inside a transaction; commit each iteration so reads
 	# pick up the agent's writes when the bench flips.
@@ -913,6 +926,7 @@ def bench_deploy_and_wait(
 			elapsed = int(time.monotonic() - start)
 			return {
 				"candidate": candidate,
+				"build": build,
 				"status": "flipped",
 				"elapsed_seconds": elapsed,
 				**{k: v for k, v in last_poll.items() if k != "status"},
@@ -987,10 +1001,36 @@ def site_update_and_wait(
 	max_wait = max(poll_interval, int(max_wait_seconds))
 
 	site = frappe.get_doc("Site", site_name)
-	job_name = site.schedule_update(
-		skip_failing_patches=skip_failing_patches,
-		skip_backups=skip_backups,
-	)
+
+	# The Deploy Candidate Difference that SiteUpdate needs is written a moment AFTER the
+	# build reports Success, so a call issued straight after bench_deploy_and_wait races it
+	# and dies with "Could not find suitable Destination Bench". That is a timing artefact,
+	# not a real missing bench, so retry briefly instead of making the caller re-issue the
+	# whole tool call and re-guess the cadence.
+	job_name = None
+	last_error = None
+	for _attempt in range(6):
+		try:
+			job_name = site.schedule_update(
+				skip_failing_patches=skip_failing_patches,
+				skip_backups=skip_backups,
+			)
+			break
+		except frappe.ValidationError as exc:
+			if "Destination Bench" not in str(exc):
+				raise
+			last_error = str(exc)
+			frappe.db.rollback()
+			site.reload()
+			time.sleep(10)
+	if job_name is None:
+		frappe.throw(
+			f"site_update could not be scheduled for {site_name!r} after 6 attempts over "
+			f"~60s: {last_error}. If this persists the Deploy Candidate Difference for "
+			f"{target_candidate!r} is genuinely missing — confirm the build succeeded with "
+			"deploy_candidate_status.",
+			frappe.ValidationError,
+		)
 	frappe.db.commit()
 
 	start = time.monotonic()
