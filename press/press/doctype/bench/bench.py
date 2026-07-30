@@ -444,6 +444,33 @@ class Bench(Document):
 		agent = Agent(self.server)
 		agent.force_update_bench_limits(self.name, self.get_limits())
 
+	def get_reserved_port_offsets(self):
+		"""Offsets that must never be allocated on this server.
+
+		Every container port is derived from the offset (11000 + offset for the Redis
+		queue, 13000 + offset for the Redis cache, 18000 + offset for web, ...), but
+		`get_unused_port_offset` only consults `tabBench`. It therefore has no idea what
+		is already listening on the host, and will hand out an offset whose host ports are
+		already bound by a process Press does not manage. The container then dies with
+		`failed to bind host port ... address already in use` and `New Bench` fails.
+		Because the allocator always returns `min()`, the SAME offset goes to every
+		subsequent bench on that server, so this repeats forever instead of being a one-off.
+
+		Observed on u5-default 2026-07-28: a standalone (non-Press) Frappe bench serving
+		erp.dev.mvpstorm.com holds Frappe's default Redis ports 11000 and 13000 - exactly
+		offset 0 - so every new bench on that server failed to start.
+
+		Declare squatted offsets in site_config.json, per server:
+
+			"reserved_port_offsets": {"u5-default.sandbox.mvpstorm.com": [0]}
+
+		A bare list reserves those offsets on every server.
+		"""
+		reserved = frappe.conf.get("reserved_port_offsets") or {}
+		if isinstance(reserved, dict):
+			reserved = reserved.get(self.server) or []
+		return {int(offset) for offset in reserved}
+
 	def get_unused_port_offset(self):
 		benches = frappe.db.sql(
 			"""SELECT `port_offset` FROM `tabBench`
@@ -456,7 +483,9 @@ class Bench(Document):
 		)
 		all_offsets = range(0, 1000)
 		used_offsets = map(lambda x: x.port_offset, benches)
-		available_offsets = set(all_offsets) - set(used_offsets)
+		available_offsets = set(all_offsets) - set(used_offsets) - self.get_reserved_port_offsets()
+		if not available_offsets:
+			frappe.throw(f"No unreserved port offset left on {self.server}")
 		return min(available_offsets)
 
 	def on_update(self):
