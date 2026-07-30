@@ -51,6 +51,12 @@ ALLOWED_PATHS = [
 	# Sanad AI control center: client sites self-provision AI seats here, authed
 	# by a per-site service token (not a Press login). Scoped to this one path.
 	"/api/method/sanad_ai_control_center.api.provision_for_site",
+	# Sanad AI control center: client sites push their daily usage rollups here,
+	# authed by the same per-site service token. Scoped to this one path.
+	"/api/method/sanad_ai_control_center.usage_ingest.ingest_usage",
+	# Sanad AI control center: client sites push a governance-exposure snapshot here,
+	# authed by the same per-site service token. Scoped to this one path.
+	"/api/method/sanad_ai_control_center.governance_ingest.ingest_governance_snapshot",
 	# Tessera License Manager: client sites validate their license here, authed
 	# by the license key (not a Press login). Scoped to this one path.
 	"/api/method/tessera_server.api.validate",

@@ -1,6 +1,6 @@
 <template>
 	<div class="space-y-4">
-		<!-- KPI row — 4 cards (matches prototype) -->
+		<!-- KPI row - 4 cards (matches prototype) -->
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 			<div class="rounded-lg border border-gray-200 bg-white p-4">
 				<p class="text-xs font-medium uppercase text-gray-500">Spend, MTD</p>
@@ -31,59 +31,93 @@
 			</div>
 		</div>
 
-		<!-- Seats table -->
+		<!-- Governance and Risk (5 cards) -->
+		<div class="rounded-lg border border-gray-200 bg-white p-4">
+			<div class="mb-3">
+				<h3 class="text-sm font-semibold">Governance and Risk</h3>
+				<p class="text-xs text-gray-400">Across all client sites: activity over the last 30 days; exposure is current state.</p>
+			</div>
+			<div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+				<div>
+					<p class="text-xs font-medium uppercase text-gray-500">Pending approvals</p>
+					<p class="mt-1 text-2xl font-bold" :class="risk.pending > 0 ? 'text-orange-600' : ''">{{ risk.pending || 0 }}</p>
+					<p class="text-xs text-gray-400">awaiting approval now</p>
+				</div>
+				<div>
+					<p class="text-xs font-medium uppercase text-gray-500">God-mode exposure</p>
+					<p class="mt-1 text-2xl font-bold" :class="risk.god_mode > 0 ? 'text-orange-600' : ''">{{ risk.god_mode || 0 }}</p>
+					<p class="text-xs text-gray-400">auto-accept agents{{ risk.open_access ? ', ' + risk.open_access + ' open to all' : '' }}</p>
+				</div>
+				<div>
+					<p class="text-xs font-medium uppercase text-gray-500">run_sql calls</p>
+					<p class="mt-1 text-2xl font-bold">{{ fmtNum(risk.run_sql) }}</p>
+					<p class="text-xs text-gray-400">{{ risk.ai_sql_users || 0 }} users with SQL access</p>
+				</div>
+				<div>
+					<p class="text-xs font-medium uppercase text-gray-500">Auto-accepted writes</p>
+					<p class="mt-1 text-2xl font-bold">{{ fmtNum(risk.auto_writes) }}</p>
+					<p class="text-xs text-gray-400">{{ fmtNum(risk.high_risk) }} high-risk actions</p>
+				</div>
+				<div>
+					<p class="text-xs font-medium uppercase text-gray-500">Gateway probes</p>
+					<p class="mt-1 text-2xl font-bold" :class="risk.probes > 0 ? 'text-red-600' : ''">{{ fmtNum(risk.probes) }}</p>
+					<p class="text-xs text-gray-400">rejected auth/SSRF attempts</p>
+				</div>
+			</div>
+		</div>
+
+		<!-- Seats, grouped by customer (collapsed by default so a long customer list stays scannable) -->
 		<div class="rounded-lg border border-gray-200 bg-white p-4">
 			<div class="mb-3 flex items-center justify-between">
 				<h3 class="text-sm font-semibold">Seats</h3>
 				<Button size="sm" variant="solid" @click="openProvision">Provision seat</Button>
 			</div>
-			<table class="w-full text-xs">
-				<thead>
-					<tr class="border-b border-gray-100 text-left text-gray-500">
-						<th class="py-2">Seat (user)</th>
-						<th>Subscription</th>
-						<th>Tier</th>
-						<th>Budget</th>
-						<th>Spend</th>
-						<th>Status</th>
-						<th></th>
-					</tr>
-				</thead>
-				<tbody>
-					<tr v-for="seat in seats" :key="seat.user" class="border-b border-gray-50">
-						<td class="py-2 font-mono text-gray-700">{{ seat.user }}</td>
-						<td>{{ seat.subscription }}</td>
-						<td class="text-gray-500">{{ seat.tier }}</td>
-						<td class="font-mono">${{ fmtMoney(seat.budget) }}</td>
-						<td>
-							<div class="font-mono">${{ fmtMoney(seat.spend) }}</div>
-							<div class="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-100">
-								<div
-									class="h-full rounded-full"
-									:class="seatBarClass(seat)"
-									:style="{ width: seatPct(seat) + '%' }"
-								></div>
-							</div>
-						</td>
-						<td>
-							<span
-								class="rounded-full px-2 py-0.5 text-[10px] font-medium"
-								:class="statusBadgeClass(seat.status)"
-							>
-								{{ seat.status || 'Active' }}
-							</span>
-						</td>
-						<td class="text-right">
-							<Button size="sm" variant="outline">
-								{{ (seat.status || '').toLowerCase() === 'paused' ? 'Resume' : 'Manage' }}
-							</Button>
-						</td>
-					</tr>
-					<tr v-if="seats.length === 0">
-						<td colspan="7" class="py-6 text-center text-gray-400">No seats provisioned yet.</td>
-					</tr>
-				</tbody>
-			</table>
+			<div v-if="seats.length === 0" class="py-6 text-center text-xs text-gray-400">No seats provisioned yet.</div>
+			<div v-else class="divide-y divide-gray-100">
+				<div v-for="grp in seatGroups" :key="grp.client">
+					<button type="button" class="flex w-full items-center justify-between rounded-none py-2.5 text-left" @click="toggleGroup(grp.client)">
+						<span class="flex items-center gap-2">
+							<svg class="h-3 w-3 shrink-0 text-gray-400 transition-transform" :class="expanded[grp.client] ? 'rotate-90' : ''" viewBox="0 0 12 12" fill="none">
+								<path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+							</svg>
+							<span class="text-sm font-semibold text-gray-800">{{ grp.client }}</span>
+							<span class="text-xs text-gray-400">{{ grp.count }} seat{{ grp.count === 1 ? '' : 's' }}, {{ grp.active }} active</span>
+						</span>
+						<span class="font-mono text-xs text-gray-500">${{ fmtMoney(grp.spend) }}</span>
+					</button>
+					<table v-if="expanded[grp.client]" class="mb-2 w-full text-xs">
+						<thead>
+							<tr class="border-b border-gray-100 text-left text-gray-500">
+								<th class="py-2 pl-5">Seat (user)</th>
+								<th>Tier</th>
+								<th>Budget</th>
+								<th>Spend</th>
+								<th>Status</th>
+								<th></th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr v-for="seat in grp.seats" :key="seat.user" class="border-b border-gray-50">
+								<td class="py-2 pl-5 font-mono text-gray-700">{{ seat.user }}</td>
+								<td class="text-gray-500">{{ seat.tier }}</td>
+								<td class="font-mono">${{ fmtMoney(seat.budget) }}</td>
+								<td>
+									<div class="font-mono">${{ fmtMoney(seat.spend) }}</div>
+									<div class="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-100">
+										<div class="h-full rounded-full" :class="seatBarClass(seat)" :style="{ width: seatPct(seat) + '%' }"></div>
+									</div>
+								</td>
+								<td>
+									<span class="rounded-full px-2 py-0.5 text-[10px] font-medium" :class="statusBadgeClass(seat.status)">{{ seat.status || 'Active' }}</span>
+								</td>
+								<td class="text-right">
+									<Button size="sm" variant="outline">{{ (seat.status || '').toLowerCase() === 'paused' ? 'Resume' : 'Manage' }}</Button>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
 		</div>
 
 		<!-- Subscriptions + Providers (two-up) -->
@@ -133,7 +167,7 @@
 						<tr v-for="(p, i) in providers" :key="i" class="border-b border-gray-50">
 							<td class="py-2 text-gray-800">{{ p.provider }}</td>
 							<td class="text-gray-500">{{ p.tier }}</td>
-							<td>{{ p.region || '—' }}</td>
+							<td>{{ p.region || '-' }}</td>
 							<td>
 								<span v-if="p.connected" class="font-mono">${{ fmtMoney(p.cost) }}</span>
 								<Button v-else size="sm" variant="outline" @click="openConnect(p.tier)">Connect</Button>
@@ -147,7 +181,7 @@
 			</div>
 		</div>
 
-		<!-- Provision seat dialog — wired to sanad_ai_control_center.api.provision_seat -->
+		<!-- Provision seat dialog - wired to sanad_ai_control_center.api.provision_seat -->
 		<Dialog :options="{ title: 'Provision seat', size: 'md' }" v-model="showProvision">
 			<template #body-content>
 				<div class="space-y-3">
@@ -167,7 +201,7 @@
 			</template>
 		</Dialog>
 
-		<!-- Connect provider dialog — wired to sanad_ai_control_center.api.connect_account -->
+		<!-- Connect provider dialog - wired to sanad_ai_control_center.api.connect_account -->
 		<Dialog :options="{ title: 'Connect provider', size: 'md' }" v-model="showConnect">
 			<template #body-content>
 				<div class="space-y-3">
@@ -226,6 +260,8 @@ export default {
 	data() {
 		return {
 			kpi: {},
+			risk: {},
+			expanded: {},
 			seats: [],
 			subscriptions: [],
 			providers: [],
@@ -239,11 +275,25 @@ export default {
 		};
 	},
 	computed: {
+		// Seats grouped by customer (subscription/client_site), busiest first. Collapsed
+		// by default via `expanded` so a long customer list stays scannable.
+		seatGroups() {
+			const map = {};
+			for (const s of this.seats) {
+				const key = s.subscription || '(unassigned)';
+				const g = (map[key] = map[key] || { client: key, seats: [], spend: 0, count: 0, active: 0 });
+				g.seats.push(s);
+				g.spend += Number(s.spend || 0);
+				g.count += 1;
+				if ((s.status || 'active').toLowerCase() === 'active') g.active += 1;
+			}
+			return Object.values(map).sort((a, b) => b.count - a.count);
+		},
 		budgetPct() {
 			if (!this.kpi.budget || !this.kpi.spend_mtd) return 0;
 			return Math.round((this.kpi.spend_mtd / this.kpi.budget) * 100);
 		},
-		// API returns kpis.paused + kpis.revoked (ints) — derive the sub-label the prototype shows.
+		// API returns kpis.paused + kpis.revoked (ints) - derive the sub-label the prototype shows.
 		seatsNote() {
 			const parts = [];
 			if (this.kpi.paused) parts.push(`${this.kpi.paused} paused`);
@@ -260,7 +310,7 @@ export default {
 			return `${active} active`;
 		},
 		// Only api_key providers can join the gateway pool (connectable). Subscription
-		// logins (Claude/ChatGPT) are filtered out — connect_account refuses them anyway.
+		// logins (Claude/ChatGPT) are filtered out - connect_account refuses them anyway.
 		providerOptions() {
 			return (this.catalog || [])
 				.filter((r) => r.connectable)
@@ -280,13 +330,18 @@ export default {
 				this.seats = g.seats || [];
 				this.subscriptions = g.subscriptions || [];
 			} catch (e) {
-				// control-center unreachable — leave KPIs/seats/subscriptions empty
+				// control-center unreachable - leave KPIs/seats/subscriptions empty
 			}
 			try {
 				const a = await call('sanad_ai_control_center.api.get_accounts_overview');
 				this.providers = this.mapProviders(a);
 			} catch (e) {
-				// control-center unreachable — leave providers empty
+				// control-center unreachable: leave providers empty
+			}
+			try {
+				this.risk = (await call('sanad_ai_control_center.api.get_governance_risk')) || {};
+			} catch (e) {
+				// control-center unreachable: leave the risk cards at zero
 			}
 		},
 		openProvision() {
@@ -370,9 +425,9 @@ export default {
 				const accounts = grp.accounts || [];
 				if (accounts.length === 0) {
 					rows.push({
-						provider: grp.model || '—',
-						tier: grp.tier || grp.model || '—',
-						region: grp.region || '—',
+						provider: grp.model || '-',
+						tier: grp.tier || grp.model || '-',
+						region: grp.region || '-',
 						cost: grp.cost || 0,
 						connected: false,
 					});
@@ -381,10 +436,10 @@ export default {
 				accounts.forEach((acc) => {
 					rows.push({
 						// account_label is the friendly name ('Anthropic (Claude)'); provider is the short key.
-						provider: acc.account_label || acc.provider || grp.model || '—',
+						provider: acc.account_label || acc.provider || grp.model || '-',
 						// Tier = the model this account serves as ('smart'/'fast'/'cheap').
-						tier: acc.serve_as_model || acc.tier || grp.tier || grp.model || '—',
-						region: acc.region || '—',
+						tier: acc.serve_as_model || acc.tier || grp.tier || grp.model || '-',
+						region: acc.region || '-',
 						// Real spend field is spend_to_date.
 						cost: acc.spend_to_date != null ? acc.spend_to_date : acc.cost != null ? acc.cost : 0,
 						connected: acc.connected != null ? acc.connected : true,
@@ -397,6 +452,13 @@ export default {
 			const v = Number(n);
 			if (!v) return '0.00';
 			return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+		},
+		fmtNum(n) {
+			return Number(n || 0).toLocaleString('en-US');
+		},
+		toggleGroup(client) {
+			// Reassign so Vue 2/3 reliably tracks the new key.
+			this.expanded = { ...this.expanded, [client]: !this.expanded[client] };
 		},
 		seatPct(seat) {
 			if (!seat.budget || !seat.spend) return 0;
