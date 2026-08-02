@@ -1348,3 +1348,39 @@ def agent_poll_count_stats_daily():
 	start_time = frappe.utils.add_to_date(None, hours=-24)
 	end_time = frappe.utils.add_to_date(None, minutes=-1)
 	agent_poll_count_stats(start_time, end_time, min_count, duration)
+
+
+def poll_backup_jobs():
+	"""Reconcile Backup Site jobs that poll_pending_jobs deliberately skips.
+
+	poll_pending_jobs excludes job_type="Backup Site" from 90% of its runs, so a server
+	whose only outstanding work is a backup is never selected on those runs. The Site
+	Backup record then stays Pending, and SiteBackup.before_insert refuses every further
+	backup of that site for 2 hours with "Too many pending backups".
+
+	This polls only servers holding Backup Site jobs older than 5 minutes, so it never
+	competes with the normal path and adds no load to it.
+	"""
+	servers = frappe.get_all(
+		"Agent Job",
+		fields=["server", "server_type"],
+		filters={
+			"status": ("in", ["Pending", "Undelivered"]),
+			"job_type": "Backup Site",
+			"creation": ("<", frappe.utils.add_to_date(None, minutes=-5)),
+		},
+		group_by="server",
+		order_by="",
+		ignore_ifnull=True,
+	)
+	if not servers:
+		return
+
+	for server in filter_request_failures(filter_active_servers(servers)):
+		frappe.enqueue(
+			"press.press.doctype.agent_job.agent_job.poll_pending_jobs_server",
+			queue="short",
+			server=server,
+			job_id=f"poll_backup_jobs:{server.server}",
+			deduplicate=True,
+		)
