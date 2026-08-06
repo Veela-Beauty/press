@@ -50,6 +50,10 @@ class TestDeployFlow(FrappeTestCase):
 		), patch(
 			"press.mcp_server.deploy_flow.frappe.db.get_value", return_value=None
 		), patch(
+			"press.mcp_server.deploy_flow._installation_for_owner", return_value="4242"
+		), patch(
+			"press.mcp_server.deploy_flow._repo_is_public", return_value=False
+		), patch(
 			"press.mcp_server.deploy_flow.frappe.get_doc", side_effect=fake_get_doc
 		):
 			result = register_existing_app(
@@ -79,6 +83,10 @@ class TestDeployFlow(FrappeTestCase):
 		), patch(
 			"press.mcp_server.deploy_flow.frappe.db.get_value", return_value=None
 		), patch(
+			"press.mcp_server.deploy_flow._installation_for_owner", return_value="4242"
+		), patch(
+			"press.mcp_server.deploy_flow._repo_is_public", return_value=False
+		), patch(
 			"press.mcp_server.deploy_flow.frappe.get_doc", side_effect=fake_get_doc
 		):
 			register_existing_app(
@@ -89,6 +97,99 @@ class TestDeployFlow(FrappeTestCase):
 			)
 
 		self.assertEqual(captured.get("versions"), [{"version": "Version 14"}])
+
+	def test_register_existing_app_stores_the_github_installation_id(self):
+		"""REGRESSION (2026-08-06): the App Source was created WITHOUT
+		github_installation_id, so App Source.get_repo_url() returned a bare
+		credential-less URL and every build of a PRIVATE repo died at
+		`git clone` with an empty error and 0.0s duration. Registration itself
+		still looked healthy, because create_release authenticates through the
+		team token instead. Cost an evening on eta_bridge.
+		"""
+		captured = {}
+
+		def fake_get_doc(d):
+			if isinstance(d, dict) and d.get("doctype") == "App Source":
+				captured.update(d)
+			m = MagicMock()
+			m.name = "SRC-test-003"
+			m.repository_url = ""
+			m.public = 0
+			m.create_release.return_value = "rel-3"
+			return m
+
+		with patch("press.utils.get_current_team", return_value="Team-X"), patch(
+			"press.mcp_server.deploy_flow.frappe.db.exists", return_value=True
+		), patch(
+			"press.mcp_server.deploy_flow.frappe.db.get_value", return_value=None
+		), patch(
+			"press.mcp_server.deploy_flow._repo_is_public", return_value=False
+		), patch(
+			"press.mcp_server.deploy_flow.frappe.get_all", return_value=["77777"]
+		), patch(
+			"press.mcp_server.deploy_flow.frappe.get_doc", side_effect=fake_get_doc
+		):
+			result = register_existing_app(
+				repository_url="https://github.com/Acme/widget",
+				branch="main",
+				app_name="widget",
+				versions=["Version 15"],
+			)
+
+		self.assertEqual(captured.get("github_installation_id"), "77777")
+		self.assertEqual(result["github_installation_id"], "77777")
+
+	def test_register_existing_app_refuses_a_private_repo_with_no_installation(self):
+		"""Fail at registration, not minutes later inside a build."""
+		with patch("press.utils.get_current_team", return_value="Team-X"), patch(
+			"press.mcp_server.deploy_flow.frappe.db.exists", return_value=True
+		), patch(
+			"press.mcp_server.deploy_flow.frappe.db.get_value", return_value=None
+		), patch(
+			"press.mcp_server.deploy_flow._repo_is_public", return_value=False
+		), patch(
+			"press.mcp_server.deploy_flow.frappe.get_all", return_value=[]
+		):
+			with self.assertRaises(frappe.ValidationError):
+				register_existing_app(
+					repository_url="https://github.com/Acme/private-widget",
+					branch="main",
+					app_name="private_widget",
+					versions=["Version 15"],
+				)
+
+	def test_register_existing_app_allows_a_public_repo_with_no_installation(self):
+		"""A public repo clones with no credentials, so no installation is needed."""
+		captured = {}
+
+		def fake_get_doc(d):
+			if isinstance(d, dict) and d.get("doctype") == "App Source":
+				captured.update(d)
+			m = MagicMock()
+			m.name = "SRC-test-004"
+			m.repository_url = ""
+			m.public = 1
+			m.create_release.return_value = "rel-4"
+			return m
+
+		with patch("press.utils.get_current_team", return_value="Team-X"), patch(
+			"press.mcp_server.deploy_flow.frappe.db.exists", return_value=True
+		), patch(
+			"press.mcp_server.deploy_flow.frappe.db.get_value", return_value=None
+		), patch(
+			"press.mcp_server.deploy_flow._repo_is_public", return_value=True
+		), patch(
+			"press.mcp_server.deploy_flow.frappe.get_all", return_value=[]
+		), patch(
+			"press.mcp_server.deploy_flow.frappe.get_doc", side_effect=fake_get_doc
+		):
+			register_existing_app(
+				repository_url="https://github.com/frappe/hrms",
+				branch="version-15",
+				app_name="hrms",
+			)
+
+		self.assertEqual(captured.get("public"), 1)
 
 	def test_app_release_approve_flips_status(self):
 		fake_doc = MagicMock(status="Draft")

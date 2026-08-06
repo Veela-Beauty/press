@@ -1649,6 +1649,50 @@ def list_pending_releases(
 	return {"filters": filters, "count": len(rows), "releases": rows}
 
 
+def _installation_for_owner(owner: str, team: str | None = None) -> str | None:
+	"""Find a GitHub App installation already proven to work for this owner.
+
+	Same GitHub org or user means the same installation, so an existing App
+	Source is the most reliable source. `press.api.github.options` rebuilds its
+	installation list from App Sources the same way.
+	"""
+	rows = frappe.get_all(
+		"App Source",
+		filters={"repository_owner": owner, "github_installation_id": ["is", "set"]},
+		pluck="github_installation_id",
+		limit=1,
+	)
+	if rows:
+		return rows[0]
+
+	if team:
+		rows = frappe.get_all(
+			"App Source",
+			filters={"team": team, "github_installation_id": ["is", "set"]},
+			pluck="github_installation_id",
+			limit=1,
+		)
+		if rows:
+			return rows[0]
+
+	return None
+
+
+def _repo_is_public(owner: str, repo: str) -> bool:
+	"""Anonymous probe. A public repo needs no clone credentials at all."""
+	try:
+		import requests
+
+		resp = requests.get(
+			f"https://api.github.com/repos/{owner}/{repo}",
+			headers={"Accept": "application/vnd.github+json"},
+			timeout=10,
+		)
+		return resp.status_code == 200
+	except Exception:
+		return False
+
+
 @frappe.whitelist()
 def register_existing_app(
 	repository_url: str,
@@ -1657,6 +1701,7 @@ def register_existing_app(
 	app_title: str | None = None,
 	versions: list[str] | None = None,
 	team: str | None = None,
+	github_installation_id: str | None = None,
 ) -> dict[str, Any]:
 	"""Register an EXISTING GitHub repository as a new App Source.
 
@@ -1750,6 +1795,27 @@ def register_existing_app(
 			}
 		).insert(ignore_permissions=True)
 
+	# Resolve the GitHub App installation BEFORE inserting.
+	#
+	# App Source.get_repo_url() returns a bare, credential-less URL when
+	# github_installation_id is empty. For a PRIVATE repo the build then dies at
+	# `git clone` with an empty error and 0.0s duration, minutes later and far
+	# from the cause. Registration itself still reports success, because
+	# create_release authenticates through the team token instead. Fail here
+	# rather than there.
+	is_public = _repo_is_public(owner, repo)
+	installation_id = github_installation_id or _installation_for_owner(owner, team_name)
+
+	if not installation_id and not is_public:
+		frappe.throw(
+			f"No GitHub App installation could be resolved for {owner!r}, and "
+			f"{owner}/{repo} is not public. The App Source would be created but "
+			"could never be cloned by a build. Pass github_installation_id "
+			"explicitly, or register this app through the Press dashboard "
+			"('Add app from GitHub'), which sets it for you.",
+			frappe.ValidationError,
+		)
+
 	doc = frappe.get_doc(
 		{
 			"doctype": "App Source",
@@ -1760,17 +1826,25 @@ def register_existing_app(
 			"repository": repo,
 			"branch": branch,
 			"team": team_name,
-			"public": 0,
+			"public": 1 if is_public else 0,
+			"github_installation_id": installation_id,
 			"versions": [{"version": v} for v in versions],
 		}
 	).insert(ignore_permissions=True)
 
-	# Fetch first release so the App Source isn't empty
+	# Fetch first release so the App Source isn't empty. Report a failure rather
+	# than swallowing it: a silent pass here is what makes a broken registration
+	# look healthy.
 	first_release = None
+	release_error = None
 	try:
 		first_release = doc.create_release(force=True)
-	except Exception:
-		pass
+	except Exception as e:
+		release_error = str(e)
+		frappe.log_error(
+			title=f"register_existing_app: first release failed for {app_name}",
+			message=frappe.get_traceback(),
+		)
 
 	return {
 		"app_source": doc.name,
@@ -1778,5 +1852,8 @@ def register_existing_app(
 		"repository_url": doc.repository_url,
 		"branch": branch,
 		"versions": versions,
+		"public": doc.public,
+		"github_installation_id": installation_id,
 		"first_release": first_release,
+		"first_release_error": release_error,
 	}
