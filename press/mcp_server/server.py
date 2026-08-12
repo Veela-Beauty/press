@@ -710,17 +710,21 @@ def _assert_target_extracted(
 
 		expected = TOOLS.get(tool, {}).get("required_args", [])
 		unexpected = [a for a in leaks if a not in expected]
-		hint = ""
 		if unexpected and expected:
-			hint = (
-				f" This tool expects {expected!r}; you passed {unexpected!r}, which it does "
-				f"not declare. Retry with the declared argument before suspecting the server."
+			# Caller error: an arg the tool does not declare. Say so first, and do not
+			# name the server internals until the end.
+			raise frappe.PermissionError(
+				f"tool {tool!r} was called with resource argument(s) {unexpected!r} that it "
+				f"does not declare; it expects {expected!r}. Retry with the declared "
+				f"argument. The call is refused rather than run unscoped. If the arguments "
+				f"ARE the declared ones, then {tool!r} is genuinely missing from "
+				f"_extract_target / RESOURCELESS_TOOLS in press/mcp_server/server.py."
 			)
 		raise frappe.PermissionError(
-			f"tool {tool!r} carries resource argument(s) {leaks!r} that _extract_target did "
-			f"not resolve, so the call is refused rather than run unscoped.{hint}"
-			f" If the arguments ARE the declared ones, then {tool!r} is genuinely missing from "
-			f"_extract_target / RESOURCELESS_TOOLS in press/mcp_server/server.py."
+			f"tool {tool!r} carries resource argument(s) {leaks!r} that could not be resolved "
+			f"to a Site or Release Group, so the call is refused rather than run unscoped. "
+			f"Add {tool!r} to the matching set in _extract_target, or to RESOURCELESS_TOOLS "
+			f"if it genuinely owns no resource (press/mcp_server/server.py)."
 		)
 	# No resource args at all — tool genuinely operates on nothing scopable.
 	# Add it to RESOURCELESS_TOOLS to silence this check on next deploy if
