@@ -161,6 +161,15 @@ class TestResourceScopingRegistry(unittest.TestCase):
 	RESOURCE_ARGS = ("site", "site_name", "release_group", "bench_name", "name")
 
 	def test_every_resource_tool_is_scoped(self):
+		"""Resolution needs the DB lookups stubbed, or the probe fails for the wrong reason.
+
+		_extract_target resolves several tool families through the database : bench_name to
+		its parent Release Group, a Deploy Candidate to its group. A probe name that does not
+		exist resolves to None and would be reported as "unmapped" when the mapping is
+		actually fine. So stub the lookups the way test_server.py's _bench_group_get_value
+		helper already does for the ssh-cert tests, and let this test assert only what it is
+		about: whether the tool is wired into the function at all.
+		"""
 		from press.mcp_server.server import RESOURCELESS_TOOLS, _extract_target
 		from press.mcp_server.tools import TOOLS
 
@@ -174,6 +183,28 @@ class TestResourceScopingRegistry(unittest.TestCase):
 			"target_name": "probe.example.com",
 		}
 
+		def stub_get_value(*args, **kwargs):
+			# as_dict callers (the Deploy Candidate branch) need attribute access.
+			if kwargs.get("as_dict"):
+				return frappe._dict(group="fake-rg", deploy_candidate="dc-probe", site="probe.example.com")
+			return "fake-rg"
+
+		unscoped = []
+		with patch.object(frappe.db, "get_value", side_effect=stub_get_value), patch.object(
+			frappe.db, "exists", return_value=True
+		), patch.object(frappe, "get_value", side_effect=stub_get_value, create=True):
+			unscoped = self._collect_unscoped(TOOLS, RESOURCELESS_TOOLS, _extract_target, probe)
+
+		self.assertEqual(
+			unscoped,
+			[],
+			"These tools carry a resource argument but _extract_target does not map them, "
+			"so the fail-closed guard refuses every call. Add them to the matching set in "
+			"_extract_target, or to RESOURCELESS_TOOLS if they genuinely own no resource:\n  "
+			+ "\n  ".join(unscoped),
+		)
+
+	def _collect_unscoped(self, TOOLS, RESOURCELESS_TOOLS, _extract_target, probe):
 		unscoped = []
 		for tool_name, spec in TOOLS.items():
 			if tool_name in RESOURCELESS_TOOLS:
@@ -194,14 +225,7 @@ class TestResourceScopingRegistry(unittest.TestCase):
 			if not doctype or not name:
 				unscoped.append(f"{tool_name} (carries {carried}, resolved to {doctype!r})")
 
-		self.assertEqual(
-			unscoped,
-			[],
-			"These tools carry a resource argument but _extract_target does not map them, "
-			"so the fail-closed guard refuses every call. Add them to the matching set in "
-			"_extract_target, or to RESOURCELESS_TOOLS if they genuinely own no resource:\n  "
-			+ "\n  ".join(unscoped),
-		)
+		return unscoped
 
 	def test_new_site_tools_resolve_to_the_right_resource(self):
 		from press.mcp_server.server import _extract_target
