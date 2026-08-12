@@ -38,10 +38,15 @@ class TestSiteOpsValidation(unittest.TestCase):
 				site_ops.site_create(new_subdomain="   ", release_group="bench-0020")
 
 	def test_create_rejects_missing_remote_file(self):
-		"""A database docname that does not exist must fail before api.site.new."""
+		"""A database docname that does not exist must fail before api.site.new.
+
+		The stub has to say the target Site does NOT exist : a blanket "everything exists"
+		makes site_create throw "Site already exists" first and the assertion passes for
+		the wrong reason.
+		"""
 
 		def exists(doctype, name=None, *args, **kwargs):
-			return doctype != "Remote File"
+			return doctype == "Release Group"
 
 		with patch.object(frappe.db, "exists", side_effect=exists), patch.object(
 			frappe.db, "get_single_value", return_value="sandbox.mvpstorm.com"
