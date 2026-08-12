@@ -4,6 +4,25 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 13-08-2026: MCP site provisioning (site_create, site_restore) + a guard that ends a recurring scope bug
+
+Two tools closed the last gap in the site_* family: a caller could migrate, update, clone, back up, install apps on and SSH into a site, but could not create one or restore a backup into it. Catalog 82 to 84.
+
+### Added
+- `site_create` (medium) and `site_restore` (high) in a new press/mcp_server/site_ops.py, wrapping press.api.site.new / restore. site_create is Release-Group-scoped because the site does not exist yet; it takes the subdomain alone and rejects an FQDN, which api.site.new would otherwise join with the root domain twice. site_restore is tiered high: it overwrites the target database with no undo.
+- `test_every_resource_tool_is_scoped` walks TOOLS and fails on any tool declaring a resource argument that is neither mapped in _extract_target nor allowlisted resourceless. 252991d2a fixed six tools of that class by hand; this makes the seventh impossible to ship. 13 tests in test_site_ops.py, all green on the bench.
+
+### Changed
+- The fail-closed scope guard now blames the caller before the server. It used to say "This is a server-side bug; please add <tool> to _extract_target", which is the wrong first suspect: the common cause is a resource argument the tool does not declare. That wording cost two working tools a week of being written off as broken. It now names the declared args and what was passed, and mentions server internals only after ruling that out.
+- site_restore returns the Agent Job Press actually created plus the Site status read back, rather than a hardcoded "queued". A null agent_job now means nothing was queued.
+
+### Notes
+- No staging tool. The design first called for one; press.api.site.upload_backup_file already streams the upload, caps it at 5 GiB and creates the Remote File, and a multipart body has no representation in MCP's JSON args anyway.
+- Existing tokens do NOT gain new tools. A token's allowed-tool list is a snapshot taken at issue time, so MCPT-51324 still sees 82 while the deployed registry holds 84.
+- Two pre-existing failures in the module (test_help category mapping for 18 tools, test_deploy_flow candidate fallback) reproduce on ee92514d4 and are untouched here.
+
+---
+
 ## 19-06-2026: MCP bench-control tools + arg-alias normalization + dev-box stdio proxy
 
 Ten Release-Group (bench) tools so an agent can compose a bench without the Desk, a server-side fix that stops agents stalling on wrong arg names, and a stdio proxy that lets a standard MCP client (Claude Code) connect to the Frappe-RPC MCP.

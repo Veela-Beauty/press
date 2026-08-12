@@ -1,5 +1,24 @@
 # Press Fork Dev Log
 
+### Session 10 - 2026-08-13: MCP site provisioning + the scope-guard message that misled us
+
+**What we did:**
+1. Added site_create + site_restore (press/mcp_server/site_ops.py, new) so a caller can seed a throwaway site from a backup without the dashboard. Catalog 82 to 84. Both registered in tools.py / help.py and scoped in server.py _extract_target.
+2. Wrote test_every_resource_tool_is_scoped: walks TOOLS and fails on any tool carrying a resource arg that _extract_target does not map. 252991d2a had fixed six of that class by hand and missed two, which is what set us off down a wrong path today.
+3. Corrected the guard's error message. It told you to patch the server; the usual cause is passing an arg the tool does not declare. app_git_status and bench_provision_progress were fine all along (already mapped at lines 564/576) and work when called with bench_name instead of release_group.
+4. site_restore now reads the Agent Job and Site status back instead of returning a hardcoded "queued".
+5. Used the pair (via the APIs they wrap, since the token predates them) to restore a 440 MB prod Lipton backup onto lipton-yp.sandbox.mvpstorm.com. Verified row-for-row against prod.
+
+**Files:** press/mcp_server/site_ops.py (new, 183), test_site_ops.py (new, 227, 13 green), tools.py (+2 entries), server.py (scoping + message), help.py (+2), docs/superpowers/specs/2026-08-12-mcp-site-create-restore-design.md (new)
+
+**Mistakes worth keeping:**
+- Claimed two tools were broken because the error message said so. They were not. Read the mapping before trusting a message that blames the server.
+- Wrote the guard test with a blanket exists()/DB stub, so it reported 18 false positives on the bench and one test asserted the wrong error entirely. Running it on the bench, not parsing it locally, is what found both.
+- api.site.new cannot place a site on a chosen Release Group on this install: all three Site Plans have private_bench_support=1, so it always takes the private-bench branch. The route that lands on an existing bench is the dedicated-server branch (pass `server`), and that branch ignores `files` -- so create-then-restore is two calls here, not one.
+- site_config_set still reports status:set while writing nothing (confirmed again today). All 130 Scheduled Job Types were stopped in the DB instead, which is what actually holds.
+
+---
+
 ### Session 9 - 2026-06-19: MCP bench-control tools + arg-alias fix + dev-box proxy
 
 **What we did:**
