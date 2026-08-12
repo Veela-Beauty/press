@@ -39,28 +39,36 @@ already automatable.
 - Physical/snapshot restores (`restore_site_from_physical_backup`).
 - Replacing the dashboard's restore dialog. This is an API surface, not a UI rewrite.
 
-## Why three tools, not two
+## Why two tools, not three
 
-`api.site.restore(name, files, ...)` does not take file paths. It takes **Remote File**
-docnames:
+An earlier draft of this spec called for a third tool, `site_backup_stage`, on the
+reasoning that `api.site.restore` takes **Remote File** docnames rather than file paths:
 
 ```python
 def restore_site_from_files(self, files, skip_failing_patches=False):
     self.remote_database_file = files["database"]   # Remote File docname
-    self.remote_public_file   = files["public"]
-    self.remote_private_file  = files["private"]
 ```
 
-So `site_restore` alone is only usable against a backup that is *already* in Press's S3.
-A local file has no route in. The dashboard solves this with two calls that are already
-whitelisted:
+That constraint is real, but the conclusion was wrong. **The staging endpoint already
+exists**: `press.api.site.upload_backup_file()` is whitelisted, takes a multipart upload,
+streams to disk in 8 MB chunks, enforces a 5 GiB cap, checks `Site` write permission, and
+creates the Remote File record itself (pushing to MinIO when a bucket is configured). A
+third tool would have reimplemented it.
 
-| API | Role |
-|---|---|
-| `api.site.get_upload_link(file, parts=1)` | presigned S3 PUT URL |
-| `api.site.uploaded_backup_info(file, path, type, size, url)` | creates the Remote File record |
+It also cannot be an MCP tool. MCP dispatch passes JSON `args`; a multipart binary body has
+no representation there. So the upload stays a plain Frappe API call.
 
-Exposing those as one staging tool is what makes the pair usable end to end.
+Full path, with no browser and only the MCP token as the starting credential:
+
+| Step | Call | Credential |
+|---|---|---|
+| 1 | `mint_dashboard_login_url` → `sid` | MCP token |
+| 2 | POST `press.api.site.upload_backup_file` (multipart) → Remote File docname | `sid` cookie |
+| 3 | `site_restore(site, database=<remote_file>)` | MCP token |
+
+Verified on `autodeploypanel.mvpstorm.com`: a minted `sid` authenticates
+`frappe.auth.get_logged_user` (returns the token owner), `upload_backup_file` answers `417`
+to a GET (present, POST-only), and `is_s3_configured` returns `true`.
 
 ## Design
 
@@ -76,26 +84,14 @@ callers don't hand-build nested JSON. `group` (Release Group) is required here e
 the API can infer it — inference picks a shared bench, which is the wrong default for a
 tool whose main use is "put a site on *this* bench".
 
-### 2. `site_backup_stage` — risk `medium`
+**Security decision — no `source_url` argument.** A parameter that made Press download the
+backup itself would be an SSRF primitive on the control plane: the caller picks a URL and
+the control plane fetches it, with its own network position and credentials. The upload
+therefore stays a push from the caller to `upload_backup_file`. If server-side fetch is ever
+wanted it needs an explicit domain allowlist and its own tool, so the risk tier shows in the
+catalog instead of hiding behind an optional argument.
 
-```
-method: (new thin wrapper) press.mcp_server.site_ops.stage_backup_upload
-args:   { file, size, type = database|public|private|config, parts? }
-returns { upload_url, remote_file_hint, path }
-```
-
-Two-step by design: the tool returns a presigned URL, the **caller** uploads the bytes,
-then calls again with `confirm: true` to run `uploaded_backup_info` and get the Remote
-File docname. Press never fetches a URL supplied by the caller.
-
-**Security decision — presigned client upload, not server-side fetch.** A
-`source_url` parameter that made Press download the file would be an SSRF primitive on the
-control plane: the caller chooses a URL and the control plane fetches it, with its own
-network position and credentials. Rejected for v1. If server-side fetch is ever added it
-needs an explicit domain allowlist, and it should be a separate tool so the risk tier is
-visible in the catalog rather than hidden behind an optional argument.
-
-### 3. `site_restore` — risk `high`
+### 2. `site_restore` — risk `high`
 
 ```
 method: press.api.site.restore
@@ -110,12 +106,19 @@ per-token approval rather than riding along with medium-risk site management.
 
 | File | Change |
 |---|---|
-| `press/mcp_server/tools.py` | 3 `TOOLS` entries (`method`, `description`, `required_args`, `args_schema`, `risk`) |
-| `press/mcp_server/help.py` | 3 entries in the category map → `site_lifecycle` |
-| `press/mcp_server/server.py` | add the 3 names to the site-targeted set in `_extract_target()` |
-| `press/mcp_server/site_ops.py` | **new** — the `stage_backup_upload` wrapper |
-| `press/mcp_server/test_server.py` | scoping + schema tests |
-| `press/mcp_server/test_site_ops.py` | **new** — staging wrapper tests |
+| `press/mcp_server/site_ops.py` | **new** — both implementations (matches the existing `bench_ops.py` / `file_ops.py` pattern) |
+| `press/mcp_server/tools.py` | 2 `TOOLS` entries (`method`, `description`, `required_args`, `args_schema`, `risk`) |
+| `press/mcp_server/help.py` | 2 entries in the category map → `site_lifecycle` |
+| `press/mcp_server/server.py` | register both in `_extract_target()` + repair the two broken tools |
+| `press/mcp_server/test_site_ops.py` | **new** — implementation tests |
+| `press/mcp_server/test_server.py` | scoping test + the registry guard test |
+
+**File-size note.** `tools.py` (925 lines) and `server.py` (973) are both over the 700-line
+gate. The implementation therefore goes in a new `site_ops.py`; what lands in `tools.py` is
+registry data only (~30 lines of `description` and `args_schema`). Splitting the registry
+itself is a real refactor — `_ARG_FRAGMENTS` and `_schema()` live in `tools.py`, so a second
+registry module would import from it circularly — and it belongs in its own commit rather
+than tangled with a feature, where it would make both harder to review.
 
 `_extract_target` is not optional. A tool that carries a resource argument but is missing
 from that function is refused at call time — the server returns a `PermissionError`
@@ -132,7 +135,7 @@ and the feature touch the same code.
 ## Vue surface
 
 The MCP catalog UI (`dashboard/src/pages/devtools/mcp/`, `components/mcp/`) renders from
-`TOOLS`, so the three tools appear in the Issue Token dialog and the guide with their risk
+`TOOLS`, so both tools appear in the Issue Token dialog and the guide with their risk
 badges once registered — no per-tool UI work. What needs checking is that `site_restore`
 renders as a **high**-risk chip so nobody grants it by accident while clicking through a
 token.
@@ -141,14 +144,23 @@ token.
 
 ## Testing
 
-1. `args_schema` for all three validates against `_ARG_FRAGMENTS` (a missing fragment
+1. `args_schema` for both tools validates against `_ARG_FRAGMENTS` (a missing fragment
    raises `KeyError` at import — a broken schema fails the test suite, not production).
 2. `_extract_target` returns the right `(doctype, name)` for each tool, including the two
    repaired tools.
 3. Scoping: a token scoped to site A is refused when it calls `site_restore` on site B.
 4. `site_restore` is rejected unless the token carries explicit high-risk approval.
-5. Staging wrapper: `confirm: false` returns a URL and creates nothing; `confirm: true`
-   creates exactly one Remote File.
+5. `site_create` refuses a name that already exists, and refuses a missing release group,
+   before it reaches `api.site.new`.
+
+### The guard test (the point of this section)
+
+`252991d2a` was titled *"register six tools missing from `_extract_target`"* — the same class
+of bug this spec repairs two more instances of. Fixing the third and fourth by hand invites
+a fifth. So the suite gets a test that walks `TOOLS` and fails if **any** tool declaring a
+`site` / `site_name` / `release_group` / `name` argument is absent from `_extract_target`
+and not in `RESOURCELESS_TOOLS`. That converts a recurring silent gap into a red test at
+the moment the tool is added.
 
 ## Deploy
 
@@ -160,8 +172,7 @@ with the right risk tiers.
 
 ## Success criteria
 
-- `list_tools` shows `site_create`, `site_backup_stage`, `site_restore` with risk
-  `medium/medium/high`.
+- `list_tools` shows `site_create` (`medium`) and `site_restore` (`high`).
 - `app_git_status` and `bench_provision_progress` answer instead of erroring.
 - The Lipton backup reaches a new site on `bench-0020` with no browser involved.
 - Every call appears in the MCP Call Log with args and duration.

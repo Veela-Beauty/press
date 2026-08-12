@@ -502,6 +502,9 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		# Obj 11: *_and_wait wrappers. Without these the fail-closed guard
 		# _assert_target_extracted blocks them outright.
 		"site_update_and_wait",
+		# Restores INTO an existing site, so the site is the written resource.
+		# site_create is RG-scoped instead: its site does not exist yet.
+		"site_restore",
 	}:
 		# api/site.py methods take 'name'; bench_dev_overview methods take 'site_name'
 		site = site or args.get("name")
@@ -548,6 +551,15 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"list_sites_on_release_group",
 		# Takes release_group; was never mapped, so the guard rejected it.
 		"bench_set_app_branch",
+		# Missed by 252991d2a, which registered six tools of this exact class.
+		# Both are catalogued, both carry release_group, and both were refused at
+		# call time until now. test_every_resource_tool_is_scoped stops the next
+		# one shipping the same way.
+		"app_git_status",
+		"bench_provision_progress",
+		# Scoped to the Release Group the site lands on: the site does not exist
+		# yet, so there is no Site resource to scope against.
+		"site_create",
 	}:
 		if rg:
 			return "Release Group", rg

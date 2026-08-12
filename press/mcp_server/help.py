@@ -275,6 +275,8 @@ TOOL_CATEGORY: dict[str, str] = {
 	"site_add_domain": "site_lifecycle",
 	"site_remove_domain": "site_lifecycle",
 	"site_set_host_name": "site_lifecycle",
+	"site_create": "site_lifecycle",
+	"site_restore": "site_lifecycle",
 	"site_schedule_update": "site_lifecycle",
 	"revoke_my_token": "site_lifecycle",
 	# File / Config
