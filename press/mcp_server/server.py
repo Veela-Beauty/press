@@ -551,12 +551,6 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"list_sites_on_release_group",
 		# Takes release_group; was never mapped, so the guard rejected it.
 		"bench_set_app_branch",
-		# Missed by 252991d2a, which registered six tools of this exact class.
-		# Both are catalogued, both carry release_group, and both were refused at
-		# call time until now. test_every_resource_tool_is_scoped stops the next
-		# one shipping the same way.
-		"app_git_status",
-		"bench_provision_progress",
 		# Scoped to the Release Group the site lands on: the site does not exist
 		# yet, so there is no Site resource to scope against.
 		"site_create",
@@ -707,11 +701,26 @@ def _assert_target_extracted(
 	# If it carries a resource arg, that's a bug.
 	leaks = sorted(_RESOURCE_ARG_NAMES & set(args.keys()))
 	if leaks:
+		# Blame the caller FIRST. The overwhelmingly common cause is a resource arg the
+		# tool does not declare (passing release_group to a tool whose required_args is
+		# ["bench_name"]), and the old wording sent people to patch _extract_target for
+		# a mapping that was already correct. Only mention the server after ruling that
+		# out. Cost of the old message: two tools written off as broken for a week.
+		from press.mcp_server.tools import TOOLS
+
+		expected = TOOLS.get(tool, {}).get("required_args", [])
+		unexpected = [a for a in leaks if a not in expected]
+		hint = ""
+		if unexpected and expected:
+			hint = (
+				f" This tool expects {expected!r}; you passed {unexpected!r}, which it does "
+				f"not declare. Retry with the declared argument before suspecting the server."
+			)
 		raise frappe.PermissionError(
-			f"tool {tool!r} carries resource argument(s) {leaks!r} but is missing "
-			f"from _extract_target — refusing to bypass token resource scope. "
-			f"This is a server-side bug; please add {tool!r} to _extract_target "
-			f"or RESOURCELESS_TOOLS in press/mcp_server/server.py."
+			f"tool {tool!r} carries resource argument(s) {leaks!r} that _extract_target did "
+			f"not resolve, so the call is refused rather than run unscoped.{hint}"
+			f" If the arguments ARE the declared ones, then {tool!r} is genuinely missing from "
+			f"_extract_target / RESOURCELESS_TOOLS in press/mcp_server/server.py."
 		)
 	# No resource args at all — tool genuinely operates on nothing scopable.
 	# Add it to RESOURCELESS_TOOLS to silence this check on next deploy if

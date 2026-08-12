@@ -244,13 +244,25 @@ class TestResourceScopingRegistry(unittest.TestCase):
 			("Release Group", "bench-0020"),
 		)
 
-	def test_previously_broken_tools_now_resolve(self):
-		"""app_git_status and bench_provision_progress were catalogued but unmapped."""
-		from press.mcp_server.server import _extract_target
+	def test_guard_message_blames_the_caller_before_the_server(self):
+		"""A wrong-argument call must not read as a server bug.
+
+		app_git_status and bench_provision_progress declare ["bench_name"]. Called with
+		release_group they are correctly refused, but the old message said "This is a
+		server-side bug; please add <tool> to _extract_target" : so both were written off
+		as broken tools for a week when the mapping had been right all along. The message
+		now names the declared argument first.
+		"""
+		from press.mcp_server.server import _assert_target_extracted
 
 		for tool in ("app_git_status", "bench_provision_progress"):
-			self.assertEqual(
-				_extract_target(tool, {"release_group": "bench-0020"}),
-				("Release Group", "bench-0020"),
-				f"{tool} must resolve to its Release Group",
+			with self.assertRaises(frappe.PermissionError) as ctx:
+				_assert_target_extracted(tool, {"release_group": "bench-0020"}, None, None)
+			msg = str(ctx.exception)
+			self.assertIn("bench_name", msg, "must name the argument the tool actually declares")
+			self.assertIn("release_group", msg, "must name what the caller wrongly passed")
+			self.assertLess(
+				msg.index("bench_name"),
+				msg.index("_extract_target"),
+				"the caller-side hint must come before the server-side one",
 			)
