@@ -1,4 +1,4 @@
-# MCP tools: create a site and restore a backup — design
+# MCP tools: create a site and restore a backup : design
 
 **Date:** 2026-08-12
 **Branch:** `feat/mcp-site-create-restore`
@@ -7,7 +7,7 @@
 ## Problem
 
 The Press MCP server exposes 82 tools. A caller can migrate, update, clone, back up,
-install apps on and SSH into a site — but **cannot create a site, and cannot restore a
+install apps on and SSH into a site : but **cannot create a site, and cannot restore a
 backup into one**. Verified against the live catalog on `autodeploypanel.mvpstorm.com`:
 the `site_*` family is activate / add_domain / backup / config_get / config_set /
 db_processlist / deactivate / domains_list / file_read / file_write / install_app /
@@ -17,7 +17,7 @@ restore.
 
 Consequence: any workflow that needs a fresh site seeded from an existing database has
 to leave the API and go through the dashboard by hand. That blocks automation of the
-single most common support/QA task — "give me a copy of this data on a throwaway site".
+single most common support/QA task : "give me a copy of this data on a throwaway site".
 
 **Triggering case.** A 440 MB (3.63 GB uncompressed) production backup of
 `erpsys.liptoneg.com`, recovered from the Daman borg archive, needs to land on
@@ -72,31 +72,49 @@ to a GET (present, POST-only), and `is_s3_configured` returns `true`.
 
 ## Design
 
-### 1. `site_create` — risk `medium`
+### 1. `site_create` : risk `medium`
 
 ```
-method: press.api.site.new
-args:   { name, group, apps?, plan?, cluster?, server?, domain? }
+method: press.mcp_server.site_ops.site_create
+args:   { new_subdomain, release_group, apps?, plan?, cluster?, server?,
+          root_domain?, database?, public?, private?, config? }
 ```
 
-`api.site.new` takes a single `site` payload dict; the tool assembles it from flat args so
-callers don't hand-build nested JSON. `group` (Release Group) is required here even though
-the API can infer it — inference picks a shared bench, which is the wrong default for a
-tool whose main use is "put a site on *this* bench".
+`api.site.new` takes a single `site` payload dict; the wrapper assembles it from flat args
+so callers don't hand-build nested JSON. Arg names reuse the registry's existing vocabulary
+(`new_subdomain` from `clone_site`, `release_group` from the bench tools) so `_extract_target`
+scopes it without a special case and the schema descriptions stay accurate.
 
-**Security decision — no `source_url` argument.** A parameter that made Press download the
+`release_group` is required even though `api.site.new` can infer a group : inference picks a
+shared bench, which is the wrong default for a tool whose whole purpose is "put a site on
+*this* bench".
+
+`new_subdomain` is the subdomain alone. An FQDN is rejected rather than passed through,
+because `api.site.new` joins it with the root domain itself : `probe.sandbox.example.com`
+would become `probe.sandbox.example.com.sandbox.example.com`.
+
+Passing `database` (a Remote File docname) restores **at creation**, which is what the
+dashboard's own New Site + Restore flow does. `site_restore` is for a site that already
+exists.
+
+**Security decision : no `source_url` argument.** A parameter that made Press download the
 backup itself would be an SSRF primitive on the control plane: the caller picks a URL and
 the control plane fetches it, with its own network position and credentials. The upload
 therefore stays a push from the caller to `upload_backup_file`. If server-side fetch is ever
 wanted it needs an explicit domain allowlist and its own tool, so the risk tier shows in the
 catalog instead of hiding behind an optional argument.
 
-### 2. `site_restore` — risk `high`
+### 2. `site_restore` : risk `high`
 
 ```
-method: press.api.site.restore
-args:   { site, database, public?, private?, config?, skip_failing_patches?, skip_tables? }
+method: press.mcp_server.site_ops.site_restore
+args:   { site, database?, public?, private?, config?, skip_failing_patches?, skip_tables? }
 ```
+
+Returns the Site's status read back plus the Agent Job Press actually created. A hardcoded
+`"queued"` was the first draft and it is the same false-success shape as `site_config_set`
+answering `set` for a call that had raised : when `agent_job` comes back null, nothing was
+queued, and the caller can tell.
 
 `high`, not `medium`: this **overwrites the target site's database**. It belongs in the
 same tier as `site_run_sql` and `site_uninstall_app`, which means it needs explicit
@@ -106,22 +124,22 @@ per-token approval rather than riding along with medium-risk site management.
 
 | File | Change |
 |---|---|
-| `press/mcp_server/site_ops.py` | **new** — both implementations (matches the existing `bench_ops.py` / `file_ops.py` pattern) |
+| `press/mcp_server/site_ops.py` | **new** : both implementations (matches the existing `bench_ops.py` / `file_ops.py` pattern) |
 | `press/mcp_server/tools.py` | 2 `TOOLS` entries (`method`, `description`, `required_args`, `args_schema`, `risk`) |
 | `press/mcp_server/help.py` | 2 entries in the category map → `site_lifecycle` |
 | `press/mcp_server/server.py` | register both in `_extract_target()` + repair the two broken tools |
-| `press/mcp_server/test_site_ops.py` | **new** — implementation tests |
+| `press/mcp_server/test_site_ops.py` | **new** : implementation tests |
 | `press/mcp_server/test_server.py` | scoping test + the registry guard test |
 
 **File-size note.** `tools.py` (925 lines) and `server.py` (973) are both over the 700-line
 gate. The implementation therefore goes in a new `site_ops.py`; what lands in `tools.py` is
 registry data only (~30 lines of `description` and `args_schema`). Splitting the registry
-itself is a real refactor — `_ARG_FRAGMENTS` and `_schema()` live in `tools.py`, so a second
-registry module would import from it circularly — and it belongs in its own commit rather
+itself is a real refactor : `_ARG_FRAGMENTS` and `_schema()` live in `tools.py`, so a second
+registry module would import from it circularly : and it belongs in its own commit rather
 than tangled with a feature, where it would make both harder to review.
 
 `_extract_target` is not optional. A tool that carries a resource argument but is missing
-from that function is refused at call time — the server returns a `PermissionError`
+from that function is refused at call time : the server returns a `PermissionError`
 telling you it "refuses to bypass token resource scope". Skipping it ships a dead tool.
 
 ### Bundled fix (same function, already broken)
@@ -129,14 +147,14 @@ telling you it "refuses to bypass token resource scope". Skipping it ships a dea
 `app_git_status` and `bench_provision_progress` are both in the catalog and both
 uncallable today, with exactly that error. They carry `release_group` but were never
 added to `_extract_target`. Two lines in the set we are already editing. `site_create`
-takes `group` rather than `site`, so it needs the release-group branch anyway — the fix
-and the feature touch the same code.
+carries `release_group` rather than `site`, so it needs that same branch anyway : the fix
+and the feature touch one function.
 
 ## Vue surface
 
 The MCP catalog UI (`dashboard/src/pages/devtools/mcp/`, `components/mcp/`) renders from
 `TOOLS`, so both tools appear in the Issue Token dialog and the guide with their risk
-badges once registered — no per-tool UI work. What needs checking is that `site_restore`
+badges once registered : no per-tool UI work. What needs checking is that `site_restore`
 renders as a **high**-risk chip so nobody grants it by accident while clicking through a
 token.
 
@@ -145,7 +163,7 @@ token.
 ## Testing
 
 1. `args_schema` for both tools validates against `_ARG_FRAGMENTS` (a missing fragment
-   raises `KeyError` at import — a broken schema fails the test suite, not production).
+   raises `KeyError` at import : a broken schema fails the test suite, not production).
 2. `_extract_target` returns the right `(doctype, name)` for each tool, including the two
    repaired tools.
 3. Scoping: a token scoped to site A is refused when it calls `site_restore` on site B.
@@ -155,7 +173,7 @@ token.
 
 ### The guard test (the point of this section)
 
-`252991d2a` was titled *"register six tools missing from `_extract_target`"* — the same class
+`252991d2a` was titled *"register six tools missing from `_extract_target`"* : the same class
 of bug this spec repairs two more instances of. Fixing the third and fourth by hand invites
 a fifth. So the suite gets a test that walks `TOOLS` and fails if **any** tool declaring a
 `site` / `site_name` / `release_group` / `name` argument is absent from `_extract_target`
@@ -165,7 +183,7 @@ the moment the tool is added.
 ## Deploy
 
 Press runs on **press-ctrl**. Per the standing lesson, Press work is edited and tested on
-the server — you cannot push from press-ctrl. So: land the branch on GitHub from the dev
+the server : you cannot push from press-ctrl. So: land the branch on GitHub from the dev
 box, pull it on the server, run the MCP tests there, `bench build` the dashboard for the
 Vue catalog change, restart, then verify with a live `list_tools` that all three appear
 with the right risk tiers.
@@ -182,6 +200,6 @@ with the right risk tiers.
 | Risk | Mitigation |
 |---|---|
 | Restore overwrites the wrong site | `high` tier + resource scoping + the site name is a required arg with no default |
-| A 3.63 GB restore exhausts disk on the target server | Check `df -h` before restore; not enforced by the tool in v1 — documented, not automated |
+| A 3.63 GB restore exhausts disk on the target server | Check `df -h` before restore; not enforced by the tool in v1 : documented, not automated |
 | The staged Remote File is left orphaned if the caller never confirms | Press's existing Remote File cleanup applies; no new lifecycle |
-| Restored copy runs production side effects (emails, external syncs) | Out of scope for the tool. Caller's responsibility — pause the scheduler before the first migrate |
+| Restored copy runs production side effects (emails, external syncs) | Out of scope for the tool. Caller's responsibility : pause the scheduler before the first migrate |

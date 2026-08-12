@@ -155,11 +155,29 @@ def site_restore(
 	)
 	frappe.db.commit()
 
+	# Report what Press actually did, not what we asked for. A hardcoded
+	# "queued" is how site_config_set came to answer "set" for a call that had
+	# raised : the caller then polls for a job that was never created. Read the
+	# state back instead.
+	site_status = frappe.db.get_value("Site", site, "status")
+	job = frappe.get_all(
+		"Agent Job",
+		filters={"site": site, "job_type": ("like", "%Restore%")},
+		fields=["name", "status", "creation"],
+		order_by="creation desc",
+		limit=1,
+	)
+
 	return {
 		"site": site,
 		"files": files,
 		"skip_failing_patches": bool(skip_failing_patches),
 		"skip_tables": skip_tables or [],
-		"status": "queued",
-		"note": "Restore runs as an agent job. Poll site_status / agent_job_list for progress.",
+		"site_status": site_status,
+		"agent_job": job[0].name if job else None,
+		"agent_job_status": job[0].status if job else None,
+		"note": (
+			"Restore runs as an agent job. agent_job is the job Press created : if it is "
+			"null, nothing was queued. Poll agent_job_progress or site_status for progress."
+		),
 	}

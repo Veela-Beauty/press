@@ -77,12 +77,44 @@ class TestSiteOpsValidation(unittest.TestCase):
 
 		with patch.object(frappe.db, "exists", return_value=True), patch.object(
 			frappe.db, "commit"
+		), patch.object(frappe.db, "get_value", return_value="Active"), patch.object(
+			frappe, "get_all", return_value=[]
 		), patch.object(site_ops.site_api, "restore", side_effect=fake_restore):
 			out = site_ops.site_restore(site="probe.sandbox.mvpstorm.com", database="rf-db")
 
 		self.assertEqual(captured["files"], {"database": "rf-db"})
 		self.assertNotIn("public", captured["files"])
-		self.assertEqual(out["status"], "queued")
+		self.assertEqual(out["site_status"], "Active")
+
+	def test_restore_reports_null_job_when_nothing_was_queued(self):
+		"""The false-success guard: no Agent Job means agent_job is null, not 'queued'.
+
+		A hardcoded status is how site_config_set came to answer 'set' for a call that
+		had raised. The caller must be able to tell the difference.
+		"""
+		with patch.object(frappe.db, "exists", return_value=True), patch.object(
+			frappe.db, "commit"
+		), patch.object(frappe.db, "get_value", return_value="Broken"), patch.object(
+			frappe, "get_all", return_value=[]
+		), patch.object(site_ops.site_api, "restore", return_value=None):
+			out = site_ops.site_restore(site="probe.sandbox.mvpstorm.com", database="rf-db")
+
+		self.assertIsNone(out["agent_job"])
+		self.assertIsNone(out["agent_job_status"])
+		self.assertEqual(out["site_status"], "Broken")
+		self.assertNotIn("status", out)  # no hardcoded optimistic field
+
+	def test_restore_reports_the_job_press_created(self):
+		job = frappe._dict({"name": "job-123", "status": "Pending", "creation": "2026-08-12"})
+		with patch.object(frappe.db, "exists", return_value=True), patch.object(
+			frappe.db, "commit"
+		), patch.object(frappe.db, "get_value", return_value="Pending"), patch.object(
+			frappe, "get_all", return_value=[job]
+		), patch.object(site_ops.site_api, "restore", return_value=None):
+			out = site_ops.site_restore(site="probe.sandbox.mvpstorm.com", database="rf-db")
+
+		self.assertEqual(out["agent_job"], "job-123")
+		self.assertEqual(out["agent_job_status"], "Pending")
 
 	def test_create_forwards_subdomain_and_group(self):
 		captured = {}
