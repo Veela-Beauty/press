@@ -720,11 +720,14 @@ def _assert_target_extracted(
 				f"ARE the declared ones, then {tool!r} is genuinely missing from "
 				f"_extract_target / RESOURCELESS_TOOLS in press/mcp_server/server.py."
 			)
+		# NOTE: test_assert_target_extracted_fails_closed_on_unmapped_resource_tool asserts
+		# on the phrase "missing from _extract_target". Keep it.
 		raise frappe.PermissionError(
 			f"tool {tool!r} carries resource argument(s) {leaks!r} that could not be resolved "
 			f"to a Site or Release Group, so the call is refused rather than run unscoped. "
-			f"Add {tool!r} to the matching set in _extract_target, or to RESOURCELESS_TOOLS "
-			f"if it genuinely owns no resource (press/mcp_server/server.py)."
+			f"{tool!r} is missing from _extract_target — add it to the matching set there, or "
+			f"to RESOURCELESS_TOOLS if it genuinely owns no resource "
+			f"(press/mcp_server/server.py)."
 		)
 	# No resource args at all — tool genuinely operates on nothing scopable.
 	# Add it to RESOURCELESS_TOOLS to silence this check on next deploy if
