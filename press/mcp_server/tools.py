@@ -878,6 +878,58 @@ TOOLS: dict[str, dict] = {
 		),
 		"risk": "medium",
 	},
+	# Site provisioning (site_ops) — the two gaps in the site_* family.
+	"site_create": {
+		"method": "press.mcp_server.site_ops.site_create",
+		"description": "Create a site on a specific Release Group. 'new_subdomain' is the subdomain ONLY (no dots) — Press appends the root domain. Pass 'database' (a Remote File docname) to restore a backup AT CREATION instead of creating empty then restoring; upload the backup first via POST press.api.site.upload_backup_file with a sid from mint_dashboard_login_url. 'apps' is a list of app NAME strings and must include frappe.",
+		"required_args": ["new_subdomain", "release_group"],
+		"args_schema": _schema(
+			["new_subdomain", "release_group"],
+			{
+				"apps": {
+					"type": "array",
+					"items": {"type": "string"},
+					"description": "App names to install, e.g. ['frappe','erpnext']. Defaults to ['frappe'].",
+				},
+				"plan": {"type": "string", "description": "Site Plan docname ('' lets Press pick)"},
+				"cluster": None,
+				"server": None,
+				"root_domain": {
+					"type": "string",
+					"description": "Root domain for the site ('' uses Press Settings default)",
+				},
+				"database": {"type": "string", "description": "Remote File docname of the database backup"},
+				"public": {"type": "string", "description": "Remote File docname of the public files archive"},
+				"private": {"type": "string", "description": "Remote File docname of the private files archive"},
+				"config": {"type": "string", "description": "Remote File docname of the site_config backup"},
+			},
+		),
+		"risk": "medium",
+	},
+	"site_restore": {
+		"method": "press.mcp_server.site_ops.site_restore",
+		"description": "Restore backup files into an EXISTING site. OVERWRITES its database — there is no undo. Each of database/public/private/config takes a Remote File docname (upload via POST press.api.site.upload_backup_file first); at least one is required. Runs as an agent job: poll site_status or agent_job_list. For a fresh site use site_create with 'database' instead.",
+		"required_args": ["site"],
+		"args_schema": _schema(
+			["site"],
+			{
+				"database": {"type": "string", "description": "Remote File docname of the database backup"},
+				"public": {"type": "string", "description": "Remote File docname of the public files archive"},
+				"private": {"type": "string", "description": "Remote File docname of the private files archive"},
+				"config": {"type": "string", "description": "Remote File docname of the site_config backup"},
+				"skip_failing_patches": {
+					"type": "boolean",
+					"description": "Continue the post-restore migrate past a failing patch",
+				},
+				"skip_tables": {
+					"type": "array",
+					"items": {"type": "string"},
+					"description": "Table names to exclude from the restore",
+				},
+			},
+		),
+		"risk": "high",
+	},
 }
 
 

@@ -502,6 +502,9 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		# Obj 11: *_and_wait wrappers. Without these the fail-closed guard
 		# _assert_target_extracted blocks them outright.
 		"site_update_and_wait",
+		# Restores INTO an existing site, so the site is the written resource.
+		# site_create is RG-scoped instead: its site does not exist yet.
+		"site_restore",
 	}:
 		# api/site.py methods take 'name'; bench_dev_overview methods take 'site_name'
 		site = site or args.get("name")
@@ -548,6 +551,9 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"list_sites_on_release_group",
 		# Takes release_group; was never mapped, so the guard rejected it.
 		"bench_set_app_branch",
+		# Scoped to the Release Group the site lands on: the site does not exist
+		# yet, so there is no Site resource to scope against.
+		"site_create",
 	}:
 		if rg:
 			return "Release Group", rg
@@ -695,11 +701,33 @@ def _assert_target_extracted(
 	# If it carries a resource arg, that's a bug.
 	leaks = sorted(_RESOURCE_ARG_NAMES & set(args.keys()))
 	if leaks:
+		# Blame the caller FIRST. The overwhelmingly common cause is a resource arg the
+		# tool does not declare (passing release_group to a tool whose required_args is
+		# ["bench_name"]), and the old wording sent people to patch _extract_target for
+		# a mapping that was already correct. Only mention the server after ruling that
+		# out. Cost of the old message: two tools written off as broken for a week.
+		from press.mcp_server.tools import TOOLS
+
+		expected = TOOLS.get(tool, {}).get("required_args", [])
+		unexpected = [a for a in leaks if a not in expected]
+		if unexpected and expected:
+			# Caller error: an arg the tool does not declare. Say so first, and do not
+			# name the server internals until the end.
+			raise frappe.PermissionError(
+				f"tool {tool!r} was called with resource argument(s) {unexpected!r} that it "
+				f"does not declare; it expects {expected!r}. Retry with the declared "
+				f"argument. The call is refused rather than run unscoped. If the arguments "
+				f"ARE the declared ones, then {tool!r} is genuinely missing from "
+				f"_extract_target / RESOURCELESS_TOOLS in press/mcp_server/server.py."
+			)
+		# NOTE: test_assert_target_extracted_fails_closed_on_unmapped_resource_tool asserts
+		# on the phrase "missing from _extract_target". Keep it.
 		raise frappe.PermissionError(
-			f"tool {tool!r} carries resource argument(s) {leaks!r} but is missing "
-			f"from _extract_target — refusing to bypass token resource scope. "
-			f"This is a server-side bug; please add {tool!r} to _extract_target "
-			f"or RESOURCELESS_TOOLS in press/mcp_server/server.py."
+			f"tool {tool!r} carries resource argument(s) {leaks!r} that could not be resolved "
+			f"to a Site or Release Group, so the call is refused rather than run unscoped. "
+			f"{tool!r} is missing from _extract_target — add it to the matching set there, or "
+			f"to RESOURCELESS_TOOLS if it genuinely owns no resource "
+			f"(press/mcp_server/server.py)."
 		)
 	# No resource args at all — tool genuinely operates on nothing scopable.
 	# Add it to RESOURCELESS_TOOLS to silence this check on next deploy if
