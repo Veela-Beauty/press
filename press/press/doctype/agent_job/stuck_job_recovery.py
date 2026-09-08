@@ -178,3 +178,28 @@ def _mark_failure(job_name: str, reason: str) -> None:
 		},
 		update_modified=True,
 	)
+	_run_failure_callback(job_name)
+
+
+def _run_failure_callback(job_name: str) -> None:
+	"""Run the job's own callback so the record it was created for advances.
+
+	Setting Agent Job.status with a bare db.set_value skips process_job_updates,
+	so the linked Bench/Site keeps whatever transient status it had. Nothing
+	else ever revisits it: a Bench left at "Pending" is invisible to
+	archive_broken_benches and to every retry path, so it sits there forever.
+
+	Observed 2026-09-08 on release group bench-0014: four benches frozen at
+	"Pending" for 8 days, across both New Bench and Archive Bench jobs, every
+	one of them carrying this cron's own failure message in its traceback.
+	"""
+	from press.press.doctype.agent_job.agent_job import process_job_updates
+	from press.utils import log_error
+
+	try:
+		process_job_updates(job_name)
+		frappe.db.commit()
+	except Exception:
+		# A broken callback must not stop the sweep from failing other jobs.
+		frappe.db.rollback()
+		log_error("Stuck Job Recovery Callback Failed", agent_job=job_name)
