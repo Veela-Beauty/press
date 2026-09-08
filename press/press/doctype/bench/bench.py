@@ -1394,6 +1394,10 @@ def process_new_bench_job_update(job: AgentJob):  # noqa: C901
 		"Success": "Active",
 		"Failure": "Broken",
 		"Delivery Failure": "Broken",
+		# The agent has no record of this job, so the bench was never created.
+		# Same outcome as a delivery failure. Without this key the callback
+		# raised KeyError and left the bench at "Pending".
+		"Undelivered": "Broken",
 	}[job.status]
 	if updated_status == bench.status:
 		return
