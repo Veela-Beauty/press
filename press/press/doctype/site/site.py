@@ -288,10 +288,15 @@ class Site(Document, TagHelpers):
 			sites = query.where(Site.status == status).run(as_dict=1)
 		else:
 			benches_with_available_update = benches_with_available_update()
-			sites = query.where(Site.status != "Archived").select(Site.bench).run(as_dict=1)
+			sites = (
+				query.where(Site.status != "Archived").select(Site.bench, Site.status).run(as_dict=1)
+			)
 
 			for site in sites:
-				if site.bench in benches_with_available_update:
+				# Only a healthy site may advertise an update. Overriding every
+				# status hid real ones: a Broken site that had never been
+				# provisioned read as "Update Available" for 8 days.
+				if site.status == "Active" and site.bench in benches_with_available_update:
 					site.status = "Update Available"
 
 		return sites

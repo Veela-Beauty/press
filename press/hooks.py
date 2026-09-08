@@ -269,6 +269,7 @@ scheduler_events = {
 		"press.press.doctype.agent_job.agent_job.agent_poll_count_stats_daily",
 	],
 	"hourly": [
+		"press.press.doctype.server.stranded_server_detection.detect_stranded_servers",
 		"press.press.doctype.site.backups.cleanup_local",
 		"press.press.doctype.agent_job.agent_job.update_job_step_status",
 		"press.press.doctype.bench.bench.archive_obsolete_benches",
