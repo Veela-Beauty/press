@@ -1,5 +1,29 @@
 # Press Fork Dev Log
 
+### Session 11 - 2026-09-01: press-ctrl hit 100% disk; the maintenance jobs nobody switched on
+
+**What we did:**
+1. Diagnosed Internal Server Error on autodeploypanel.mvpstorm.com/dashboard/sites. `/` was at 100% with 0 bytes free, so MariaDB could not write query temp files: `pymysql.err.InternalError: (3, 'Error writing file /tmp/#sql/... (Errcode: 28 "No space left on device")')` on press.api.account, 464 failures. The page shell still returned HTTP 200, so the panel looked alive from outside.
+2. Freed 53G, 100% to 81%. Deleted two orphaned `gwis-restoretest-*` MinIO dirs (29G, both sites already Archived in Press). Bumped log-elasticsearch heap 1g to 4g in /opt/log-server/docker-compose.yml, restarted, deleted filebeat indices older than 30 days (24G), installed ILM policy `filebeat-30d-retention` + template `filebeat-retention` so it prunes itself.
+3. Found log-elasticsearch dead since about 2026-08-16: a 1g heap holding 128 daily indices kept the parent circuit breaker tripped at 977mb/972.7mb, so it answered HTTP 429 to every request, including the deletes needed to shrink it. Daily index size fell from ~600MB to KB and nothing flagged it.
+4. Traced why the disk filled a third time. Three defects, each sufficient alone. (A) `Server Maintenance` has no `registry_gc_enabled` or `backup_retention_enabled` row in tabSingles, so both scheduled jobs return at the guard. (B) maintenance.sh backup-retention matches `<epoch>_<rand>` dirs only: 142 matched, 307 `YYYY-MM-DD` per-site dirs skipped, and the skipped set is the one that grows daily. (C) nothing sweeps backup dirs whose site is gone.
+5. Corrected a standing premise: the restore-test auto-drop is NOT broken. Those sites come from daman_backup, not Press, and its hourly `archive_due_test_sites` has a stale-run sweep, per-schedule archive windows and operator drops. Zero non-Archived restore-test sites exist. The 2026-06-06 handover's "fix the 24h auto-drop" item was closed by DR Restore Phase 3.
+
+**Files:** none. No code written; design presented and awaiting approval. See docs/handover/2026-09-01-press-ctrl-disk-and-maintenance-handover.md.
+
+**Decisions (approved by Eslam, not yet implemented):**
+- Retention deletes date-dirs older than the window but always keeps the N newest per site (defaults 30d / keep 3), so a dormant site is not stripped to a single backup.
+- Orphan dirs get reported into the Server Maintenance record daily and deleted on an explicit UI click. No autonomous deletion of a dropped site's last backups.
+- Registry GC enabled on a 7-day interval.
+
+**Mistakes worth keeping:**
+- Read the retention script, concluded its pattern skipped everything, then the dry run reported 139 backups found. Both were true: it matches the hash-parent `<epoch>_<rand>` dirs and skips every per-site date dir. Running it beat reasoning about it.
+- Carried the 2026-06-06 note's root cause ("auto-drop is broken") into this session as fact. It had been fixed in a different app three months earlier. A memory that says "X is broken" needs re-checking before it drives work.
+
+**Lesson:** A Frappe Single's doctype `default` never reaches the DB unless the Single is saved. `registry_gc_enabled` is `default: 1` in the JSON and reads None at runtime, because `db_set()` only ever wrote the last_run/last_result rows. The form still renders the default as ticked, so the UI shows Enabled while the scheduler reads falsy and returns.
+
+---
+
 ### Session 10 - 2026-08-13: MCP site provisioning + the scope-guard message that misled us
 
 **What we did:**

@@ -1,5 +1,11 @@
 # Handover: Infrastructure backend (Plan 2a) + press-ctrl disk fix (2026-06-06)
 
+> **Superseded in part, 2026-09-01.** The disk sections below are kept as history, but the
+> "STILL OWED" item "fix the 24h restore-test auto-drop" is DONE (it lives in `daman_backup`, not
+> Press, and was closed by DR Restore Phase 3). The retention cron was also built, not missing;
+> it had simply never been enabled. See
+> [2026-09-01-press-ctrl-disk-and-maintenance-handover.md](2026-09-01-press-ctrl-disk-and-maintenance-handover.md).
+
 ## Where to resume FIRST
 **Plan 2a, Task 5: `SshPlainAdapter.enumerate`** (systemd + df/free/load over SSH -> normalized units/metrics). Mock-tested, runs now.
 Execution mode (user-set): task-by-task, **user check-in after each task**, subagent implements with TDD -> I review (spec+quality) -> push each task. No hurry, quality first.
