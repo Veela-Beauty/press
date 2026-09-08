@@ -39,6 +39,10 @@ Enhanced fork of Frappe Press by Accurate Systems — enterprise capabilities, C
 - [Features Matrix](07-implementation-status/features-matrix.md) — Complete list of all fork features, patches, and enhancements
 - [Critical Issues](07-implementation-status/critical-issues.md) — Known blockers and workarounds
 
+### 08 — Lessons Learned
+- [2026-09-08 — A stranded Server freezes every job on it](08-lessons/2026-09-08-stranded-server-freezes-every-job.md) — `Server.status != "Active"` silently drops a whole box from job polling *and* site updates. Also: writing `Agent Job.status` without its callback orphans the record, `bench clear-cache` does not clear `app_hooks`, and a purged registry tag makes a stuck bench unretryable.
+- [2026-04-29 — bench-watch, Site Overview usage, Log Server](08-lessons/2026-04-29-bench-watch-and-log-server.md) — `dashboard_fields` is a silent whitelist; 5 repeating-pattern bugs.
+
 ## Key Branch Patches
 
 The `cloudflare-dns` branch patches **15 files** from upstream Press. See [Features Matrix](07-implementation-status/features-matrix.md) for the complete list.
