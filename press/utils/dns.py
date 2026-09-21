@@ -294,6 +294,12 @@ def ensure_dns_aaaa_record_doesnt_exist(domain: str):
 
 DNS_HELP_ARTICLE = "https://developers.cloudflare.com/dns/manage-dns-records/"
 
+# `Server` header values that mean "this domain already points at us".
+# The platform was rebranded to "Accurate Systems Cloud", but the proxy still
+# emits the pre-rebrand "Frappe Cloud". Omitting it made correctly-pointed
+# domains fail as third-party proxied -- including our own sites' hostnames.
+OUR_PROXY_SERVER_HEADERS = ("Accurate Systems Cloud", "Frappe Cloud", None)
+
 
 def check_domain_proxied(domain) -> str | None:
 	try:
@@ -304,7 +310,7 @@ def check_domain_proxied(domain) -> str | None:
 		)
 		raise DNSValidationError from e
 	else:
-		if (server := res.headers.get("server")) not in ("Accurate Systems Cloud", None):  # eg: cloudflare
+		if (server := res.headers.get("server")) not in OUR_PROXY_SERVER_HEADERS:  # eg: cloudflare
 			return server
 		return None
 
