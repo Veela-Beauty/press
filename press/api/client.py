@@ -353,11 +353,9 @@ def search_link(
 		order_by or "modified desc",
 	)
 	q = q.select(DocType.name.as_("value"))
-	if doctype == "Team":
-		# title_field is the owner email, which reads the same for every team one user owns
-		q = q.select(Coalesce(DocType.team_title, DocType.user).as_("label"))
-	elif meta.title_field:
-		q = q.select(DocType[meta.title_field].as_("label"))
+	label = _link_label(doctype, meta, DocType)
+	if label is not None:
+		q = q.select(label.as_("label"))
 	if meta.has_field("enabled"):
 		q = q.where(DocType.enabled == 1)
 	if meta.has_field("disabled"):
@@ -365,13 +363,24 @@ def search_link(
 	if meta.has_field("team") and (not frappe.local.system_user() or 1):
 		q = q.where(DocType.team == frappe.local.team().name)
 	if query:
-		condition = DocType.name.like(f"%{query}%")
-		if meta.title_field:
-			condition = condition | DocType[meta.title_field].like(f"%{query}%")
-		if doctype == "Team":
-			condition = condition | DocType.team_title.like(f"%{query}%")
-		q = q.where(condition)
+		q = q.where(_link_search_condition(doctype, meta, DocType, query))
 	return q.run(as_dict=1)
+
+
+def _link_label(doctype: str, meta, DocType):
+	if doctype == "Team":
+		# title_field is the owner email, which reads the same for every team one user owns
+		return Coalesce(DocType.team_title, DocType.user)
+	return DocType[meta.title_field] if meta.title_field else None
+
+
+def _link_search_condition(doctype: str, meta, DocType, query: str):
+	condition = DocType.name.like(f"%{query}%")
+	if meta.title_field:
+		condition = condition | DocType[meta.title_field].like(f"%{query}%")
+	if doctype == "Team":
+		condition = condition | DocType.team_title.like(f"%{query}%")
+	return condition
 
 
 def check_document_access(doctype: str, name: str):
