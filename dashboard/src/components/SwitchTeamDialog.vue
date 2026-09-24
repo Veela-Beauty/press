@@ -15,7 +15,7 @@
 						:href="$team.doc.is_desk_user ? `/app/team/${$team.name}` : null"
 						target="_blank"
 					>
-						{{ $team.doc.user }}
+						{{ $team.doc.team_title || $team.doc.user }}
 					</component>
 				</div>
 			</div>
@@ -35,9 +35,15 @@
 					:key="team.name"
 				>
 					<div class="flex items-center space-x-2">
-						<span class="text-base text-gray-800">
-							{{ team.user }}
-						</span>
+						<div>
+							<div class="text-base text-gray-800">{{ teamLabel(team) }}</div>
+							<div
+								v-if="teamLabel(team) !== team.user"
+								class="mt-0.5 text-sm text-gray-600"
+							>
+								{{ team.user }}
+							</div>
+						</div>
 						<Button
 							v-if="$team.doc.is_desk_user"
 							icon="external-link"
@@ -72,7 +78,7 @@
 	</Dialog>
 </template>
 <script>
-import { TextInput } from 'frappe-ui';
+import { TextInput, call } from 'frappe-ui';
 import { switchToTeam } from '../data/team';
 import LinkControl from './LinkControl.vue';
 
@@ -92,9 +98,9 @@ export default {
 		},
 		sortedTeams() {
 			if (!this.$team?.doc?.valid_teams) return [];
-			return [...this.$team.doc.valid_teams].sort((a, b) => {
-				return a.user.localeCompare(b.user);
-			});
+			return [...this.$team.doc.valid_teams].sort((a, b) =>
+				this.teamLabel(a).localeCompare(this.teamLabel(b)),
+			);
 		},
 		filteredTeams() {
 			if (!this.searchQuery.trim()) {
@@ -103,19 +109,47 @@ export default {
 			const query = this.searchQuery.toLowerCase();
 			return this.sortedTeams.filter(
 				(team) =>
+					this.teamLabel(team).toLowerCase().includes(query) ||
 					team.user.toLowerCase().includes(query) ||
 					team.name.toLowerCase().includes(query),
 			);
+		},
+	},
+	watch: {
+		show: {
+			immediate: true,
+			handler(open) {
+				if (open) this.loadTeamTitles();
+			},
 		},
 	},
 	data() {
 		return {
 			selectedTeam: null,
 			searchQuery: '',
+			teamTitles: {},
 		};
 	},
 	methods: {
 		switchToTeam,
+		teamLabel(team) {
+			return this.teamTitles[team.name] || team.user;
+		},
+		async loadTeamTitles() {
+			// valid_teams carries only the owner email, so two teams one user owns read the same
+			const names = (this.$team?.doc?.valid_teams || []).map((t) => t.name);
+			if (!this.$session.isSystemUser || names.length < 2) return;
+			try {
+				const rows = await call('press.api.client.search_link', {
+					doctype: 'Team',
+					filters: { name: ['in', names] },
+					page_length: names.length,
+				});
+				this.teamTitles = Object.fromEntries(rows.map((r) => [r.value, r.label]));
+			} catch (e) {
+				console.error('Could not load team titles, showing owner emails', e);
+			}
+		},
 	},
 };
 </script>

@@ -11,6 +11,7 @@ from frappe.client import set_value as _set_value
 from frappe.handler import run_doc_method as _run_doc_method
 from frappe.model import child_table_fields, default_fields
 from frappe.model.base_document import get_controller
+from frappe.query_builder.functions import Coalesce
 from frappe.query_builder.terms import ValueWrapper
 from frappe.utils import cstr
 from pypika.queries import QueryBuilder
@@ -352,7 +353,10 @@ def search_link(
 		order_by or "modified desc",
 	)
 	q = q.select(DocType.name.as_("value"))
-	if meta.title_field:
+	if doctype == "Team":
+		# title_field is the owner email, which reads the same for every team one user owns
+		q = q.select(Coalesce(DocType.team_title, DocType.user).as_("label"))
+	elif meta.title_field:
 		q = q.select(DocType[meta.title_field].as_("label"))
 	if meta.has_field("enabled"):
 		q = q.where(DocType.enabled == 1)
@@ -364,6 +368,8 @@ def search_link(
 		condition = DocType.name.like(f"%{query}%")
 		if meta.title_field:
 			condition = condition | DocType[meta.title_field].like(f"%{query}%")
+		if doctype == "Team":
+			condition = condition | DocType.team_title.like(f"%{query}%")
 		q = q.where(condition)
 	return q.run(as_dict=1)
 
