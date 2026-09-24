@@ -32,7 +32,11 @@ from press.mcp_server.scope.targets import (  # noqa: F401  re-exported for call
 	_candidate_to_release_group,
 	_extract_target,
 	_normalize_arg_aliases,
+	refuse_undeclared_resource_args,
 )
+from press.mcp_server.scope.arg_safety import assert_safe_args
+from press.mcp_server.scope.call_guard import assert_call_in_team
+from press.mcp_server.scope.results import filter_to_team
 
 MAX_ARGS_LOG_LEN = 5000  # truncate long arg payloads in audit log
 
@@ -156,6 +160,8 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 		# succeeds instead of round-tripping through a 'missing required args' error.
 		args = _normalize_arg_aliases(spec, args)
 		_coerce_config_arg(tool, args)
+		refuse_undeclared_resource_args(tool, spec, args)
+		assert_safe_args(tool, args)
 
 		target_doctype, target_name = _extract_target(tool, args)
 		# SECURITY: fail-closed guard against missing _extract_target entries.
@@ -167,6 +173,8 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 		_assert_target_extracted(tool, args, target_doctype, target_name)
 		user = verify_token(token, tool_name=tool, target_doctype=target_doctype, target_name=target_name)
 		token_doc_name = _resolve_token_docname(token)
+		# Every resource the call names must be in the token's team, not only the target above.
+		assert_call_in_team(tool, args, frappe.local.mcp_token_team)
 
 		# Rate limit per token (Obj 7)
 		check_rate_limit(token_doc_name)
@@ -254,6 +262,7 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 		with _as_user(user):
 			method = frappe.get_attr(spec["method"])
 			response = method(**dispatch_args)
+		response = filter_to_team(tool, response, frappe.local.mcp_token_team)
 
 		_log_call(
 			tool=tool, user=user, token_name=token_doc_name,

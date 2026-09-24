@@ -12,10 +12,14 @@ import frappe
 _NOT_VISIBLE = "{doctype} {name!r} was not found, or is not in this token's team"
 
 
+def not_visible(doctype: str, name: str | None) -> str:
+	return _NOT_VISIBLE.format(doctype=doctype, name=name)
+
+
 def assert_in_team(team: str | None, doctype: str, name: str | None) -> None:
 	if not name:
 		return
 	if not team:
 		raise frappe.PermissionError("this token is not tied to a team; issue a new token")
 	if frappe.db.get_value(doctype, name, "team") != team:
-		raise frappe.PermissionError(_NOT_VISIBLE.format(doctype=doctype, name=name))
+		raise frappe.PermissionError(not_visible(doctype, name))

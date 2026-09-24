@@ -120,6 +120,8 @@ def get_current_team(get_doc=False) -> Team | str:
 	# In case if X-Press-Team is not passed, check if `team_name` is available in frappe.local
 	# `team_name` getting injected by press.saas.api.whitelist_saas_api decorator
 	team = x_press_team if x_press_team else getattr(frappe.local, "team_name", "")
+	# An MCP call is scoped to its token's team; a caller-supplied header must not move it.
+	team = getattr(frappe.local, "mcp_token_team", None) or team
 
 	if not team and has_role("Press Admin") and frappe.db.exists("Team", {"user": frappe.session.user}):
 		# if user has_role of Press Admin then just return current user as default team

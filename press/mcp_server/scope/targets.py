@@ -55,13 +55,43 @@ def _normalize_arg_aliases(spec: dict, args: dict) -> dict:
 	return out
 
 
+LOCK_TOOLS = frozenset({"lock_acquire", "lock_release", "lock_status"})
+
+# Every arg name that identifies a resource somewhere in the tool catalog.
+_ANY_RESOURCE_ARG = frozenset({
+	"site", "site_name", "name", "release_group", "bench_name", "target_doctype",
+	"target_name", "dn", "candidate_name", "job_name", "server", "target_bench",
+	"target_release_group", "source", "dc_name", "target_candidate", "release_name",
+	"app_source", "team",
+})
+
+
+def refuse_undeclared_resource_args(tool: str, spec: dict, args: dict) -> None:
+	"""Refuse resource args the tool does not declare.
+
+	The dispatcher drops undeclared args before calling the tool, but the scope check
+	used to read them first, so {site: <own site>, name: <other team's site>} was
+	checked against one site and executed against the other.
+	"""
+	declared = set(spec.get("args_schema", {}).get("properties", {}).keys()) or set(
+		spec.get("required_args", [])
+	)
+	stray = sorted((_ANY_RESOURCE_ARG & set(args)) - declared)
+	if stray:
+		raise frappe.PermissionError(
+			f"tool {tool!r} does not take {stray!r}; it takes {sorted(declared)!r}. "
+			"Resend with only the declared arguments."
+		)
+
+
 def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 	"""Map tool args → (target_doctype, target_name) for resource-scope checks.
 
 	Returns (None, None) for tools that don't operate on a single resource.
 	"""
-	# Lock-style tools have explicit target_doctype/target_name args
-	if "target_doctype" in args and "target_name" in args:
+	# Lock-style tools have explicit target_doctype/target_name args. Only they may use
+	# this branch: for any other tool those args were a decoy the tool never receives.
+	if tool in LOCK_TOOLS and "target_doctype" in args and "target_name" in args:
 		td = args.get("target_doctype")
 		if td in ("Site", "Release Group"):
 			return td, args.get("target_name")

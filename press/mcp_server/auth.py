@@ -175,6 +175,9 @@ def verify_token(
 	Raises frappe.PermissionError on any failure.
 	"""
 	doc = _authenticate_token(token_plaintext)
+	if not doc.team:
+		# With no team the call would fall back to a guessed default team.
+		raise frappe.PermissionError("this token is not tied to a team; issue a new token")
 	scope_list = safe_parse_list(doc.scope)
 	if scope_list and tool_name not in scope_list:
 		raise frappe.PermissionError(
@@ -211,6 +214,7 @@ def _pin_request_team(team: str | None) -> None:
 	# user who owns two teams silently switched teams. Scope the call to the token's team.
 	if team:
 		frappe.local.team_name = team
+		frappe.local.mcp_token_team = team
 		frappe.local._current_team = None
 
 
@@ -246,8 +250,15 @@ def _check_resource_scope(token_doc, target_doctype: str, target_name: str) -> N
 @frappe.whitelist()
 def revoke_token(token_id: str) -> dict[str, str]:
 	"""Revoke a token by its docname. Caller must own the token OR be System User."""
-	doc = frappe.get_doc("Press MCP Token", token_id)
 	user = frappe.session.user
+	mcp_team = getattr(frappe.local, "mcp_token_team", None)
+	if mcp_team:
+		# Through MCP a token acts for one team: only the caller's own tokens in that team,
+		# with one answer for missing and foreign so token names cannot be probed.
+		row = frappe.db.get_value("Press MCP Token", token_id, ["user", "team"], as_dict=True)
+		if not row or row.user != user or row.team != mcp_team:
+			raise frappe.PermissionError(f"token {token_id!r} was not found among this team's tokens")
+	doc = frappe.get_doc("Press MCP Token", token_id)
 	is_system = frappe.session.data.user_type == "System User"
 	if doc.user != user and not is_system:
 		raise frappe.PermissionError("you can only revoke your own tokens")
@@ -570,14 +581,26 @@ def _is_ip_blocked(ip: str) -> bool:
 
 
 def _get_team_for_user(username: str) -> str | None:
-	# Press teams: a User can be a Team Member of one or more teams.
-	# Default to the first match for token attribution.
-	team = frappe.db.get_value(
-		"Team Member",
-		{"user": username, "parenttype": "Team"},
-		"parent",
+	# A token is scoped to exactly one team, and a user can belong to several. "Whichever
+	# membership row comes first" silently scoped tokens to the wrong team, so prefer the
+	# team the dashboard is showing when the user issues it, else their oldest team.
+	teams = frappe.get_all(
+		"Team Member", filters={"user": username, "parenttype": "Team"}, pluck="parent"
 	)
-	return team
+	if not teams:
+		return None
+	if frappe.session.user == username:
+		from press.utils import get_current_team
+
+		try:
+			current = get_current_team()
+		except Exception:
+			current = None
+		if current in teams:
+			return current
+	return frappe.db.get_value(
+		"Team", {"name": ["in", teams], "enabled": 1}, "name", order_by="creation asc"
+	)
 
 
 def _user_is_system(username: str) -> bool:
