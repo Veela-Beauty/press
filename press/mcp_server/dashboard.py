@@ -15,9 +15,13 @@ from press.mcp_server._util import safe_parse_list
 def list_my_tokens() -> list[dict[str, Any]]:
 	"""List active + recently revoked tokens for the calling user."""
 	user = frappe.session.user
+	filters = {"user": user}
+	if getattr(frappe.local, "mcp_token_team", None):
+		# Through MCP a token only sees its own team's tokens.
+		filters["team"] = frappe.local.mcp_token_team
 	rows = frappe.get_all(
 		"Press MCP Token",
-		filters={"user": user},
+		filters=filters,
 		fields=[
 			"name", "label", "scope", "expires_at", "last_used_at",
 			"revoked", "revoked_at", "creation", "token_prefix",

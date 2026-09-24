@@ -90,6 +90,9 @@ def verify_chain(limit: int = 10000) -> dict[str, Any]:
 
 		expected_prev = row.row_hash or expected_prev
 
+	if getattr(frappe.local, "mcp_token_team", None):
+		# The chain spans every team's calls; a team token only learns whether it is intact.
+		return {"ok": len(breaks) == 0}
 	return {
 		"ok": len(breaks) == 0,
 		"total_checked": len(rows),
