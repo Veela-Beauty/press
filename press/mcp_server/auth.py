@@ -215,7 +215,11 @@ def _pin_request_team(team: str | None) -> None:
 
 
 def _check_resource_scope(token_doc, target_doctype: str, target_name: str) -> None:
-	"""Raise PermissionError if token's resource allowlist excludes the target."""
+	"""Raise PermissionError if the target is outside the token's team or allowlist."""
+	from press.mcp_server.scope.teams import assert_in_team
+
+	if target_doctype in ("Site", "Release Group"):
+		assert_in_team(token_doc.team, target_doctype, target_name)
 	if target_doctype == "Release Group":
 		allowed = safe_parse_list(token_doc.allowed_release_groups)
 		if allowed and target_name not in allowed:
