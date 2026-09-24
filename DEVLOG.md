@@ -1,5 +1,19 @@
 # Press Fork Dev Log
 
+### Session 10 - 2026-09-24: MCP team isolation + private OptiFlow team
+
+**What we did:**
+1. Moved server accurate-portainer, its 6 benches and 5 live sites into a new independent team "OptiFlow - Prod" (`b0qds9cdh9`) so the main team's developers cannot see them. Owner is a separate account (`optiflowsys1@gmail.com`); the owner stays a member and is System Manager.
+2. Found that a main-team MCP token could still reach OptiFlow's sites. Audited all 84 MCP tools with a workflow (59 confirmed cross-team paths) and closed them at the MCP layer in `press/mcp_server/scope/` (PR #11), after splitting `server.py` (1001 to 677 lines).
+3. Fixed the default team for a user who owns two teams (PR #9 for MCP, PR #10 for the dashboard), the Switch Team labels (PR #8), and `mint_dashboard_login_url` (PR #12).
+4. Deployed each PR the same way: merge into `cloudflare-dns`, fast-forward `apps/press` only on press-ctrl as `frappe`, import-check, `yarn build` only for Vue changes, restart `frappe-bench-web:` only. Snapshot of all apps' uncommitted work taken first; rollback tag `safety/pre-mcp-isolation-20260924`.
+
+**Files:** press/mcp_server/scope/ (new: targets, teams, call_guard, results, arg_safety, test_login), server.py, auth.py, dashboard.py, audit.py, press/utils/__init__.py, press/api/client.py, dashboard/src/components/SwitchTeamDialog.vue
+
+**Watch out:** `bench update` must not be used on press-ctrl while `daman_backup`, `frappe_theme_switcher`, `sanad_ai_control_center` and `sanad_business_intelligence_ai` carry uncommitted work (4.4 MB in the last one). `bench-update-safe` pre-flight currently stops on 8 root-owned files in `env/`.
+
+**Next:** finish and deploy `fix/mcp-isolation-hardening` (re-verification findings).
+
 ### Session 9 - 2026-06-19: MCP bench-control tools + arg-alias fix + dev-box proxy
 
 **What we did:**

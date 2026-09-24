@@ -20,7 +20,7 @@ Enhanced fork of Frappe Press by Accurate Systems — enterprise capabilities, C
 
 ### 03 — Integrations
 - [GitHub App User Tokens](03-integrations/github-app-user-tokens.md) — Per-user GitHub OAuth for in-bench git operations (Option C); architecture, ops, troubleshooting
-- [MCP Server — Token Issuance](03-integrations/mcp-server.md) — Token TTL (1–90 days), password OR email-OTP re-auth, Press MCP Email OTP doctype
+- [MCP Server — Token Issuance](03-integrations/mcp-server.md) — Token TTL (1–90 days), password OR email-OTP re-auth, Press MCP Email OTP doctype, team isolation (every call stays in its token's team)
 
 ### 03 — Backup Integration
 - [Backup Integration Guide](03-backup-integration/overview.md) — How daman_backup works: architecture, DocTypes, API, dashboard pages, scheduler, tests
@@ -40,6 +40,7 @@ Enhanced fork of Frappe Press by Accurate Systems — enterprise capabilities, C
 - [Critical Issues](07-implementation-status/critical-issues.md) — Known blockers and workarounds
 
 ### 08 — Lessons Learned
+- [2026-09-24: an MCP token reached another team's sites](08-lessons/2026-09-24-mcp-cross-team-leak.md) : System Users skip Frappe permissions, and the MCP scope check read a different argument from the one each tool used. 59 paths found by an 84-tool audit, closed in `press/mcp_server/scope/`. Also: a user who owns two teams switches default team by timestamp.
 - [2026-09-08 — A stranded Server freezes every job on it](08-lessons/2026-09-08-stranded-server-freezes-every-job.md) — `Server.status != "Active"` silently drops a whole box from job polling *and* site updates. Also: writing `Agent Job.status` without its callback orphans the record, `bench clear-cache` does not clear `app_hooks`, and a purged registry tag makes a stuck bench unretryable.
 - [2026-04-29 — bench-watch, Site Overview usage, Log Server](08-lessons/2026-04-29-bench-watch-and-log-server.md) — `dashboard_fields` is a silent whitelist; 5 repeating-pattern bugs.
 

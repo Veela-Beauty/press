@@ -4,6 +4,29 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 24-09-2026: MCP team isolation, Switch Team shows team names, stable default team
+
+A token issued for one team could read and change another team's sites, benches, servers and apps through the MCP server (proven live: a main-team token read an OptiFlow site's status). MCP tools run as the token user and Frappe skips permission checks for System Users. Found by an audit of all 84 MCP tools (59 cross-team paths, each confirmed by two independent verifiers) and closed at the MCP layer. PRs #8 to #12, all deployed to press-ctrl (now `c7f3fa122`).
+
+### Security
+- MCP calls stay inside their token's team (PR #11): the Site/Release Group target must be in the token team, and so must every other resource an argument names (benches, servers, deploy candidates and builds, agent jobs, app sources and releases, backup Remote Files, `team`). Missing and other-team objects get the same message, so a token cannot enumerate another team. Code in the new `press/mcp_server/scope/` package; `server.py` split first (1001 to 677 lines, pure move).
+- Decoy arguments refused (PR #11): the scope check used to read `site` / `target_name` / `release_group` while the tool ran on `name` / `site_name` / `dn`. Undeclared resource arguments, and non-string values for them, are now refused before the check.
+- Host command injection closed in `app_create_locally`, `app_init_github`, `bench_read_app_file` and `bench_list_app_files` (PR #11): character allowlists at the MCP entry point.
+- `get_current_team` gives the MCP token team priority over a caller-supplied `X-Press-Team` header (PR #11).
+- `mint_dashboard_login_url` logs in the token team's test user (role `Press MCP Test User`, Website User, one team only) instead of the token's System Manager (PR #12).
+
+### Fixed
+- MCP tools used "the team this user owns, most recently modified" instead of the team on the token, so creating a second team switched them silently (PR #9).
+- Dashboard default team: the owner lookups order by `creation asc`, so a user who owns two teams keeps the first as default (PR #10).
+- Switch Team dialog labelled every team by its owner email, so two teams of one user looked identical; it now shows the team name with the email underneath, for System Users (PR #8).
+
+### Changed
+- `agent_job_list`, `list_pending_releases`, `list_my_tokens`, `revoke_my_token` and `audit_verify_chain` are limited to the token team; tokens without a team fail closed; new tokens take the dashboard's current team (PR #11).
+
+Still open: a re-verification of the fix (90 agents) confirmed 44 of 59 leaks closed and raised further gaps; the follow-up is on branch `fix/mcp-isolation-hardening` (not merged). Details: `docs/wiki/08-lessons/2026-09-24-mcp-cross-team-leak.md`.
+
+---
+
 ## 19-06-2026: MCP bench-control tools + arg-alias normalization + dev-box stdio proxy
 
 Ten Release-Group (bench) tools so an agent can compose a bench without the Desk, a server-side fix that stops agents stalling on wrong arg names, and a stdio proxy that lets a standard MCP client (Claude Code) connect to the Frappe-RPC MCP.

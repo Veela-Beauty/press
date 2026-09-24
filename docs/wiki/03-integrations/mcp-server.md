@@ -89,6 +89,45 @@ Auto-named by Frappe (hash).
   failure). OTP failures count toward the IP brute-force gate the same way
   password failures do.
 
+## Team isolation (since 2026-09-24)
+
+Every token belongs to exactly one team, and every MCP call stays inside it. MCP tools run
+as the token's user, and Frappe skips its own permission checks for System Users, so the
+MCP layer enforces the team itself.
+
+**Which team a token has.** Set when the token is issued: the team the dashboard is showing,
+if the user belongs to it, otherwise the user's oldest team. A token without a team is
+refused on every call.
+
+**What is checked, in `press/mcp_server/server.py` `handle()`:**
+
+1. `refuse_undeclared_resource_args`: a resource argument the tool does not declare, or a
+   non-string value for one, is refused. The scope check can then never read a different
+   value from the one the tool acts on.
+2. `assert_safe_args`: letters, digits and `_ . -` only for arguments that reach the agent's
+   host shell (app names, titles, GitHub owner, file paths).
+3. `verify_token`: the Site or Release Group target must be in the token team. It also
+   records the team for the call (`frappe.local.mcp_token_team`), which `get_current_team`
+   prefers over any `X-Press-Team` header.
+4. `assert_call_in_team`: every other resource the arguments name must be in the team too.
+   Public App Sources are allowed, and so are public servers for placing a new bench.
+   Tools that run inside a bench container are refused on a bench that also hosts another
+   team's sites.
+5. `filter_to_team`: responses whose handler lists without a team filter are cut to the
+   team's own rows.
+
+A refusal reads `<Doctype> '<name>' was not found, or is not in this token's team`. It is
+the same for a missing object and for another team's, so a token cannot use it to find
+names in another team.
+
+**Dashboard logins for browser tests.** `mint_dashboard_login_url` logs in the team's test
+user, never the token's own user. A team names one by giving exactly one Website User of
+the team the role **Press MCP Test User** (Desk > User > Roles). That account must belong to
+no other team. Without one, the tool refuses and says how to set it up.
+
+Code: `press/mcp_server/scope/` (`targets.py`, `teams.py`, `call_guard.py`, `results.py`,
+`arg_safety.py`, `test_login.py`). Background: [the 2026-09-24 lesson](../08-lessons/2026-09-24-mcp-cross-team-leak.md).
+
 ## Files
 
 - [press/mcp_server/auth.py](../../press/mcp_server/auth.py) — `issue_token`,
