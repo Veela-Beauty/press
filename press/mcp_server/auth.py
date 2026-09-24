@@ -201,7 +201,17 @@ def verify_token(
 		)
 	except Exception:
 		pass
+	_pin_request_team(doc.team)
 	return doc.user
+
+
+def _pin_request_team(team: str | None) -> None:
+	# Tools resolve the team per call through get_current_team(). With no X-Press-Team
+	# header that falls back to "a team this user owns", ordered by last modified, so a
+	# user who owns two teams silently switched teams. Scope the call to the token's team.
+	if team:
+		frappe.local.team_name = team
+		frappe.local._current_team = None
 
 
 def _check_resource_scope(token_doc, target_doctype: str, target_name: str) -> None:
