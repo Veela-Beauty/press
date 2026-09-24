@@ -37,6 +37,7 @@ from press.mcp_server.scope.targets import (  # noqa: F401  re-exported for call
 from press.mcp_server.scope.arg_safety import assert_safe_args
 from press.mcp_server.scope.call_guard import assert_call_in_team
 from press.mcp_server.scope.results import filter_to_team
+from press.mcp_server.scope.test_login import login_user_for
 
 MAX_ARGS_LOG_LEN = 5000  # truncate long arg payloads in audit log
 
@@ -258,8 +259,11 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 				_track_rejection(token_doc_name, tool, "busy_worker_guard", gate_a_block["server"])
 				raise frappe.ValidationError(gate_a_block["error"])
 
-		# Run tool as the resolved user
-		with _as_user(user):
+		# Run tool as the resolved user; a dashboard login is minted for the team's test user
+		run_as = user
+		if tool == "mint_dashboard_login_url":
+			run_as = login_user_for(frappe.local.mcp_token_team)
+		with _as_user(run_as):
 			method = frappe.get_attr(spec["method"])
 			response = method(**dispatch_args)
 		response = filter_to_team(tool, response, frappe.local.mcp_token_team)
