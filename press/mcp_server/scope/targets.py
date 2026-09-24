@@ -82,6 +82,13 @@ def refuse_undeclared_resource_args(tool: str, spec: dict, args: dict) -> None:
 			f"tool {tool!r} does not take {stray!r}; it takes {sorted(declared)!r}. "
 			"Resend with only the declared arguments."
 		)
+	# A list or dict here reaches frappe.db.get_value as filters, which answers for the
+	# first match rather than for the value the tool will act on.
+	not_text = sorted(
+		a for a in _ANY_RESOURCE_ARG & set(args) if args[a] is not None and not isinstance(args[a], str)
+	)
+	if not_text:
+		raise frappe.PermissionError(f"{not_text!r} must each be a single name (a string)")
 
 
 def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
