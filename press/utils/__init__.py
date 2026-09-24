@@ -109,17 +109,8 @@ def get_current_team(get_doc=False) -> Team | str:
 	if not hasattr(frappe.local, "request"):
 		# if this is not a request, send the current user as default team
 		# always use parent_team for background jobs
-		return (
-			frappe.get_doc(
-				"Team",
-				{"user": frappe.session.user, "enabled": 1, "parent_team": ("is", "not set")},
-			)
-			if get_doc
-			else frappe.get_value(
-				"Team",
-				{"user": frappe.session.user, "enabled": 1, "parent_team": ("is", "not set")},
-				"name",
-			)
+		return _oldest_owned_team(
+			{"user": frappe.session.user, "enabled": 1, "parent_team": ("is", "not set")}, get_doc
 		)
 
 	system_user = frappe.session.data.user_type == "System User"
@@ -132,11 +123,7 @@ def get_current_team(get_doc=False) -> Team | str:
 
 	if not team and has_role("Press Admin") and frappe.db.exists("Team", {"user": frappe.session.user}):
 		# if user has_role of Press Admin then just return current user as default team
-		return (
-			frappe.get_doc("Team", {"user": frappe.session.user, "enabled": 1})
-			if get_doc
-			else frappe.get_value("Team", {"user": frappe.session.user, "enabled": 1}, "name")
-		)
+		return _oldest_owned_team({"user": frappe.session.user, "enabled": 1}, get_doc)
 
 	# if team is not passed via header, get the default team for user
 	team = team if team else get_default_team_for_user(frappe.session.user)
@@ -158,6 +145,15 @@ def get_current_team(get_doc=False) -> Team | str:
 		return frappe.get_doc("Team", team)
 
 	return team
+
+
+def _oldest_owned_team(filters: dict, get_doc: bool):
+	# get_value orders by `modified`, so a user who owns several teams silently switched
+	# to whichever was edited last. The oldest owned team is the stable default.
+	name = frappe.get_value("Team", filters, "name", order_by="creation asc")
+	if not get_doc:
+		return name
+	return frappe.get_doc("Team", name) if name else frappe.get_doc("Team", filters)
 
 
 def _get_current_team():
@@ -189,7 +185,7 @@ def get_app_tag(repository, repository_owner, hash):
 def get_default_team_for_user(user):
 	"""Returns the Team if user has one, or returns the Team in which they belong"""
 	if frappe.db.exists("Team", {"user": user, "enabled": 1}):
-		return frappe.db.get_value("Team", {"user": user, "enabled": 1}, "name")
+		return frappe.db.get_value("Team", {"user": user, "enabled": 1}, "name", order_by="creation asc")
 
 	teams = frappe.db.get_values(
 		"Team Member",
