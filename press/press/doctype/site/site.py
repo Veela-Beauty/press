@@ -1833,25 +1833,8 @@ class Site(Document, TagHelpers):
 	@site_action(["Active", "Broken"])
 	@action_guard(SiteActions.LoginAsAdmin)
 	def login_as_admin(self, reason=None, pin=None):
-		if self.is_confidential:
-			self._check_confidential_pin(pin, reason)
-		sid = self.login(reason=reason)
+		sid = self.login(reason=reason, pin=pin)
 		return f"https://{self.host_name or self.name}/app?sid={sid}"
-
-	def onload(self):
-		"""Mirror the global confidential PIN onto the form field for display/edit.
-
-		The PIN is NOT stored per-site (security); Press Settings is the source of
-		truth. We populate the field on load and push edits back in validate.
-		"""
-		try:
-			pin = frappe.get_doc("Press Settings").get_password(
-				"admin_login_pin", raise_exception=False
-			)
-			if pin:
-				self.confidential_admin_pin = pin
-		except Exception:
-			pass
 
 	def _sync_confidential_pin_to_global(self):
 		"""If the form's confidential_admin_pin was changed, write it to the global
@@ -1928,6 +1911,8 @@ class Site(Document, TagHelpers):
 	@dashboard_whitelist()
 	@site_action(["Active"])
 	def login_as_team(self, reason=None):
+		if self.is_confidential:
+			frappe.throw("This site is confidential. Use Login as Administrator with the PIN.")
 		if self.additional_system_user_created:
 			team_user = frappe.db.get_value("Team", self.team, "user")
 			sid = self.get_login_sid(user=team_user)
@@ -1959,7 +1944,11 @@ class Site(Document, TagHelpers):
 			frappe.throw(str(e))
 
 	@frappe.whitelist()
-	def login(self, reason=None):
+	def login(self, reason=None, pin=None):
+		# Every Administrator login goes through here (desk button, dashboard, API),
+		# so the confidential PIN gate lives here, not in one caller.
+		if self.is_confidential:
+			self._check_confidential_pin(pin, reason)
 		log_site_activity(self.name, "Login as Administrator", reason=reason)
 		return self.get_login_sid()
 
@@ -1976,6 +1965,8 @@ class Site(Document, TagHelpers):
 
 	@frappe.whitelist()
 	def show_admin_password(self):
+		if self.is_confidential:
+			frappe.throw("This site is confidential. Use Login as Administrator with the PIN.")
 		frappe.msgprint(self.get_password("admin_password"), title="Password", indicator="green")
 
 	def get_connection_as_admin(self):

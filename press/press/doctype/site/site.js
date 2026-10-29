@@ -45,7 +45,7 @@ frappe.ui.form.on('Site', {
 				__('Login as Adminstrator'),
 				() => {
 					if (account) {
-						if (site.team === account.team.name) {
+						if (site.team === account.team.name && !site.is_confidential) {
 							login_as_admin(site.name);
 						} else {
 							new frappe.ui.Dialog({
@@ -56,13 +56,20 @@ frappe.ui.form.on('Site', {
 										fieldname: 'reason',
 										fieldtype: 'Small Text',
 									},
+									{
+										label: __('Admin PIN'),
+										fieldname: 'pin',
+										fieldtype: 'Password',
+										hidden: !site.is_confidential,
+										reqd: !!site.is_confidential,
+									},
 								],
 								primary_action_label: 'Login',
 								primary_action(values) {
 									if (values) {
 										let reason = values.reason;
 										console.log(reason);
-										login_as_admin(site.name, reason);
+										login_as_admin(site.name, reason, values.pin);
 									} else {
 										frappe.throw(__('Reason field should not be empty'));
 									}
@@ -466,13 +473,14 @@ ${r.message.error}
 	},
 });
 
-function login_as_admin(site_name, reason = null) {
+function login_as_admin(site_name, reason = null, pin = null) {
 	frappe
 		.call({
 			method: 'press.api.site.login',
 			args: {
 				name: site_name,
 				reason: reason,
+				pin: pin,
 			},
 		})
 		.then(
