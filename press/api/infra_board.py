@@ -284,6 +284,8 @@ def host_unit_action(host: str, unit_id: str, action: str) -> dict:
 		doc = _managed_doc(host)
 		res = get_adapter(doc).control(doc, unit_id, action)
 		log_infra_action(host=host, unit=unit_id, action=action, outcome="success")
+		# The board reads a cached tree (CACHE_TTL); drop it so the next poll shows the new state.
+		frappe.cache().delete_value(CACHE_KEY)
 		return res
 	except Exception as e:
 		log_infra_action(host=host, unit=unit_id, action=action, outcome="error", detail=str(e))

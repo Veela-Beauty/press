@@ -41,7 +41,8 @@ export const stateLabel = (s) => STATE_LABEL[s] || s;
 export const stateTheme = (s) => STATE_THEME[s] || 'gray';
 export const controllable = (u) => u.kind === 'container' && !!u._id;
 // States where the container is not running, so the row offers Start instead of Restart / Stop.
-const STARTABLE = new Set(['stop', 'exit0', 'exit2', 'down', 'dead']);
+// Not 'dead': Docker refuses to start a dead container.
+const STARTABLE = new Set(['stop', 'exit0', 'exit2', 'down']);
 export const canStart = (s) => STARTABLE.has(s);
 
 const SPAN_UNIT = { second: 's', minute: 'm', hour: 'h', day: 'd', week: 'w', month: 'mo', year: 'y' };

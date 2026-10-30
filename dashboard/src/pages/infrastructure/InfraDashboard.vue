@@ -39,13 +39,17 @@
 
       <!-- Error state -->
       <div
-        v-else-if="tree.error"
+        v-else-if="tree.error && !tree.data"
         class="rounded-lg border border-red-200 bg-red-50 p-4 text-base text-red-700"
       >
         {{ tree.error.messages?.join(', ') || tree.error.message }}
       </div>
 
       <template v-else>
+        <!-- A failed poll keeps the last data on screen (and what is expanded) -->
+        <div v-if="tree.error" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          Refresh failed, showing the last data: {{ tree.error.messages?.join(', ') || tree.error.message }}
+        </div>
         <!-- Gate-0 preflight banner: only relevant while managed hosts exist -->
         <div
           v-if="hasManaged && gate0.data && !gate0.data.ready"
@@ -81,7 +85,7 @@
     <UnitDrawer
       :host="logHost"
       :unit="logUnit"
-      @close="logUnit = null"
+      @close="logUnitKey = null"
       @reload="tree.reload()"
     />
 
@@ -113,7 +117,13 @@ const view       = ref('list');   // 'list' | 'cards'
 const fresh      = ref('just now');
 const serverList = ref(null);
 const logHost    = ref('');
-const logUnit    = ref(null);      // the container whose logs are open, or null
+const logUnitKey = ref(null);      // _id (or name) of the unit whose drawer is open
+// Resolved from the live tree so the drawer follows each 15 s poll instead of a snapshot.
+const logUnit = computed(() => {
+  if (!logUnitKey.value) return null;
+  const units = allNodes.value.find((n) => n.name === logHost.value)?.units || [];
+  return units.find((u) => (u._id || u.name) === logUnitKey.value) || null;
+});
 
 // --- 15-second polling ---
 let timer = null;
@@ -138,7 +148,7 @@ async function onOpen(name) {
 
 function onOpenUnit(host, unit) {
   logHost.value = host;
-  logUnit.value = unit;
+  logUnitKey.value = unit._id || unit.name;
 }
 
 // --- Add-host wizard ---

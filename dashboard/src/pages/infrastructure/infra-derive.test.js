@@ -85,6 +85,6 @@ describe('shortUptime', () => {
   ])('%s -> %s', (status, label) => expect(d.shortUptime(status)).toBe(label));
 });
 describe('canStart', () => {
-  it('stopped states offer Start', () => ['stop', 'exit0', 'exit2', 'down', 'dead'].forEach((s) => expect(d.canStart(s)).toBe(true)));
-  it('running states do not', () => ['run', 'heal', 'unhealth', 'restart', 'active', 'pause'].forEach((s) => expect(d.canStart(s)).toBe(false)));
+  it('stopped states offer Start', () => ['stop', 'exit0', 'exit2', 'down'].forEach((s) => expect(d.canStart(s)).toBe(true)));
+  it('running states and dead do not', () => ['run', 'heal', 'unhealth', 'restart', 'active', 'pause', 'dead'].forEach((s) => expect(d.canStart(s)).toBe(false)));
 });

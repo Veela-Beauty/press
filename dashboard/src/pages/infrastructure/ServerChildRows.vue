@@ -14,7 +14,7 @@
     <template v-if="units.length">
       <tr class="bg-gray-50/60 text-[11px] uppercase tracking-wide text-gray-500">
         <td />
-        <td class="py-1.5 pl-8 pr-3">Container</td>
+        <td class="py-1.5 pl-8 pr-3">{{ kindLabel }}</td>
         <td colspan="2" class="px-3 py-1.5">Image</td>
         <td class="px-3 py-1.5">Status</td>
         <td class="px-3 py-1.5">Uptime</td>
@@ -41,19 +41,19 @@
                 <Button size="sm" variant="ghost" theme="red" :disabled="!!busy[u._id]" @click.stop="run(u, 'stop')">Stop</Button>
               </template>
             </template>
-            <Button size="sm" variant="ghost" @click.stop="$emit('openUnit', u)">Logs</Button>
+            <Button v-if="controllable(u)" size="sm" variant="ghost" @click.stop="$emit('openUnit', u)">Logs</Button>
           </div>
         </td>
       </tr>
       <tr v-if="units.length > PER && !showAll" class="bg-gray-50/60">
         <td colspan="7" class="py-2 text-center">
-          <button class="text-sm text-blue-600 hover:underline" @click.stop="showAll = true">Show {{ units.length - PER }} more containers</button>
+          <button class="text-sm text-blue-600 hover:underline" @click.stop="showAll = true">Show {{ units.length - PER }} more {{ kindLabel.toLowerCase() }}s</button>
         </td>
       </tr>
     </template>
     <tr v-else class="bg-gray-50/60">
       <td />
-      <td colspan="6" class="py-2 pl-8 pr-3 text-sm text-gray-400">No containers.</td>
+      <td colspan="6" class="py-2 pl-8 pr-3 text-sm text-gray-400">No {{ kindLabel.toLowerCase() }}s.</td>
     </tr>
   </template>
 
@@ -68,7 +68,7 @@
       </tr>
       <tr v-for="b in benches" :key="b.name" class="bg-gray-50/60">
         <td class="px-3 py-2">
-          <span class="ml-[22px] inline-block h-[7px] w-[7px] rounded-full" :class="b.health === 'healthy' ? 'bg-green-500' : b.health === 'unknown' ? 'bg-gray-400' : 'bg-red-500'" />
+          <span class="ml-[22px] inline-block h-[7px] w-[7px] rounded-full" :class="b.health === 'up' ? 'bg-green-500' : b.health === 'unknown' ? 'bg-gray-400' : 'bg-red-500'" />
         </td>
         <td class="py-2 pl-8 pr-3 font-mono text-sm text-gray-900">{{ b.name }}</td>
         <td colspan="2" class="px-3 py-2 text-gray-600">{{ b.services_up ?? 0 }} up / {{ b.services_down ?? 0 }} down</td>
@@ -86,14 +86,14 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Button } from 'frappe-ui';
 import { toast } from 'vue-sonner';
 import { confirmDialog } from '@/utils/components';
 import StatusBadge from './StatusBadge.vue';
 import { canStart, controllable, isManaged, shortUptime, uDot } from './infra-derive';
-import { unitAction } from './infra-api';
+import { unitAction, unitBusy as busy } from './infra-api';
 
 const props = defineProps({ node: { type: Object, required: true } });
 const emit = defineEmits(['openUnit', 'reload']);
@@ -104,10 +104,10 @@ const showAll = ref(false);
 const units = computed(() => props.node.units || []);
 const shown = computed(() => (showAll.value ? units.value : units.value.slice(0, PER)));
 const benches = computed(() => props.node.benches || []);
+const kindLabel = computed(() => (props.node.server_type === 'plain' ? 'Service' : 'Container'));
 
 const UNIT_DOT = { up: 'bg-green-500', unk: 'bg-gray-400', down: 'bg-red-500' };
 const BUSY_LABEL = { start: 'starting', stop: 'stopping', restart: 'restarting' };
-const busy = reactive({}); // unit _id -> in-flight label
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 

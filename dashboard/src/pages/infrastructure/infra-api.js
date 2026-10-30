@@ -1,6 +1,11 @@
+import { reactive } from 'vue';
 import { createResource } from 'frappe-ui';
 
-// Polled read of the whole infra tree (server-side 15s cache).
+// In-flight unit actions (unit _id -> 'stopping' ...), shared so collapsing and re-opening
+// a server row mid-action keeps its buttons disabled.
+export const unitBusy = reactive({});
+
+// Polled read of the whole infra tree (server-side cache, cleared after a unit action).
 export function useInfraTree() {
 	return createResource({ url: 'press.api.infra_board.get_infra_tree', auto: true });
 }

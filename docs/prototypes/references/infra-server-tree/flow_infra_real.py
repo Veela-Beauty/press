@@ -63,6 +63,12 @@ with sync_playwright() as p:
 	pg.locator("[id='server-row-press-f1.sandbox.mvpstorm.com']").click()
 	pg.wait_for_timeout(300)
 	check("Press server expands to its benches", cell("bench-0015-000122-press-f1").count() == 1)
+	dot = pg.locator("tr", has=cell("bench-0015-000122-press-f1")).locator("span.rounded-full").first.get_attribute("class")
+	check("healthy bench shows a green dot", "bg-green-500" in dot, dot)
+	pg.locator("#server-row-box-1").click()
+	pg.wait_for_timeout(300)
+	plain = pg.locator("tr", has=cell("sshd.service"))
+	check("plain host: Service label, no Logs / Stop buttons", pg.get_by_role("cell", name="Service", exact=True).count() == 1 and plain.get_by_role("button").count() == 0)
 
 	pg.locator("#server-row-daytona-sandbox-1").click()
 	pg.wait_for_timeout(200)

@@ -67,7 +67,15 @@
           </thead>
           <tbody class="divide-y divide-gray-100">
             <template v-for="node in paged" :key="node.name">
-            <tr :id="`server-row-${node.name}`" class="cursor-pointer hover:bg-gray-50" :aria-expanded="expanded.has(node.name)" @click="toggle(node.name)">
+            <tr
+              :id="`server-row-${node.name}`"
+              class="cursor-pointer hover:bg-gray-50 focus:bg-gray-50 focus:outline-none"
+              tabindex="0"
+              :aria-expanded="expanded.has(node.name)"
+              @click="toggle(node.name)"
+              @keydown.enter.prevent="toggle(node.name)"
+              @keydown.space.prevent="toggle(node.name)"
+            >
               <td class="px-3 py-2.5">
                 <span class="flex items-center gap-2">
                   <lucide-chevron-right class="h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform" :class="expanded.has(node.name) ? 'rotate-90' : ''" />
@@ -213,6 +221,7 @@ function toggle(name) {
 // Open one server from outside (Needs attention "View", a click in Cards view): clear the
 // filters so its row is on screen, then scroll to it.
 async function expand(name) {
+  if (!props.nodes.some((n) => n.name === name)) return;
   q.value = ''; kindSeg.value = 'all'; statusSeg.value = 'all'; typeSeg.value = 'all';
   const idx = filtered.value.findIndex((n) => n.name === name);
   if (idx < 0) return;

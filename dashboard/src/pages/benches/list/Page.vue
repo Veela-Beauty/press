@@ -4,7 +4,7 @@ import { Breadcrumbs, Button, Spinner, TextInput, createListResource } from 'fra
 import Header from '@/components/Header.vue'
 import LinkControl from '@/components/LinkControl.vue'
 import ListPageAlerts from '@/components/ListPageAlerts.vue'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import BenchRow from './BenchRow.vue'
 
 // Embedded as a server's Benches tab (objects/server.js): only that server's benches, no
@@ -36,6 +36,15 @@ const groups = createListResource({
 	orderBy: 'creation desc',
 })
 
+
+// DetailTab can reuse this component when moving between servers: follow the prop.
+watch(
+	() => props.server,
+	(server) => {
+		groups.update({ filters: { ...groups.filters, server: server || undefined }, start: 0 })
+		groups.reload()
+	},
+)
 
 const version = ref<string | undefined>()
 const tag = ref<string | undefined>()
