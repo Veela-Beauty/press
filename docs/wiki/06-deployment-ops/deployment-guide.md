@@ -57,6 +57,40 @@ bench --site demo.mvpstorm.com execute press.do_retry.ping_server_agent_authed -
 | No bench in New Site selector | Release Group `public=0` or `enabled=0` | Set `public=1` OR use bench detail page New Site button |
 | Bench not in My Benches | Release Group `public=1` | Set `public=0` for managed benches |
 
+## Deploying the press app to press-ctrl
+
+How 0.7.2 to 0.7.5 were deployed (2026-10-30). Scripts with every guard are in the
+press-ops repo: `scripts/confidential-ui-deploy-2026-10-30/`, `scripts/infra-ui-deploy-2026-10-30/`,
+`scripts/font-size-deploy-2026-10-30/` (copy the newest and change FROM / TARGET / OUT / TAG).
+
+1. **Guards**: `apps/press` HEAD is the expected commit; no tracked changes except the
+   generated `dashboard/auto-imports.d.ts` (see below); GitHub `cloudflare-dns` head is exactly
+   the merge commit you reviewed.
+2. **Snapshot first** (`/home/frappe/deploy-safety-<date>/`): a `safety/pre-...` tag (push it
+   from the dev box: press-ctrl's GitHub key is read-only), a bundle of every ref plus the stash
+   SHAs, the untracked files, the built `press/public/dashboard`, `www/dashboard.html`, and the
+   uncommitted diff + untracked files of every OTHER app. Copy it to the dev box and check the
+   sha256 list. Add a DB dump when the release changes a schema.
+3. `git merge --ff-only` in `apps/press` only, as `frappe`. **Never `bench update`**: other apps
+   (`daman_backup`, `frappe_theme_switcher`, `sanad_*`) carry uncommitted server-side work.
+4. Import check in a fresh process; `bench --site demo.mvpstorm.com reload-doctype <DocType>`
+   for a changed schema (no full `migrate`, same reason as 3).
+5. `yarn build` in `apps/press/dashboard` when Vue changed; `clear-cache`;
+   `supervisorctl restart frappe-bench-web:` (never `restart all`).
+6. **Post-state**: same stash count, same untracked files, every other app's diff hash equal to
+   the snapshot. Then live checks (dashboard 200 on the new build, the new strings in the bundle).
+
+**When `hooks.py` changed**, check `frappe.get_hooks("<hook>")` in a fresh process after the
+deploy. On 0.7.4 the Redis `app_hooks` cache kept the old hooks through `clear-cache` and a
+worker restart; deleting the key `<db_name>|app_hooks` fixed it. See
+[the lesson](../08-lessons/2026-10-30-hooks-change-not-seen.md).
+
+**`dashboard/auto-imports.d.ts`** is rewritten by unplugin-auto-import on every `yarn build`
+(new Lucide icons), so it shows as modified after each build until the change is committed.
+The deploy guard accepts it only when every changed line is a generated
+`const Lucide...: typeof import('~icons/lucide/...')['default']` declaration, keeps the diff in
+the snapshot, and resets it before the merge.
+
 ## SSL Certificates
 ```bash
 # Renew wildcard cert

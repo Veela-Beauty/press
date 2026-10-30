@@ -21,20 +21,34 @@
 
 ## Typography
 
-- Sidebar nav items: `13.5px` (custom), white on dark
+- Sidebar nav items: `13.5px` (custom), `#CBD5E1` on dark
 - Body text: default frappe-ui sizing
 - Login title: `text-2xl font-bold`
 - Brand name: `text-lg font-bold`
 
+**Give list text an explicit size.** The dashboard root sets no base font size (upstream
+Frappe Cloud does not either), so text with no `text-*` class falls back to the browser's
+16px. In frappe-ui's scale `text-xs` = 12px, `text-sm` = 13px, `text-base` = 14px,
+`text-lg` = 16px. Lists use `text-base` for the name column and `text-sm` for the other cells
+(benches list since 0.7.5: names were 16px next to 13px cells, which the user read as "too
+bold"; removing `font-medium` did not help, the size did). When text looks too heavy,
+measure the computed font-size before changing the weight.
+
+**Pages are full width.** Data pages and object tabs do not sit in a centered `max-w-*`
+column (10 pages changed in 0.7.3; Tessera's side margins went from 251 to 20 px).
+
 ## Components
 
 ### Sidebar
-- Background: `#1E293B` solid
-- Nav items: `py-2 px-2`, white text at 65% opacity
-- Active item: `#046BD2` background, white text at 100%
-- Hover: `rgba(255,255,255,0.08)` background
+Since 0.7.2 the sidebar uses the prototype's solid colors (`AppSidebar.vue`,
+`AppSidebarItem.vue`, `AppSidebarItemGroup.vue`). Translucent white text blended into the
+slate and read "matte".
+- Width `240px`, background `#1E293B` solid, right border `rgba(255,255,255,0.06)`
+- Nav items and icons: `#CBD5E1` solid (not white at an opacity); group labels `#94A3B8`
+- Active item: `#0B6BD3` background, white text and icon
+- Hover: `rgba(255,255,255,0.06)` background, white text
+- Item radius exactly `6px`: frappe-ui's `rounded` is 8px and `rounded-md` 10px, so set it explicitly
 - Logo: white via `filter: brightness(0) invert(1)`
-- Icons: white at 50% opacity, 80% on hover, 100% on active
 
 ### Login Page
 - Background: blue-to-teal gradient

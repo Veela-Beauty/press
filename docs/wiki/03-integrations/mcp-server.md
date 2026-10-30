@@ -128,6 +128,37 @@ no other team. Without one, the tool refuses and says how to set it up.
 Code: `press/mcp_server/scope/` (`targets.py`, `teams.py`, `call_guard.py`, `results.py`,
 `arg_safety.py`, `test_login.py`). Background: [the 2026-09-24 lesson](../08-lessons/2026-09-24-mcp-cross-team-leak.md).
 
+## Confidential sites (since 0.7.2, 2026-10-30)
+
+A site marked **Is Confidential** opens only with the Admin PIN, for people and agents alike.
+Before 0.7.2 the PIN guarded only the dashboard's Login as Administrator; the desk button,
+Show Admin Password, `login_as_team` and every MCP tool skipped it, and `Site.onload` sent the
+plain PIN to every desk browser that opened any Site.
+
+**Desk.** `Site.login(reason, pin)` checks `_check_confidential_pin` (global PIN, 3-strike
+lockout, alert mail), so every caller goes through one gate; `login_as_admin` delegates to it.
+`login_as_team` and Show Admin Password refuse a confidential site. `Site.onload` no longer
+copies the PIN.
+
+**MCP.** A token reaches a confidential site only if the human typed the Admin PIN in the
+Issue Token dialog for a token whose Allowed Sites names that site. The agent never sees the
+PIN.
+- `auth.issue_token(..., confidential_pin)` calls `scope/confidential.unlock`: only sites of the
+  token's own team are checked, so another team's site name gets no PIN prompt. The unlocked
+  names are stored on `Press MCP Token.confidential_sites`.
+- `verify_token` loads them into `frappe.local.mcp_token_confidential_sites`.
+- `call_guard.assert_call_in_team` calls `assert_unlocked` for every site the arguments name,
+  and for in-container tools (`site_run_sql`, `site_file_read`, `bench_recent_logs`, ...)
+  for every confidential site on that bench, because code in the container reaches all of
+  them. `site_create` / `site_restore` from a confidential site's backup files are refused too.
+- `mint_dashboard_login_url` is refused while the team has any confidential site the token
+  did not unlock (a dashboard session reaches every site of the team).
+- Reissue does not carry the unlock: a System User can reissue anyone's token.
+
+Refusal: `site '<name>' is confidential; issue a token that names it in Allowed Sites and
+enter the Admin PIN`. Code: `press/mcp_server/scope/confidential.py`, `call_guard.py`,
+`auth.py`, `press/press/doctype/site/site.py`, `dashboard/src/components/mcp/IssueTokenDialog.vue`.
+
 ## Files
 
 - [press/mcp_server/auth.py](../../press/mcp_server/auth.py) — `issue_token`,
