@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import frappe
 
-from press.mcp_server.scope.targets import _candidate_to_release_group
+from press.mcp_server.scope.confidential import assert_team_unlocked, assert_unlocked
+from press.mcp_server.scope.targets import _candidate_to_release_group, _extract_target
 from press.mcp_server.scope.teams import assert_in_team, not_visible
 
 _SITE_ARGS = ("site", "site_name")
@@ -19,6 +20,8 @@ _BENCH_ARGS = ("bench_name", "target_bench")
 _CANDIDATE_ARGS = ("dn", "candidate_name", "target_candidate", "dc_name")
 _SOURCE_ARGS = ("app_source", "source")
 _REMOTE_FILE_ARGS = ("database", "public", "private", "config")
+# Restoring a confidential site's backup into another site would copy its data out.
+_REMOTE_FILE_TOOLS = frozenset({"site_create", "site_restore"})
 # Placement tools may use a public server; tools that read a server's jobs or memory may not.
 _PLACEMENT_TOOLS = frozenset({"release_group_create", "site_create"})
 # Tools that execute code or read files inside the bench container, which every site on
@@ -54,8 +57,25 @@ def assert_call_in_team(tool: str, args: dict, team: str) -> None:
 	_assert_server(team, args.get("server"), allow_public=tool in _PLACEMENT_TOOLS)
 	_assert_nested(team, args)
 	_TOOL_RULES.get(tool, _no_rule)(team, args)
-	if tool in _IN_CONTAINER_TOOLS:
-		_assert_bench_single_tenant(team, _bench_of_call(args))
+	benches = _benches_of_call(args) if tool in _IN_CONTAINER_TOOLS else set()
+	for bench in benches:
+		_assert_bench_single_tenant(team, bench)
+	assert_unlocked(_sites_of_call(tool, args), benches)
+
+
+def _sites_of_call(tool: str, args: dict) -> set:
+	"""Every site the call names or reaches: its args, its target, its job, its backup files."""
+	sites = {args[arg] for arg in _SITE_ARGS if args.get(arg)}
+	doctype, name = _extract_target(tool, args)
+	if doctype == "Site" and name:
+		sites.add(name)
+	if args.get("job_name"):
+		sites.add(frappe.db.get_value("Agent Job", args["job_name"], "site"))
+	if tool in _REMOTE_FILE_TOOLS:
+		for arg in _REMOTE_FILE_ARGS:
+			sites |= _remote_file_sites(args.get(arg))
+	sites.discard(None)
+	return sites
 
 
 def _no_rule(team: str, args: dict) -> None:
@@ -150,28 +170,31 @@ def _assert_release(team: str, name: str | None) -> None:
 
 def _assert_remote_file(team: str, name: str | None) -> None:
 	"""A backup file belongs to the team whose site it was taken from."""
-	if not name:
-		return
-	site = frappe.db.get_value("Remote File", name, "site")
-	sites = {site} if site else set()
-	for field in ("remote_database_file", "remote_public_file", "remote_private_file", "remote_config_file"):
-		sites.update(frappe.get_all("Site Backup", filters={field: name}, pluck="site"))
-	for s in sites:
+	for s in _remote_file_sites(name):
 		if frappe.db.get_value("Site", s, "team") != team:
 			raise frappe.PermissionError(not_visible("Remote File", name))
 
 
-def _bench_of_call(args: dict) -> str | None:
-	for arg in ("site_name", "site"):
-		if args.get(arg):
-			return frappe.db.get_value("Site", args[arg], "bench")
-	return args.get("bench_name")
+def _remote_file_sites(name: str | None) -> set:
+	if not name:
+		return set()
+	site = frappe.db.get_value("Remote File", name, "site")
+	sites = {site} if site else set()
+	for field in ("remote_database_file", "remote_public_file", "remote_private_file", "remote_config_file"):
+		sites.update(frappe.get_all("Site Backup", filters={field: name}, pluck="site"))
+	return sites
 
 
-def _assert_bench_single_tenant(team: str, bench: str | None) -> None:
+def _benches_of_call(args: dict) -> set:
+	# A tool may take both a site and a bench; check every bench either names.
+	benches = {frappe.db.get_value("Site", args[arg], "bench") for arg in ("site_name", "site") if args.get(arg)}
+	benches.add(args.get("bench_name"))
+	benches.discard(None)
+	return benches
+
+
+def _assert_bench_single_tenant(team: str, bench: str) -> None:
 	"""Code or file access inside a bench container reaches every site on that bench."""
-	if not bench:
-		return
 	if frappe.db.count("Site", {"bench": bench, "team": ["!=", team], "status": ["!=", "Archived"]}):
 		raise frappe.PermissionError(
 			f"bench {bench!r} also hosts another team's sites, so in-container access is refused"
@@ -244,6 +267,11 @@ def _rule_list_pending(team: str, args: dict) -> None:
 		_assert_source_usable(team, source)
 
 
+def _rule_whole_team(team: str, args: dict) -> None:
+	# A dashboard session reaches every site of the team, backups included.
+	assert_team_unlocked(team)
+
+
 def _checker(doctype: str):
 	return lambda team, value: assert_in_team(team, doctype, value)
 
@@ -268,4 +296,5 @@ _TOOL_RULES = {
 	"app_release_approve": _rule_release_approve,
 	"register_existing_app": _rule_register_app,
 	"list_pending_releases": _rule_list_pending,
+	"mint_dashboard_login_url": _rule_whole_team,
 }
