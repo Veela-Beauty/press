@@ -4,13 +4,25 @@ import { Breadcrumbs, Button, Spinner, TextInput, createListResource } from 'fra
 import Header from '@/components/Header.vue'
 import LinkControl from '@/components/LinkControl.vue'
 import ListPageAlerts from '@/components/ListPageAlerts.vue'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import BenchRow from './BenchRow.vue'
+
+// Embedded as a server's Benches tab (objects/server.js): only that server's benches, no
+// page header (the server page has one), and New Bench creates on this server.
+const props = defineProps<{ server?: string; canAddBench?: boolean }>()
+
+const newBenchRoute = computed(() =>
+	props.server
+		? { name: 'Server New Release Group', params: { server: props.server } }
+		: { name: 'New Release Group' },
+)
+const showNewBench = computed(() => !props.server || props.canAddBench)
 
 const groups = createListResource({
 	doctype: 'Release Group',
 	auto: true,
 	pageLength: 20,
+	filters: props.server ? { server: props.server } : {},
 	fields: [
 		'name',
 		'title',
@@ -39,21 +51,21 @@ const applyFilter = (key: string, val: any) => {
 
 <template>
 	<div class="flex flex-col h-full">
-		<Header class="bg-surface-white shrink-0">
-			<Breadcrumbs :items="[{ label: 'Benches', route: '/groups' }]" />
-			<Button class="ml-auto mr-2" @click="groups.reload()">
-				<template #icon><lucide-refresh-ccw class="size-4" /></template>
-			</Button>
-			<Button :route="{ name: 'New Release Group' }" variant="solid"
-				>New Bench</Button
-			>
-		</Header>
+		<template v-if="!server">
+			<Header class="bg-surface-white shrink-0">
+				<Breadcrumbs :items="[{ label: 'Benches', route: '/groups' }]" />
+				<Button class="ml-auto mr-2" @click="groups.reload()">
+					<template #icon><lucide-refresh-ccw class="size-4" /></template>
+				</Button>
+				<Button :route="newBenchRoute" variant="solid">New Bench</Button>
+			</Header>
 
-		<div class="px-5 pt-3 shrink-0">
-			<ListPageAlerts />
-		</div>
+			<div class="px-5 pt-3 shrink-0">
+				<ListPageAlerts />
+			</div>
+		</template>
 
-		<div class="flex gap-3 items-center px-5 py-3 shrink-0">
+		<div class="flex gap-3 items-center shrink-0" :class="server ? 'pb-3' : 'px-5 py-3'">
 			<TextInput
 				placeholder="Search bench"
 				:debounce="500"
@@ -79,9 +91,16 @@ const applyFilter = (key: string, val: any) => {
 				:modelValue="tag"
 				@update:modelValue="v => { tag = v; applyFilter('tags.tag', v) }"
 			/>
+
+			<template v-if="server">
+				<Button class="ml-auto" @click="groups.reload()">
+					<template #icon><lucide-refresh-ccw class="size-4" /></template>
+				</Button>
+				<Button v-if="showNewBench" :route="newBenchRoute" variant="solid">New Bench</Button>
+			</template>
 		</div>
 
-		<div class="flex-1 min-h-0 overflow-y-auto px-5">
+		<div class="flex-1 min-h-0 overflow-y-auto" :class="server ? '' : 'px-5'">
 			<div
 				v-if="groups.list?.loading && !groups.data?.length"
 				class="flex justify-center py-10"
@@ -124,7 +143,7 @@ const applyFilter = (key: string, val: any) => {
 			</div>
 		</div>
 
-		<div v-if="groups.hasNextPage" class="shrink-0 px-5 py-2 flex justify-end">
+		<div v-if="groups.hasNextPage" class="shrink-0 py-2 flex justify-end" :class="server ? '' : 'px-5'">
 			<Button :loading="groups.list?.loading" @click="groups.next()"
 				>Load more</Button
 			>

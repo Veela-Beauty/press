@@ -424,88 +424,16 @@ export default {
 					return server.doc?.status !== 'Archived';
 				},
 				route: 'groups',
-				type: 'list',
-				list: {
-					doctype: 'Release Group',
-					filters: (server) => {
-						return { server: server.doc.name };
-					},
-					fields: [{ apps: ['app'] }, { servers: ['server'] }],
-					columns: [
-						{ label: 'Title', fieldname: 'title' },
-						{
-							label: 'Status',
-							fieldname: 'active_benches',
-							type: 'Badge',
-							width: 0.5,
-							format: (value, row) => {
-								if (!value) return 'Awaiting Deploy';
-								else return 'Active';
-							},
-						},
-						{
-							label: 'Version',
-							fieldname: 'version',
-							width: 0.5,
-						},
-						{
-							label: 'Apps',
-							fieldname: 'app',
-							format: (value, row) => {
-								return (row.apps || []).map((d) => d.app).join(', ');
-							},
-							width: '25rem',
-						},
-						{
-							label: 'Sites',
-							fieldname: 'site_count',
-							width: 0.25,
-						},
-					],
-					filterControls() {
-						return [
-							{
-								type: 'link',
-								label: 'Version',
-								fieldname: 'version',
-								options: {
-									doctype: 'Frappe Version',
-								},
-							},
-							{
-								type: 'link',
-								label: 'Tag',
-								fieldname: 'tags.tag',
-								options: {
-									doctype: 'Press Tag',
-									filters: {
-										doctype_name: 'Release Group',
-									},
-								},
-							},
-						];
-					},
-					route(row) {
-						return {
-							name: 'Release Group Detail',
-							params: { name: row.name },
-						};
-					},
-					primaryAction({ listResource: benches, documentResource: server }) {
-						if (server?.doc?.status !== 'Active') return {};
-						return {
-							label: 'New Bench',
-							slots: {
-								prefix: icon('plus'),
-							},
-							onClick() {
-								router.push({
-									name: 'Server New Release Group',
-									params: { server: server.doc.name },
-								});
-							},
-						};
-					},
+				// Same tree as the Benches page (each bench with its sites), for this server only.
+				type: 'Component',
+				component: defineAsyncComponent(
+					() => import('../pages/benches/list/Page.vue'),
+				),
+				props: (server) => {
+					return {
+						server: server.doc.name,
+						canAddBench: server.doc.status === 'Active',
+					};
 				},
 			},
 			{
