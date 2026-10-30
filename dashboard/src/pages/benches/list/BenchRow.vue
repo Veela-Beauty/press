@@ -144,7 +144,7 @@ const siteOptions = (site: any) => [
 				<div class="flex gap-2 items-center min-w-0">
 					<Tooltip text="Go to bench dashboard">
 						<router-link
-							class="hover:underline flex gap-2 items-center min-w-0"
+							class="hover:underline flex gap-2 items-center min-w-0 text-base text-ink-gray-8"
 							:to="{ name: 'Release Group Detail', params: { name: data.name } }"
 							@click.stop
 						>
@@ -226,7 +226,7 @@ const siteOptions = (site: any) => [
 				<span />
 
 				<router-link
-					class="flex gap-2 items-center hover:underline text-ink-gray-8 pl-6 min-w-0"
+					class="flex gap-2 items-center hover:underline text-base text-ink-gray-8 pl-6 min-w-0"
 					:to="{ name: 'Site Detail', params: { name: site.name } }"
 				>
 					<LucideAppWindow class="size-4 shrink-0 text-ink-gray-5" />
