@@ -39,6 +39,11 @@ All customizations and enhancements to the upstream `frappe/press` on the `cloud
 | Cluster public flag guard | Done | `cluster.py` | Prevents `public` flag reset on save |
 | Dev Overview (Watch Tower) | Done | `DevOverview.vue`, `bench_dev_overview.py` | Real-time bench health dashboard: summary cards, per-bench status, deploy gap counter, expandable 5-tab panel (gap, commits, sites, builds, errors), group-header rows, icon action buttons |
 | Mark Dev Bench / Dev Mode | Done | `bench.ts`, `site.js`, `bench.py`, `site.py` | is_development_bench flag on bench; is_development_site + developer_mode config on site; both moved to Options dropdown |
+| Benches list with sites (0.7.2) | Done | `pages/benches/list/` (`Page.vue`, `BenchRow.vue`, `DeployAppsDialog.vue`) | Port of upstream Frappe Cloud: each bench row expands to its sites (status, server, region), Apps column, row menu, deploy dialog for Awaiting Deploy benches; names 14px since 0.7.5 |
+| Prototype sidebar (0.7.2) | Done | `AppSidebar*.vue` | Solid `#CBD5E1` text, 240px, 6px item radius; see [UI style guide](../02-frontend-development/ui-style-guide.md) |
+| Infrastructure tree (0.7.3) | Done | `ServerChildRows.vue`, `ServerList.vue`, `InfraDashboard.vue`, `infra_board.py` | Servers expand in place (HostDrawer dialog removed) with visible Start / Stop / Restart / Logs; an action clears the cached tree |
+| Server Benches tab as tree (0.7.3) | Done | `objects/server.js`, `pages/benches/list/Page.vue` (`server` prop) | A server's Benches tab reuses the benches tree, filtered to that server |
+| Full-width pages (0.7.3) | Done | 10 data pages/tabs | No centered `max-w-*` column |
 
 ## Monitoring & Health
 
@@ -48,6 +53,8 @@ All customizations and enhancements to the upstream `frappe/press` on the `cloud
 | Daily health report | Done | scheduler hooks | CPU/RAM/disk, supervisor, Press scheduler, servers, sites, deploys, errors |
 | Error log cleanup | Done | scheduler hooks | 7-day retention, noise filter (CSS/translation/cssutils) |
 | Auto-archive broken benches | Done | `release_group.py` | Archives benches with no active sites + failed builds |
+| Press log retention (0.7.4) | Done | `bench_shell_log.py`, `agent_job.py`, `hooks.py` | Log Settings clears Bench Shell Log after 30 days and Agent Job (+ steps) after 90 (`clear_old_logs`); backlog of 4.5M rows removed 2026-10-30, tables 13 GB -> 3.3 GB |
+| Confidential-site PIN gate (0.7.2) | Done | `site.py`, `mcp_server/scope/confidential.py`, `call_guard.py`, `auth.py`, `IssueTokenDialog.vue` | Desk login and every MCP tool need the Admin PIN for a confidential site; see [MCP server](../03-integrations/mcp-server.md#confidential-sites-since-072-2026-10-30) |
 
 ## Demo Data Engine
 

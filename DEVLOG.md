@@ -1,5 +1,19 @@
 # Press Fork Dev Log
 
+### Session 11 - 2026-10-30: confidential PIN gate, upstream UI port, infra tree, log retention (0.7.2 to 0.7.5)
+
+**What we did:**
+1. Closed the confidential-site gap: the Admin PIN now guards the desk login and every MCP tool (PR #14); an MCP token unlocks a confidential site only with the PIN typed when it is issued.
+2. Ported upstream's benches list with nested sites and the prototype sidebar (PR #15), then the infrastructure tree, the server Benches tab and full-width pages (PR #16), Bench Shell Log / Agent Job retention (PR #17) and 14px list names (PR #18).
+3. Deployed 0.7.2, 0.7.3, 0.7.4 and 0.7.5 to press-ctrl with snapshot + ff-only + post-state compare (scripts in the press-ops repo); removed 4.5M old log rows (13 GB -> 3.3 GB).
+4. Rendered every Vue change offline in a harness (`press-ops/tools/dashboard-render-harness/`), never on the live panel.
+
+**Files:** site.py, mcp_server/scope/confidential.py, call_guard.py, auth.py, press_mcp_token.json, IssueTokenDialog.vue, pages/benches/list/*, AppSidebar*.vue, ServerChildRows.vue, infra_board.py, objects/server.js, bench_shell_log.py, agent_job.py, hooks.py
+
+**Watch out:** after a `hooks.py` change check `frappe.get_hooks` in a fresh process; the Redis `app_hooks` key kept the old hooks (second time, see 08-lessons/2026-10-30). "Too bold" text was a size problem (no `text-*` class = 16px).
+
+**Next:** user rotates the Admin PIN; commit the generated `dashboard/auto-imports.d.ts`.
+
 ### Session 10 - 2026-09-24: MCP team isolation + private OptiFlow team
 
 **What we did:**

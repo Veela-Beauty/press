@@ -4,6 +4,31 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 30-10-2026: confidential sites need the PIN everywhere, benches list with sites, infrastructure tree, log retention (0.7.2 to 0.7.5)
+
+A site marked Confidential could be opened without the Admin PIN from the desk ("Login as Administrator") and through every MCP tool, and `Site.onload` sent the PIN itself to every desk browser that opened any Site. All four releases were deployed to press-ctrl on 2026-10-30 with a snapshot first and `git merge --ff-only` in `apps/press` only.
+
+### Security
+- Desk: `Site.login` checks the Admin PIN for confidential sites, so Login as Administrator, `login_as_admin` and the API all pass one gate; `login_as_team` and Show Admin Password refuse them; `Site.onload` no longer copies the PIN (PR #14, 0.7.2). The PIN that leaked should be rotated.
+- MCP: a token reaches a confidential site only if the human entered the Admin PIN in the Issue Token dialog for a token that names the site; in-container tools are refused on a bench hosting a locked confidential site, and `mint_dashboard_login_url` while the team has one (PR #14, 0.7.2). New field `Press MCP Token.confidential_sites`.
+
+### Added
+- Benches list shows each bench's sites (status, server, region), an Apps column, a row menu and the deploy dialog for Awaiting Deploy benches: a file port of upstream Frappe Cloud (PR #15, 0.7.2).
+- Infrastructure servers expand in place as a tree with visible Start / Stop / Restart / Logs instead of the HostDrawer dialog; a server's Benches tab shows the same benches tree (PR #16, 0.7.3).
+- Log Settings clears Bench Shell Log after 30 days and Agent Job (with its steps) after 90 days (PR #17, 0.7.4).
+
+### Changed
+- Sidebar uses the prototype's solid colors (`#CBD5E1` text, 240px, 6px items) instead of translucent white (PR #15, 0.7.2).
+- 10 data pages and tabs are full width; bench names are no longer bold (PR #16, 0.7.3).
+- Bench and site names in the benches list are 14px (`text-base`) instead of the browser's 16px (PR #18, 0.7.5).
+
+### Fixed
+- `host_unit_action` clears the cached infrastructure tree, so the tree shows a unit's new state after Start / Stop (PR #16, 0.7.3).
+
+Docs: [MCP server: confidential sites](docs/wiki/03-integrations/mcp-server.md), [deploying the press app](docs/wiki/06-deployment-ops/deployment-guide.md), [UI style guide](docs/wiki/02-frontend-development/ui-style-guide.md), [lesson: hooks change not seen](docs/wiki/08-lessons/2026-10-30-hooks-change-not-seen.md).
+
+---
+
 ## 24-09-2026: MCP team isolation, Switch Team shows team names, stable default team
 
 A token issued for one team could read and change another team's sites, benches, servers and apps through the MCP server (proven live: a main-team token read an OptiFlow site's status). MCP tools run as the token user and Frappe skips permission checks for System Users. Found by an audit of all 84 MCP tools (59 cross-team paths, each confirmed by two independent verifiers) and closed at the MCP layer. PRs #8 to #12, all deployed to press-ctrl (now `c7f3fa122`).

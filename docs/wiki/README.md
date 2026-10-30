@@ -40,6 +40,7 @@ Enhanced fork of Frappe Press by Accurate Systems — enterprise capabilities, C
 - [Critical Issues](07-implementation-status/critical-issues.md) — Known blockers and workarounds
 
 ### 08 — Lessons Learned
+- [2026-10-30: a hooks.py change was deployed but Frappe kept the old hooks](08-lessons/2026-10-30-hooks-change-not-seen.md) : 0.7.4's new log-retention entries were invisible to `get_hooks` until the Redis `app_hooks` key was deleted by hand (second time after 2026-09-08); the deploy guide now checks it. Also: press-ctrl's DB `NOW()` is 3 h behind the stored times.
 - [2026-09-24: an MCP token reached another team's sites](08-lessons/2026-09-24-mcp-cross-team-leak.md) : System Users skip Frappe permissions, and the MCP scope check read a different argument from the one each tool used. 59 paths found by an 84-tool audit, closed in `press/mcp_server/scope/`. Also: a user who owns two teams switches default team by timestamp.
 - [2026-09-08 — A stranded Server freezes every job on it](08-lessons/2026-09-08-stranded-server-freezes-every-job.md) — `Server.status != "Active"` silently drops a whole box from job polling *and* site updates. Also: writing `Agent Job.status` without its callback orphans the record, `bench clear-cache` does not clear `app_hooks`, and a purged registry tag makes a stuck bench unretryable.
 - [2026-04-29 — bench-watch, Site Overview usage, Log Server](08-lessons/2026-04-29-bench-watch-and-log-server.md) — `dashboard_fields` is a silent whitelist; 5 repeating-pattern bugs.
