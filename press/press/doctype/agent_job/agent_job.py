@@ -75,6 +75,18 @@ class AgentJob(Document):
 		upstream: DF.Link | None
 	# end: auto-generated types
 
+	@staticmethod
+	def clear_old_logs(days=90):
+		# Called daily by Log Settings (default_log_clearing_doctypes in hooks.py): old jobs
+		# and their steps, steps first so none is left pointing at a deleted job.
+		from frappe.query_builder import Interval
+		from frappe.query_builder.functions import Now
+
+		job, step = frappe.qb.DocType("Agent Job"), frappe.qb.DocType("Agent Job Step")
+		old = frappe.qb.from_(job).select(job.name).where(job.creation < (Now() - Interval(days=days)))
+		frappe.db.delete(step, filters=step.agent_job.isin(old))
+		frappe.db.delete(job, filters=(job.creation < (Now() - Interval(days=days))))
+
 	dashboard_fields = (
 		"name",
 		"job_type",

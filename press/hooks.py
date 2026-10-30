@@ -513,6 +513,8 @@ export_python_type_annotations = True
 
 default_log_clearing_doctypes = {
 	"Alertmanager Webhook Log": 60,
+	"Bench Shell Log": 30,
+	"Agent Job": 90,
 }
 
 
