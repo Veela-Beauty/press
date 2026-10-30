@@ -3,7 +3,7 @@
 		<a
 			:href="href"
 			@click="navigate"
-			class="as-nav-item flex items-center rounded px-2 py-2 transition"
+			class="as-nav-item flex items-center rounded-[6px] px-3 py-2 transition"
 			:class="[
 				item.isActive ? 'as-nav-active' : 'as-nav-inactive',
 				item.disabled ? 'pointer-events-none opacity-50' : '',
@@ -14,7 +14,7 @@
 				<span class="grid h-5 w-6 place-items-center">
 					<component :is="item.icon" class="h-4 w-4 as-nav-icon" />
 				</span>
-				<span class="text-[13.5px]">{{ item.name }}</span>
+				<span class="text-[13px]">{{ item.name }}</span>
 				<component :is="item.badge" />
 			</div>
 		</a>
@@ -32,22 +32,23 @@ let props = defineProps({
 
 <style scoped>
 /* Rebrand: Dark sidebar nav items */
+/* Solid colors, not translucent white: translucent text blends into the slate and reads matte. */
 .as-nav-item {
-	color: rgba(255,255,255,0.65);
+	color: #CBD5E1;
 }
 .as-nav-icon {
-	color: rgba(255,255,255,0.5);
+	color: #CBD5E1;
 }
 .as-nav-inactive:hover {
 	color: white;
-	background: rgba(255,255,255,0.08);
+	background: rgba(255,255,255,0.06);
 }
 .as-nav-inactive:hover .as-nav-icon {
-	color: rgba(255,255,255,0.8);
+	color: white;
 }
 .as-nav-active {
 	color: white;
-	background: #046BD2;
+	background: #0B6BD3;
 }
 .as-nav-active .as-nav-icon {
 	color: white;
