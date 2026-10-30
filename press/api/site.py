@@ -1983,8 +1983,8 @@ def activate(name):
 
 @frappe.whitelist()
 @protected("Site")
-def login(name, reason=None):
-	return {"sid": frappe.get_doc("Site", name).login(reason), "site": name}
+def login(name, reason=None, pin=None):
+	return {"sid": frappe.get_doc("Site", name).login(reason, pin), "site": name}
 
 
 @frappe.whitelist()

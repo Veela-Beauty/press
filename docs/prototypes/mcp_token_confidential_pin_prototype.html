@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Issue MCP Token, Admin PIN for confidential sites - Dialog Prototype</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<!--
+  Target: dashboard/src/components/mcp/IssueTokenDialog.vue (Press dashboard, frappe-ui).
+  Tokens mirror the frappe-ui look of the live dialog (see references/mcp-token-dialog-current/),
+  not the AccuBuild --ab-* blue, so the prototype reads like the real screen.
+  Contract (job): the owner issues a token for an agent; when the agent must reach a confidential
+  site, the owner unlocks that site once with the Admin PIN. The agent never sees the PIN.
+-->
+<style>
+:root {
+  --ink: #171717; --text: #383838; --muted: #7c7c7c; --line: #e2e2e2; --field: #f3f3f3;
+  --blue-chip: #dbeafe; --blue-chip-text: #1e40af; --link: #0289f7;
+  --amber-bg: #fffbeb; --amber-line: #fde68a; --amber-text: #92400e;
+  --green-bg: #ecfdf5; --green-line: #a7f3d0; --green-text: #065f46;
+  --red-text: #b91c1c; --red-line: #fca5a5; --red-bg: #fef2f2;
+  --radius: 8px; --radius-sm: 6px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+       background: #e9ecef; padding: 24px; color: var(--text); font-size: 13px; }
+.hidden { display: none !important; }
+.prototype-label { display: inline-block; background: #dc3545; color: #fff; padding: 4px 12px;
+  border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 12px; }
+
+/* Prototype controls: outside the dialog, not part of the design */
+.controls { max-width: 896px; margin: 0 auto 16px; display: flex; flex-wrap: wrap; gap: 16px;
+  align-items: center; background: #fff; border: 1px dashed #adb5bd; border-radius: var(--radius); padding: 12px 16px; }
+.controls .group { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.controls .group > span { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-right: 4px; }
+.seg { border: 1px solid var(--line); background: #fff; border-radius: var(--radius-sm); padding: 4px 12px;
+  font-size: 12px; cursor: pointer; color: var(--text); }
+.seg.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+/* Dialog shell (frappe-ui Dialog size 4xl = 896px) */
+.dialog { background: #fff; border-radius: 12px; max-width: 896px; margin: 0 auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,.18); padding: 24px; }
+.dialog-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.dialog-header h3 { font-size: 20px; font-weight: 600; color: var(--ink); }
+.dialog-close { width: 32px; height: 32px; border: none; background: none; font-size: 16px; color: var(--text); cursor: pointer; border-radius: var(--radius-sm); }
+.stack > * + * { margin-top: 16px; }
+
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; align-items: start; }
+.field label { display: block; font-size: 12px; color: #525252; margin-bottom: 8px; }
+.field label .reqd { color: #e03636; margin-left: 2px; }
+.input { width: 100%; height: 28px; border: 1px solid transparent; background: var(--field);
+  border-radius: var(--radius-sm); padding: 0 8px; font-size: 13px; color: var(--ink); }
+.input:focus { outline: none; background: #fff; border-color: #a3a3a3; }
+.input.error { border-color: var(--red-line); background: var(--red-bg); }
+.hint { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+.link { font-size: 12px; color: var(--link); margin-top: 4px; display: inline-block; cursor: pointer; }
+
+.risky { border: 1px solid var(--amber-line); background: var(--amber-bg); border-radius: 4px; padding: 12px; color: var(--amber-text); font-size: 12px; }
+.risky b { font-size: 13px; }
+.scope-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.scope-head .title { font-size: 13px; font-weight: 500; color: #404040; }
+.scope-box { border: 1px solid #d1fae5; background: #fbfefc; border-radius: 4px; padding: 8px 12px; color: var(--muted); font-size: 12px; }
+.scope-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 12px; margin-top: 8px; }
+.scope-row div { display: flex; gap: 8px; align-items: center; color: var(--text); }
+.badge-low { margin-left: auto; background: #dcfce7; color: #166534; font-size: 10px; border-radius: 4px; padding: 0 4px; }
+
+/* Allowed Sites picker (MultiSelectChips) */
+.picker { border: 1px solid #d4d4d4; border-radius: 4px; background: #fff; padding: 8px; position: relative; }
+.picker:focus-within { border-color: #3b82f6; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.chips:empty { display: none; }
+.chip { display: inline-flex; align-items: center; gap: 4px; background: var(--blue-chip); color: var(--blue-chip-text);
+  border-radius: var(--radius-sm); padding: 2px 8px; font-size: 12px; }
+.chip button { border: none; background: none; color: #2563eb; cursor: pointer; font-size: 13px; line-height: 1; }
+.picker input { border: none; outline: none; width: 100%; font-size: 13px; padding: 0; }
+.dropdown { position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px; background: #fff; border: 1px solid var(--line);
+  border-radius: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 5; max-height: 240px; overflow-y: auto; }
+.opt { padding: 8px 12px; cursor: pointer; display: flex; align-items: baseline; gap: 8px; }
+.opt:hover { background: #eff6ff; }
+.opt.sel { background: #dbeafe; }
+.opt .name { font-weight: 500; color: var(--ink); }
+.opt .sub { font-size: 12px; color: var(--muted); }
+.opt .check { margin-left: auto; color: #2563eb; }
+.conf-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--amber-text);
+  background: var(--amber-bg); border: 1px solid var(--amber-line); border-radius: 4px; padding: 0 4px; }
+
+/* NEW: confidential unlock */
+.pin-block .hint b { color: var(--text); font-weight: 600; }
+
+.error-msg { color: var(--red-text); font-size: 13px; }
+.issued { border: 1px solid var(--green-line); background: var(--green-bg); border-radius: 4px; padding: 12px; color: var(--green-text); }
+.issued code { display: block; margin: 8px 0; background: #fff; border: 1px solid var(--green-line); border-radius: 4px; padding: 8px; color: var(--ink); font-size: 12px; }
+.btn-primary { width: 100%; height: 32px; border: none; border-radius: var(--radius-sm); background: var(--ink); color: #fff;
+  font-size: 14px; cursor: pointer; margin-top: 24px; }
+
+.compare { max-width: 896px; margin: 40px auto 0; }
+.compare h4 { font-size: 12px; font-weight: 700; color: #721c24; background: #f8d7da; display: inline-block; padding: 4px 12px; border-radius: 4px; margin-bottom: 8px; }
+.compare img { width: 100%; border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 16px; }
+.compare p { margin-bottom: 8px; color: var(--text); line-height: 1.5; }
+
+@media (max-width: 768px) {
+  .grid3, .grid4, .grid2, .scope-row { grid-template-columns: 1fr; }
+  body { padding: 12px; }
+  .dialog { padding: 16px; }
+}
+</style>
+</head>
+<body>
+<span class="prototype-label">Prototype</span>
+
+<div class="controls">
+  <div class="group"><span>PIN placement</span>
+    <button class="seg active" data-place="sites" onclick="setPlace('sites')">A. Under Allowed Sites</button>
+    <button class="seg" data-place="top" onclick="setPlace('top')">B. Top row</button>
+  </div>
+  <div class="group"><span>Scenario</span>
+    <button class="seg" data-scn="plain" onclick="scenario('plain')">No confidential site</button>
+    <button class="seg active" data-scn="picked" onclick="scenario('picked')">Confidential picked</button>
+    <button class="seg" data-scn="wrong" onclick="scenario('wrong')">Wrong PIN</button>
+    <button class="seg" data-scn="locked" onclick="scenario('locked')">Locked out</button>
+    <button class="seg" data-scn="issued" onclick="scenario('issued')">Issued</button>
+  </div>
+</div>
+
+<div class="dialog" role="dialog" aria-labelledby="dlg-title">
+  <div class="dialog-header">
+    <h3 id="dlg-title">Issue MCP Token</h3>
+    <button class="dialog-close" aria-label="Close"><i class="fa fa-times"></i></button>
+  </div>
+
+  <div id="form" class="stack">
+    <!-- Row 1: unchanged, except placement B adds the PIN as a 4th column -->
+    <div id="top-row" class="grid3">
+      <div class="field"><label>Label (what this token is for)<span class="reqd">*</span></label><input class="input" value="accuhub agent"></div>
+      <div class="field"><label>TTL (days, 1-90)</label><input class="input" value="7"></div>
+      <div class="field"><label>Your password (re-auth to issue)<span class="reqd">*</span></label><input class="input" type="password" value="password">
+        <a class="link">Forgot password? Use email OTP instead</a></div>
+      <div id="pin-top" class="field hidden"><!-- placement B --></div>
+    </div>
+
+    <div class="risky"><b>Enable risky (high-risk) tools</b> - required for site_run_python, site_run_sql, bench_run_repo_script<br>
+      Non-System Users get a pending token that must be approved via Admin Panel - MCP.</div>
+
+    <!-- Scope picker: unchanged, shortened here -->
+    <div>
+      <div class="scope-head"><span class="title">Scope (tools this token can call)</span><span class="hint" style="margin:0">3 tools - 3 read-only</span></div>
+      <div class="scope-box">Read-only (30 visible - 3 selected) - picker unchanged, shortened in this prototype
+        <div class="scope-row">
+          <div><i class="fa fa-check-square"></i> List Release Groups <span class="badge-low">low</span></div>
+          <div><i class="fa fa-check-square"></i> List My Tokens <span class="badge-low">low</span></div>
+          <div><i class="fa fa-check-square"></i> List Sites <span class="badge-low">low</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resource scope: 2 columns. NEW: confidential tag in options + chip; PIN under Allowed Sites (A) -->
+    <div class="grid2">
+      <div class="field"><label>Allowed Release Groups</label>
+        <div class="picker"><input placeholder="Search benches by name or title..."></div>
+        <div class="hint">Empty = inherit your full RG access.</div>
+      </div>
+      <div>
+        <div class="field"><label>Allowed Sites</label>
+          <div class="picker" id="site-picker">
+            <div class="chips" id="chips"></div>
+            <input id="site-search" placeholder="Search sites..." autocomplete="off">
+            <div class="dropdown hidden" id="dropdown"></div>
+          </div>
+          <div class="hint">Empty = inherit your full site access. Confidential sites are never included by empty.</div>
+        </div>
+        <div id="pin-sites" class="field pin-block hidden" style="margin-top:12px"><!-- placement A --></div>
+      </div>
+    </div>
+
+    <div id="error" class="error-msg hidden"></div>
+  </div>
+
+  <div id="issued" class="issued hidden">
+    <b><i class="fa fa-check-circle"></i> Token issued</b>
+    <code>pmcp_7Hq2...copy now, shown once</code>
+    Unlocked confidential sites: <b id="issued-sites"></b>
+  </div>
+
+  <button class="btn-primary" id="primary" onclick="issue()">Issue Token</button>
+</div>
+
+<div class="compare">
+  <h4>TODAY (deployed code, rendered from source)</h4>
+  <p>Picking accuhub-dev-v15 looks like any other site, and no PIN is asked. Allowed Sites is the last section, right above
+     Issue Token; the password is about 650px higher in the top row.</p>
+  <img src="references/mcp-token-dialog-current/02-confidential-site-picked.png" alt="Current dialog with a confidential site picked">
+</div>
+
+<script>
+const SITES = [
+  { name: 'accuhub-dev-v15.sandbox.mvpstorm.com', bench: 'bench-0015', confidential: true },
+  { name: 'claudecodelearn.sandbox.mvpstorm.com', bench: 'bench-0015' },
+  { name: 'tchworx.sandbox.mvpstorm.com', bench: 'bench-0015' },
+  { name: 'hstp-stg.sandbox.mvpstorm.com', bench: 'bench-0044' },
+];
+const state = { place: 'sites', selected: ['accuhub-dev-v15.sandbox.mvpstorm.com'], pin: '', fails: 0, error: '', issued: false };
+const $ = (id) => document.getElementById(id);
+const short = (n) => n.split('.')[0];
+const confPicked = () => state.selected.filter((n) => SITES.find((s) => s.name === n)?.confidential);
+
+function pinHtml() {
+  const names = confPicked().map(short).join(', ');
+  const err = state.error ? ' error' : '';
+  // IMPLEMENT: FormControl type="password" v-model="form.confidentialPin", shown when confidentialPicked.length
+  return `<label>Admin PIN<span class="reqd">*</span></label>
+    <input class="input${err}" id="pin" type="password" inputmode="numeric" autocomplete="off" value="${state.pin}"
+      oninput="state.pin=this.value">
+    <div class="hint">Unlocks <b>${names}</b> for this token. The agent never sees the PIN.</div>`;
+}
+
+function render() {
+  const conf = confPicked().length > 0;
+  $('chips').innerHTML = state.selected.map((n) => {
+    const s = SITES.find((x) => x.name === n);
+    return `<span class="chip">${s.confidential ? '<i class="fa fa-lock"></i>' : ''}${n}
+      <button onclick="toggle('${n}')" title="Remove">&times;</button></span>`;
+  }).join('');
+  // IMPLEMENT: options come from list_my_sites; is_confidential renders the tag through the existing `sub` text
+  $('dropdown').innerHTML = SITES.map((s) => `<div class="opt${state.selected.includes(s.name) ? ' sel' : ''}"
+      onmousedown="event.preventDefault();toggle('${s.name}')">
+      <span class="name">${s.name}</span><span class="sub">bench: ${s.bench}</span>
+      ${s.confidential ? '<span class="conf-tag"><i class="fa fa-lock"></i> confidential</span>' : ''}
+      ${state.selected.includes(s.name) ? '<span class="check"><i class="fa fa-check"></i></span>' : ''}</div>`).join('');
+
+  const showTop = conf && state.place === 'top';
+  const showSites = conf && state.place === 'sites';
+  $('top-row').className = showTop ? 'grid4' : 'grid3';
+  $('pin-top').classList.toggle('hidden', !showTop);
+  $('pin-sites').classList.toggle('hidden', !showSites);
+  $('pin-top').innerHTML = showTop ? pinHtml() : '';
+  $('pin-sites').innerHTML = showSites ? pinHtml() : '';
+
+  $('error').textContent = state.error;
+  $('error').classList.toggle('hidden', !state.error);
+  $('form').classList.toggle('hidden', state.issued);
+  $('issued').classList.toggle('hidden', !state.issued);
+  $('issued-sites').textContent = confPicked().map(short).join(', ') || 'none';
+  $('primary').textContent = state.issued ? 'Done' : 'Issue Token';
+}
+
+function toggle(n) {
+  state.selected = state.selected.includes(n) ? state.selected.filter((x) => x !== n) : [...state.selected, n];
+  state.error = ''; render();
+}
+
+// IMPLEMENT: server issue_token(confidential_pin=...) runs the same 3-strike check as Login as Administrator
+function issue() {
+  if (state.issued) { scenario('plain'); return; }
+  if (!confPicked().length) { state.issued = true; render(); return; }
+  if (state.fails >= 3) { state.error = 'Too many incorrect PIN attempts. Try again in a few minutes.'; render(); return; }
+  if (state.pin === '1234') { state.issued = true; state.error = ''; render(); return; }
+  state.fails += 1; state.pin = '';
+  state.error = state.fails >= 3 ? 'Too many incorrect PIN attempts. Try again in a few minutes.' : 'Incorrect PIN';
+  render();
+}
+
+function setPlace(p) {
+  state.place = p;
+  document.querySelectorAll('[data-place]').forEach((b) => b.classList.toggle('active', b.dataset.place === p));
+  render();
+}
+
+function scenario(s) {
+  document.querySelectorAll('[data-scn]').forEach((b) => b.classList.toggle('active', b.dataset.scn === s));
+  Object.assign(state, { pin: '', fails: 0, error: '', issued: false,
+    selected: s === 'plain' ? ['hstp-stg.sandbox.mvpstorm.com'] : ['accuhub-dev-v15.sandbox.mvpstorm.com'] });
+  if (s === 'wrong') { state.fails = 1; state.error = 'Incorrect PIN'; }
+  if (s === 'locked') { state.fails = 3; state.error = 'Too many incorrect PIN attempts. Try again in a few minutes.'; }
+  if (s === 'issued') { state.issued = true; }
+  render();
+}
+
+$('site-search').addEventListener('focus', () => $('dropdown').classList.remove('hidden'));
+$('site-search').addEventListener('blur', () => $('dropdown').classList.add('hidden'));
+render();
+</script>
+</body>
+</html>

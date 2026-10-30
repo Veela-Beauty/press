@@ -43,6 +43,7 @@ def issue_token(
 	allowed_sites: list | str | None = None,
 	risky_tools_enabled: bool = False,
 	otp: str = "",
+	confidential_pin: str = "",
 ) -> dict[str, Any]:
 	"""Issue a fresh MCP token for `username` after re-authenticating.
 
@@ -96,6 +97,10 @@ def issue_token(
 	expires_at = now_datetime() + timedelta(minutes=ttl_minutes)
 
 	team = _get_team_for_user(username)
+	from press.mcp_server.scope.confidential import unlock as unlock_confidential
+
+	# Checked after re-auth, so the PIN cannot be guessed without the password.
+	confidential = unlock_confidential(allowed_sites_list, confidential_pin, f"MCP token: {label}", team)
 	doc = frappe.get_doc({
 		"doctype": "Press MCP Token",
 		"user": username,
@@ -104,6 +109,7 @@ def issue_token(
 		"scope": json.dumps(scope_list),
 		"allowed_release_groups": json.dumps(allowed_rgs),
 		"allowed_sites": json.dumps(allowed_sites_list),
+		"confidential_sites": json.dumps(confidential),
 		"risky_tools_enabled": 1 if risky_tools_enabled else 0,
 		"approval_status": approval_status,
 		"token_hash": hashed,
@@ -122,6 +128,7 @@ def issue_token(
 		"expires_at": expires_at.isoformat(),
 		"allowed_release_groups": allowed_rgs,
 		"allowed_sites": allowed_sites_list,
+		"confidential_sites": confidential,
 		"risky_tools_enabled": bool(risky_tools_enabled),
 		"approval_status": approval_status,
 	}
@@ -205,6 +212,7 @@ def verify_token(
 	except Exception:
 		pass
 	_pin_request_team(doc.team)
+	frappe.local.mcp_token_confidential_sites = safe_parse_list(doc.confidential_sites)
 	return doc.user
 
 

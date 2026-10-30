@@ -45,7 +45,7 @@ def list_my_sites(q: str | None = None) -> list[dict[str, Any]]:
 		filters["name"] = ("like", f"%{q}%")
 	return frappe.get_list(
 		"Site",
-		fields=["name", "group"],
+		fields=["name", "group", "is_confidential"],
 		filters=filters,
 		order_by="name asc",
 		limit=MAX_PICKER_RESULTS,

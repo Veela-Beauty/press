@@ -164,7 +164,7 @@
    "fieldtype": "Password",
    "label": "Confidential Admin PIN (global)",
    "depends_on": "eval:doc.is_confidential",
-   "description": "Global PIN required to Login As Administrator on confidential sites. Shared across all sites (stored in Press Settings). Editing here updates the global PIN."
+   "description": "Global PIN required to Login As Administrator on confidential sites. Shared across all sites (stored in Press Settings). The current PIN is never shown; type a new one here to change it, or leave empty to keep it."
   },
   {
    "fieldname": "column_break_3",
