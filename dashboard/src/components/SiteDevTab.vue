@@ -1,7 +1,7 @@
 <template>
 	<div class="flex">
 	<!-- Main content -->
-	<div class="mx-auto max-w-4xl flex-1 space-y-4 p-4">
+	<div class="flex-1 space-y-4 p-4">
 
 		<!-- 1. Status Cards -->
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">

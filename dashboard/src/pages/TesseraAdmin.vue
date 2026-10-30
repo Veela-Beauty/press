@@ -1,5 +1,5 @@
 <template>
-	<div class="mx-auto max-w-7xl p-4">
+	<div class="p-5">
 		<div class="mb-4 flex items-center justify-between">
 			<h1 class="text-xl font-bold text-gray-900">Tessera License Manager</h1>
 		</div>

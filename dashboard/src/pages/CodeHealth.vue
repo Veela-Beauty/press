@@ -1,5 +1,5 @@
 <template>
-	<div class="mx-auto max-w-7xl p-6">
+	<div class="p-5">
 		<!-- Drill-down: single bench detail -->
 		<div v-if="selectedBench">
 			<!-- Breadcrumb -->
