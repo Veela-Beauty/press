@@ -66,18 +66,22 @@
 
         <NeedsAttention :nodes="allNodes" class="mb-4" @view="onOpen" />
         <ServerList
+          ref="serverList"
           :nodes="allNodes"
           :view="view"
           @open="onOpen"
           @add="onAdd"
+          @openUnit="onOpenUnit"
+          @reload="tree.reload()"
         />
       </template>
     </div>
 
-    <!-- Host detail drawer (type-aware: managed control vs Press read-only) -->
-    <HostDrawer
-      :node="detailNode"
-      @close="detailNode = null"
+    <!-- One container's logs and controls (servers themselves open in place in ServerList) -->
+    <UnitDrawer
+      :host="logHost"
+      :unit="logUnit"
+      @close="logUnit = null"
       @reload="tree.reload()"
     />
 
@@ -91,25 +95,25 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import Header from '../../components/Header.vue';
 import { useInfraTree, useGate0Status } from './infra-api';
 import { isManaged } from './infra-derive';
 import ServerList from './ServerList.vue';
 import NeedsAttention from './NeedsAttention.vue';
-import HostDrawer from './HostDrawer.vue';
+import UnitDrawer from './UnitDrawer.vue';
 import AddHostWizard from './AddHostWizard.vue';
 
 // --- Data ---
 const tree = useInfraTree();
 const gate0 = useGate0Status();
-const router = useRouter();
 
 // --- UI state ---
 const view       = ref('list');   // 'list' | 'cards'
 const fresh      = ref('just now');
-const detailNode = ref(null);      // the node shown in the drawer, or null
+const serverList = ref(null);
+const logHost    = ref('');
+const logUnit    = ref(null);      // the container whose logs are open, or null
 
 // --- 15-second polling ---
 let timer = null;
@@ -125,12 +129,16 @@ const hasManaged = computed(() => allNodes.value.some(isManaged));
 // --- Breadcrumbs ---
 const crumbs = computed(() => [{ label: 'Infrastructure', route: { name: 'Infrastructure' } }]);
 
-// --- Open a node: managed hosts open the container drawer, Press servers go to the native server page ---
-function onOpen(name) {
-  const node = allNodes.value.find((n) => n.name === name);
-  if (!node) return;
-  if (isManaged(node)) detailNode.value = node;
-  else router.push('/servers/' + node.name);
+// --- Open a server: show it expanded in the list (Needs attention "View", a click in Cards view) ---
+async function onOpen(name) {
+  view.value = 'list';
+  await nextTick();
+  serverList.value?.expand(name);
+}
+
+function onOpenUnit(host, unit) {
+  logHost.value = host;
+  logUnit.value = unit;
 }
 
 // --- Add-host wizard ---

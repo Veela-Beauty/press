@@ -40,6 +40,29 @@ export const uDot = (s) => (UP_STATES.has(s) ? 'up' : s === 'exit0' ? 'unk' : 'd
 export const stateLabel = (s) => STATE_LABEL[s] || s;
 export const stateTheme = (s) => STATE_THEME[s] || 'gray';
 export const controllable = (u) => u.kind === 'container' && !!u._id;
+// States where the container is not running, so the row offers Start instead of Restart / Stop.
+const STARTABLE = new Set(['stop', 'exit0', 'exit2', 'down', 'dead']);
+export const canStart = (s) => STARTABLE.has(s);
+
+const SPAN_UNIT = { second: 's', minute: 'm', hour: 'h', day: 'd', week: 'w', month: 'mo', year: 'y' };
+function shortSpan(text) {
+  if (/less than a second/i.test(text)) return 'now';
+  const m = text.match(/(\d+|an?)\s+(second|minute|hour|day|week|month|year)s?\b/i);
+  if (!m) return null;
+  return (/^\d+$/.test(m[1]) ? m[1] : '1') + SPAN_UNIT[m[2].toLowerCase()];
+}
+// Docker's Status text ("Up 5 weeks (healthy)", "Exited (0) 7 weeks ago") as a one-line label.
+export function shortUptime(status) {
+  if (!status || status === '-') return '-';
+  const s = status.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  if (/^up\b/i.test(s)) return shortSpan(s) || s;
+  if (/^exited\b/i.test(s)) {
+    const span = shortSpan(s);
+    return span ? `exited ${span} ago` : 'exited';
+  }
+  if (/^restarting\b/i.test(s)) return 'restarting';
+  return s.toLowerCase();
+}
 export function issues(infraNodes = []) {
   const out = [];
   for (const n of infraNodes) for (const u of n.units || []) if (isDown(u.state)) out.push({ server: n.name, unit: u.name, state: u.state });
