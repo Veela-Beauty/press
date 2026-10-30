@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="as-sidebar relative flex min-h-screen w-[220px] flex-col"
+		class="as-sidebar relative flex min-h-screen w-[240px] flex-col"
 	>
 		<div class="p-2">
 			<Dropdown
@@ -31,7 +31,7 @@
 			>
 				<template v-slot="{ open }">
 					<button
-						class="flex w-[204px] items-center rounded-md px-2 py-2 text-left"
+						class="flex w-[224px] items-center rounded-md px-2 py-2 text-left"
 						:class="open ? 'as-sidebar-btn-open' : 'as-sidebar-btn-closed'"
 					>
 						<FCLogo class="as-sidebar-logo mb-1 h-9 w-9 shrink-0" />
@@ -60,7 +60,7 @@
 				<template v-slot="{ navigation }">
 					<template v-for="(item, i) in navigation" :key="item.name">
 						<AppSidebarItemGroup v-if="item.children" :item="item" />
-						<AppSidebarItem class="mt-0.5" v-else :item="item" />
+						<AppSidebarItem v-else :item="item" />
 					</template>
 				</template>
 			</NavigationItems>
@@ -119,13 +119,13 @@ export default {
 	filter: brightness(0) invert(1);
 }
 .as-sidebar-brand {
-	color: rgba(255,255,255,0.95);
+	color: #FFFFFF;
 }
 .as-sidebar-user {
-	color: rgba(255,255,255,0.5);
+	color: #94A3B8;
 }
 .as-sidebar-chevron {
-	color: rgba(255,255,255,0.5);
+	color: #94A3B8;
 }
 .as-sidebar-btn-open {
 	background: rgba(255,255,255,0.1);

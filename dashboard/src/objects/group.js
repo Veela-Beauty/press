@@ -42,6 +42,7 @@ export default {
 	list: {
 		route: '/groups',
 		title: 'Benches',
+		component: () => import('../pages/benches/list/Page.vue'),
 		fields: [{ apps: ['app'] }],
 		searchField: 'title',
 		filterControls() {
