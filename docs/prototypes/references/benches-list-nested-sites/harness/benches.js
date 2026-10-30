@@ -5,9 +5,9 @@ import { Toaster } from 'vue-sonner';
 import { resourcesPlugin } from 'frappe-ui';
 import 'frappe-ui/style.css';
 import './tw.css';
-import Page from './fork/pages/benches/list/Page.vue';
-import { dialogs } from './fork/utils/components';
-import registerGlobalComponents from './fork/components/global/register';
+import Page from '../dash/src/pages/benches/list/Page.vue';
+import { dialogs } from '../dash/src/utils/components';
+import registerGlobalComponents from '../dash/src/components/global/register';
 window.__dialogs = dialogs;
 
 window.$socket = { on() {}, off() {}, emit() {} };
