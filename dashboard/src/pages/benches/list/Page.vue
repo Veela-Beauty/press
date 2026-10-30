@@ -3,13 +3,14 @@
 import { Breadcrumbs, Button, Spinner, TextInput, createListResource } from 'frappe-ui'
 import Header from '@/components/Header.vue'
 import LinkControl from '@/components/LinkControl.vue'
+import ListPageAlerts from '@/components/ListPageAlerts.vue'
+import { ref } from 'vue'
 import BenchRow from './BenchRow.vue'
 
 const groups = createListResource({
 	doctype: 'Release Group',
 	auto: true,
 	pageLength: 20,
-	cache: 'bench-list-groups',
 	fields: [
 		'name',
 		'title',
@@ -23,6 +24,9 @@ const groups = createListResource({
 	orderBy: 'creation desc',
 })
 
+
+const version = ref<string | undefined>()
+const tag = ref<string | undefined>()
 
 const applyFilter = (key: string, val: any) => {
 	groups.update({
@@ -45,6 +49,10 @@ const applyFilter = (key: string, val: any) => {
 			>
 		</Header>
 
+		<div class="px-5 pt-3 shrink-0">
+			<ListPageAlerts />
+		</div>
+
 		<div class="flex gap-3 items-center px-5 py-3 shrink-0">
 			<TextInput
 				placeholder="Search bench"
@@ -60,14 +68,16 @@ const applyFilter = (key: string, val: any) => {
 				placeholder="Version"
 				class="!w-36"
 				:options="{ doctype: 'Frappe Version' }"
-				@update:modelValue="v => applyFilter('version', v)"
+				:modelValue="version"
+				@update:modelValue="v => { version = v; applyFilter('version', v) }"
 			/>
 
 			<LinkControl
 				placeholder="Tag"
 				class="!w-32"
 				:options="{ doctype: 'Press Tag', filters: { doctype_name: 'Release Group' } }"
-				@update:modelValue="v => applyFilter('tags.tag', v)"
+				:modelValue="tag"
+				@update:modelValue="v => { tag = v; applyFilter('tags.tag', v) }"
 			/>
 		</div>
 
@@ -77,6 +87,10 @@ const applyFilter = (key: string, val: any) => {
 				class="flex justify-center py-10"
 			>
 				<Spinner class="size-5" />
+			</div>
+
+			<div v-else-if="groups.list?.error" class="py-10 text-center text-sm text-ink-red-4">
+				Could not load benches: {{ groups.list.error.messages?.join(', ') || groups.list.error.message }}
 			</div>
 
 			<div v-else class="overflow-x-auto pb-5">
@@ -97,6 +111,7 @@ const applyFilter = (key: string, val: any) => {
 						:key="group.name"
 						:data="group"
 						:isLast="i === (groups.data?.length ?? 0) - 1"
+						@dropped="groups.reload()"
 					/>
 
 					<div

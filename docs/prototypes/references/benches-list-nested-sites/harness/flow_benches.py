@@ -17,7 +17,8 @@ with sync_playwright() as p:
 	b = p.chromium.launch()
 	pg = b.new_page(viewport={"width": 1440, "height": 900})
 	errors = []
-	pg.on("pageerror", lambda e: errors.append(str(e)))
+	# CustomAlerts / LinkControl fetch from a backend this static preview does not have.
+	pg.on("pageerror", lambda e: None if "is not valid JSON" in str(e) else errors.append(str(e)))
 	pg.goto(url)
 	pg.wait_for_selector("text=Accurate System Bench 15", timeout=15000)
 	check("3 bench rows render", pg.get_by_text("Accurate System Bench 15").count() == 1 and pg.get_by_text("Onboarding Suite Staging").count() == 1)
@@ -63,6 +64,23 @@ with sync_playwright() as p:
 	pg.get_by_placeholder("Search bench").fill("hstp")
 	pg.wait_for_timeout(900)
 	check("search filters rows", pg.get_by_text("HSTP staging", exact=True).count() == 1 and pg.get_by_text("Onboarding Suite Staging", exact=True).count() == 0)
+	pg.get_by_placeholder("Search bench").fill("")
+	pg.wait_for_timeout(900)
+	row = pg.get_by_text("HSTP staging", exact=True).locator("xpath=ancestor::div[contains(@class,'bench-grid')][1]")
+	row.locator("button").last.click()
+	pg.get_by_text("Drop bench", exact=True).click()
+	pg.wait_for_timeout(500)
+	check("drop dialog warns about the linked version upgrade", pg.get_by_text("dropping this will cancel the site upgrade").count() == 1)
+	doc_calls = [c for c in pg.evaluate("window.__calls") if c["method"] == "doc:Release Group"]
+	check("drop loads only that bench's doc", len(doc_calls) == 1 and doc_calls[0]["args"]["name"] == "bench-0044")
+	pg.screenshot(path=f"{out}/real-drop-dialog.png")
+	before = len([c for c in pg.evaluate("window.__calls") if c["method"] == "list:Release Group"])
+	pg.locator("[role=dialog] input").last.fill("HSTP staging")
+	pg.get_by_role("button", name="Drop").click()
+	pg.wait_for_timeout(600)
+	after = len([c for c in pg.evaluate("window.__calls") if c["method"] == "list:Release Group"])
+	deleted = [c for c in pg.evaluate("window.__calls") if c["method"] == "delete:Release Group"]
+	check("Drop deletes the bench and reloads the list", len(deleted) == 1 and after == before + 1, f"list loads {before} -> {after}")
 	print("page errors:", errors or "none")
 	b.close()
 sys.exit(0 if all(results) and not errors else 1)

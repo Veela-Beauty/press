@@ -89,5 +89,16 @@ export function createResource(opts) {
 }
 
 export function createDocumentResource(opts) {
-	return reactive({ doc: { name: opts.name }, delete: { loading: false, submit: () => Promise.resolve() } });
+	const r = reactive({
+		doc: null,
+		reload() {
+			window.__calls.push({ method: `doc:${opts.doctype}`, args: { name: opts.name } });
+			// bench-0044 stands in for a bench created for a pending version upgrade
+			r.doc = { name: opts.name, linked_version_upgrade: opts.name === 'bench-0044' ? 'VU-0001' : null };
+			return Promise.resolve(r.doc);
+		},
+		delete: { loading: false, submit: (_, o) => { window.__calls.push({ method: `delete:${opts.doctype}`, args: { name: opts.name } }); o?.onSuccess?.(); return Promise.resolve(); } },
+	});
+	if (opts.auto !== false) r.reload();
+	return r;
 }

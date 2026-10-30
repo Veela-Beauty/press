@@ -17,6 +17,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const emit = defineEmits<{ dropped: [] }>()
 const socket = window.$socket
 const router = useRouter()
 
@@ -114,7 +115,7 @@ const groupOptions = [
 		theme: 'red',
 		variant: 'subtle',
 		icon: 'trash-2',
-		onClick: () => dropBench(props.data),
+		onClick: () => dropBench(props.data, () => emit('dropped')),
 	},
 ]
 

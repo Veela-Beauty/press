@@ -21,8 +21,8 @@ const emit = defineEmits<{
 }>()
 
 const handleAppSelection = (cond, app) => {
-  if (cond && !addedApps.includes(app)) addedApps.push(app)
-	else addedApps.splice(addedApps.indexOf(app), 1)
+	if (cond && !addedApps.includes(app)) addedApps.push(app)
+	else if (!cond && addedApps.includes(app)) addedApps.splice(addedApps.indexOf(app), 1)
 }
 
 const err = ref<string | null>(null)
