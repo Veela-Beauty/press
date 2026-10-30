@@ -65,3 +65,26 @@ describe('unreachableServers', () => {
     expect(res.map(n => n.name)).toEqual(['p-un']);
   });
 });
+
+describe('shortUptime', () => {
+  it.each([
+    ['Up 8 days', '8d'],
+    ['Up 5 weeks (healthy)', '5w'],
+    ['Up 2 months (unhealthy)', '2mo'],
+    ['Up About an hour', '1h'],
+    ['Up About a minute', '1m'],
+    ['Up Less than a second', 'now'],
+    ['Up 45 seconds', '45s'],
+    ['Exited (0) 7 weeks ago', 'exited 7w ago'],
+    ['Exited (137) 2 hours ago', 'exited 2h ago'],
+    ['Restarting (1) 3 seconds ago', 'restarting'],
+    ['Created', 'created'],
+    ['-', '-'],
+    ['', '-'],
+    [undefined, '-'],
+  ])('%s -> %s', (status, label) => expect(d.shortUptime(status)).toBe(label));
+});
+describe('canStart', () => {
+  it('stopped states offer Start', () => ['stop', 'exit0', 'exit2', 'down'].forEach((s) => expect(d.canStart(s)).toBe(true)));
+  it('running states and dead do not', () => ['run', 'heal', 'unhealth', 'restart', 'active', 'pause', 'dead'].forEach((s) => expect(d.canStart(s)).toBe(false)));
+});

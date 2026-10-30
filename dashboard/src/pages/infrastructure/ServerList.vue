@@ -56,7 +56,7 @@
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b border-gray-200 bg-gray-50">
-              <th class="w-4 px-3 py-2"></th>
+              <th class="w-12 px-3 py-2"></th>
               <th class="cursor-pointer select-none py-2 pr-3 text-left font-medium text-gray-600 hover:text-gray-900" @click="toggleSort('name')">Name {{ sortCaret('name') }}</th>
               <th class="px-3 py-2 text-left font-medium text-gray-600">Type</th>
               <th class="cursor-pointer select-none px-3 py-2 text-left font-medium text-gray-600 hover:text-gray-900" @click="toggleSort('cpu')">CPU {{ sortCaret('cpu') }}</th>
@@ -66,8 +66,22 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
-            <tr v-for="node in paged" :key="node.name" class="cursor-pointer hover:bg-gray-50" @click="$emit('open', node.name)">
-              <td class="px-3 py-2.5"><span class="inline-block h-[7px] w-[7px] rounded-full" :class="dotClass(nodeDot(node))" /></td>
+            <template v-for="node in paged" :key="node.name">
+            <tr
+              :id="`server-row-${node.name}`"
+              class="cursor-pointer hover:bg-gray-50 focus:bg-gray-50 focus:outline-none"
+              tabindex="0"
+              :aria-expanded="expanded.has(node.name)"
+              @click="toggle(node.name)"
+              @keydown.enter.prevent="toggle(node.name)"
+              @keydown.space.prevent="toggle(node.name)"
+            >
+              <td class="px-3 py-2.5">
+                <span class="flex items-center gap-2">
+                  <lucide-chevron-right class="h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform" :class="expanded.has(node.name) ? 'rotate-90' : ''" />
+                  <span class="inline-block h-[7px] w-[7px] rounded-full" :class="dotClass(nodeDot(node))" />
+                </span>
+              </td>
               <td class="py-2.5 pr-3 font-mono font-medium text-gray-900">{{ node.name }}</td>
               <td class="px-3 py-2.5">
                 <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="isManaged(node) ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'">
@@ -84,6 +98,13 @@
                 </span>
               </td>
             </tr>
+            <ServerChildRows
+              v-if="expanded.has(node.name)"
+              :node="node"
+              @openUnit="(u) => $emit('openUnit', node.name, u)"
+              @reload="$emit('reload')"
+            />
+            </template>
           </tbody>
         </table>
       </div>
@@ -118,17 +139,18 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, reactive, nextTick } from 'vue';
 import { Button, FormControl } from 'frappe-ui';
 import { nodeDot, loadState, summary, isManaged, issues, cpuPct, memPct, diskPct } from './infra-derive';
 import MeterBar from './MeterBar.vue';
 import SummaryCards from './SummaryCards.vue';
+import ServerChildRows from './ServerChildRows.vue';
 
 const props = defineProps({
   nodes: { type: Array,  default: () => [] },
   view:  { type: String, default: 'list' }, // 'list' | 'cards'
 });
-defineEmits(['open', 'add']);
+defineEmits(['open', 'add', 'openUnit', 'reload']);
 
 const HOST_STATS_NOTE = 'Host stats unavailable: the sidecar could not read the host /proc (re-run it with the host /proc + root mounts).';
 
@@ -189,6 +211,26 @@ const filtered = computed(() => {
 const paged     = computed(() => filtered.value.slice(0, page.value * PER));
 const more      = computed(() => paged.value.length < filtered.value.length);
 const remaining = computed(() => Math.min(PER, filtered.value.length - paged.value.length));
+
+// Servers open in place (the containers / benches rows), not in a dialog.
+const expanded = reactive(new Set());
+function toggle(name) {
+  if (expanded.has(name)) expanded.delete(name);
+  else expanded.add(name);
+}
+// Open one server from outside (Needs attention "View", a click in Cards view): clear the
+// filters so its row is on screen, then scroll to it.
+async function expand(name) {
+  if (!props.nodes.some((n) => n.name === name)) return;
+  q.value = ''; kindSeg.value = 'all'; statusSeg.value = 'all'; typeSeg.value = 'all';
+  const idx = filtered.value.findIndex((n) => n.name === name);
+  if (idx < 0) return;
+  page.value = Math.max(page.value, Math.ceil((idx + 1) / PER));
+  expanded.add(name);
+  await nextTick();
+  document.getElementById(`server-row-${name}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+defineExpose({ expand });
 
 function toggleSort(col) {
   if (sortKey.value === col) sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';

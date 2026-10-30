@@ -39,13 +39,17 @@
 
       <!-- Error state -->
       <div
-        v-else-if="tree.error"
+        v-else-if="tree.error && !tree.data"
         class="rounded-lg border border-red-200 bg-red-50 p-4 text-base text-red-700"
       >
         {{ tree.error.messages?.join(', ') || tree.error.message }}
       </div>
 
       <template v-else>
+        <!-- A failed poll keeps the last data on screen (and what is expanded) -->
+        <div v-if="tree.error" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          Refresh failed, showing the last data: {{ tree.error.messages?.join(', ') || tree.error.message }}
+        </div>
         <!-- Gate-0 preflight banner: only relevant while managed hosts exist -->
         <div
           v-if="hasManaged && gate0.data && !gate0.data.ready"
@@ -66,18 +70,22 @@
 
         <NeedsAttention :nodes="allNodes" class="mb-4" @view="onOpen" />
         <ServerList
+          ref="serverList"
           :nodes="allNodes"
           :view="view"
           @open="onOpen"
           @add="onAdd"
+          @openUnit="onOpenUnit"
+          @reload="tree.reload()"
         />
       </template>
     </div>
 
-    <!-- Host detail drawer (type-aware: managed control vs Press read-only) -->
-    <HostDrawer
-      :node="detailNode"
-      @close="detailNode = null"
+    <!-- One container's logs and controls (servers themselves open in place in ServerList) -->
+    <UnitDrawer
+      :host="logHost"
+      :unit="logUnit"
+      @close="logUnitKey = null"
       @reload="tree.reload()"
     />
 
@@ -91,25 +99,31 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import Header from '../../components/Header.vue';
 import { useInfraTree, useGate0Status } from './infra-api';
 import { isManaged } from './infra-derive';
 import ServerList from './ServerList.vue';
 import NeedsAttention from './NeedsAttention.vue';
-import HostDrawer from './HostDrawer.vue';
+import UnitDrawer from './UnitDrawer.vue';
 import AddHostWizard from './AddHostWizard.vue';
 
 // --- Data ---
 const tree = useInfraTree();
 const gate0 = useGate0Status();
-const router = useRouter();
 
 // --- UI state ---
 const view       = ref('list');   // 'list' | 'cards'
 const fresh      = ref('just now');
-const detailNode = ref(null);      // the node shown in the drawer, or null
+const serverList = ref(null);
+const logHost    = ref('');
+const logUnitKey = ref(null);      // _id (or name) of the unit whose drawer is open
+// Resolved from the live tree so the drawer follows each 15 s poll instead of a snapshot.
+const logUnit = computed(() => {
+  if (!logUnitKey.value) return null;
+  const units = allNodes.value.find((n) => n.name === logHost.value)?.units || [];
+  return units.find((u) => (u._id || u.name) === logUnitKey.value) || null;
+});
 
 // --- 15-second polling ---
 let timer = null;
@@ -125,12 +139,16 @@ const hasManaged = computed(() => allNodes.value.some(isManaged));
 // --- Breadcrumbs ---
 const crumbs = computed(() => [{ label: 'Infrastructure', route: { name: 'Infrastructure' } }]);
 
-// --- Open a node: managed hosts open the container drawer, Press servers go to the native server page ---
-function onOpen(name) {
-  const node = allNodes.value.find((n) => n.name === name);
-  if (!node) return;
-  if (isManaged(node)) detailNode.value = node;
-  else router.push('/servers/' + node.name);
+// --- Open a server: show it expanded in the list (Needs attention "View", a click in Cards view) ---
+async function onOpen(name) {
+  view.value = 'list';
+  await nextTick();
+  serverList.value?.expand(name);
+}
+
+function onOpenUnit(host, unit) {
+  logHost.value = host;
+  logUnitKey.value = unit._id || unit.name;
 }
 
 // --- Add-host wizard ---

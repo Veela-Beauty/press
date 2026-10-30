@@ -1,5 +1,5 @@
 <template>
-	<div class="mx-auto max-w-7xl space-y-6 p-6">
+	<div class="space-y-6 p-5">
 		<div>
 			<h1 class="text-2xl font-semibold">MCP Tokens (Global)</h1>
 			<p class="text-sm text-gray-600">System Admin view of all MCP tokens across all teams.</p>

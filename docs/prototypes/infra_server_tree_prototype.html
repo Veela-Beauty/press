@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Infrastructure: servers as a tree - Page Prototype</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<!--
+  Target: dashboard/src/pages/infrastructure (InfraDashboard.vue, ServerList.vue, HostDrawer.vue,
+  HostDetail.vue, UnitTable.vue). Today a managed host opens HostDrawer, a 4xl dialog with every
+  container (20+ rows, uptime wrapping to 3 lines). Here the server row expands in place instead.
+  Data is already in get_infra_tree: node.units (managed) and node.benches (Press): no new API.
+
+  Layout contract
+  0. Job      : an operator scans the servers and checks or restarts one container without
+                leaving the list.
+  1. Grid     : server table 7 columns [32px chevron+dot | name 2fr | type 96px | cpu | mem | disk |
+                status]; container rows use the same table, indented, 7 columns
+                [ | name | image (spans type..cpu) | status | uptime | restarts | actions].
+  2. Spacing  : 4 / 8 / 12 / 20 px.
+  3. Sections : Header (List/Cards, freshness) -> Needs attention -> summary cards -> filters ->
+                server table -> expanded server: its containers (or benches) -> "Show N more".
+  4. Spans    : see grid; long images truncate with the full value on hover.
+  5. Actions  : "Add host" stays the one solid button. Container Restart / Logs are icon buttons
+                on the row. Logs opens the existing small UnitDrawer (one container's log).
+  6. Direction: LTR only.
+  7. Breakpts : <1024 image column hidden in container rows; <768 table scrolls sideways.
+-->
+<style>
+:root {
+  --ink: #171717; --text: #383838; --muted: #7c7c7c; --line: #ededed; --chip: #f3f3f3; --head: #f9fafb;
+  --side: #1e293b; --side-text: #cbd5e1; --side-active: #0b6bd3;
+  --green: #22c55e; --amber: #f59e0b; --red: #ef4444; --gray: #9ca3af;
+  --green-bg: #ecfdf5; --green-text: #047857; --gray-bg: #f3f4f6; --gray-text: #4b5563;
+  --blue-bg: #eff6ff; --blue-text: #1d4ed8; --radius: 8px; --radius-sm: 6px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: var(--text); font-size: 13px; background: #fff; }
+.hidden { display: none !important; }
+.prototype-label { position: fixed; bottom: 12px; right: 12px; z-index: 50; background: #dc3545; color: #fff; padding: 4px 12px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.layout { display: flex; min-height: 100vh; }
+.sidebar { width: 240px; background: var(--side); color: var(--side-text); padding: 12px 8px; flex-shrink: 0; }
+.brand { display: flex; gap: 12px; align-items: center; padding: 4px 8px 16px; }
+.brand-logo { width: 36px; height: 36px; border-radius: var(--radius-sm); background: #fff; color: var(--side); font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.brand b { display: block; color: #fff; font-size: 14px; } .brand span { font-size: 12px; color: #94a3b8; }
+.nav { display: flex; gap: 12px; align-items: center; padding: 8px 12px; border-radius: var(--radius-sm); }
+.nav.active { background: var(--side-active); color: #fff; } .nav i { width: 16px; text-align: center; }
+.main { flex: 1; min-width: 0; }
+.header { height: 48px; border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 20px; gap: 12px; }
+.header h1 { font-size: 16px; font-weight: 600; color: var(--ink); margin-right: auto; }
+.seg { display: flex; background: var(--chip); border-radius: var(--radius-sm); padding: 2px; }
+.seg button { border: none; background: none; padding: 4px 12px; border-radius: 4px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.fresh { font-size: 12px; color: var(--muted); display: flex; gap: 4px; align-items: center; }
+.content { padding: 20px; }
+.attention { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; }
+.attention div { display: flex; gap: 8px; align-items: center; padding: 4px 0; }
+.attention b { color: var(--ink); }
+.cards { display: flex; gap: 12px; margin-bottom: 20px; }
+.card { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; min-width: 140px; }
+.card b { display: block; font-size: 20px; color: var(--ink); }
+.toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+.toolbar h2 { font-size: 14px; font-weight: 600; color: var(--ink); }
+.btn { height: 28px; border: none; border-radius: var(--radius-sm); background: var(--chip); padding: 0 12px; font-size: 13px; cursor: pointer; }
+.btn.solid { background: var(--ink); color: #fff; margin-left: auto; }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.dot.up { background: var(--green); } .dot.warn { background: var(--amber); } .dot.down { background: var(--red); } .dot.unk { background: var(--gray); }
+.table-wrap { border: 1px solid var(--line); border-radius: var(--radius); overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 760px; }
+th { background: var(--head); text-align: left; font-weight: 500; color: #4b5563; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+tr.server { cursor: pointer; } tr.server:hover { background: #fafafa; }
+tr.server td.name { font-family: ui-monospace, Menlo, monospace; color: var(--ink); }
+.lead { display: flex; gap: 8px; align-items: center; }
+.chev { color: var(--muted); font-size: 11px; width: 10px; transition: transform .2s; }
+.open .chev { transform: rotate(90deg); }
+.type { border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
+.type.managed { background: var(--blue-bg); color: var(--blue-text); } .type.press { background: var(--gray-bg); color: var(--gray-text); }
+.meter { display: flex; gap: 8px; align-items: center; font-size: 12px; }
+.meter .bar { width: 56px; height: 4px; background: #eee; border-radius: 2px; overflow: hidden; }
+.meter .bar i { display: block; height: 100%; background: var(--green); } .meter .bar i.hi { background: var(--amber); } .meter .bar i.crit { background: var(--red); }
+.status-cell { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+/* child rows (containers / benches) */
+tr.child td { background: #fcfcfd; padding-top: 8px; padding-bottom: 8px; }
+tr.child td.cname { padding-left: 44px; color: var(--ink); }
+tr.child td.image { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+tr.childhead td { background: #fcfcfd; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; padding-top: 6px; padding-bottom: 6px; }
+tr.childhead td:first-child + td { padding-left: 44px; }
+.badge { border-radius: var(--radius-sm); padding: 0 8px; height: 20px; font-size: 12px; display: inline-flex; align-items: center; }
+.badge.running, .badge.healthy { background: var(--green-bg); color: var(--green-text); } .badge.exited { background: var(--gray-bg); color: var(--gray-text); } .badge.down { background: #fef2f2; color: #b91c1c; }
+.actions { display: flex; gap: 4px; }
+.icon-btn { width: 28px; height: 28px; border: none; background: none; border-radius: var(--radius-sm); color: var(--muted); cursor: pointer; }
+.act { height: 24px; border: none; background: none; border-radius: var(--radius-sm); padding: 0 8px; font-size: 12px; color: var(--text); cursor: pointer; }
+.act:hover { background: var(--chip); color: var(--ink); }
+.act.stop { color: #b91c1c; } .act.stop:hover { background: #fef2f2; }
+.act.start { color: var(--green-text); } .act.start:hover { background: var(--green-bg); }
+tr.child.stopped td.cname, tr.child.stopped td.image { color: var(--muted); }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: flex-start; justify-content: center; padding-top: 120px; z-index: 40; }
+.confirm { background: #fff; border-radius: 12px; width: 420px; padding: 20px; box-shadow: 0 8px 32px rgba(0,0,0,.2); }
+.confirm h3 { font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+.confirm p { color: var(--text); margin-bottom: 20px; line-height: 1.5; }
+.confirm .row { display: flex; gap: 8px; justify-content: flex-end; }
+.btn.red { background: #dc2626; color: #fff; }
+.icon-btn:hover { background: var(--chip); color: var(--ink); }
+.more td { text-align: center; padding: 8px; background: #fcfcfd; }
+.link { color: #0b6bd3; cursor: pointer; }
+/* existing UnitDrawer (one container's log), kept */
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 560px; max-width: 100vw; background: #fff; box-shadow: -8px 0 24px rgba(0,0,0,.12); padding: 20px; z-index: 30; }
+.drawer h3 { font-size: 16px; font-weight: 600; color: var(--ink); display: flex; justify-content: space-between; margin-bottom: 12px; }
+.drawer pre { background: #0f172a; color: #e2e8f0; border-radius: var(--radius); padding: 12px; font-size: 12px; height: calc(100% - 60px); overflow: auto; }
+.toast { position: fixed; bottom: 48px; right: 12px; background: var(--ink); color: #fff; padding: 8px 12px; border-radius: var(--radius-sm); }
+@media (max-width: 1024px) { .sidebar { display: none; } tr.child td.image, tr.childhead td.image { display: none; } }
+</style>
+</head>
+<body>
+<span class="prototype-label">Prototype - data from your screenshot</span>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-logo">AS</div><div><b>Accurate Systems</b><span>eng.elgogary@gmail.com</span></div></div>
+    <div class="nav"><i class="fa fa-window-maximize"></i>Sites</div>
+    <div class="nav"><i class="fa fa-cubes"></i>Benches</div>
+    <div class="nav"><i class="fa fa-server"></i>Servers</div>
+    <div class="nav active"><i class="fa fa-sitemap"></i>Infrastructure</div>
+  </aside>
+  <main class="main">
+    <div class="header"><h1>Infrastructure</h1>
+      <div class="seg"><button class="on">List</button><button>Cards</button></div>
+      <span class="fresh"><span class="dot up"></span>updated just now</span>
+    </div>
+    <div class="content">
+      <div class="attention">
+        <div><span class="dot down"></span><b>Needs attention</b><span class="muted">1 down, 0 unreachable</span></div>
+        <div><span class="dot down"></span><span style="font-family:ui-monospace,monospace">veela_frontend</span><span style="color:var(--muted)">on daytona-sandbox-1</span>
+          <span class="link" onclick="openServer('daytona-sandbox-1')">Show</span></div>
+      </div>
+      <div class="cards"><div class="card"><b>4</b>Press servers</div><div class="card"><b>2</b>Managed hosts</div></div>
+      <div class="toolbar"><h2>Infrastructure <span style="color:var(--muted);font-weight:400">(6)</span></h2>
+        <div class="seg"><button class="on">All</button><button>Press</button><button>Managed</button></div>
+        <button class="btn solid">Add host</button></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th style="width:44px"></th><th>Name</th><th style="width:96px">Type</th><th>CPU</th><th>Mem</th><th>Disk</th><th>Status</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table></div>
+    </div>
+  </main>
+</div>
+<div class="drawer hidden" id="drawer"><h3><span id="d-title"></span><button class="icon-btn" onclick="closeLogs()"><i class="fa fa-times"></i></button></h3>
+  <pre id="d-log"></pre></div>
+<div class="toast hidden" id="toast"></div>
+<div class="overlay hidden" id="confirm" onclick="if (event.target === this) cancelStop()"><div class="confirm">
+  <h3 id="c-title"></h3><p id="c-body"></p>
+  <div class="row"><button class="btn" onclick="cancelStop()">Cancel</button><button class="btn red" onclick="doStop()">Stop</button></div>
+</div></div>
+
+<script>
+// Container list for daytona-sandbox-1 copied from the screenshot (plus veela_frontend, the one "down").
+const C = (name, image, state, uptime, restarts = 0) => ({ name, image, state, uptime, restarts });
+const SERVERS = [
+  { name: 'accurate-portainer.sandbox.mvpstorm.com', kind: 'press', cpu: 12, mem: 41, disk: null, status: ['up', 'Healthy'],
+    benches: [{ name: 'bench-0060-000002', up: 12, down: 0, sites: 1 }, { name: 'bench-0059-000001', up: 12, down: 0, sites: 1 }] },
+  { name: 'daytona-sandbox-1', kind: 'managed', cpu: 14, mem: 44, disk: 85, status: ['down', '1 down'],
+    units: [C('postiz', 'ghcr.io/elgogary/postiz-sanad:v2.21.10-eng.26', 'running', '8d'), C('traefik', 'docker.io/traefik:latest', 'running', '5w'),
+      C('veela_frontend', 'veela-frontend:latest', 'down', 'exited (1) 2h ago', 3),
+      C('veela-api', 'veela-api:latest', 'healthy', '5w'), C('moonsab-api', 'moonsab-api:latest', 'healthy', '7w'), C('moonsab-mc', 'minio/mc:latest', 'exited', 'exited 7w ago'),
+      C('moonsab-redis', 'redis:7-alpine', 'running', '7w'), C('moonsab-mysql', 'mysql:8.0', 'healthy', '7w'), C('moonsab-minio', 'minio/minio:latest', 'running', '7w'),
+      C('moonsab-web', 'node:22-alpine', 'running', '7w'), C('veela-web', 'veela-web:latest', 'healthy', '2mo'), C('veela-redis', 'redis:7-alpine', 'running', '2mo'),
+      C('veela-mysql', 'mysql:8.0', 'healthy', '2mo'), C('cms_mysql', 'mysql:8.0', 'healthy', '2mo')] },
+  { name: 'press-controller-docker', kind: 'managed', cpu: 22, mem: 61, disk: 83, status: ['warn', 'Disk 83%'],
+    units: [C('sanad-eoi-server-1', 'sanad-eoi-server:latest', 'healthy', '3d'), C('sanad-eoi-db-1', 'postgres:16', 'healthy', '3w')] },
+  { name: 'press-f1.sandbox.mvpstorm.com', kind: 'press', cpu: 38, mem: 72, disk: 87, status: ['down', 'Disk 87%'],
+    benches: [{ name: 'bench-0015-000122-press-f1', up: 14, down: 0, sites: 2 }, { name: 'bench-0028-000133-press-f1', up: 14, down: 0, sites: 1 }] },
+  { name: 'u4-default.sandbox.mvpstorm.com', kind: 'press', cpu: 9, mem: 33, disk: 87, status: ['up', 'Healthy'], benches: [{ name: 'bench-0044-000010', up: 12, down: 0, sites: 1 }] },
+  { name: 'u5-default.sandbox.mvpstorm.com', kind: 'press', cpu: 7, mem: 29, disk: 89, status: ['up', 'Healthy'], benches: [] },
+];
+const open = new Set(['daytona-sandbox-1']);
+const showAll = new Set();
+const PAGE = 8;
+const dotOf = { running: 'up', healthy: 'up', exited: 'unk' };
+
+function meter(v) {
+  if (v == null) return '<span style="color:var(--muted)">n/a</span>';
+  const cls = v >= 90 ? 'crit' : v >= 80 ? 'hi' : '';
+  return `<span class="meter">${v}%<span class="bar"><i class="${cls}" style="width:${v}%"></i></span></span>`;
+}
+
+function childRows(s) {
+  // IMPLEMENT: managed rows reuse UnitTable's cells and actions (restart via unitAction, Logs -> UnitDrawer)
+  if (s.kind === 'managed') {
+    const list = showAll.has(s.name) ? s.units : s.units.slice(0, PAGE);
+    let html = `<tr class="childhead"><td></td><td>Container</td><td class="image" colspan="2">Image</td><td>Status</td><td>Uptime</td><td>Restarts &middot; Actions</td></tr>`;
+    // IMPLEMENT: always visible (today they are opacity-0 until hover, and cut off in the dialog);
+    // Stop keeps UnitTable's existing confirm; Start uses the adapter's existing "start" verb.
+    html += list.map((u) => {
+      const stopped = ['exited', 'down'].includes(u.state);
+      const btns = stopped
+        ? `<button class="act start" onclick="act(event,'${s.name}','${u.name}','start')">Start</button>`
+        : `<button class="act" onclick="act(event,'${s.name}','${u.name}','restart')">Restart</button>
+           <button class="act stop" onclick="act(event,'${s.name}','${u.name}','stop')">Stop</button>`;
+      return `<tr class="child ${stopped ? 'stopped' : ''}"><td><span class="dot ${dotOf[u.state] || 'down'}" style="margin-left:22px"></span></td>
+      <td class="cname">${u.name}</td><td class="image" colspan="2" title="${u.image}">${u.image}</td>
+      <td><span class="badge ${u.state}">${u.state}</span></td><td>${u.uptime}</td>
+      <td><span class="actions"><span style="width:20px;display:inline-flex;align-items:center;color:var(--muted)">${u.restarts}</span>
+        ${btns}<button class="act" onclick="logs(event,'${s.name}','${u.name}')">Logs</button></span></td></tr>`;
+    }).join('');
+    if (s.units.length > PAGE && !showAll.has(s.name)) {
+      html += `<tr class="more"><td colspan="7"><span class="link" onclick="showMore(event,'${s.name}')">Show ${s.units.length - PAGE} more containers</span></td></tr>`;
+    }
+    return html;
+  }
+  // IMPLEMENT: Press rows reuse HostDetail's bench data (node.benches); service control stays on the server page
+  if (!s.benches.length) return `<tr class="child"><td></td><td class="cname" colspan="6" style="color:var(--muted)">No benches</td></tr>`;
+  return `<tr class="childhead"><td></td><td>Bench</td><td colspan="2">Services</td><td>Sites</td><td colspan="2"></td></tr>` +
+    s.benches.map((b) => `<tr class="child"><td><span class="dot ${b.down ? 'down' : 'up'}" style="margin-left:22px"></span></td>
+      <td class="cname" style="font-family:ui-monospace,monospace">${b.name}</td><td colspan="2">${b.up} up / ${b.down} down</td><td>${b.sites}</td>
+      <td colspan="2"><span class="link">Open server page</span></td></tr>`).join('');
+}
+
+function render() {
+  document.getElementById('rows').innerHTML = SERVERS.map((s) => `
+    <tr class="server ${open.has(s.name) ? 'open' : ''}" onclick="toggle('${s.name}')" id="row-${s.name}">
+      <td><span class="lead"><i class="fa fa-chevron-right chev"></i><span class="dot ${s.status[0]}"></span></span></td>
+      <td class="name">${s.name}</td>
+      <td><span class="type ${s.kind}">${s.kind === 'managed' ? 'Managed' : 'Press'}</span></td>
+      <td>${meter(s.cpu)}</td><td>${meter(s.mem)}</td><td>${meter(s.disk)}</td>
+      <td><span class="status-cell"><span class="dot ${s.status[0]}"></span>${s.status[1]}</span></td>
+    </tr>${open.has(s.name) ? childRows(s) : ''}`).join('');
+}
+function toggle(n) { open.has(n) ? open.delete(n) : open.add(n); render(); }
+function openServer(n) { open.add(n); render(); document.getElementById('row-' + n).scrollIntoView({ block: 'start' }); }
+function showMore(e, n) { e.stopPropagation(); showAll.add(n); render(); }
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 1800); }
+function unit(host, name) { return SERVERS.find((s) => s.name === host).units.find((u) => u.name === name); }
+let pending = null;
+function act(e, host, name, action) {
+  e.stopPropagation();
+  if (action === 'stop') {
+    pending = { host, name };
+    document.getElementById('c-title').textContent = `Stop ${name}?`;
+    document.getElementById('c-body').textContent = `"${name}" on ${host} will be unavailable until you start it again. The action is logged.`;
+    document.getElementById('confirm').classList.remove('hidden');
+    return;
+  }
+  const u = unit(host, name);
+  if (action === 'start') { u.state = 'running'; u.uptime = 'just now'; }
+  toast(`${name} ${action} - logged`); render();
+}
+function doStop() {
+  const u = unit(pending.host, pending.name);
+  u.state = 'exited'; u.uptime = 'stopped just now';
+  document.getElementById('confirm').classList.add('hidden');
+  toast(`${pending.name} stop - logged`); pending = null; render();
+}
+function cancelStop() { document.getElementById('confirm').classList.add('hidden'); pending = null; }
+function logs(e, host, u) {
+  e.stopPropagation();
+  document.getElementById('d-title').textContent = `${u} on ${host}`;
+  document.getElementById('d-log').textContent = `2026-10-30 12:40:01 ${u} starting\n2026-10-30 12:40:02 listening on :3000\n2026-10-30 12:41:15 GET /health 200`;
+  document.getElementById('drawer').classList.remove('hidden');
+}
+function closeLogs() { document.getElementById('drawer').classList.add('hidden'); }
+render();
+</script>
+</body>
+</html>

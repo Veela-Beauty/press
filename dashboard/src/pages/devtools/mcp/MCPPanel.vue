@@ -1,5 +1,5 @@
 <template>
-	<div class="mx-auto max-w-6xl space-y-6 p-6">
+	<div class="space-y-6 p-5">
 		<div class="flex items-center justify-between">
 			<div>
 				<h1 class="text-2xl font-semibold">MCP Tokens & Activity</h1>

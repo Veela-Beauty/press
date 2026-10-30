@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="mx-auto max-w-3xl space-y-4"
+		class="space-y-4"
 		v-if="$appServer?.doc?.actions && $dbServer?.doc?.actions"
 	>
 		<div

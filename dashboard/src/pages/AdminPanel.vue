@@ -1,5 +1,5 @@
 <template>
-	<div class="mx-auto max-w-7xl p-4">
+	<div class="p-5">
 		<div class="mb-4 flex items-center justify-between">
 			<div>
 				<p class="text-xs font-medium uppercase tracking-wide text-gray-400">{{ activeGroupLabel }}</p>

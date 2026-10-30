@@ -1,5 +1,5 @@
 <template>
-	<div class="mx-auto max-w-3xl space-y-4">
+	<div class="space-y-4">
 		<div v-if="benches.data?.length" class="rounded border border-gray-200">
 			<div class="border-b border-gray-200 p-5 text-lg font-semibold">Dev Actions</div>
 
