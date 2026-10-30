@@ -189,14 +189,29 @@
 						:options="rgOptions"
 						:loading="loadingRGs"
 					/>
-					<MultiSelectChips
-						label="Allowed Sites"
-						placeholder="Search sites..."
-						hint="Empty = inherit your full site access."
-						v-model="form.allowedSites"
-						:options="siteOptions"
-						:loading="loadingSites"
-					/>
+					<div class="space-y-3">
+						<MultiSelectChips
+							label="Allowed Sites"
+							placeholder="Search sites..."
+							hint="Empty = inherit your full site access. Confidential sites are never included by empty."
+							v-model="form.allowedSites"
+							:options="siteOptions"
+							:loading="loadingSites"
+						/>
+						<div v-if="confidentialPicked.length" class="space-y-1">
+							<FormControl
+								label="Admin PIN"
+								type="password"
+								v-model="form.confidentialPin"
+								required
+								autocomplete="new-password"
+							/>
+							<div class="text-xs text-gray-500">
+								Unlocks <strong>{{ confidentialPicked.map(shortSite).join(', ') }}</strong> for this
+								token. The agent never sees the PIN.
+							</div>
+						</div>
+					</div>
 				</div>
 				<HandoverPanel v-if="newToken" :token="newToken" :label="form.label || 'agent'" :scope="form.scope" mode="issued" />
 				<ErrorMessage :message="errorMsg" />
@@ -237,6 +252,7 @@ const form = reactive({
 	allowedRGs: [],
 	allowedSites: [],
 	riskyToolsEnabled: false,
+	confidentialPin: '',
 });
 const submitting = ref(false);
 const errorMsg = ref('');
@@ -252,6 +268,7 @@ const rgOptions = ref([]);
 const siteOptions = ref([]);
 const loadingRGs = ref(false);
 const loadingSites = ref(false);
+const confidentialSites = ref(new Set());
 
 const dialogOptions = computed(() => ({
 	title: 'Issue MCP Token',
@@ -284,6 +301,7 @@ function resetState() {
 	form.allowedRGs = [];
 	form.allowedSites = [];
 	form.riskyToolsEnabled = false;
+	form.confidentialPin = '';
 	search.value = '';
 	otpSent.value = false;
 	otpCooldown.value = 0;
@@ -335,7 +353,10 @@ async function loadResourceOptions() {
 			value: s.name,
 			label: s.name,
 			sub: s.group ? `bench: ${s.group}` : '',
+			tag: s.is_confidential ? 'confidential' : '',
+			icon: s.is_confidential ? 'lock' : '',
 		}));
+		confidentialSites.value = new Set((sites || []).filter((s) => s.is_confidential).map((s) => s.name));
 	} catch (e) {
 		// non-fatal — user can still skip resource scoping
 		console.warn('Failed to load RG/Site options:', e);
@@ -403,6 +424,14 @@ const riskyMissingFlag = computed(() => {
 	return highInScope.length ? highInScope : null;
 });
 
+const confidentialPicked = computed(() =>
+	form.allowedSites.filter((name) => confidentialSites.value.has(name)),
+);
+
+function shortSite(name) {
+	return name.split('.')[0];
+}
+
 const scopeSummary = computed(() => {
 	if (form.scope.length === 0) return 'No tools selected';
 	const lows = form.scope.filter((t) => TOOL_CATALOG[t]?.risk === 'low').length;
@@ -437,6 +466,10 @@ async function submit() {
 			+ riskyMissingFlag.value.join(', ');
 		return;
 	}
+	if (confidentialPicked.value.length && !form.confidentialPin) {
+		errorMsg.value = 'Enter the Admin PIN to unlock ' + confidentialPicked.value.map(shortSite).join(', ');
+		return;
+	}
 	const days = Math.max(1, Math.min(90, parseInt(form.ttlDays) || 7));
 	submitting.value = true;
 	try {
@@ -450,9 +483,11 @@ async function submit() {
 			allowed_release_groups: form.allowedRGs,
 			allowed_sites: form.allowedSites,
 			risky_tools_enabled: form.riskyToolsEnabled ? 1 : 0,
+			confidential_pin: confidentialPicked.value.length ? form.confidentialPin : '',
 		});
 		newToken.value = result.token;
 	} catch (e) {
+		form.confidentialPin = '';
 		errorMsg.value = e?.messages?.[0] || e?.message || String(e);
 	} finally {
 		submitting.value = false;

@@ -12,6 +12,7 @@
 					:key="val"
 					class="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800"
 				>
+					<FeatherIcon v-if="optionFor(val)?.icon" :name="optionFor(val).icon" class="h-3 w-3" />
 					{{ labelFor(val) }}
 					<button
 						type="button"
@@ -52,6 +53,10 @@
 					>
 						<span class="font-medium">{{ opt.label }}</span>
 						<span v-if="opt.sub" class="ml-2 text-xs text-gray-500">{{ opt.sub }}</span>
+						<span
+							v-if="opt.tag"
+							class="ml-2 rounded border border-amber-200 bg-amber-50 px-1 text-xs text-amber-800"
+						>{{ opt.tag }}</span>
 						<span v-if="modelValue.includes(opt.value)" class="float-right text-blue-600">✓</span>
 					</button>
 				</div>
@@ -66,10 +71,11 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import { FeatherIcon } from 'frappe-ui';
 
 const props = defineProps({
 	modelValue: { type: Array, default: () => [] },
-	options: { type: Array, default: () => [] }, // [{ value, label, sub? }]
+	options: { type: Array, default: () => [] }, // [{ value, label, sub?, tag?, icon? }]
 	label: { type: String, default: '' },
 	placeholder: { type: String, default: 'Search and pick...' },
 	hint: { type: String, default: '' },
@@ -95,9 +101,12 @@ const filtered = computed(() => {
 		.slice(0, 50);
 });
 
+function optionFor(val) {
+	return props.options.find((o) => o.value === val);
+}
+
 function labelFor(val) {
-	const opt = props.options.find((o) => o.value === val);
-	return opt ? opt.label : val;
+	return optionFor(val)?.label || val;
 }
 
 function toggle(val) {

@@ -5,3 +5,4 @@ Renders the deployed IssueTokenDialog.vue offline (real frappe-ui 0.1.238, faked
 3. npx vite build && npx vite preview --port 5199
 4. python3 shoot.py http://localhost:5199/ <out-dir>
 5. python3 shoot_proto.py ../../mcp_token_confidential_pin_prototype.html <out-dir>   (prototype states + layout probe)
+6. python3 flow.py http://localhost:5199/ <out-dir>   (drives the real dialog: pick confidential site, empty/wrong/right PIN)
