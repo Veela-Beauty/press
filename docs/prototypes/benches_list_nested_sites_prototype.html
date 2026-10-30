@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Benches list with nested sites - Page Prototype</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<!--
+  Port of upstream Frappe Cloud dashboard/src/pages/benches/list/{Page,BenchRow}.vue into our fork
+  (Accurate Systems branding, dark sidebar). Upstream's live "Deploying" badge (Release Pipeline)
+  is left out: our fork has no Release Pipeline backend.
+
+  Layout contract
+  0. Job      : a team member finds a bench and reaches one of its sites, or a bench/site action,
+                without opening the bench page first.
+  1. Grid     : bench table = 6 columns [24px | 2fr | 1fr | 0.6fr | 1fr | 32px], gap 12px;
+                page padding 20px; table min-width 704px, scrolls sideways below that.
+  2. Spacing  : 4 / 8 / 12 / 20 px.
+  3. Sections : Header (title, refresh, New Bench) -> Filters (search, version, tag) -> Bench rows
+                -> expanded: that bench's sites (Site, Status, Server, Region).
+  4. Spans    : search 280px, version 144px, tag 128px; every table cell sits in the 6-column grid.
+  5. Actions  : New Bench is the only solid button (top right). Row actions live in each row's
+                "..." menu; Drop bench is last, red, after a divider.
+  6. Direction: LTR only.
+  7. Breakpts : <1024 sidebar shows icons only; <768 sidebar hidden, filters wrap.
+-->
+<style>
+:root {
+  --ink: #171717; --text: #383838; --muted: #7c7c7c; --faint: #a3a3a3; --line: #ededed;
+  --surface: #f8f8f8; --chip: #f3f3f3; --side: #1e293b; --side-text: #cbd5e1; --side-active: #0b6bd3;
+  --green-bg: #e4f7ec; --green-dot: #30a66d; --green-text: #16794c;
+  --amber-bg: #fff4e5; --amber-dot: #f59e0b; --amber-text: #b45309;
+  --gray-bg: #f3f3f3; --gray-dot: #a3a3a3; --gray-text: #525252;
+  --red-text: #c0392b; --radius: 8px; --radius-sm: 6px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text); font-size: 13px; background: #e9ecef; }
+.hidden { display: none !important; }
+.prototype-label { position: fixed; bottom: 12px; right: 12px; z-index: 50; background: #dc3545; color: #fff;
+  padding: 4px 12px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+
+.layout { display: flex; min-height: 100vh; }
+.sidebar { width: 240px; background: var(--side); color: var(--side-text); flex-shrink: 0; padding: 12px 8px; }
+.brand { display: flex; align-items: center; gap: 12px; padding: 4px 8px 16px; }
+.brand-logo { width: 36px; height: 36px; border-radius: var(--radius-sm); background: #fff; color: var(--side);
+  font-weight: 800; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+.brand b { display: block; color: #fff; font-size: 14px; }
+.brand span { font-size: 12px; color: #94a3b8; }
+.nav-item { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: var(--radius-sm);
+  cursor: pointer; font-size: 13px; }
+.nav-item:hover { background: rgba(255,255,255,.06); }
+.nav-item.active { background: var(--side-active); color: #fff; }
+.nav-item i { width: 16px; text-align: center; }
+.nav-item .count { margin-left: auto; font-size: 11px; color: #94a3b8; }
+.nav-item .chev { margin-left: auto; font-size: 10px; }
+
+.main { flex: 1; background: #fff; display: flex; flex-direction: column; min-width: 0; }
+.header { height: 48px; border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 20px; gap: 8px; }
+.header h1 { font-size: 16px; font-weight: 600; color: var(--ink); margin-right: auto; }
+.btn { height: 28px; border-radius: var(--radius-sm); border: none; background: var(--chip); color: var(--ink);
+  font-size: 13px; padding: 0 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.btn:hover { background: #e9e9e9; }
+.btn.solid { background: var(--ink); color: #fff; }
+.btn.ghost { background: transparent; }
+.btn.ghost:hover { background: var(--chip); }
+.btn.icon { width: 28px; padding: 0; justify-content: center; }
+
+.filters { display: flex; gap: 12px; align-items: center; padding: 12px 20px; flex-wrap: wrap; }
+.input { height: 28px; border-radius: var(--radius-sm); border: 1px solid transparent; background: var(--chip);
+  font-size: 13px; padding: 0 8px; color: var(--ink); }
+.input:focus { outline: none; background: #fff; border-color: #c7c7c7; }
+.search { position: relative; width: 280px; }
+.search i { position: absolute; left: 8px; top: 7px; color: var(--muted); font-size: 12px; }
+.search .input { width: 100%; padding-left: 28px; }
+select.input { width: 144px; }
+select.input.tag { width: 128px; }
+
+.table-wrap { padding: 0 20px 20px; overflow-x: auto; }
+.table { min-width: 704px; }
+.grid { display: grid; grid-template-columns: 24px 2fr 1fr 0.6fr 1fr 32px; gap: 12px; align-items: center; padding: 8px; }
+.grid.head { background: var(--surface); border-radius: 4px; font-size: 12px; color: var(--muted); }
+.row { border-bottom: 1px solid var(--line); cursor: pointer; padding-top: 6px; padding-bottom: 6px; }
+.row:hover { background: #fcfcfc; }
+.chev { color: var(--muted); font-size: 11px; transition: transform .2s; }
+.open .chev { transform: rotate(90deg); }
+.title { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.title a { display: flex; gap: 8px; align-items: center; color: var(--ink); font-weight: 500; text-decoration: none; min-width: 0; }
+.title a:hover span { text-decoration: underline; }
+.title a span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.title i, .site-name i { color: var(--muted); }
+.count-chip { font-size: 12px; background: var(--chip); color: var(--gray-text); border-radius: 4px; padding: 0 6px; font-weight: 500; }
+.badge { display: inline-flex; align-items: center; gap: 4px; border-radius: var(--radius-sm); padding: 0 8px; height: 20px; font-size: 12px; width: fit-content; }
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; }
+.badge.green { background: var(--green-bg); color: var(--green-text); } .badge.green .dot { background: var(--green-dot); }
+.badge.amber { background: var(--amber-bg); color: var(--amber-text); } .badge.amber .dot { background: var(--amber-dot); }
+.badge.gray { background: var(--gray-bg); color: var(--gray-text); } .badge.gray .dot { background: var(--gray-dot); }
+.status-cell { display: flex; gap: 8px; align-items: center; }
+.rocket { border: none; background: none; padding: 4px; border-radius: 4px; cursor: pointer; color: var(--text); }
+.rocket:hover { background: var(--chip); }
+.muted { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.version { color: var(--gray-text); }
+
+.sites .grid.subhead { font-size: 12px; color: var(--muted); }
+.sites .grid.site { border-bottom: 1px solid var(--line); }
+.site-name { display: flex; gap: 8px; align-items: center; padding-left: 24px; color: var(--text); text-decoration: none; min-width: 0; }
+.site-name:hover span { text-decoration: underline; }
+.site-name span, .cell span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cell { display: flex; gap: 8px; align-items: center; color: var(--gray-text); min-width: 0; }
+.add-site { padding-left: 12px; }
+
+.menu-anchor { position: relative; }
+.menu { position: absolute; right: 0; top: 32px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0,0,0,.12); min-width: 180px; padding: 4px; z-index: 10; }
+.menu div { display: flex; gap: 8px; align-items: center; padding: 8px; border-radius: var(--radius-sm); cursor: pointer; color: var(--ink); }
+.menu div:hover { background: var(--chip); }
+.menu hr { border: none; border-top: 1px solid var(--line); margin: 4px 0; }
+.menu .danger { color: var(--red-text); }
+.empty { padding: 40px 0; text-align: center; color: var(--muted); }
+
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: flex-start; justify-content: center; padding-top: 64px; z-index: 40; }
+.dialog { background: #fff; border-radius: 12px; width: 672px; max-width: calc(100vw - 32px); padding: 24px; box-shadow: 0 8px 32px rgba(0,0,0,.2); }
+.dialog h3 { font-size: 20px; font-weight: 600; color: var(--ink); margin-bottom: 20px; display: flex; justify-content: space-between; }
+.dialog h3 button { border: none; background: none; font-size: 16px; cursor: pointer; }
+.where { display: flex; gap: 8px; align-items: center; margin-bottom: 20px; }
+.where .sep { width: 6px; height: 6px; border-radius: 50%; background: #d4d4d4; margin: 0 4px; }
+.provider { width: 16px; height: 16px; border-radius: 3px; background: #d50c2d; color: #fff; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.app-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; max-height: 320px; overflow-y: auto; }
+.app-card { border: 1px solid var(--line); border-radius: 4px; padding: 12px; display: flex; gap: 12px; font-size: 12px; cursor: pointer; }
+.app-card:hover { border-color: #c7c7c7; }
+.app-card.picked { border-color: #8a8a8a; }
+.app-logo { width: 32px; height: 32px; border-radius: 4px; color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.app-card b { display: block; color: var(--ink); font-size: 13px; }
+.app-card input { margin-left: auto; }
+.dialog-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; }
+.dialog-foot a { color: var(--muted); text-decoration: none; display: flex; gap: 8px; align-items: center; }
+.btn.solid:disabled { opacity: .4; cursor: not-allowed; }
+@media (max-width: 1024px) { .sidebar { width: 64px; } .brand div, .nav-item span, .nav-item .count, .nav-item .chev { display: none; } }
+@media (max-width: 768px) { .sidebar { display: none; } .search { width: 100%; } }
+</style>
+</head>
+<body>
+<span class="prototype-label">Prototype - sample data</span>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-logo">AS</div><div><b>Accurate Systems</b><span>eng.elgogary@gmail.com</span></div></div>
+    <div class="nav-item"><i class="fa fa-inbox"></i><span>Notifications</span><span class="count">99+</span></div>
+    <div class="nav-item"><i class="fa fa-window-maximize"></i><span>Sites</span></div>
+    <div class="nav-item active"><i class="fa fa-cubes"></i><span>Benches</span></div>
+    <div class="nav-item"><i class="fa fa-server"></i><span>Servers</span></div>
+    <div class="nav-item"><i class="fa fa-sitemap"></i><span>Infrastructure</span></div>
+    <div class="nav-item"><i class="fa fa-phone"></i><span>Telephony</span></div>
+    <div class="nav-item"><i class="fa fa-archive"></i><span>Backups</span><i class="fa fa-chevron-right chev"></i></div>
+    <div class="nav-item"><i class="fa fa-hdd-o"></i><span>Daman Backup</span><i class="fa fa-chevron-right chev"></i></div>
+    <div class="nav-item"><i class="fa fa-code"></i><span>Dev Tools</span><i class="fa fa-chevron-right chev"></i></div>
+    <div class="nav-item"><i class="fa fa-th-large"></i><span>Marketplace</span></div>
+    <div class="nav-item"><i class="fa fa-credit-card"></i><span>Billing</span></div>
+    <div class="nav-item"><i class="fa fa-cog"></i><span>Settings</span></div>
+  </aside>
+
+  <main class="main">
+    <!-- IMPLEMENT: <Header> with Breadcrumbs 'Benches', refresh Button (groups.reload), New Bench -> route 'New Release Group' -->
+    <div class="header">
+      <h1>Benches</h1>
+      <button class="btn icon" title="Refresh"><i class="fa fa-refresh"></i></button>
+      <button class="btn solid">New Bench</button>
+    </div>
+
+    <!-- IMPLEMENT: TextInput (debounce 500, filter title like) + LinkControl Frappe Version + LinkControl Press Tag -->
+    <div class="filters">
+      <div class="search"><i class="fa fa-search"></i><input class="input" id="q" placeholder="Search bench" oninput="render()"></div>
+      <select class="input" id="ver" onchange="render()"><option value="">Version</option><option>Version 14</option><option>Version 15</option><option>Version 16</option></select>
+      <select class="input tag" id="tag" onchange="render()"><option value="">Tag</option><option>client</option><option>internal</option></select>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table">
+        <div class="grid head"><span></span><span>Title</span><span>Status</span><span>Version</span><span>Apps</span><span></span></div>
+        <div id="rows"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- IMPLEMENT: port of upstream pages/servers/list/AppsDialog.vue. Header line uses server_title +
+     server_provider from the list query (our get_list_query must select them). On success our
+     deploy_and_update returns a deploy candidate, so reload the list instead of attaching a pipeline. -->
+<div class="overlay hidden" id="deploy" onclick="if (event.target === this) closeDeploy()">
+  <div class="dialog">
+    <h3>Deploy apps to your bench <button onclick="closeDeploy()"><i class="fa fa-times"></i></button></h3>
+    <div class="where"><i class="fa fa-cubes"></i><span id="d-bench"></span><span class="sep"></span>
+      <span class="provider" title="Hetzner">H</span><span id="d-server"></span></div>
+    <div class="search" style="width:calc(50% - 8px)"><i class="fa fa-search"></i><input class="input" id="app-q" placeholder="Search for any Frappe app" oninput="renderApps()"></div>
+    <div class="app-grid" id="apps"></div>
+    <div class="dialog-foot">
+      <a href="#"><i class="fa fa-info-circle"></i>Looking for Marketplace apps?</a>
+      <button class="btn solid" id="deploy-btn" disabled>Deploy apps</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const APPS = [
+  ['ERPNext', 'Accounting, inventory, manufacturing', '#0089ff'], ['HRMS', 'HR and payroll', '#22a06b'],
+  ['Payments', 'Payment gateways', '#7c3aed'], ['Lending', 'Loan management', '#d97706'],
+  ['Helpdesk', 'Customer support desk', '#0d9488'], ['Insights', 'Reports and dashboards', '#db2777'],
+  ['CRM', 'Leads and deals', '#2563eb'], ['LMS', 'Courses and batches', '#65a30d'],
+];
+const picked = new Set();
+function renderApps() {
+  const q = document.getElementById('app-q').value.toLowerCase();
+  document.getElementById('apps').innerHTML = APPS.filter(([t]) => !q || t.toLowerCase().includes(q)).map(([t, d, c]) => `
+    <label class="app-card ${picked.has(t) ? 'picked' : ''}"><span class="app-logo" style="background:${c}">${t[0]}</span>
+      <span><b>${t}</b><span class="muted">${d}</span></span>
+      <input type="checkbox" ${picked.has(t) ? 'checked' : ''} onchange="pickApp('${t}', this.checked)"></label>`).join('');
+  const btn = document.getElementById('deploy-btn');
+  btn.disabled = picked.size === 0;
+  btn.textContent = picked.size ? `Deploy ${picked.size} apps` : 'Deploy apps';
+}
+function pickApp(t, on) { on ? picked.add(t) : picked.delete(t); renderApps(); }
+function openDeploy(i) {
+  const b = BENCHES[i];
+  document.getElementById('d-bench').textContent = b.title;
+  document.getElementById('d-server').textContent = b.server_title;
+  picked.clear(); renderApps();
+  document.getElementById('deploy').classList.remove('hidden');
+}
+function closeDeploy() { document.getElementById('deploy').classList.add('hidden'); }
+const BENCHES = [
+  { title: 'AccuBuild Demo', version: 'Version 15', tag: 'client', active: true, apps: 'frappe, erpnext, hrms, accubuild_core, accubuild_theme',
+    sites: [['accubuild-demo.sandbox.mvpstorm.com', 'Active', 'press-f1'], ['accubuild-demo2.sandbox.mvpstorm.com', 'Inactive', 'press-f1']] },
+  { title: 'Accurate System Bench 15', version: 'Version 15', tag: 'internal', active: true, apps: 'frappe, erpnext, hrms, payments, ksa_compliance',
+    sites: [['accuhub-dev-v15.sandbox.mvpstorm.com', 'Active', 'press-f1'], ['claudecodelearn.sandbox.mvpstorm.com', 'Active', 'press-f1'], ['tchworx.sandbox.mvpstorm.com', 'Suspended', 'press-f1']] },
+  { title: 'Accurate V16', version: 'Version 16', tag: 'internal', active: true, apps: 'frappe, erpnext', sites: [] },
+  { title: 'OptiFlow', version: 'Version 15', tag: 'internal', active: true, apps: 'frappe, erpnext, hrms, frappe_theme_switcher',
+    sites: [['optiflowerp.sandbox.mvpstorm.com', 'Active', 'accurate-portainer']] },
+  { title: 'lipton-v15', version: 'Version 15', tag: 'client', active: true, apps: 'frappe, erpnext, hrms, lipton_dms, sanad_business_intelligence_ai',
+    sites: [['lipton-stg.sandbox.mvpstorm.com', 'Active', 'u4-default'], ['lipton-test.sandbox.mvpstorm.com', 'Updating', 'u4-default']] },
+  { title: 'Accurate Bench v14', version: 'Version 14', tag: 'internal', active: true, apps: 'frappe, erpnext, zatca_client', sites: [['dmg-v14.sandbox.mvpstorm.com', 'Active', 'u4-default']] },
+  { title: 'Onboarding Suite Staging', server_title: 'press-f1 (Hetzner, Falkenstein)', version: 'Version 15', tag: 'internal', active: false, apps: 'frappe, erpnext, onboarding_suite', sites: [] },
+  { title: 'ppco-dev', version: 'Version 15', tag: 'client', active: true, apps: 'frappe, erpnext, hrms, ppco_erp, payroll_dimension_allocation',
+    sites: [['ppco-dev.sandbox.mvpstorm.com', 'Active', 'u5-default']] },
+];
+const open = new Set([1]);
+let menuFor = null;
+const statusBadge = (s) => ({ Active: 'green', Updating: 'amber', Suspended: 'amber' }[s] || 'gray');
+
+function menuHtml(kind, i) {
+  if (menuFor !== `${kind}-${i}`) return '';
+  if (kind === 'site') return `<div class="menu"><div><i class="fa fa-sliders"></i>Site Actions</div></div>`;
+  return `<div class="menu">
+    <div><i class="fa fa-plus-circle"></i>Add Site</div>
+    <div><i class="fa fa-shopping-bag"></i>App Marketplace</div>
+    <div><i class="fa fa-sliders"></i>Bench Actions</div>
+    <hr><div class="danger"><i class="fa fa-trash"></i>Drop bench</div></div>`;
+}
+
+function sitesHtml(b, bi) {
+  // IMPLEMENT: createListResource Site {group, host_name set}, pageLength 5 + "Load more"
+  if (!b.sites.length) {
+    return `<div class="grid site" onclick="event.stopPropagation()"><span></span>
+      <span><button class="btn ghost add-site"><i class="fa fa-plus"></i>Add site</button></span></div>`;
+  }
+  return `<div class="grid subhead"><span></span><span style="padding-left:24px">Site</span><span>Status</span><span>Server</span><span>Region</span><span></span></div>` +
+    b.sites.map(([name, st, srv], si) => `<div class="grid site" onclick="event.stopPropagation()"><span></span>
+      <a class="site-name" href="#"><i class="fa fa-window-maximize"></i><span>${name}</span></a>
+      <span class="badge ${statusBadge(st)}"><span class="dot"></span>${st}</span>
+      <span class="cell"><i class="fa fa-server"></i><span>${srv}</span></span>
+      <span class="cell"><i class="fa fa-globe"></i><span>Falkenstein, Germany</span></span>
+      <span class="menu-anchor"><button class="btn ghost icon" onclick="toggleMenu(event,'site','${bi}-${si}')"><i class="fa fa-ellipsis-h"></i></button>${menuHtml('site', `${bi}-${si}`)}</span>
+    </div>`).join('');
+}
+
+function render() {
+  const q = document.getElementById('q').value.toLowerCase();
+  const ver = document.getElementById('ver').value;
+  const tag = document.getElementById('tag').value;
+  const list = BENCHES.map((b, i) => [b, i]).filter(([b]) =>
+    (!q || b.title.toLowerCase().includes(q)) && (!ver || b.version === ver) && (!tag || b.tag === tag));
+  document.getElementById('rows').innerHTML = list.length ? list.map(([b, i]) => `
+    <div class="${open.has(i) ? 'open' : ''}">
+      <div class="grid row" onclick="toggleRow(${i})">
+        <i class="fa fa-chevron-right chev"></i>
+        <span class="title"><a href="#" onclick="event.stopPropagation()" title="Go to bench dashboard"><i class="fa fa-cubes"></i><span>${b.title}</span></a>
+          <span class="count-chip" title="${b.sites.length} sites">${b.sites.length}</span></span>
+        <span class="status-cell">${b.active
+          ? '<span class="badge green"><span class="dot"></span>Active</span>'
+          : `<span class="badge amber"><span class="dot"></span>Awaiting Deploy</span><button class="rocket" title="Deploy" onclick="event.stopPropagation();openDeploy(${i})"><i class="fa fa-rocket"></i></button>`}</span>
+        <span class="version">${b.version}</span>
+        <span class="muted">${b.apps}</span>
+        <span class="menu-anchor"><button class="btn ghost icon" onclick="toggleMenu(event,'bench',${i})"><i class="fa fa-ellipsis-h"></i></button>${menuHtml('bench', i)}</span>
+      </div>
+      ${open.has(i) ? `<div class="sites">${sitesHtml(b, i)}</div>` : ''}
+    </div>`).join('') : '<div class="empty">No benches</div>';
+}
+
+function toggleRow(i) { open.has(i) ? open.delete(i) : open.add(i); menuFor = null; render(); }
+function toggleMenu(e, kind, i) { e.stopPropagation(); menuFor = menuFor === `${kind}-${i}` ? null : `${kind}-${i}`; render(); }
+document.addEventListener('click', () => { if (menuFor) { menuFor = null; render(); } });
+render();
+</script>
+</body>
+</html>
