@@ -90,6 +90,17 @@ tr.childhead td:first-child + td { padding-left: 44px; }
 .badge.running, .badge.healthy { background: var(--green-bg); color: var(--green-text); } .badge.exited { background: var(--gray-bg); color: var(--gray-text); } .badge.down { background: #fef2f2; color: #b91c1c; }
 .actions { display: flex; gap: 4px; }
 .icon-btn { width: 28px; height: 28px; border: none; background: none; border-radius: var(--radius-sm); color: var(--muted); cursor: pointer; }
+.act { height: 24px; border: none; background: none; border-radius: var(--radius-sm); padding: 0 8px; font-size: 12px; color: var(--text); cursor: pointer; }
+.act:hover { background: var(--chip); color: var(--ink); }
+.act.stop { color: #b91c1c; } .act.stop:hover { background: #fef2f2; }
+.act.start { color: var(--green-text); } .act.start:hover { background: var(--green-bg); }
+tr.child.stopped td.cname, tr.child.stopped td.image { color: var(--muted); }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: flex-start; justify-content: center; padding-top: 120px; z-index: 40; }
+.confirm { background: #fff; border-radius: 12px; width: 420px; padding: 20px; box-shadow: 0 8px 32px rgba(0,0,0,.2); }
+.confirm h3 { font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+.confirm p { color: var(--text); margin-bottom: 20px; line-height: 1.5; }
+.confirm .row { display: flex; gap: 8px; justify-content: flex-end; }
+.btn.red { background: #dc2626; color: #fff; }
 .icon-btn:hover { background: var(--chip); color: var(--ink); }
 .more td { text-align: center; padding: 8px; background: #fcfcfd; }
 .link { color: #0b6bd3; cursor: pointer; }
@@ -136,6 +147,10 @@ tr.childhead td:first-child + td { padding-left: 44px; }
 <div class="drawer hidden" id="drawer"><h3><span id="d-title"></span><button class="icon-btn" onclick="closeLogs()"><i class="fa fa-times"></i></button></h3>
   <pre id="d-log"></pre></div>
 <div class="toast hidden" id="toast"></div>
+<div class="overlay hidden" id="confirm" onclick="if (event.target === this) cancelStop()"><div class="confirm">
+  <h3 id="c-title"></h3><p id="c-body"></p>
+  <div class="row"><button class="btn" onclick="cancelStop()">Cancel</button><button class="btn red" onclick="doStop()">Stop</button></div>
+</div></div>
 
 <script>
 // Container list for daytona-sandbox-1 copied from the screenshot (plus veela_frontend, the one "down").
@@ -172,13 +187,21 @@ function childRows(s) {
   // IMPLEMENT: managed rows reuse UnitTable's cells and actions (restart via unitAction, Logs -> UnitDrawer)
   if (s.kind === 'managed') {
     const list = showAll.has(s.name) ? s.units : s.units.slice(0, PAGE);
-    let html = `<tr class="childhead"><td></td><td>Container</td><td class="image" colspan="2">Image</td><td>Status</td><td>Uptime</td><td>Restarts / actions</td></tr>`;
-    html += list.map((u) => `<tr class="child"><td><span class="dot ${dotOf[u.state] || 'down'}" style="margin-left:22px"></span></td>
+    let html = `<tr class="childhead"><td></td><td>Container</td><td class="image" colspan="2">Image</td><td>Status</td><td>Uptime</td><td>Restarts &middot; Actions</td></tr>`;
+    // IMPLEMENT: always visible (today they are opacity-0 until hover, and cut off in the dialog);
+    // Stop keeps UnitTable's existing confirm; Start uses the adapter's existing "start" verb.
+    html += list.map((u) => {
+      const stopped = ['exited', 'down'].includes(u.state);
+      const btns = stopped
+        ? `<button class="act start" onclick="act(event,'${s.name}','${u.name}','start')">Start</button>`
+        : `<button class="act" onclick="act(event,'${s.name}','${u.name}','restart')">Restart</button>
+           <button class="act stop" onclick="act(event,'${s.name}','${u.name}','stop')">Stop</button>`;
+      return `<tr class="child ${stopped ? 'stopped' : ''}"><td><span class="dot ${dotOf[u.state] || 'down'}" style="margin-left:22px"></span></td>
       <td class="cname">${u.name}</td><td class="image" colspan="2" title="${u.image}">${u.image}</td>
       <td><span class="badge ${u.state}">${u.state}</span></td><td>${u.uptime}</td>
-      <td><span class="actions"><span style="width:28px;display:inline-flex;align-items:center;color:var(--muted)">${u.restarts}</span>
-        <button class="icon-btn" title="Restart" onclick="restart(event,'${u.name}')"><i class="fa fa-refresh"></i></button>
-        <button class="icon-btn" title="Logs" onclick="logs(event,'${s.name}','${u.name}')"><i class="fa fa-file-text-o"></i></button></span></td></tr>`).join('');
+      <td><span class="actions"><span style="width:20px;display:inline-flex;align-items:center;color:var(--muted)">${u.restarts}</span>
+        ${btns}<button class="act" onclick="logs(event,'${s.name}','${u.name}')">Logs</button></span></td></tr>`;
+    }).join('');
     if (s.units.length > PAGE && !showAll.has(s.name)) {
       html += `<tr class="more"><td colspan="7"><span class="link" onclick="showMore(event,'${s.name}')">Show ${s.units.length - PAGE} more containers</span></td></tr>`;
     }
@@ -205,7 +228,29 @@ function render() {
 function toggle(n) { open.has(n) ? open.delete(n) : open.add(n); render(); }
 function openServer(n) { open.add(n); render(); document.getElementById('row-' + n).scrollIntoView({ block: 'start' }); }
 function showMore(e, n) { e.stopPropagation(); showAll.add(n); render(); }
-function restart(e, u) { e.stopPropagation(); const t = document.getElementById('toast'); t.textContent = `Restarting ${u}...`; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 1500); }
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 1800); }
+function unit(host, name) { return SERVERS.find((s) => s.name === host).units.find((u) => u.name === name); }
+let pending = null;
+function act(e, host, name, action) {
+  e.stopPropagation();
+  if (action === 'stop') {
+    pending = { host, name };
+    document.getElementById('c-title').textContent = `Stop ${name}?`;
+    document.getElementById('c-body').textContent = `"${name}" on ${host} will be unavailable until you start it again. The action is logged.`;
+    document.getElementById('confirm').classList.remove('hidden');
+    return;
+  }
+  const u = unit(host, name);
+  if (action === 'start') { u.state = 'running'; u.uptime = 'just now'; }
+  toast(`${name} ${action} - logged`); render();
+}
+function doStop() {
+  const u = unit(pending.host, pending.name);
+  u.state = 'exited'; u.uptime = 'stopped just now';
+  document.getElementById('confirm').classList.add('hidden');
+  toast(`${pending.name} stop - logged`); pending = null; render();
+}
+function cancelStop() { document.getElementById('confirm').classList.add('hidden'); pending = null; }
 function logs(e, host, u) {
   e.stopPropagation();
   document.getElementById('d-title').textContent = `${u} on ${host}`;
