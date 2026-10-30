@@ -144,7 +144,7 @@ const siteOptions = (site: any) => [
 				<div class="flex gap-2 items-center min-w-0">
 					<Tooltip text="Go to bench dashboard">
 						<router-link
-							class="hover:underline flex gap-2 items-center font-medium min-w-0"
+							class="hover:underline flex gap-2 items-center min-w-0"
 							:to="{ name: 'Release Group Detail', params: { name: data.name } }"
 							@click.stop
 						>
