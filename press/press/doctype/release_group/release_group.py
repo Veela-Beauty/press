@@ -162,10 +162,32 @@ class ReleaseGroup(Document, TagHelpers):
 			.where(Bench.status == "Active")
 		)
 
+		# The benches list's Deploy dialog shows where the bench runs: its first server.
+		FirstServer = frappe.qb.DocType("Release Group Server").as_("first_server")
+		Server = frappe.qb.DocType("Server")
+
+		def first_server(column):
+			return (
+				frappe.qb.from_(FirstServer)
+				.join(Server)
+				.on(Server.name == FirstServer.server)
+				.select(column)
+				.where(FirstServer.parent == ReleaseGroup.name)
+				.where(FirstServer.parenttype == "Release Group")
+				.orderby(FirstServer.idx)
+				.limit(1)
+			)
+
 		query = (
 			query.where(ReleaseGroup.team == frappe.local.team().name)
 			.where(ReleaseGroup.enabled == 1)
-			.select(site_count.as_("site_count"), active_benches.as_("active_benches"))
+			.select(
+				site_count.as_("site_count"),
+				active_benches.as_("active_benches"),
+				first_server(Server.name).as_("server"),
+				first_server(Server.title).as_("server_title"),
+				first_server(Server.provider).as_("server_provider"),
+			)
 		)
 
 		if server := filters.get("server"):
