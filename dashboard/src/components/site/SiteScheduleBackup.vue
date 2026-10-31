@@ -1,63 +1,64 @@
 <template>
 	<Dialog
 		:options="{
-			title: 'Schedule Backup',
+			title: 'Take Backup',
 			actions: [
 				{
-					label: 'Schedule Backup',
-					loading: this.site?.backup?.loading,
+					label: 'Start Backup',
+					loading: $site?.backup?.loading,
 					variant: 'solid',
 					onClick: scheduleBackup,
 				},
 			],
 		}"
 		v-model="show"
-		@close="resetValues"
 	>
 		<template #body-content>
 			<div class="flex flex-col gap-3">
-				<p
-					class="text-md text-base text-gray-800"
-					v-if="!this.$site?.doc?.allow_physical_backup_by_user"
-				>
-					Are you sure you want to backup your site ?
-				</p>
-				<AlertBanner
-					v-if="this.$site?.doc?.allow_physical_backup_by_user"
-					title="Backup can cause some downtime on your site. It depends on the size of your database."
-					type="info"
-					:showIcon="false"
-				>
-				</AlertBanner>
-				<div v-if="this.$site?.doc?.allow_physical_backup_by_user">
+				<!-- Always shown: before 0.7.6 the files choice was hidden unless physical backup was enabled -->
+				<div class="flex flex-col gap-2" role="radiogroup" aria-label="Backup contents">
+					<label
+						v-for="option in options"
+						:key="option.value"
+						class="flex items-start gap-3 rounded-[8px] border px-3 py-2.5"
+						:class="[
+							choice === option.value
+								? 'border-outline-gray-4 bg-surface-gray-2'
+								: 'border-outline-gray-2',
+							isDisabled(option)
+								? 'cursor-not-allowed opacity-50'
+								: 'cursor-pointer hover:bg-surface-gray-1',
+						]"
+					>
+						<input
+							type="radio"
+							class="mt-0.5"
+							name="backup-contents"
+							:value="option.value"
+							v-model="choice"
+							:disabled="isDisabled(option)"
+						/>
+						<span class="flex flex-col gap-0.5">
+							<span class="text-base font-medium text-ink-gray-8">{{ option.label }}</span>
+							<span class="text-p-sm text-ink-gray-6">{{ option.description }}</span>
+						</span>
+					</label>
+				</div>
+
+				<template v-if="$site?.doc?.allow_physical_backup_by_user">
 					<FormControl
 						variant="outline"
 						type="checkbox"
 						label="Physical Backup"
 						v-model="isPhysical"
-					>
-					</FormControl>
-				</div>
-
-				<div v-if="this.$site?.doc?.allow_physical_backup_by_user">
-					<FormControl
-						variant="outline"
-						type="checkbox"
-						label="Backup Public & Private Files"
-						v-model="includeFiles"
-						:disabled="isPhysical"
-					>
-					</FormControl>
-
+					/>
 					<AlertBanner
 						v-if="isPhysical"
-						class="mt-2"
-						title="Physical Backup can't backup your site's private and public files currently."
+						title="A physical backup copies the database only, and can cause some downtime depending on its size."
 						type="warning"
 						:showIcon="false"
-					>
-					</AlertBanner>
-				</div>
+					/>
+				</template>
 			</div>
 		</template>
 	</Dialog>
@@ -78,19 +79,24 @@ export default {
 		return {
 			show: true,
 			isPhysical: false,
-			includeFiles: true,
+			choice: 'full',
+			options: [
+				{
+					value: 'database',
+					label: 'Database only',
+					description: 'Faster and smaller. Good before a change or an update.',
+				},
+				{
+					value: 'full',
+					label: 'Full backup',
+					description: 'Database plus public and private files (images, attachments).',
+				},
+			],
 		};
 	},
 	watch: {
 		isPhysical(newValue) {
-			if (newValue == true) {
-				this.includeFiles = false;
-			}
-		},
-	},
-	resources: {
-		scheduleBackup() {
-			return {};
+			if (newValue) this.choice = 'database';
 		},
 	},
 	computed: {
@@ -99,14 +105,16 @@ export default {
 		},
 	},
 	methods: {
-		resetValues() {},
+		isDisabled(option) {
+			return this.isPhysical && option.value === 'full';
+		},
 		scheduleBackup() {
 			this.$router.push({
 				name: 'Site Detail Backups',
 				params: { name: this.$site.doc.name },
 			});
 			let site_backup_promise = this.$site.backup.submit({
-				with_files: this.includeFiles,
+				with_files: this.choice === 'full' && !this.isPhysical,
 				physical: this.isPhysical,
 			});
 			toast.promise(site_backup_promise, {

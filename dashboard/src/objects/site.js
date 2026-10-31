@@ -1035,7 +1035,7 @@ export default {
 					},
 					primaryAction({ listResource: backups, documentResource: site }) {
 						return {
-							label: 'Schedule Backup',
+							label: 'Take Backup',
 							slots: {
 								prefix: icon('upload-cloud'),
 							},
