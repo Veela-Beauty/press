@@ -4,6 +4,17 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 31-10-2026: Take Backup always offers Database only or Full backup (0.7.6)
+
+The files checkbox in the backup dialog sat inside `v-if="allow_physical_backup_by_user"` (upstream has the same), so on sites without physical backup a manual backup could not be chosen as database-only or full.
+
+### Fixed
+- Take Backup shows **Database only** / **Full backup** on every site (Full by default); **Physical Backup** appears only when enabled for the site and forces Database only, since a physical backup cannot include files (PR #20, 0.7.6). Upstream wording: dialog Take Backup / Start Backup, Backups tab button Take Backup. Deployed to press-ctrl 2026-10-31.
+
+Not ported: upstream's separate Backup Schedule dialog (one custom daily backup hour); our fork has none of its backend.
+
+---
+
 ## 30-10-2026: confidential sites need the PIN everywhere, benches list with sites, infrastructure tree, log retention (0.7.2 to 0.7.5)
 
 A site marked Confidential could be opened without the Admin PIN from the desk ("Login as Administrator") and through every MCP tool, and `Site.onload` sent the PIN itself to every desk browser that opened any Site. All four releases were deployed to press-ctrl on 2026-10-30 with a snapshot first and `git merge --ff-only` in `apps/press` only.

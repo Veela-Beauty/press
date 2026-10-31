@@ -44,6 +44,8 @@ All customizations and enhancements to the upstream `frappe/press` on the `cloud
 | Infrastructure tree (0.7.3) | Done | `ServerChildRows.vue`, `ServerList.vue`, `InfraDashboard.vue`, `infra_board.py` | Servers expand in place (HostDrawer dialog removed) with visible Start / Stop / Restart / Logs; an action clears the cached tree |
 | Server Benches tab as tree (0.7.3) | Done | `objects/server.js`, `pages/benches/list/Page.vue` (`server` prop) | A server's Benches tab reuses the benches tree, filtered to that server |
 | Full-width pages (0.7.3) | Done | 10 data pages/tabs | No centered `max-w-*` column |
+| Take Backup: Database only / Full (0.7.6) | Done | `components/site/SiteScheduleBackup.vue`, `objects/site.js` | Always-shown choice (Full by default); Physical Backup only when enabled, forces Database only. Upstream hides the files checkbox unless physical backup is enabled |
+| Backup Schedule dialog (upstream) | Not ported | upstream `SiteBackupScheduleDialog.vue` + `site.py` | One custom daily backup hour instead of every 6 hours; needs the upstream backend |
 
 ## Monitoring & Health
 

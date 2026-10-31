@@ -1,5 +1,13 @@
 # Press Fork Dev Log
 
+### Session 12 - 2026-10-31: Take Backup Database only / Full backup (0.7.6)
+
+**What we did:** the backup dialog's files checkbox was hidden unless physical backup was enabled; it is now an always-shown choice (PR #20), rendered from source in the offline harness (13/13 flow checks, screenshots in `docs/prototypes/take-backup-db-or-full/`), approved, and deployed to press-ctrl with the usual snapshot + ff-only steps (rollback tag `safety/pre-take-backup-20261031`).
+
+**Files:** dashboard/src/components/site/SiteScheduleBackup.vue, dashboard/src/objects/site.js, press/__init__.py
+
+**Next:** upstream's Backup Schedule dialog only if asked (needs its site.py backend).
+
 ### Session 11 - 2026-10-30: confidential PIN gate, upstream UI port, infra tree, log retention (0.7.2 to 0.7.5)
 
 **What we did:**
