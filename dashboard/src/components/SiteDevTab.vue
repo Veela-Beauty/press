@@ -84,41 +84,7 @@
 
 		<!-- 2. Quick Actions -->
 		<div class="flex flex-wrap gap-3">
-			<!-- Code Server (Web VS Code) -->
-			<a v-if="codeServer.status === 'Running'" :href="codeServer.url" target="_blank"
-				class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700 shadow-sm transition-colors hover:border-green-400">
-				<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-					<path d="M16.5 3L21 7.5 9 19.5 3 15l13.5-12z"/><path d="M12 7.5L16.5 12"/><path d="M3 15l4.5-4.5"/>
-				</svg>
-				<span>
-					<span class="block text-sm font-semibold">Open Code Server</span>
-					<span class="block text-xs text-green-500">{{ codeServer.name }} · Running</span>
-				</span>
-				<svg class="ml-auto h-3.5 w-3.5 text-green-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-					<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-				</svg>
-			</a>
-			<button v-else-if="!codeServer.exists && codeServer.status !== 'Pending'" @click="launchCodeServer"
-				:disabled="codeServerLaunching"
-				class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 shadow-sm transition-colors hover:border-blue-400 disabled:opacity-50">
-				<svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-					<path d="M16.5 3L21 7.5 9 19.5 3 15l13.5-12z"/><path d="M12 7.5L16.5 12"/><path d="M3 15l4.5-4.5"/>
-				</svg>
-				<span>
-					<span class="block text-sm font-semibold">{{ codeServerLaunching ? 'Setting up…' : 'Launch Code Server' }}</span>
-					<span class="block text-xs text-blue-400">Per-user web VS Code for this bench</span>
-				</span>
-			</button>
-			<div v-else-if="codeServer.exists && codeServer.status === 'Pending'"
-				class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm font-medium text-yellow-700">
-				<svg class="h-5 w-5 flex-shrink-0 animate-spin" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-					<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
-				</svg>
-				<span>
-					<span class="block text-sm font-semibold">Code Server Starting…</span>
-					<span class="block text-xs text-yellow-500">{{ codeServer.name }}</span>
-				</span>
-			</div>
+			<SiteDevCodeServerCard :bench="$site?.doc?.bench || ''" />
 			<!-- Local VS Code (SSH Remote) -->
 			<a v-if="devInfo && devInfo.has_ssh_key" :href="localVscodeUrl"
 				class="flex min-w-[140px] flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-purple-400 hover:text-purple-600">
@@ -484,12 +450,13 @@ import BenchCodeHealth from './BenchCodeHealth.vue';
 import AiChatPanel from './AiChatPanel.vue';
 import DevFlowsGuide from './DevFlowsGuide.vue';
 import BenchWatchStatus from './BenchWatchStatus.vue';
+import SiteDevCodeServerCard from './SiteDevCodeServerCard.vue';
 
 const API = 'press.press.doctype.bench.bench_dev_overview';
 
 export default {
 	name: 'SiteDevTab',
-	components: { BenchCodeHealth, AiChatPanel, DevFlowsGuide, BenchWatchStatus },
+	components: { BenchCodeHealth, AiChatPanel, DevFlowsGuide, BenchWatchStatus, SiteDevCodeServerCard },
 	props: { site: { type: String, required: true } },
 	data() {
 		return {
@@ -509,9 +476,6 @@ export default {
 			processList: [], killingProcess: null,
 			// Dev info (VS Code links)
 			devInfo: null,
-			// Code Server
-			codeServer: { enabled: false, exists: false, status: null, url: null, name: null },
-			codeServerLaunching: false,
 			showHealth: false, showAiPanel: false,
 			showCreateApp: false, newAppName: '', newAppTitle: '', creatingApp: false, createAppOutput: '',
 			showInitGithub: false, initGithubApp: '', githubAccounts: [], loadingAccounts: false,
@@ -522,12 +486,7 @@ export default {
 	computed: {
 		$site() { return getCachedDocumentResource('Site', this.site); },
 		isDevBench() { return this.devInfo?.is_development_bench; },
-		devModeOn() {
-			const d = this.$site?.doc;
-			if (!d) return false;
-			const v = d.developer_mode ?? d.set_development_mode;
-			return v === 1 || v === '1' || v === true;
-		},
+		devModeOn() { return !!this.$site?.doc?.is_development_site; },
 		siteType() { return this.$site?.doc?.site_type || 'Production'; },
 		siteTypeOptions() {
 			return [
@@ -578,7 +537,7 @@ export default {
 		},
 	},
 	watch: {
-		'$site.doc.bench': { immediate: true, handler(b) { if (b) { this.loadGitStatus(); this.loadLogs(); this.loadProcessList(); this.loadDevInfo(); this.loadCodeServerStatus(); } } },
+		'$site.doc.bench': { immediate: true, handler(b) { if (b) { this.loadGitStatus(); this.loadLogs(); this.loadProcessList(); this.loadDevInfo(); } } },
 	},
 	mounted() { this.loadStatus(); this.loadErrors(); },
 	methods: {
@@ -610,24 +569,6 @@ export default {
 			this.logsLoading = true;
 			try { this.logEntries = await call(`${API}.get_recent_logs`, { bench_name: b }) || []; }
 			catch (e) { this.logEntries = []; } finally { this.logsLoading = false; }
-		},
-		async loadCodeServerStatus() {
-			const b = this.$site?.doc?.bench; if (!b) return;
-			try {
-				const res = await call(`${API}.get_code_server_status`, { bench_name: b });
-				this.codeServer = res || this.codeServer;
-			} catch (e) { /* keep defaults */ }
-		},
-		async launchCodeServer() {
-			const b = this.$site?.doc?.bench; if (!b) return;
-			this.codeServerLaunching = true;
-			const subdomain = `code-${b.replace(/[^a-z0-9]/g, '-').slice(0, 30)}`;
-			try {
-				const res = await call(`${API}.setup_code_server`, { bench_name: b, subdomain });
-				if (res?.error) { toast.error(res.error); }
-				else { toast.success('Code Server setup started'); this.loadCodeServerStatus(); }
-			} catch (e) { toast.error(e?.messages?.join(', ') || 'Failed to setup Code Server'); }
-			finally { this.codeServerLaunching = false; }
 		},
 		async loadDevInfo() {
 			const b = this.$site?.doc?.bench; if (!b) return;
