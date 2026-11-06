@@ -2768,7 +2768,7 @@ class Site(Document, TagHelpers):
 		"""
 		from press.press.doctype.team.press_role_bridge import require_team_role_flag
 
-		require_team_role_flag(self.team, "admin_access")
+		require_team_role_flag(self.team, "admin_access", owner_passes=True)
 		self.is_development_site = 1 if enable else 0
 		self.save(ignore_permissions=True)
 		if enable:

@@ -4,6 +4,15 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 06-11-2026: team owner can switch Dev Mode and a development bench (0.7.8)
+
+The owner of a team (Accurate Systems, u5) clicked **Enable Dev Mode** on engoffice and got "Required role flag: admin_access". The dashboard treats the team owner as admin, but `require_team_role_flag` only let System Managers or a Press Role with the flag through, and the owner's role was Developer.
+
+### Fixed
+- `require_team_role_flag(..., owner_passes=True)`: the team owner passes. Only `Site.set_development_mode` and `Bench.set_development_bench` opt in. Confidential, login-as-admin PIN and global PIN gates still need a real `admin_access` role (default `owner_passes=False`). Mock tests in `test_press_role_bridge.py`.
+
+---
+
 ## 31-10-2026: Take Backup always offers Database only or Full backup (0.7.6)
 
 The files checkbox in the backup dialog sat inside `v-if="allow_physical_backup_by_user"` (upstream has the same), so on sites without physical backup a manual backup could not be chosen as database-only or full.
