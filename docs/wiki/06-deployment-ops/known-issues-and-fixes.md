@@ -46,6 +46,11 @@ ssh press-f1 'sudo sed -i "/upstream <dead_hash> {/,/^}/{ s|<wrong_ip>:80|<right
 ```
 The agent regenerates `proxy.conf` from the directory tree on every Press operation that touches a site (deploy, archive, rename, …) — so a hot patch is overwritten silently.
 
+### First Code Server launch fails on a bench (RESOLVED 2026-11-06)
+**Status:** RESOLVED on all 4 agents (u5, u4, press-f1, accurate-portainer); see [lesson](../08-lessons/2026-11-06-owner-gate-and-code-server-first-launch.md)
+**Cause:** Two agent races: Setup started `code-server` before the parallel Update Bench Configuration job had added it to supervisor, then edited `config.yaml` before code-server had written it. The non-setup Start could never recover, and each failure stored the new password in the job step.
+**Fix:** press-agent `agent/code_server.py` waits for both and sends the password on stdin. On an agent without it: re-queue only the agent part of `CodeServer.setup()`, wait for `config.yaml`, then `CodeServer.start()`.
+
 ### u4-default agent auth (401 on scheduled jobs)
 **Status:** Ongoing — Purge Binlogs fails with 401 every 30 min
 **Cause:** Agent password in `config.json` on u4 doesn't match Press DB

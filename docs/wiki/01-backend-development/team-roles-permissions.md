@@ -174,8 +174,9 @@ WHERE pru.user = 'member@example.com';
 ```
 
 If the query returns nothing, the member has no Press Role assigned. Either
-they're the team **owner** (gets full access by default) or they need a role
-created and assigned.
+they're the team **owner** (full access in the dashboard, but NOT past every
+server-side gate: see [Owner, team features and role-flag gates](#owner-team-features-and-role-flag-gates))
+or they need a role created and assigned.
 
 ### 2. Check what flags are set
 
@@ -277,6 +278,32 @@ The 6 `raise_not_permitted()` call sites in client.py already pass `doctype`
 context. Internal-only failures (e.g. an unwhitelisted method on
 `run_doc_method`) intentionally still raise the generic message — those are
 developer config errors, not user-actionable role gaps.
+
+---
+
+## Owner, team features and role-flag gates
+
+Three separate checks decide whether a member can use a dev action. A toast
+names the one that refused.
+
+| Check | Where | Who passes |
+|---|---|---|
+| **Role flag** ("Required role flag: X") | `require_team_role_flag(team, flag, owner_passes=False)` in `press/press/doctype/team/press_role_bridge.py` | System Manager; any member whose Press Role on that team has flag X; the team **owner** only where the caller passes `owner_passes=True` |
+| **Team feature list** ("Code Server is not enabled for your role") | `has_feature()` in `press/api/feature_access.py` reads `Team.enabled_features` (JSON) | Empty JSON = every feature on. Non-empty = allowlist: a missing key turns the feature off for EVERY role, whatever the message says |
+| **Role per feature** | `can_access_feature()` + `DEFAULT_FEATURES` in `press/api/admin_panel.py` | Roles listed for the feature (Code Server: Platform Admin, DevOps Admin, Developer) |
+
+Where the owner passes (0.7.8): only `Site.set_development_mode` (flag
+`admin_access`) and `Bench.set_development_bench` (flag `allow_bench_creation`).
+The Confidential flag, Login As Administrator PIN and the global admin PIN
+(`press/api/security.py`) still need a real `admin_access` role, by design.
+
+The dashboard computes `admin` from `is_owner` too (`press/api/account.py`), so
+it shows owners buttons that a server gate may still refuse. When adding a new
+gated action, decide `owner_passes` explicitly.
+
+Turning a feature on for a team: Admin Panel team features (UI), or
+`Team.enabled_features` with `update_modified=False` from a console (a changed
+`modified` reorders which team becomes a user's default).
 
 ---
 
