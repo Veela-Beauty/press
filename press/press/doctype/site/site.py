@@ -243,6 +243,7 @@ class Site(Document, TagHelpers):
 		"ip",
 		"status",
 		"is_confidential",
+		"is_development_site",
 		"group",
 		"team",
 		"plan",

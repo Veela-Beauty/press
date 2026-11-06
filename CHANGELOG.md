@@ -4,6 +4,16 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 06-11-2026: Dev tab shows the real Dev Mode and every Code Server state (0.7.9)
+
+The Dev Mode card always said Disabled (it read `developer_mode` / `set_development_mode`, which are not Site fields, and `is_development_site` was not in `dashboard_fields`), so its button could only ever enable. The Code Server card had no state for a Broken or Stopped code server and never refreshed while Starting.
+
+### Fixed
+- Dev Mode card reads `is_development_site` (now in `Site.dashboard_fields`); Disable works, and the Options menu item shows the right label.
+- Code Server card moved to `SiteDevCodeServerCard.vue`: polls every 10 s while Starting (max 5 min), shows **Code Server failed / stopped** with a **Restart Code Server** button (existing `restart_code_server`, same team and feature check). View logic in `code-server-derive.js` with 11 vitest tests.
+
+---
+
 ## 06-11-2026: team owner can switch Dev Mode and a development bench (0.7.8)
 
 The owner of a team (Accurate Systems, u5) clicked **Enable Dev Mode** on engoffice and got "Required role flag: admin_access". The dashboard treats the team owner as admin, but `require_team_role_flag` only let System Managers or a Press Role with the flag through, and the owner's role was Developer.
