@@ -442,13 +442,15 @@ def audit_press_role_drift() -> dict:
 	}
 
 
-def require_team_role_flag(team: str, flag: str) -> None:
+def require_team_role_flag(team: str, flag: str, owner_passes: bool = False) -> None:
 	"""Gate-keeper for self-hosted Press actions that should be DevOps-tier
 	but not System-Manager-tier.
 
-	System Managers always pass. For non-SM users, we look up the user's
-	Press Role memberships on `team` and require ANY of those roles to have
-	`flag` set to 1.
+	System Managers always pass. With `owner_passes`, so does the team owner
+	(the dashboard already treats the owner as admin, see press.api.account);
+	only the dev toggles opt in, never the confidential/PIN gates. For everyone
+	else we look up the user's Press Role memberships on `team` and require
+	ANY of those roles to have `flag` set to 1.
 
 	Used in place of `frappe.only_for("System Manager")` for actions like
 	`set_development_bench` and `set_development_mode` — these were locked
@@ -460,6 +462,8 @@ def require_team_role_flag(team: str, flag: str) -> None:
 	"""
 	user = frappe.session.user
 	if "System Manager" in frappe.get_roles(user):
+		return
+	if owner_passes and frappe.db.get_value("Team", team, "user") == user:
 		return
 
 	# Whitelist allowed flag names — guards against SQL injection on the

@@ -1268,7 +1268,7 @@ class Bench(Document):
 		"""
 		from press.press.doctype.team.press_role_bridge import require_team_role_flag
 
-		require_team_role_flag(self.team, "allow_bench_creation")
+		require_team_role_flag(self.team, "allow_bench_creation", owner_passes=True)
 		self.is_development_bench = 1 if enable else 0
 		self.save(ignore_permissions=True)
 
