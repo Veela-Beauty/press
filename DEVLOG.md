@@ -1,5 +1,13 @@
 # Press Fork Dev Log
 
+### Session 13 - 2026-11-06: owner Dev Mode gate, Dev tab cards, Code Server first launch (0.7.8, 0.7.9)
+
+**What we did:** the owner of Accurate Systems (u5) was refused Enable Dev Mode; `require_team_role_flag` gained `owner_passes`, used only by the two dev toggles (PR #23, 0.7.8). His team's `enabled_features` lacked `code_server` (added). His first Code Server launch failed on two agent races: fixed in press-agent on all 4 servers (see press-ops CHANGELOG 2026-11-06). The Dev tab Dev Mode card always showed Disabled and the Code Server card had no failed state: PR #24 (0.7.9), card moved to `SiteDevCodeServerCard.vue` with 11 vitest tests. Both deployed to press-ctrl (web restart; 0.7.9 also `yarn build` after copying assets aside, tag `safety/pre-devtab-20261106`).
+
+**Files:** press/press/doctype/team/press_role_bridge.py (+test), site.py, bench.py, dashboard/src/components/SiteDevTab.vue, SiteDevCodeServerCard.vue, code-server-derive.js (+test), press/__init__.py
+
+**Next:** nothing open here. Lesson: [08-lessons/2026-11-06](docs/wiki/08-lessons/2026-11-06-owner-gate-and-code-server-first-launch.md).
+
 ### Session 12 - 2026-10-31: Take Backup Database only / Full backup (0.7.6)
 
 **What we did:** the backup dialog's files checkbox was hidden unless physical backup was enabled; it is now an always-shown choice (PR #20), rendered from source in the offline harness (13/13 flow checks, screenshots in `docs/prototypes/take-backup-db-or-full/`), approved, and deployed to press-ctrl with the usual snapshot + ff-only steps (rollback tag `safety/pre-take-backup-20261031`).
