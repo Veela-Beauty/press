@@ -99,6 +99,19 @@ MCP layer enforces the team itself.
 if the user belongs to it, otherwise the user's oldest team. A token without a team is
 refused on every call.
 
+- The MCP panel sends the switched team as `X-Press-Team` through
+  `dashboard/src/components/mcp/teamCall.js` (since 0.7.10). Before that it used frappe-ui's
+  `call()`, which sends no team header, so every token, the Allowed Sites picker and the token
+  list fell back to the oldest team, whatever team the user had switched to.
+- **To get a token for another team:** switch to that team (hard refresh after a deploy), then
+  Dev Tools > MCP > **Issue**. **Reissue** keeps the old token's team: it rotates a token, it
+  does not move it.
+- `list_my_tokens` lists only the current team's tokens (the token's team when called through
+  MCP). The panel splits them into **Active / Revoked / Expired** and opens on Active (0.7.11);
+  revoked and expired rows have no buttons, and each row shows the token's first 8 characters.
+- Any other dashboard code that calls frappe-ui `call()` directly has the same missing-header
+  trap. Use the resource fetcher, `teamCall.js`, or pass the header.
+
 **What is checked, in `press/mcp_server/server.py` `handle()`:**
 
 1. `refuse_undeclared_resource_args`: a resource argument the tool does not declare, or a
