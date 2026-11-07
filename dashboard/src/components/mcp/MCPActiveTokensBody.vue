@@ -1,49 +1,76 @@
 <template>
 	<div>
-		<!-- Header: summary + search + purge -->
+		<!-- Header: warnings about active tokens + search + issue -->
 		<div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3">
-			<div class="text-xs text-gray-600">
-				<span class="font-semibold">{{ summary.active }}</span> active
-				<span v-if="summary.highRisk > 0" class="ml-2 text-red-700">
-					· <span class="font-semibold">{{ summary.highRisk }}</span> with high-risk tools
+			<div class="text-xs">
+				<span v-if="summary.highRisk > 0" class="text-red-700">
+					<span class="font-semibold">{{ summary.highRisk }}</span> active with high-risk tools
 				</span>
 				<span v-if="summary.expiringSoon > 0" class="ml-2 text-amber-700">
-					· <span class="font-semibold">{{ summary.expiringSoon }}</span> expiring within 24h
+					<span class="font-semibold">{{ summary.expiringSoon }}</span> expiring within 24h
 				</span>
 			</div>
 			<div class="flex items-center gap-2">
 				<input
 					type="text"
 					v-model="tokenSearch"
-					placeholder="Search by label or tool..."
+					placeholder="Search by name, key or tool..."
 					class="w-56 rounded border border-gray-300 px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
 				/>
-				<Button size="sm" @click="$emit('issue')" variant="solid">
+				<Button size="sm" @click="statusTab = 'active'; $emit('issue')" variant="solid">
 					<template #prefix><FeatherIcon name="plus" class="h-4 w-4" /></template>
 					Issue
-				</Button>
-				<Button size="sm" @click="onPurgeExpired" title="Delete all expired tokens immediately (instead of waiting for the daily cron)">
-					Purge expired
 				</Button>
 			</div>
 		</div>
 
-		<!-- Token list -->
-		<div v-if="filteredTokens.length === 0 && tokens.length === 0" class="p-8 text-center text-sm text-gray-500">
-			No tokens yet. Click <strong>Issue</strong> to create one.
+		<!-- Status switch: the page opens on Active so dead tokens are never mistaken for live ones -->
+		<div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
+			<div class="inline-flex overflow-x-auto rounded border border-gray-200">
+				<button
+					v-for="(tab, i) in STATUS_TABS"
+					:key="tab.id"
+					type="button"
+					:class="[
+						'inline-flex items-center gap-1 whitespace-nowrap border-gray-200 px-3 py-1.5 text-xs',
+						i > 0 && 'border-l',
+						statusTab === tab.id ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50',
+					]"
+					@click="statusTab = tab.id"
+				>
+					{{ tab.label }}
+					<span :class="statusTab === tab.id ? 'text-gray-300' : 'text-gray-500'">{{ statusCounts[tab.id] }}</span>
+				</button>
+			</div>
+			<Button v-if="statusTab === 'expired' && statusCounts.expired > 0" size="sm" @click="onPurgeExpired"
+				title="Delete expired tokens now instead of waiting for the daily job">
+				Purge expired
+			</Button>
+			<span v-else-if="statusTab === 'revoked'" class="text-xs text-gray-500">
+				Revoked tokens stop working at once and cannot be used again.
+			</span>
 		</div>
-		<div v-else-if="filteredTokens.length === 0" class="p-8 text-center text-sm text-gray-500">
-			No tokens match "{{ tokenSearch }}".
+
+		<!-- Token list -->
+		<div v-if="filteredTokens.length === 0" class="p-8 text-center text-sm text-gray-500">
+			<template v-if="tokenSearch.trim()">No {{ statusTab }} tokens match "{{ tokenSearch }}".</template>
+			<template v-else-if="statusTab === 'active'">No active tokens. Click <strong>Issue</strong> to create one.</template>
+			<template v-else>No {{ statusTab }} tokens.</template>
 		</div>
 		<ul v-else class="divide-y divide-gray-100">
-			<li v-for="t in filteredTokens" :key="t.name" class="p-4">
-				<div class="flex items-start justify-between gap-3">
+			<li v-for="t in filteredTokens" :key="t.name" :class="['p-4', t.status !== 'active' && 'bg-gray-50']">
+				<div class="flex flex-wrap items-start justify-between gap-3">
 					<div class="min-w-0 flex-1">
 						<div class="flex items-center gap-2">
-							<span class="text-sm font-semibold text-gray-900 truncate">{{ t.label }}</span>
+							<span :class="['truncate text-sm', t.status === 'active' ? 'font-semibold text-gray-900' : 'font-medium text-gray-500']">
+								{{ t.label }}
+							</span>
 							<span :class="statusClass(t.status)">{{ t.status }}</span>
+							<span v-if="t.token_prefix" class="font-mono text-[11px] text-gray-500" title="First 8 characters of the token">
+								{{ t.token_prefix }}…
+							</span>
 						</div>
-						<div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+						<div :class="['mt-2 flex flex-wrap items-center gap-2', t.status !== 'active' && 'opacity-60 grayscale']">
 							<button
 								v-if="(t.scope || []).length === 0"
 								type="button"
@@ -81,26 +108,31 @@
 									{{ t.allowed_sites.length }} site{{ t.allowed_sites.length > 1 ? 's' : '' }}
 								</span>
 							</span>
+							<span v-else class="ml-2 inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-800">
+								all sites
+							</span>
 						</div>
-						<div class="mt-1.5 text-[11px] text-gray-500">
-							Issued {{ formatDate(t.creation) }} ·
-							Expires {{ formatDate(t.expires_at) }} ·
-							Last used {{ formatDate(t.last_used_at) || 'never' }}
+						<div class="mt-2 text-[11px] text-gray-500">
+							<span v-if="t.status === 'active'" class="font-semibold text-gray-700">Expires {{ formatDate(t.expires_at) }}</span>
+							<span v-else-if="t.status === 'revoked'" class="font-semibold text-red-700">Revoked {{ formatDate(t.revoked_at) }}</span>
+							<span v-else class="font-semibold text-gray-700">Expired {{ formatDate(t.expires_at) }}</span>
+							· {{ t.last_used_at ? 'Last used ' + formatDate(t.last_used_at) : 'Never used' }}
+							· Issued {{ formatDate(t.creation) }}
 						</div>
 					</div>
-					<div class="flex shrink-0 gap-1">
+					<div v-if="t.status === 'active'" class="flex shrink-0 gap-1">
 						<Button v-if="t.has_plaintext" size="sm" @click="onShowHandover(t)"
 							title="Show plaintext token + handover snippet">
 							Copy token
 						</Button>
-						<Button v-else-if="t.status === 'active'" size="sm" @click="onReissue(t)"
+						<Button v-else size="sm" @click="onReissue(t)"
 							title="Revoke this old token + issue a new one with the same scope, then show the fresh plaintext">
 							Reissue &amp; Copy
 						</Button>
-						<Button v-if="t.has_plaintext && t.status === 'active'" size="sm" @click="onReissue(t)" title="Revoke + issue new token with same scope">
+						<Button v-if="t.has_plaintext" size="sm" @click="onReissue(t)" title="Revoke + issue new token with same scope">
 							Reissue
 						</Button>
-						<Button v-if="t.status === 'active'" size="sm" @click="onRevoke(t)">Revoke</Button>
+						<Button size="sm" theme="red" @click="onRevoke(t)">Revoke</Button>
 					</div>
 				</div>
 
@@ -149,8 +181,15 @@ import { TOOL_CATALOG, TOOL_CATEGORIES, riskBadgeClass } from './_tool_catalog.j
 
 defineEmits(['issue']);
 
+const STATUS_TABS = [
+	{ id: 'active', label: 'Active' },
+	{ id: 'revoked', label: 'Revoked' },
+	{ id: 'expired', label: 'Expired' },
+];
+
 const tokens = ref([]);
 const tokenSearch = ref('');
+const statusTab = ref('active');
 const expandedTokens = reactive({});
 const handoverFor = ref(null);
 const handoverToken = ref(null);
@@ -182,12 +221,17 @@ function toggleScopeDetail(name) {
 	expandedTokens[name] = !expandedTokens[name];
 }
 
+const statusCounts = computed(() =>
+	Object.fromEntries(STATUS_TABS.map((tab) => [tab.id, tokens.value.filter((t) => t.status === tab.id).length])),
+);
+
 const filteredTokens = computed(() => {
 	const q = tokenSearch.value.trim().toLowerCase();
-	let list = tokens.value.slice();
+	let list = tokens.value.filter((t) => t.status === statusTab.value);
 	if (q) {
 		list = list.filter((t) => {
 			if ((t.label || '').toLowerCase().includes(q)) return true;
+			if ((t.token_prefix || '').toLowerCase().includes(q)) return true;
 			return (t.scope || []).some((id) => {
 				if (id.toLowerCase().includes(q)) return true;
 				const label = TOOL_CATALOG[id]?.label || '';
@@ -196,9 +240,6 @@ const filteredTokens = computed(() => {
 		});
 	}
 	return list.sort((a, b) => {
-		const aActive = a.status === 'active' ? 0 : 1;
-		const bActive = b.status === 'active' ? 0 : 1;
-		if (aActive !== bActive) return aActive - bActive;
 		const aHigh = tokenRiskCount(a, 'high');
 		const bHigh = tokenRiskCount(b, 'high');
 		if (aHigh !== bHigh) return bHigh - aHigh;
