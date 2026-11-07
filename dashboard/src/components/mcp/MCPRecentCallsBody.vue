@@ -64,7 +64,8 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { Button, call, toast } from 'frappe-ui';
+import { Button, toast } from 'frappe-ui';
+import call from './teamCall.js';
 import { toolLabel } from './_tool_catalog.js';
 
 const calls = ref([]);

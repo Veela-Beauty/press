@@ -121,7 +121,8 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
-import { Button, FeatherIcon, call, toast } from 'frappe-ui';
+import { Button, FeatherIcon, toast } from 'frappe-ui';
+import call from '../../../components/mcp/teamCall.js';
 import IssueTokenDialog from '../../../components/mcp/IssueTokenDialog.vue';
 import MCPTopTabs from '../../../components/mcp/MCPTopTabs.vue';
 import { TOOL_CATALOG } from '../../../components/mcp/_tool_catalog.js';

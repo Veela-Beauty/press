@@ -14,11 +14,12 @@ from press.mcp_server._util import safe_parse_list
 @frappe.whitelist()
 def list_my_tokens() -> list[dict[str, Any]]:
 	"""List active + recently revoked tokens for the calling user."""
+	from press.utils import get_current_team
+
 	user = frappe.session.user
-	filters = {"user": user}
-	if getattr(frappe.local, "mcp_token_team", None):
-		# Through MCP a token only sees its own team's tokens.
-		filters["team"] = frappe.local.mcp_token_team
+	# A token acts for one team: through MCP list the token's team, in the dashboard the
+	# team the user switched to (get_current_team() already checks membership).
+	filters = {"user": user, "team": getattr(frappe.local, "mcp_token_team", None) or get_current_team()}
 	rows = frappe.get_all(
 		"Press MCP Token",
 		filters=filters,

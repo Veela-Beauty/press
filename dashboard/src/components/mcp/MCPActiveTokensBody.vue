@@ -141,7 +141,8 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
-import { Button, FeatherIcon, call, toast } from 'frappe-ui';
+import { Button, FeatherIcon, toast } from 'frappe-ui';
+import call from './teamCall.js';
 import { confirmDialog } from '../../utils/components';
 import HandoverPanel from './HandoverPanel.vue';
 import { TOOL_CATALOG, TOOL_CATEGORIES, riskBadgeClass } from './_tool_catalog.js';
