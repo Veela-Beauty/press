@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCP Tokens, status tabs - List Prototype</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<!--
+  Target: dashboard/src/components/mcp/MCPActiveTokensBody.vue (Press dashboard, frappe-ui + Tailwind).
+  Tokens copy mcp_token_confidential_pin_prototype.html (frappe-ui look), not the AccuBuild blue.
+
+  Layout contract
+  0. Page job      : the team owner opens MCP > Active Tokens to copy or revoke a token that still works,
+                     without mistaking a revoked or expired one for it.
+  1. Grid          : one column list inside the MCP panel (max 1100px); each row = content (flex 1) + actions (shrink).
+  2. Spacing scale : 4, 8, 12, 16, 24 px.
+  3. Section map   : header (warnings, search, Issue) -> status switch (Active / Revoked / Expired, counts)
+                     -> token rows (name line -> scope line -> dates line) -> tool details (on demand).
+  4. Field spans   : name line = label + status pill + key prefix; scope line = risk counts + Show details + site scope;
+                     dates line = the date that matters for the tab first; actions = right column, top aligned.
+  5. Action model  : Issue (solid) top right of the header; per active row Copy token, Reissue, Revoke (red, last);
+                     revoked and expired rows have NO actions; Purge expired lives on the Expired tab only.
+  6. Direction     : LTR only (English dashboard).
+  7. Breakpoints   : 1024 as drawn; 768 actions wrap under the row text; 375 search full width, switch scrolls.
+-->
+<style>
+:root {
+  --ink: #171717; --text: #383838; --muted: #7c7c7c; --faint: #a3a3a3; --line: #e2e2e2; --field: #f3f3f3;
+  --row-dead: #fafafa; --link: #0289f7;
+  --blue-chip: #dbeafe; --blue-chip-text: #1e40af;
+  --green-bg: #ecfdf5; --green-text: #065f46;
+  --amber-bg: #fffbeb; --amber-text: #92400e;
+  --red-bg: #fef2f2; --red-text: #b91c1c;
+  --gray-chip: #f3f3f3; --gray-chip-text: #6b6b6b;
+  --radius: 8px; --radius-sm: 6px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+       background: #e9ecef; padding: 24px; color: var(--text); font-size: 13px; }
+.hidden { display: none !important; }
+.prototype-label { display: inline-block; background: #dc3545; color: #fff; padding: 4px 12px;
+  border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 12px; }
+.wrap { max-width: 1100px; margin: 0 auto; }
+
+/* Before: what the live list does today (outside the design) */
+.problems { background: #fff5f5; border: 1px solid #feb2b2; border-radius: var(--radius); padding: 12px 16px;
+  margin-bottom: 16px; color: #9b2c2c; font-size: 12px; line-height: 1.6; }
+.problems b { color: #742a2a; }
+
+/* MCP panel shell */
+.panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.page-tabs { display: flex; gap: 24px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+.page-tab { padding: 12px 0; font-size: 13px; color: var(--muted); display: inline-flex; gap: 8px; align-items: center; }
+.page-tab.active { color: var(--ink); font-weight: 600; border-bottom: 2px solid var(--ink); }
+
+.header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 12px 16px; background: #fafafa; border-bottom: 1px solid var(--line); }
+.warn { font-size: 12px; }
+.warn .red { color: var(--red-text); } .warn .amber { color: var(--amber-text); margin-left: 8px; }
+.tools { display: flex; gap: 8px; align-items: center; }
+.search { width: 224px; height: 28px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 0 8px; font-size: 12px; }
+.btn { height: 28px; padding: 0 12px; border-radius: var(--radius-sm); font-size: 13px; cursor: pointer;
+  border: 1px solid transparent; background: var(--field); color: var(--ink); display: inline-flex; gap: 4px; align-items: center; }
+.btn:hover { background: #e9e9e9; }
+.btn.solid { background: var(--ink); color: #fff; }
+.btn.danger { background: var(--red-bg); color: var(--red-text); }
+
+/* Status switch: segmented, small radius (not page tabs, not pills) */
+.statusbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px;
+  border-bottom: 1px solid var(--line); }
+.seg-group { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow-x: auto; }
+.seg { border: none; background: #fff; padding: 6px 12px; font-size: 12px; color: var(--text); cursor: pointer;
+  display: inline-flex; gap: 4px; align-items: center; white-space: nowrap; }
+.seg + .seg { border-left: 1px solid var(--line); }
+.seg.active { background: var(--ink); color: #fff; }
+.seg .count { font-size: 11px; color: var(--muted); }
+.seg.active .count { color: #d4d4d4; }
+.tab-note { font-size: 12px; color: var(--muted); }
+
+/* Rows */
+.row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px;
+  border-bottom: 1px solid #f0f0f0; }
+.row:last-child { border-bottom: none; }
+.row-main { min-width: 0; flex: 1; }
+.name-line { display: flex; align-items: center; gap: 8px; }
+.name { font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.key { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--muted); }
+.pill { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: var(--radius-sm); }
+.pill.active { background: var(--green-bg); color: var(--green-text); }
+.pill.revoked { background: var(--red-bg); color: var(--red-text); }
+.pill.expired { background: var(--gray-chip); color: var(--gray-chip-text); }
+.scope-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.chip { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: var(--radius-sm); }
+.chip.high { background: var(--red-bg); color: var(--red-text); }
+.chip.mid { background: var(--amber-bg); color: var(--amber-text); }
+.chip.low { background: var(--green-bg); color: var(--green-text); }
+.chip.sites { background: var(--blue-chip); color: var(--blue-chip-text); }
+.details { font-size: 11px; color: var(--link); cursor: pointer; }
+.dates { margin-top: 8px; font-size: 11px; color: var(--muted); }
+.dates b { font-weight: 600; color: var(--text); }
+.actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+/* Dead rows (revoked / expired): muted, no actions */
+.row.dead { background: var(--row-dead); }
+.row.dead .name { color: var(--muted); font-weight: 500; }
+.row.dead .chip { background: var(--gray-chip); color: var(--faint); }
+.row.dead .dates b { color: var(--red-text); }
+.row.dead.expired .dates b { color: var(--text); }
+
+.empty { padding: 32px; text-align: center; color: var(--muted); font-size: 13px; }
+
+@media (max-width: 768px) {
+  .row { flex-direction: column; }
+}
+@media (max-width: 375px) {
+  body { padding: 8px; }
+  .tools, .search { width: 100%; }
+  .page-tabs { overflow-x: auto; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<span class="prototype-label">Prototype</span>
+
+<div class="problems">
+  <b>Today (live list):</b> every token ever issued is shown in one list at the same weight; a revoked token still has
+  <b>Copy token</b>; two tokens can share a name ("master token 2") with nothing to tell them apart.
+</div>
+
+<div class="panel">
+  <div class="page-tabs">
+    <span class="page-tab active"><i class="fa fa-key"></i> Active Tokens</span>
+    <span class="page-tab"><i class="fa fa-book"></i> MCP Guide</span>
+    <span class="page-tab"><i class="fa fa-info-circle"></i> Quickstart</span>
+    <span class="page-tab"><i class="fa fa-line-chart"></i> Recent Calls</span>
+  </div>
+
+  <div class="header">
+    <div class="warn" id="warn"></div>
+    <div class="tools">
+      <input class="search" id="search" placeholder="Search by name or tool..." oninput="render()">
+      <button class="btn solid"><i class="fa fa-plus"></i> Issue</button>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <div class="seg-group" id="segs"></div>
+    <div id="tab-tools"></div>
+  </div>
+
+  <div id="list"></div>
+</div>
+</div>
+
+<script>
+// Sample rows shaped like press.mcp_server.dashboard.list_my_tokens() (key prefixes are fake).
+const TOKENS = [
+  { name: 'MCPT-94863', label: 'master token 2', status: 'active', key: 'Kq7Rt2Xw', high: 13, mid: 39, low: 30,
+    sites: 0, issued: '7 Nov 2026', expires: '5 Feb 2027', used: 'today 10:42' },
+  { name: 'MCPT-94862', label: 'accuhub-dev-v15 theme tests', status: 'active', key: 'Hn4Lp8Zc', high: 13, mid: 39, low: 30,
+    sites: 1, issued: '7 Nov 2026', expires: '14 Nov 2026', used: null },
+  { name: 'MCPT-92431', label: 'accuhub-dev-v15 theme tests', status: 'revoked', key: 'Ub2Yq6Md', high: 13, mid: 39, low: 30,
+    sites: 1, issued: '6 Nov 2026', ended: '7 Nov 2026, 10:41', used: '7 Nov 10:39' },
+  { name: 'MCPT-51324', label: 'master token 2', status: 'revoked', key: 'Xs9Wv3Ke', high: 13, mid: 39, low: 30,
+    sites: 0, issued: '10 Aug 2026', ended: '7 Nov 2026, 10:41', used: '7 Nov 10:35' },
+  { name: 'MCPT-41007', label: 'gwis-stg2 deploy check', status: 'expired', key: 'Pa5Dj1Rn', high: 0, mid: 4, low: 12,
+    sites: 1, issued: '27 Oct 2026', ended: '3 Nov 2026', used: '30 Oct 16:02' },
+];
+const TABS = [
+  { id: 'active', label: 'Active', empty: 'No active tokens. Click Issue to create one.' },
+  { id: 'revoked', label: 'Revoked', empty: 'No revoked tokens.' },
+  { id: 'expired', label: 'Expired', empty: 'No expired tokens.' },
+];
+let current = 'active';  // the page always opens on Active
+
+function setTab(id) { current = id; render(); }
+
+function scopeLine(t) {
+  const chips = [];
+  if (t.high) chips.push(`<span class="chip high">${t.high} high-risk</span>`);
+  if (t.mid) chips.push(`<span class="chip mid">${t.mid} state-changing</span>`);
+  if (t.low) chips.push(`<span class="chip low">${t.low} read-only</span>`);
+  chips.push('<span class="details">Show details</span>');
+  chips.push(`<span class="chip sites">${t.sites ? '&rarr; ' + t.sites + ' site' : 'all sites'}</span>`);
+  return chips.join('');
+}
+
+function datesLine(t) {
+  const used = t.used ? `Last used ${t.used}` : 'Never used';
+  if (t.status === 'active') return `<b>Expires ${t.expires}</b> &middot; ${used} &middot; Issued ${t.issued}`;
+  const word = t.status === 'revoked' ? 'Revoked' : 'Expired';
+  return `<b>${word} ${t.ended}</b> &middot; ${used} &middot; Issued ${t.issued}`;
+}
+
+function row(t) {
+  const dead = t.status !== 'active';
+  const actions = dead ? '' : `<div class="actions">
+      <button class="btn">Copy token</button><button class="btn">Reissue</button>
+      <button class="btn danger">Revoke</button></div>`;
+  return `<div class="row ${dead ? 'dead ' + t.status : ''}">
+    <div class="row-main">
+      <div class="name-line"><span class="name">${t.label}</span>
+        <span class="pill ${t.status}">${t.status}</span>
+        <span class="key" title="First 8 characters of the token">${t.key}&hellip;</span></div>
+      <div class="scope-line">${scopeLine(t)}</div>
+      <div class="dates">${datesLine(t)}</div>
+    </div>${actions}</div>`;
+}
+
+function render() {
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const counts = Object.fromEntries(TABS.map(tab => [tab.id, TOKENS.filter(t => t.status === tab.id).length]));
+  document.getElementById('segs').innerHTML = TABS.map(tab =>
+    `<button class="seg ${tab.id === current ? 'active' : ''}" onclick="setTab('${tab.id}')">
+      ${tab.label} <span class="count">${counts[tab.id]}</span></button>`).join('');
+
+  const active = TOKENS.filter(t => t.status === 'active');
+  const high = active.filter(t => t.high).length;
+  document.getElementById('warn').innerHTML = high ? `<span class="red">${high} active with high-risk tools</span>` : '';
+
+  document.getElementById('tab-tools').innerHTML = current === 'expired' && counts.expired
+    ? '<button class="btn" title="Delete expired tokens now instead of waiting for the daily job">Purge expired</button>'
+    : current === 'revoked' ? '<span class="tab-note">Revoked tokens stop working at once and cannot be used again.</span>' : '';
+
+  const rows = TOKENS.filter(t => t.status === current && (!q || t.label.toLowerCase().includes(q) || t.key.toLowerCase().includes(q)));
+  const tab = TABS.find(x => x.id === current);
+  document.getElementById('list').innerHTML = rows.length ? rows.map(row).join('')
+    : `<div class="empty">${q ? `No ${tab.label.toLowerCase()} tokens match "${q}".` : tab.empty}</div>`;
+}
+render();
+</script>
+</body>
+</html>
