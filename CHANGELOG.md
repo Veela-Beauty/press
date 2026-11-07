@@ -4,6 +4,17 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 07-11-2026: MCP token list split into Active / Revoked / Expired (0.7.11)
+
+Every token ever issued showed in one list at the same weight, a revoked token still had **Copy token**, and two tokens could share a name with nothing to tell them apart.
+
+### Changed
+- `MCPActiveTokensBody.vue`: a status switch (Active / Revoked / Expired, with counts); the page opens on Active. Revoked and expired rows are grey with no buttons and lead with "Revoked <date>" / "Expired <date>"; active rows lead with "Expires <date>", Revoke is red.
+- The first 8 characters of each token show next to its name (searchable); unrestricted tokens show an **all sites** chip; **Purge expired** moved to the Expired tab.
+- Prototype: `docs/prototypes/mcp_token_status_tabs_prototype.html` (layout score 97/100).
+
+---
+
 ## 07-11-2026: MCP tokens follow the team you switched to (0.7.10)
 
 A user in two teams switched to OptiFlow and opened Dev Tools > MCP: the list showed the main team's tokens, the Allowed Sites picker showed main-team sites, and a new token was bound to the main team. The MCP panel used frappe-ui's `call()`, which sends no `X-Press-Team` header, so `get_current_team()` fell back to the oldest team.
