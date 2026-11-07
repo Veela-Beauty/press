@@ -1,5 +1,13 @@
 # Press Fork Dev Log
 
+### Session 14 - 2026-11-07: MCP tokens follow the switched team, token list status tabs (0.7.10, 0.7.11)
+
+**What we did:** switched to the OptiFlow team, the MCP panel still listed and issued main-team tokens: its 4 files used frappe-ui `call()`, which sends no `X-Press-Team`. PR #26 (0.7.10) adds `teamCall.js` and filters `list_my_tokens` by the current team; verified on press-ctrl (header b0qds9cdh9 binds and lists OptiFlow) and end to end (OptiFlow token MCPT-94950 sees only OptiFlow sites). PR #27 (0.7.11) splits the token list into Active / Revoked / Expired from an approved prototype (layout score 97). Both deployed to press-ctrl (ff-only, `yarn build` with the assets copied aside, web restart).
+
+**Files:** dashboard/src/components/mcp/teamCall.js, IssueTokenDialog.vue, MCPActiveTokensBody.vue, MCPRecentCallsBody.vue, pages/devtools/mcp/MCPPanel.vue, press/mcp_server/dashboard.py, press_mcp_token/test_press_mcp_token.py, docs/prototypes/mcp_token_status_tabs_prototype.html, press/__init__.py
+
+**Next:** the regression test was not run (no local Press bench; tests on press-ctrl hit prod). Projects Hub project PRS holds the prototype and 3 decisions. Wiki: [03-integrations/mcp-server.md](docs/wiki/03-integrations/mcp-server.md) "Which team a token has".
+
 ### Session 13 - 2026-11-06: owner Dev Mode gate, Dev tab cards, Code Server first launch (0.7.8, 0.7.9)
 
 **What we did:** the owner of Accurate Systems (u5) was refused Enable Dev Mode; `require_team_role_flag` gained `owner_passes`, used only by the two dev toggles (PR #23, 0.7.8). His team's `enabled_features` lacked `code_server` (added). His first Code Server launch failed on two agent races: fixed in press-agent on all 4 servers (see press-ops CHANGELOG 2026-11-06). The Dev tab Dev Mode card always showed Disabled and the Code Server card had no failed state: PR #24 (0.7.9), card moved to `SiteDevCodeServerCard.vue` with 11 vitest tests. Both deployed to press-ctrl (web restart; 0.7.9 also `yarn build` after copying assets aside, tag `safety/pre-devtab-20261106`).
