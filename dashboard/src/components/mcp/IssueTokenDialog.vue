@@ -222,7 +222,8 @@
 
 <script setup>
 import { ref, reactive, computed, watch } from 'vue';
-import { Dialog, FormControl, ErrorMessage, Button, call } from 'frappe-ui';
+import { Dialog, FormControl, ErrorMessage, Button } from 'frappe-ui';
+import call from './teamCall.js';
 import {
 	TOOL_CATEGORIES,
 	TOOL_CATALOG,

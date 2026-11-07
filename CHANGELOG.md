@@ -4,6 +4,16 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 07-11-2026: MCP tokens follow the team you switched to (0.7.10)
+
+A user in two teams switched to OptiFlow and opened Dev Tools > MCP: the list showed the main team's tokens, the Allowed Sites picker showed main-team sites, and a new token was bound to the main team. The MCP panel used frappe-ui's `call()`, which sends no `X-Press-Team` header, so `get_current_team()` fell back to the oldest team.
+
+### Fixed
+- `dashboard/src/components/mcp/teamCall.js`: wraps frappe-ui `call()` with `X-Press-Team` (same source as `main.js`); the 4 MCP panel files use it.
+- `list_my_tokens` lists only the current team's tokens (the token's team through MCP). Test `TestMCPTokenFollowsSwitchedTeam`.
+
+---
+
 ## 06-11-2026: Dev tab shows the real Dev Mode and every Code Server state (0.7.9)
 
 The Dev Mode card always said Disabled (it read `developer_mode` / `set_development_mode`, which are not Site fields, and `is_development_site` was not in `dashboard_fields`), so its button could only ever enable. The Code Server card had no state for a Broken or Stopped code server and never refreshed while Starting.

@@ -315,3 +315,48 @@ class TestPressMCPToken(FrappeTestCase):
 			# Delete token first (it links to the user), then the user
 			frappe.db.delete("Press MCP Token", {"label": "pending-risky"})
 			frappe.delete_doc("User", non_system.name, ignore_permissions=True)
+
+
+class TestMCPTokenFollowsSwitchedTeam(FrappeTestCase):
+	"""A user in two teams: the team the dashboard shows decides which tokens are listed and issued."""
+
+	def setUp(self):
+		from press.press.doctype.team.test_team import create_test_team
+
+		self.team_a = create_test_team()
+		self.user = self.team_a.user
+		self.team_b = create_test_team()
+		self.team_b.append("team_members", {"user": self.user})
+		self.team_b.save(ignore_permissions=True)
+		frappe.set_user(self.user)
+
+	def tearDown(self):
+		frappe.set_user("Administrator")
+		frappe.db.delete("Press MCP Token", {"user": self.user})
+
+	def _token(self, team: str) -> str:
+		doc = frappe.get_doc(
+			{
+				"doctype": "Press MCP Token",
+				"user": self.user,
+				"team": team,
+				"label": f"token for {team}",
+				"token_hash": frappe.generate_hash(),
+				"expires_at": now_datetime() + timedelta(days=1),
+			}
+		)
+		return doc.insert(ignore_permissions=True).name
+
+	def test_issue_binds_the_switched_team(self):
+		from press.mcp_server.auth import _get_team_for_user
+
+		with patch("press.utils.get_current_team", return_value=self.team_b.name):
+			self.assertEqual(_get_team_for_user(self.user), self.team_b.name)
+
+	def test_list_shows_only_the_switched_team(self):
+		from press.mcp_server.dashboard import list_my_tokens
+
+		self._token(self.team_a.name)
+		team_b_token = self._token(self.team_b.name)
+		with patch("press.utils.get_current_team", return_value=self.team_b.name):
+			self.assertEqual([row["name"] for row in list_my_tokens()], [team_b_token])
