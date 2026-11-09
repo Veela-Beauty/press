@@ -4,6 +4,15 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 09-11-2026: client sites can turn off a removed AI seat's key (0.7.12)
+
+Sanad AI 0.11.1 asks the control center to turn off a seat's gateway key when an admin removes the seat. The control center's new `revoke_for_site` is authed by the same per-site service token as `provision_for_site`, but Press's guest guard refused it (401 "Access not allowed for this URL").
+
+### Changed
+- `press/auth.py`: `/api/method/sanad_ai_control_center.api.revoke_for_site` added to the guest allow-list beside `provision_for_site`, scoped to that one path.
+
+---
+
 ## 07-11-2026: MCP token list split into Active / Revoked / Expired (0.7.11)
 
 Every token ever issued showed in one list at the same weight, a revoked token still had **Copy token**, and two tokens could share a name with nothing to tell them apart.
