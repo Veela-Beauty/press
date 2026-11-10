@@ -107,7 +107,7 @@ class PreBuildValidations:
 	def _validate_node_version(self, app: str, actual: str, pm: PackageManagers):
 		for pckj in pm["packagejsons"]:
 			expected = pckj.get("engines", {}).get("node")
-			if expected is None or check_version(actual, expected):
+			if expected is None or check_version(actual, expected, npm=True):
 				continue
 
 			package_name = pckj.get("name")
@@ -209,15 +209,27 @@ class PreBuildValidations:
 		return None
 
 
-def check_version(actual: str, expected: str) -> bool:
+def check_version(actual: str, expected: str, npm: bool = False) -> bool:
 	# Python version mentions on press dont mention the patch version.
 	if actual.count(".") == 1:
 		actual += ".0"
 
 	sv_actual = sv.Version(actual)
-	sv_expected = sv.SimpleSpec(expected)
+	sv_expected = _parse_spec(expected, npm)
 
 	return sv_actual in sv_expected
+
+
+def _parse_spec(expected: str, npm: bool) -> sv.BaseSpec:
+	# package.json `engines` uses npm range syntax ("^20.19.0 || >=22.12.0"),
+	# which SimpleSpec rejects with "Invalid simple block". requires-python uses
+	# commas (">=3.10,<3.13"), which NpmSpec rejects, so Python keeps SimpleSpec.
+	if not npm:
+		return sv.SimpleSpec(expected)
+	try:
+		return sv.NpmSpec(expected)
+	except ValueError:
+		return sv.SimpleSpec(expected)
 
 
 def get_required_apps_from_hookpy(hooks_path: str) -> list[str]:
