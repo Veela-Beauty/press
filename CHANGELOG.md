@@ -4,6 +4,16 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 10-11-2026: deploys read npm version ranges in package.json (0.7.13)
+
+Adding frappe/crm `main` to a release group failed every deploy at "Run Validations / Pre-build" with `Invalid simple block '^20.19.0 || >=22.12.0'`. The pre-build check read each app's `engines.node` with `semantic_version.SimpleSpec`, which does not understand npm range syntax (`||`, `20.x`), so the build stopped on a parse error instead of comparing versions.
+
+### Changed
+- `press/press/doctype/deploy_candidate/validations.py`: the Node check parses `engines.node` with `NpmSpec` (falls back to `SimpleSpec` if npm syntax does not parse). The Python check keeps `SimpleSpec`, because `requires-python` uses commas that `NpmSpec` rejects.
+
+### Added
+- `test_validations.py`: OR ranges, x-ranges and `>=` for Node; comma ranges for Python. Against the old code the OR-range and `20.x` cases raise the same "Invalid simple block" error.
+
 ## 09-11-2026: client sites can turn off a removed AI seat's key (0.7.12)
 
 Sanad AI 0.11.1 asks the control center to turn off a seat's gateway key when an admin removes the seat. The control center's new `revoke_for_site` is authed by the same per-site service token as `provision_for_site`, but Press's guest guard refused it (401 "Access not allowed for this URL").
