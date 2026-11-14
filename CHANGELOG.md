@@ -4,6 +4,13 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 14-11-2026: restore asks before scanning the backup (0.7.15)
+
+Every database restore from the dashboard ran the backup scan first, even for a 400 KB backup that gains nothing from it, and on a server whose agent cannot scan the user waited for nothing. The scan is now a choice.
+
+### Changed
+- `dashboard/src/components/SiteDatabaseRestoreDialog.vue`: new checkbox "Scan backup first" above "Skip failing patches", off by default. Off: the restore starts as soon as the files are uploaded. On: the scan runs and offers log tables to skip, as before. The box locks once the upload starts. Prototype: `docs/prototypes/press-restore-scan-option/` (home repo).
+
 ## 14-11-2026: a backup scan the agent cannot take no longer freezes the Restore dialog (0.7.14)
 
 Restoring a site from an uploaded database sat on "Scanning backup... Checking which tables can be safely skipped" for good (engoffice, 13-14 Nov, over 1.5 hours; charity15, 30 Sep). The dialog dispatches an Analyze Backup job and only leaves the spinner on Success or Failure. u5-default runs an older agent with no `analyze_backup` route, so the job stayed Undelivered with the agent error recorded, and the restore never started.

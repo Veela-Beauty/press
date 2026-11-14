@@ -157,6 +157,21 @@
 				/>
 			</div>
 
+			<div class="mt-3 flex items-start">
+				<input
+					id="scan-backup"
+					type="checkbox"
+					class="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+					v-model="scanBackup"
+					:disabled="uploadingFiles || analyzing || !!analysisResult"
+				/>
+				<label for="scan-backup" class="ml-2">
+					<span class="text-sm text-gray-900">Scan backup first</span>
+					<span class="mt-1 block text-xs text-gray-600">
+						Finds log tables you can skip. Helps big backups; adds a short wait before the restore.
+					</span>
+				</label>
+			</div>
 			<div class="mt-3">
 				<input
 					id="skip-failing"
@@ -245,6 +260,7 @@ export default {
 			showRestoreDialog: true,
 			selectedFiles: { database: null, public: null, private: null, config: null },
 			skipFailingPatches: false,
+			scanBackup: false,
 			errorMessageFromUploader: '',
 			uploadingFiles: false,
 			// Analysis state
@@ -415,8 +431,8 @@ export default {
 			this.uploadingFiles = false;
 			if (files) this.selectedFiles = files;
 
-			// Only analyze if there's a database file
-			if (!this.selectedFiles.database) {
+			// Scan only when the user asked for it and there is a database file
+			if (!this.scanBackup || !this.selectedFiles.database) {
 				this.startRestoreRequest([]);
 				return;
 			}
