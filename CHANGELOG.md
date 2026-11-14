@@ -4,6 +4,16 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 14-11-2026: a backup scan the agent cannot take no longer freezes the Restore dialog (0.7.14)
+
+Restoring a site from an uploaded database sat on "Scanning backup... Checking which tables can be safely skipped" for good (engoffice, 13-14 Nov, over 1.5 hours; charity15, 30 Sep). The dialog dispatches an Analyze Backup job and only leaves the spinner on Success or Failure. u5-default runs an older agent with no `analyze_backup` route, so the job stayed Undelivered with the agent error recorded, and the restore never started.
+
+### Changed
+- `press/api/site.py` `get_analyze_result`: a job that is Undelivered with a recorded delivery error, or Delivery Failure, reports Failure, so the dialog runs the normal restore it already runs on Failure. A job not yet sent (Undelivered, no error) still reports Undelivered and keeps waiting.
+
+### Added
+- `press/api/tests/test_restore_scan_result.py`: 5 cases (agent refused, gave up, not sent yet, finished, failed). Against the old code the first two return Undelivered / Delivery Failure.
+
 ## 10-11-2026: deploys read npm version ranges in package.json (0.7.13)
 
 Adding frappe/crm `main` to a release group failed every deploy at "Run Validations / Pre-build" with `Invalid simple block '^20.19.0 || >=22.12.0'`. The pre-build check read each app's `engines.node` with `semantic_version.SimpleSpec`, which does not understand npm range syntax (`||`, `20.x`), so the build stopped on a parse error instead of comparing versions.
