@@ -2073,6 +2073,10 @@ def get_analyze_result(name, job_name):
 	if job.status == "Failure":
 		frappe.throw(f"Analysis failed: {job.traceback or 'Unknown error'}")
 
+	# The agent could not take the scan (e.g. an older agent without the route): restore without it.
+	if job.status == "Delivery Failure" or (job.status == "Undelivered" and job.traceback):
+		return {"status": "Failure", "data": None}
+
 	if job.status != "Success":
 		return {"status": job.status, "data": None}
 
