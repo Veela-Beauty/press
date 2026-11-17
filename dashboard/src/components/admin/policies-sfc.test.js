@@ -47,3 +47,19 @@ describe('AiPolicies.vue', () => {
 		expect(src).not.toMatch(/[\u2013\u2014]/);
 	});
 });
+
+describe('AdminPanel.vue', () => {
+	it('parses and its template compiles', () => {
+		const r = compile('pages/AdminPanel.vue');
+		expect(r.parseErrors).toEqual([]);
+		expect(r.templateErrors).toEqual([]);
+	});
+	it('registers the Policies tab after Providers and labels the group Sanad AI', () => {
+		const src = read('pages/AdminPanel.vue');
+		expect(src).toContain("import AiPolicies from '../components/admin/AiPolicies.vue';");
+		expect(src).toMatch(/AiProviders, AiPolicies, AiSubscriptions/);
+		expect(src).toMatch(/\{ id: 'providers'[^\n]*\n\t*\{ id: 'policies', label: 'Policies'/);
+		expect(src).toContain("<template v-if=\"activeMainTab === 'policies'\">");
+		expect(src).toMatch(/const ai = \[[^\]]*'policies'[^\]]*\]/);
+	});
+});
