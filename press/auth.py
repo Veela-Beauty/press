@@ -54,6 +54,12 @@ ALLOWED_PATHS = [
 	# Sanad AI control center: client sites turn off a removed seat's key here,
 	# authed by the same per-site service token. Scoped to this one path.
 	"/api/method/sanad_ai_control_center.api.revoke_for_site",
+	# Sanad AI control center: client sites fetch their Claude Code policy and signed
+	# setup payload here, authed by the same per-site service token. Scoped to this one path.
+	"/api/method/sanad_ai_control_center.api.policy_for_site",
+	# Sanad AI control center: client sites fetch a skills release zip here, authed
+	# by the same per-site service token. Scoped to this one path.
+	"/api/method/sanad_ai_control_center.api.release_for_site",
 	# Sanad AI control center: client sites push their daily usage rollups here,
 	# authed by the same per-site service token. Scoped to this one path.
 	"/api/method/sanad_ai_control_center.usage_ingest.ingest_usage",

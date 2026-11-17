@@ -4,6 +4,14 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 17-11-2026: client sites can fetch their Claude Code policy (0.7.17)
+
+The control center's new `policy_for_site` and `release_for_site` are authed by the per-site service token, but Press's guest guard would refuse them (401 "Access not allowed for this URL").
+
+### Changed
+- `press/auth.py`: `/api/method/sanad_ai_control_center.api.policy_for_site` and `/api/method/sanad_ai_control_center.api.release_for_site` added to the guest allow-list beside `revoke_for_site`, each scoped to that one path.
+- `scripts/audit_sanad_ai_guest_paths.py` (new, plus a wrapper test in `press/test_auth.py`): fails when a Sanad AI control center guest path is missing from `ALLOWED_PATHS`.
+
 ## 17-11-2026: Policies tab, seat policy and default policy in the Sanad AI admin (0.7.16)
 
 Claude Code policies (permission mode, route, three models, release, allowed and blocked actions) are now created and assigned from the Sanad AI admin. Needs the control center version the phase 2 PR sets (0.1.0 in the phase 2 plan) for the `policies.*` admin API; without it the Policy select is disabled with a short note and the Seats tab works as before.
