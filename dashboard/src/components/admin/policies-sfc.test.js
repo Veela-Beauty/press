@@ -30,3 +30,20 @@ describe('AiPolicyForm.vue', () => {
 		expect(src).not.toContain('cannot override');
 	});
 });
+
+describe('AiPolicies.vue', () => {
+	it('parses and its template compiles', () => {
+		const r = compile('components/admin/AiPolicies.vue');
+		expect(r.parseErrors).toEqual([]);
+		expect(r.templateErrors).toEqual([]);
+		expect(r.descriptor.script).toBeTruthy();
+	});
+	it('loads list_policies, shows the New policy button and mounts the form', () => {
+		const { src } = compile('components/admin/AiPolicies.vue');
+		expect(src).toContain('list_policies');
+		expect(src).toContain('>New policy</Button>');
+		expect(src).toContain('<AiPolicyForm');
+		expect(src).toContain('loading: true');
+		expect(src).not.toMatch(/[\u2013\u2014]/);
+	});
+});
