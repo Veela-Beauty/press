@@ -3,7 +3,7 @@
 		<div class="flex items-center justify-between">
 			<div>
 				<h2 class="text-lg font-semibold">AI Seats</h2>
-				<p class="text-xs text-gray-500">Per-user managed AI seats — assign, adjust budget, revoke.</p>
+				<p class="text-xs text-gray-500">Per-user managed AI seats: assign, adjust budget, revoke.</p>
 			</div>
 			<Button variant="solid" @click="openProvision">Provision seat</Button>
 		</div>
@@ -13,36 +13,38 @@
 			<template v-else>
 				<div v-for="site in sites" :key="site.site + ':' + siteRev" class="flex items-center gap-3 text-xs">
 					<span class="text-gray-600">Default policy of the site <b>{{ site.label || site.site }}</b>:</span>
-					<FormControl
-						class="w-64" type="select" :options="siteOptions"
-						:model-value="toChoice(site.default_policy)" @update:model-value="setSiteDefault(site, $event)"
-					/>
+					<div class="w-64 shrink-0">
+						<FormControl
+							type="select" :options="siteOptions"
+							:model-value="toChoice(site.default_policy)" @update:model-value="setSiteDefault(site, $event)"
+						/>
+					</div>
 					<span class="text-gray-400">Used when a seat has no policy of its own.</span>
 				</div>
 			</template>
 		</div>
-		<div class="rounded-lg border border-gray-200 bg-white p-4">
+		<div class="overflow-x-auto rounded-lg border border-gray-200 bg-white p-4">
 			<table class="w-full text-xs">
 				<thead>
 					<tr class="border-b border-gray-100 text-left text-gray-500">
-						<th class="py-2">Seat (user)</th><th>Subscription</th><th>Tier</th><th>Policy</th><th>Budget</th><th>Spend</th><th>Status</th><th></th>
+						<th class="px-2 py-2">Seat (user)</th><th class="px-2">Subscription</th><th class="hidden px-2 xl:table-cell">Tier</th><th class="px-2">Policy</th><th class="px-2">Budget</th><th class="px-2">Spend</th><th class="px-2">Status</th><th class="px-2"></th>
 					</tr>
 				</thead>
 				<tbody>
 					<tr v-for="seat in seats" :key="seat.user" class="border-b border-gray-50">
-						<td class="py-2 font-mono text-gray-700">{{ seat.user }}</td>
-						<td>{{ seat.subscription }}</td>
-						<td class="text-gray-500">{{ seat.tier }}</td>
-						<td class="text-gray-700">{{ policyLabel(seat) }}</td>
-						<td class="font-mono">${{ fmt(seat.budget) }}</td>
-						<td>
+						<td class="px-2 py-2 font-mono text-gray-700">{{ seat.user }}</td>
+						<td class="px-2">{{ seat.subscription }}</td>
+						<td class="hidden px-2 text-gray-500 xl:table-cell">{{ seat.tier }}</td>
+						<td class="px-2 text-gray-700">{{ policyLabel(seat) }}</td>
+						<td class="px-2 font-mono">${{ fmt(seat.budget) }}</td>
+						<td class="px-2">
 							<div class="font-mono">${{ fmt(seat.spend) }}</div>
 							<div class="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-100">
 								<div class="h-full rounded-full" :class="barClass(seat)" :style="{ width: pct(seat) + '%' }"></div>
 							</div>
 						</td>
-						<td><span class="rounded-full px-2 py-0.5 text-[10px] font-medium" :class="badge(seat.status)">{{ seat.status || 'Active' }}</span></td>
-						<td class="text-right"><Button size="sm" variant="outline" @click="openManage(seat)">Manage</Button></td>
+						<td class="px-2"><span class="rounded-full px-2 py-0.5 text-[10px] font-medium" :class="badge(seat.status)">{{ seat.status || 'Active' }}</span></td>
+						<td class="px-2 text-right"><Button size="sm" variant="outline" @click="openManage(seat)">Manage</Button></td>
 					</tr>
 					<template v-if="loading">
 						<tr v-for="n in 3" :key="n"><td colspan="8" class="py-2"><div class="h-5 animate-pulse rounded bg-gray-100"></div></td></tr>
@@ -65,22 +67,24 @@
 		<Dialog :options="{ title: 'Manage seat', size: 'md' }" v-model="showManage">
 			<template #body-content>
 				<div class="space-y-3">
-					<p class="text-xs text-gray-500">{{ manage.user }} — {{ manage.subscription }}</p>
+					<p class="text-xs text-gray-500">{{ manage.user }}, {{ manage.subscription }}</p>
 					<div v-if="manage.status === 'revoked'" class="rounded bg-red-50 px-3 py-2 text-xs text-red-700">
-						This seat is revoked — the user has no AI access. Re-provision it to restore access.
+						This seat is revoked: the user has no AI access. Re-provision it to restore access.
 					</div>
 					<template v-else>
 						<FormControl type="select" label="Tier" v-model="manage.tier_access" :options="tierOptions" />
 						<FormControl type="select" label="Policy" v-model="manage.policy" :options="seatPolicyOptions" :disabled="policiesState !== 'ready'" description="What this person gets in Claude Code. Site default applies when none is picked." />
 						<FormControl type="number" label="Monthly budget (USD)" v-model="manage.monthly_budget_usd" />
 						<p class="text-[11px] text-gray-400">Spend this month: ${{ fmt(manage.spend) }} of ${{ fmt(manage.monthly_budget_usd) }}</p>
-						<p class="text-[11px] text-gray-400">Revoking stops the user's AI access immediately and can't be undone here — you'd re-provision to restore it. Their app role is cleaned up on their site's next sync.</p>
+						<p class="text-[11px] text-gray-400">Revoking stops the user's AI access immediately and can't be undone here, you'd re-provision to restore it. Their app role is cleaned up on their site's next sync.</p>
 					</template>
 				</div>
 			</template>
 			<template #actions v-if="manage.status !== 'revoked'">
-				<Button variant="subtle" theme="red" :loading="managing" @click="confirmRevoke">Revoke seat</Button>
-				<Button variant="solid" :loading="managing" @click="doManage('update')">Save changes</Button>
+				<div class="flex w-full items-center justify-between gap-3">
+					<Button variant="outline" theme="red" :loading="managing" @click="confirmRevoke">Revoke seat</Button>
+					<Button variant="solid" :loading="managing" @click="doManage('update')">Save changes</Button>
+				</div>
 			</template>
 		</Dialog>
 	</div>
@@ -178,7 +182,7 @@ export default {
 		confirmRevoke() {
 			confirmDialog({
 				title: 'Revoke seat',
-				message: `Revoke AI access for <b>${this.manage.user}</b>? Their access stops immediately and this can't be undone here — you'd re-provision to restore it.`,
+				message: `Revoke AI access for <b>${this.manage.user}</b>? Their access stops immediately and this can't be undone here, you'd re-provision to restore it.`,
 				onSuccess: ({ hide }) => { this.doManage('revoke'); hide(); },
 			});
 		},

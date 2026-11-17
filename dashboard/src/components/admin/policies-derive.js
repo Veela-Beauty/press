@@ -54,15 +54,21 @@ export const releaseOptions = (releases = [], current = '') => {
 
 export const defaultRelease = (releases = []) => (releases.find((r) => r.latest) || releases[0] || {}).tag || '';
 
-export const validatePolicy = (form, isNew) => {
+export const policyErrors = (form, isNew) => {
+	const e = {};
 	const name = (form.policy_name || '').trim();
-	if (isNew && !name) return 'Give the policy a name.';
-	if (isNew && name.length > 140) return 'The policy name is too long.';
-	if (!form.rules_release) return 'Pick a rules and skills release.';
+	if (isNew && !name) e.name = 'Give the policy a name.';
+	else if (isNew && name.length > 140) e.name = 'The policy name is too long.';
+	if (!form.rules_release) e.release = 'Pick a rules and skills release.';
 	if (!isOwnMax(form) && !(form.model_light && form.model_normal && form.model_hard)) {
-		return 'Pick a Light, Normal and Hard model.';
+		e.models = 'Pick a Light, Normal and Hard model.';
 	}
-	return '';
+	return e;
+};
+
+export const validatePolicy = (form, isNew) => {
+	const e = policyErrors(form, isNew);
+	return e.name || e.release || e.models || '';
 };
 
 const cleanLines = (text) =>

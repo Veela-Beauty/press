@@ -4,6 +4,13 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 17-11-2026: Policies screens fixed after the live UI review (0.7.18)
+
+### Changed
+- `AiPolicyForm.vue`: Models card in two columns with the release select as the 4th cell; inline red message under the name, models and release fields (toast kept); one title row instead of four; note when no skills releases can be read.
+- `AiSeats.vue`: default-policy block one line per site with a fixed w-64 select; table scrolls sideways, cells padded, Tier hidden below 1280; Manage seat footer has Revoke (outlined red) left and Save right; long dashes removed.
+- `policies-derive.js`: `policyErrors` per field, `validatePolicy` built on it.
+
 ## 17-11-2026: client sites can fetch their Claude Code policy (0.7.17)
 
 The control center's new `policy_for_site` and `release_for_site` are authed by the per-site service token, but Press's guest guard would refuse them (401 "Access not allowed for this URL").
