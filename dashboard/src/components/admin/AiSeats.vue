@@ -7,11 +7,25 @@
 			</div>
 			<Button variant="solid" @click="openProvision">Provision seat</Button>
 		</div>
+		<div v-if="policiesState !== 'ready' || sites.length" class="space-y-2 rounded-lg border border-gray-200 bg-white p-4">
+			<div v-if="policiesState === 'loading'" class="h-8 animate-pulse rounded bg-gray-100"></div>
+			<p v-else-if="policiesState === 'missing'" class="text-xs text-gray-500">Policies are not available yet: the control center needs the policy update.</p>
+			<template v-else>
+				<div v-for="site in sites" :key="site.site + ':' + siteRev" class="flex items-center gap-3 text-xs">
+					<span class="text-gray-600">Default policy of the site <b>{{ site.label || site.site }}</b>:</span>
+					<FormControl
+						class="w-64" type="select" :options="siteOptions"
+						:model-value="toChoice(site.default_policy)" @update:model-value="setSiteDefault(site, $event)"
+					/>
+					<span class="text-gray-400">Used when a seat has no policy of its own.</span>
+				</div>
+			</template>
+		</div>
 		<div class="rounded-lg border border-gray-200 bg-white p-4">
 			<table class="w-full text-xs">
 				<thead>
 					<tr class="border-b border-gray-100 text-left text-gray-500">
-						<th class="py-2">Seat (user)</th><th>Subscription</th><th>Tier</th><th>Budget</th><th>Spend</th><th>Status</th><th></th>
+						<th class="py-2">Seat (user)</th><th>Subscription</th><th>Tier</th><th>Policy</th><th>Budget</th><th>Spend</th><th>Status</th><th></th>
 					</tr>
 				</thead>
 				<tbody>
@@ -19,6 +33,7 @@
 						<td class="py-2 font-mono text-gray-700">{{ seat.user }}</td>
 						<td>{{ seat.subscription }}</td>
 						<td class="text-gray-500">{{ seat.tier }}</td>
+						<td class="text-gray-700">{{ policyLabel(seat) }}</td>
 						<td class="font-mono">${{ fmt(seat.budget) }}</td>
 						<td>
 							<div class="font-mono">${{ fmt(seat.spend) }}</div>
@@ -29,8 +44,10 @@
 						<td><span class="rounded-full px-2 py-0.5 text-[10px] font-medium" :class="badge(seat.status)">{{ seat.status || 'Active' }}</span></td>
 						<td class="text-right"><Button size="sm" variant="outline" @click="openManage(seat)">Manage</Button></td>
 					</tr>
-					<tr v-if="loading"><td colspan="7" class="py-6 text-center text-gray-400">Loading…</td></tr>
-					<tr v-if="!loading && seats.length === 0"><td colspan="7" class="py-6 text-center text-gray-400">No seats provisioned yet.</td></tr>
+					<template v-if="loading">
+						<tr v-for="n in 3" :key="n"><td colspan="8" class="py-2"><div class="h-5 animate-pulse rounded bg-gray-100"></div></td></tr>
+					</template>
+					<tr v-if="!loading && seats.length === 0"><td colspan="8" class="py-6 text-center text-gray-400">No seats provisioned yet.</td></tr>
 				</tbody>
 			</table>
 		</div>
@@ -54,6 +71,7 @@
 					</div>
 					<template v-else>
 						<FormControl type="select" label="Tier" v-model="manage.tier_access" :options="tierOptions" />
+						<FormControl type="select" label="Policy" v-model="manage.policy" :options="seatPolicyOptions" :disabled="policiesState !== 'ready'" description="What this person gets in Claude Code. Site default applies when none is picked." />
 						<FormControl type="number" label="Monthly budget (USD)" v-model="manage.monthly_budget_usd" />
 						<p class="text-[11px] text-gray-400">Spend this month: ${{ fmt(manage.spend) }} of ${{ fmt(manage.monthly_budget_usd) }}</p>
 						<p class="text-[11px] text-gray-400">Revoking stops the user's AI access immediately and can't be undone here — you'd re-provision to restore it. Their app role is cleaned up on their site's next sync.</p>
@@ -72,16 +90,19 @@
 import { Button, Dialog, FormControl, call } from 'frappe-ui';
 import { confirmDialog } from '../../utils/components';
 import { toast } from 'vue-sonner';
+import {
+	NONE, choiceOptions, toChoice, fromChoice, seatPolicyLabel, siteDefaultFor, manageSeatArgs,
+} from './policies-derive.js';
 
 export default {
 	name: 'AiSeats',
 	components: { Button, Dialog, FormControl },
 	data() {
 		return {
-			seats: [], loading: false, show: false, saving: false,
+			seats: [], policies: [], sites: [], policiesState: 'loading', siteRev: 0, loading: true, show: false, saving: false,
 			form: { user: '', client_site: '', monthly_budget_usd: 20, tier_access: 'smart,fast' },
 			showManage: false, managing: false,
-			manage: { name: '', user: '', subscription: '', tier_access: '', monthly_budget_usd: 20, spend: 0, status: 'active' },
+			manage: { name: '', user: '', subscription: '', tier_access: '', monthly_budget_usd: 20, spend: 0, status: 'active', policy: NONE, policy_initial: NONE },
 			tierOptions: [
 				{ label: 'Fast (DeepSeek)', value: 'fast' },
 				{ label: 'Smart (GLM)', value: 'smart' },
@@ -90,7 +111,14 @@ export default {
 			],
 		};
 	},
-	mounted() { this.load(); },
+	computed: {
+		siteOptions() { return choiceOptions(this.policies, 'None'); },
+		seatPolicyOptions() {
+			const d = siteDefaultFor({ subscription: this.manage.subscription }, this.sites);
+			return choiceOptions(this.policies, d ? `Site default (${d})` : 'Site default (none)');
+		},
+	},
+	mounted() { this.load(); this.loadPolicies(); },
 	methods: {
 		async load() {
 			this.loading = true;
@@ -99,6 +127,29 @@ export default {
 				this.seats = g.seats || [];
 			} catch (e) { /* control-center unreachable */ }
 			this.loading = false;
+		},
+		async loadPolicies() {
+			try {
+				const r = await call('sanad_ai_control_center.policies.list_policies');
+				this.policies = r.policies || [];
+				this.sites = r.sites || [];
+				this.policiesState = 'ready';
+			} catch (e) {
+				if (this.policiesState === 'loading') this.policiesState = 'missing';
+			}
+		},
+		policyLabel(seat) { return seatPolicyLabel(seat, this.sites); },
+		toChoice,
+		async setSiteDefault(site, choice) {
+			const policy = fromChoice(choice);
+			try {
+				await call('sanad_ai_control_center.policies.set_site_default_policy', { site: site.site, policy });
+				site.default_policy = policy || null;
+				toast.success('Default policy saved');
+			} catch (e) {
+				toast.error(e.messages?.[0] || 'Could not save the default policy');
+				this.siteRev += 1;
+			}
 		},
 		openProvision() {
 			this.form = { user: '', client_site: '', monthly_budget_usd: 20, tier_access: 'smart,fast' };
@@ -120,6 +171,7 @@ export default {
 				name: seat.name, user: seat.user, subscription: seat.subscription,
 				tier_access: seat.tier || 'fast', monthly_budget_usd: seat.budget || 20,
 				spend: seat.spend || 0, status: (seat.status || 'active').toLowerCase(),
+				policy: toChoice(seat.policy), policy_initial: toChoice(seat.policy),
 			};
 			this.showManage = true;
 		},
@@ -134,13 +186,11 @@ export default {
 			if (!this.manage.name) { toast.error('Seat id missing'); return; }
 			this.managing = true;
 			try {
-				await call('sanad_ai_control_center.api.manage_seat', {
-					seat: this.manage.name, action,
-					tier_access: this.manage.tier_access, monthly_budget_usd: this.manage.monthly_budget_usd,
-				});
+				await call('sanad_ai_control_center.api.manage_seat', manageSeatArgs(this.manage, action));
 				toast.success(action === 'revoke' ? 'Seat revoked' : 'Seat updated');
 				this.showManage = false;
 				this.load();
+				this.loadPolicies();
 			} catch (e) { toast.error(e.messages?.[0] || 'Could not manage seat'); }
 			this.managing = false;
 		},

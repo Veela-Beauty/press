@@ -71,3 +71,27 @@ describe('NavigationItems.vue', () => {
 		expect(src).toMatch(/\['analytics'[^\]]*'policies'[^\]]*\]\.includes\(adminTab\)/);
 	});
 });
+
+describe('AiSeats.vue', () => {
+	it('parses and its template compiles', () => {
+		const r = compile('components/admin/AiSeats.vue');
+		expect(r.parseErrors).toEqual([]);
+		expect(r.templateErrors).toEqual([]);
+	});
+	it('adds the Policy column, the Manage seat select and the default-policy line, and leaves Provision seat alone', () => {
+		const src = read('components/admin/AiSeats.vue');
+		expect(src).toContain('<th>Policy</th>');
+		expect(src).toContain('colspan="8"');
+		expect(src).not.toContain('colspan="7"');
+		expect(src).not.toContain('Loading\u2026');
+		expect(src).toContain('animate-pulse');
+		expect(src).toContain("policiesState !== 'ready'");
+		expect(src).toContain("policiesState === 'missing'");
+		expect(src).toContain('label="Policy" v-model="manage.policy"');
+		expect(src).toContain('Default policy of the site');
+		expect(src).toContain('set_site_default_policy');
+		expect(src).toContain('manageSeatArgs(this.manage, action)');
+		const provision = src.slice(src.indexOf("title: 'Provision seat'"), src.indexOf("title: 'Manage seat'"));
+		expect(provision).not.toContain('Policy');
+	});
+});
