@@ -63,3 +63,11 @@ describe('AdminPanel.vue', () => {
 		expect(src).toMatch(/const ai = \[[^\]]*'policies'[^\]]*\]/);
 	});
 });
+
+describe('NavigationItems.vue', () => {
+	it('the Sanad AI sidebar lists Policies and highlights the group on it', () => {
+		const src = read('components/NavigationItems.vue');
+		expect(src).toContain("route: '/admin/policies'");
+		expect(src).toMatch(/\['analytics'[^\]]*'policies'[^\]]*\]\.includes\(adminTab\)/);
+	});
+});

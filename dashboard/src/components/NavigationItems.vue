@@ -39,6 +39,7 @@ import Bot from '~icons/lucide/bot';
 import FileText from '~icons/lucide/file-text';
 import Lock from '~icons/lucide/lock';
 import Plug from '~icons/lucide/plug';
+import SlidersHorizontal from '~icons/lucide/sliders-horizontal';
 import RefreshCw from '~icons/lucide/refresh-cw';
 import ShoppingCart from '~icons/lucide/shopping-cart';
 import { unreadNotificationsCount } from '../data/notifications';
@@ -372,6 +373,12 @@ export default {
 							isActive: routeName === 'Admin Panel' && adminTab === 'providers',
 						},
 						{
+							name: 'Policies',
+							icon: () => h(SlidersHorizontal),
+							route: '/admin/policies',
+							isActive: routeName === 'Admin Panel' && adminTab === 'policies',
+						},
+						{
 							name: 'Subscriptions',
 							icon: () => h(RefreshCw),
 							route: '/admin/subscriptions',
@@ -392,7 +399,7 @@ export default {
 					],
 					isActive:
 						routeName === 'Admin Panel' &&
-						['analytics', 'ai-governance', 'usage-cost', 'insights', 'seats', 'providers', 'subscriptions', 'escalations', 'buy-seats'].includes(adminTab),
+						['analytics', 'ai-governance', 'usage-cost', 'insights', 'seats', 'providers', 'policies', 'subscriptions', 'escalations', 'buy-seats'].includes(adminTab),
 				},
 				{
 					name: 'Admin Panel',
