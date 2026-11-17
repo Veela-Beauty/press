@@ -1,5 +1,13 @@
 # Press Fork Dev Log
 
+### Session 15 - 2026-11-17: Policies tab, seat policy, default policy (0.7.16)
+
+**What we did:** phase 3 of the Basher team AI plan: Policies tab and policy page, Policy column and Manage seat select on Seats, default policy per site, Sanad AI sidebar child (only if the owner approved it), the prototype and form wording corrected (open point 18). Logic is in `policies-derive.js` (tested); no component mount tests exist in this repo (vitest runs in node), so templates are compile-checked.
+
+**Files:** dashboard/src/components/admin/AiPolicies.vue, AiPolicyForm.vue, policies-derive.js (+tests), AiSeats.vue, pages/AdminPanel.vue, components/NavigationItems.vue, press/__init__.py
+
+**Next:** click check of Job A and B on the non-production Press target of phase 0 D6 after the control center of phase 2 is deployed there; owner merges. frappe-ui Select drops empty option values, so "no policy" is the sentinel `__none__` (see `policies-derive.js`).
+
 ### Session 14 - 2026-11-07: MCP tokens follow the switched team, token list status tabs (0.7.10, 0.7.11)
 
 **What we did:** switched to the OptiFlow team, the MCP panel still listed and issued main-team tokens: its 4 files used frappe-ui `call()`, which sends no `X-Press-Team`. PR #26 (0.7.10) adds `teamCall.js` and filters `list_my_tokens` by the current team; verified on press-ctrl (header b0qds9cdh9 binds and lists OptiFlow) and end to end (OptiFlow token MCPT-94950 sees only OptiFlow sites). PR #27 (0.7.11) splits the token list into Active / Revoked / Expired from an approved prototype (layout score 97). Both deployed to press-ctrl (ff-only, `yarn build` with the assets copied aside, web restart).

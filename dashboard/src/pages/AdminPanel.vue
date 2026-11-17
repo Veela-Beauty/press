@@ -165,6 +165,11 @@
 			<AiProviders />
 		</template>
 
+		<!-- TAB: Policies -->
+		<template v-if="activeMainTab === 'policies'">
+			<AiPolicies />
+		</template>
+
 		<!-- TAB: Subscriptions -->
 		<template v-if="activeMainTab === 'subscriptions'">
 			<AiSubscriptions />
@@ -224,6 +229,7 @@ import AnalyticsGovernance from '../components/admin/AnalyticsGovernance.vue';
 import AiPolicyGate from '../components/admin/AiPolicyGate.vue';
 import AiSeats from '../components/admin/AiSeats.vue';
 import AiProviders from '../components/admin/AiProviders.vue';
+import AiPolicies from '../components/admin/AiPolicies.vue';
 import AiSubscriptions from '../components/admin/AiSubscriptions.vue';
 import AiBuySeats from '../components/admin/AiBuySeats.vue';
 import AdminPanelMcp from './admin/AdminPanelMcp.vue';
@@ -234,7 +240,7 @@ const API = 'press.api.admin_panel';
 
 export default {
 	name: 'AdminPanel',
-	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiInsights, AnalyticsGovernance, AiPolicyGate, AdminPanelMcp, StatCard, ConfidentialSecurity, AiSeats, AiProviders, AiSubscriptions, AiBuySeats },
+	components: { TeamDetail, ServerAdmin, AiGovernance, AiEscalations, AiUsageCost, AiInsights, AnalyticsGovernance, AiPolicyGate, AdminPanelMcp, StatCard, ConfidentialSecurity, AiSeats, AiProviders, AiPolicies, AiSubscriptions, AiBuySeats },
 	setup() {
 		// Expose shared tab constants to the template
 		return { TAB_STRIP_BASE, tabClass };
@@ -263,6 +269,7 @@ export default {
 				{ id: 'insights', label: 'Insights', icon: 'fa fa-line-chart' },
 				{ id: 'seats', label: 'Seats', icon: 'fa fa-id-badge' },
 				{ id: 'providers', label: 'Providers', icon: 'fa fa-plug' },
+				{ id: 'policies', label: 'Policies', icon: 'fa fa-sliders' },
 				{ id: 'subscriptions', label: 'Subscriptions', icon: 'fa fa-refresh' },
 				{ id: 'buy-seats', label: 'Buy seats', icon: 'fa fa-shopping-cart' },
 				{ id: 'policy', label: 'Policy', icon: 'fa fa-file-text-o' },
@@ -288,7 +295,7 @@ export default {
 			return t ? t.label : 'Admin Panel';
 		},
 		activeGroupLabel() {
-			const ai = ['analytics', 'ai-governance', 'usage-cost', 'insights', 'seats', 'providers', 'subscriptions', 'escalations', 'buy-seats'];
+			const ai = ['analytics', 'ai-governance', 'usage-cost', 'insights', 'seats', 'providers', 'policies', 'subscriptions', 'escalations', 'buy-seats'];
 			return ai.includes(this.activeMainTab) ? 'Sanad AI' : 'Admin';
 		},
 	},

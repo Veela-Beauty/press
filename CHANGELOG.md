@@ -4,6 +4,17 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 17-11-2026: Policies tab, seat policy and default policy in the Sanad AI admin (0.7.16)
+
+Claude Code policies (permission mode, route, three models, release, allowed and blocked actions) are now created and assigned from the Sanad AI admin. Needs the control center version the phase 2 PR sets (0.1.0 in the phase 2 plan) for the `policies.*` admin API; without it the Policy select is disabled with a short note and the Seats tab works as before.
+
+### Changed
+- `dashboard/src/components/admin/AiPolicies.vue` (new) and `AiPolicyForm.vue` (new): Policies tab with a five column table and "New policy", and the policy page ("How it runs", "Models" with the release picker, "What Claude Code may do"). Logic in `policies-derive.js` with 28 unit tests; `policies-sfc.test.js` checks that the touched templates compile.
+- `dashboard/src/pages/AdminPanel.vue`: tab `policies` after Providers; `activeGroupLabel` lists it so the page is labelled "Sanad AI".
+- `dashboard/src/components/NavigationItems.vue`: "Policies" child in the Sanad AI sidebar group (owner approved). If Task 5b was skipped, delete this bullet.
+- `dashboard/src/components/admin/AiSeats.vue`: Policy column, Policy select in Manage seat (sent only when changed), one "Default policy of the site" select per site, skeleton rows while the table loads. Provision seat unchanged.
+- No Press allow-list change (staff are System Users); the guest paths for client sites come in a later PR.
+
 ## 14-11-2026: restore asks before scanning the backup (0.7.15)
 
 Every database restore from the dashboard ran the backup scan first, even for a 400 KB backup that gains nothing from it, and on a server whose agent cannot scan the user waited for nothing. The scan is now a choice.
