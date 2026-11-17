@@ -64,6 +64,10 @@ class TestDashboardContracts(FrappeTestCase):
 		"""Bench Shell Log insert keeps ignore_permissions=True (locks in the 2026-05-19 fix)."""
 		self._assert_audit_passes("audit_audit_log_inserts.py")
 
+	def test_audit_sanad_ai_guest_paths(self):
+		"""The Sanad AI control center guest paths (provision, revoke, policy, release, ingest) are allow-listed."""
+		self._assert_audit_passes("audit_sanad_ai_guest_paths.py")
+
 	def test_audit_mcp_catalog_parity(self):
 		"""tools.py and _tool_catalog.js list exactly the same MCP tools."""
 		self._assert_audit_passes("audit_mcp_catalog_parity.py")
