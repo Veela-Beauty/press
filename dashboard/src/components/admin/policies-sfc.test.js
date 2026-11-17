@@ -1,0 +1,32 @@
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+import { describe, it, expect } from 'vitest';
+import { parse, compileTemplate } from '@vue/compiler-sfc';
+
+// Run from the dashboard folder (yarn vitest run): paths are relative to dashboard/src.
+const read = (rel) => readFileSync(resolve(process.cwd(), 'src', rel), 'utf8');
+const compile = (rel) => {
+	const src = read(rel);
+	const { descriptor, errors } = parse(src, { filename: rel });
+	const tpl = compileTemplate({ source: descriptor.template.content, filename: rel, id: rel });
+	return { src, descriptor, parseErrors: errors, templateErrors: tpl.errors };
+};
+
+describe('AiPolicyForm.vue', () => {
+	it('parses and its template compiles', () => {
+		const r = compile('components/admin/AiPolicyForm.vue');
+		expect(r.parseErrors).toEqual([]);
+		expect(r.templateErrors).toEqual([]);
+		expect(r.descriptor.script).toBeTruthy();
+	});
+	it('calls the documented control center methods and no long dash', () => {
+		const { src } = compile('components/admin/AiPolicyForm.vue');
+		['list_serving_models', 'list_releases', 'get_policy', 'save_policy'].forEach((m) => expect(src).toContain(m));
+		expect(src).not.toMatch(/[\u2013\u2014]/);
+	});
+	it('words the blocked actions as guard rails, not as unbreakable rules', () => {
+		const { src } = compile('components/admin/AiPolicyForm.vue');
+		expect(src).toContain('Always enforced against standard users and user-level processes, also with bypass on. A local administrator can still change them.');
+		expect(src).not.toContain('cannot override');
+	});
+});
