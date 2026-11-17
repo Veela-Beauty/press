@@ -53,7 +53,7 @@ describe('AiPolicyForm.vue layout and messages', () => {
 	});
 	it('explains an empty release list instead of showing a bare select', () => {
 		expect(src()).toContain('No skills releases available yet. Ask the control center admin to configure the skills release token.');
-		expect(src()).toContain('v-if="!releases.length && releaseError"');
+		expect(src()).toContain('releaseListFailed && !form.rules_release');
 	});
 });
 

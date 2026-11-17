@@ -18,9 +18,12 @@
 		<template v-else>
 			<div class="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
 				<h3 class="text-sm font-semibold">How it runs <span class="font-normal text-gray-400">(permission mode and route)</span></h3>
-				<div v-if="isNew" class="max-w-md" data-field-error="name">
-					<FormControl label="Policy name" v-model="form.policy_name" placeholder="Example: Standard" />
-					<p v-if="errors.name" class="mt-1 text-[11px] text-red-600">{{ errors.name }}</p>
+				<div v-if="isNew" class="max-w-md">
+					<FormControl
+						label="Policy name" v-model="form.policy_name" placeholder="Example: Standard"
+						data-err="name" :aria-invalid="errors.name ? 'true' : null" :aria-describedby="errors.name ? 'policy-err-name' : null"
+					/>
+					<p v-if="errors.name" id="policy-err-name" role="alert" class="mt-1 text-[11px] text-red-600">{{ errors.name }}</p>
 				</div>
 				<div class="grid grid-cols-2 gap-4">
 					<FormControl
@@ -36,24 +39,27 @@
 
 			<div class="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
 				<h3 class="text-sm font-semibold">Models <span class="font-normal text-gray-400">(each picks a Serves as name from the Gateway pool)</span></h3>
-				<div class="grid grid-cols-2 gap-4" data-field-error="models">
+				<div class="grid grid-cols-2 gap-4">
 					<div v-for="slot in slots" :key="slot.key">
 						<FormControl
 							type="select" :label="slot.label" v-model="form[slot.key]" :options="modelChoices(slot.key)"
 							placeholder="Pick a model" :disabled="own" :description="slot.hint"
+							data-err="models" :aria-invalid="slotInvalid(slot.key) ? 'true' : null" :aria-describedby="slotInvalid(slot.key) ? 'policy-err-models' : null"
 						/>
 						<p v-if="isUnserved(slot.key)" class="mt-1 text-[11px] text-red-600">No enabled account serves this name now. Pick another.</p>
 					</div>
-					<div data-field-error="release">
+					<div>
 						<FormControl
 							type="select" label="Rules and skills release" v-model="form.rules_release" :options="releaseChoices"
 							placeholder="Pick a release" description="From the skills git repo. Basher refreshes every PC when this changes."
+							data-err="release" :aria-invalid="errors.release ? 'true' : null" :aria-describedby="errors.release ? 'policy-err-release' : null"
 						/>
-						<p v-if="!releases.length && releaseError" class="mt-1 text-[11px] text-red-600">No skills releases available yet. Ask the control center admin to configure the skills release token.</p>
-						<p v-if="errors.release" class="mt-1 text-[11px] text-red-600">{{ errors.release }}</p>
+						<p v-if="releaseListFailed && !form.rules_release" class="mt-1 text-[11px] text-red-600">No skills releases available yet. Ask the control center admin to configure the skills release token.</p>
+						<p v-if="releaseListFailed" class="mt-1 text-[11px] text-gray-500">{{ releaseError }}</p>
+						<p v-if="errors.release" id="policy-err-release" role="alert" class="mt-1 text-[11px] text-red-600">{{ errors.release }}</p>
 					</div>
 				</div>
-				<p v-if="errors.models" class="text-[11px] text-red-600">{{ errors.models }}</p>
+				<p v-if="errors.models" id="policy-err-models" role="alert" class="mt-1 text-[11px] text-red-600">{{ errors.models }}</p>
 				<p v-if="own" class="text-xs text-gray-500">Route is Own Claude Max: the three model fields are greyed, the models come from the person's Max.</p>
 			</div>
 
@@ -98,10 +104,15 @@ export default {
 	computed: {
 		isNew() { return !this.name; },
 		own() { return isOwnMax(this.form); },
+		validatedFields() {
+			const f = this.form;
+			return [f.policy_name, f.rules_release, f.route, f.model_light, f.model_normal, f.model_hard];
+		},
+		releaseListFailed() { return !!this.releaseError && !this.releases.length; },
 		releaseChoices() { return releaseOptions(this.releases, this.form.rules_release); },
 	},
 	watch: {
-		form: { deep: true, handler() { if (Object.keys(this.errors).length) this.errors = policyErrors(this.form, this.isNew); } },
+		validatedFields() { if (Object.keys(this.errors).length) this.errors = policyErrors(this.form, this.isNew); },
 	},
 	mounted() { this.load(); },
 	methods: {
@@ -127,14 +138,19 @@ export default {
 			this.loading = false;
 		},
 		modelChoices(key) { return modelOptions(this.serving, this.form[key]); },
+		slotInvalid(key) { return !!this.errors.models && !this.own && !this.form[key]; },
 		isUnserved(key) { return !this.own && !!this.form[key] && this.unserved.includes(this.form[key]); },
 		async save() {
 			this.errors = policyErrors(this.form, this.isNew);
 			const problem = validatePolicy(this.form, this.isNew);
 			if (problem) {
 				toast.error(problem);
-				const first = ['name', 'models', 'release'].find((k) => this.errors[k]);
-				this.$nextTick(() => this.$el.querySelector(`[data-field-error="${first}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+				const first = ['name', 'release', 'models'].find((k) => this.errors[k]);
+				this.$nextTick(() => {
+					const el = this.$el.querySelector(`[data-err="${first}"][aria-invalid="true"]`);
+					el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+					el?.focus?.();
+				});
 				return;
 			}
 			this.saving = true;
