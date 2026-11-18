@@ -61,6 +61,10 @@
 					<!-- api_key (gateway pool) -->
 					<template v-if="authClass === 'api_key'">
 						<FormControl type="password" label="API key" v-model="f.token" placeholder="paste the provider API key" />
+						<template v-if="isToken">
+							<FormControl type="select" label="Only for (person)" v-model="f.only_for_seat" :options="seatOptions" />
+							<p class="-mt-2 text-xs text-gray-500">A subscription is for one person only.</p>
+						</template>
 						<FormControl label="Account label" v-model="f.label" placeholder="e.g. Z.AI #2" />
 						<FormControl label="Serve as model" v-model="f.serve_as_model" placeholder="glm-4.5-air" />
 						<div class="grid grid-cols-2 gap-3">
@@ -112,15 +116,16 @@
 <script>
 import { Button, Dialog, FormControl, call } from 'frappe-ui';
 import { toast } from 'vue-sonner';
+import { isSubscriptionToken, seatChoices } from './policies-derive';
 
-const EMPTY = () => ({ provider: '', label: '', team: '', token: '', serve_as_model: '', weight: 1, monthly_budget: null, codexAuthJson: '' });
+const EMPTY = () => ({ provider: '', label: '', team: '', token: '', only_for_seat: '', serve_as_model: '', weight: 1, monthly_budget: null, codexAuthJson: '' });
 
 export default {
 	name: 'AiProviders',
 	components: { Button, Dialog, FormControl },
 	data() {
 		return {
-			providers: [], ownUse: [], catalog: [], loading: false, show: false,
+			providers: [], ownUse: [], catalog: [], seats: [], loading: false, show: false,
 			f: EMPTY(), codex: null, _timer: null,
 			busy: { connect: false, claude: false, codex: false, paste: false },
 		};
@@ -134,6 +139,11 @@ export default {
 			const row = (this.catalog || []).find((r) => r.provider_key === this.f.provider);
 			return row ? row.auth_class : '';
 		},
+		isToken() { return this.authClass === 'api_key' && isSubscriptionToken(this.f.token); },
+		seatOptions() { return seatChoices(this.seats); },
+	},
+	watch: {
+		isToken(on) { if (on && !this.seats.length) this.loadSeats(); },
 	},
 	mounted() { this.load(); },
 	beforeUnmount() { this.stopPoll(); },
@@ -143,6 +153,9 @@ export default {
 			try { this.providers = this.mapProviders(await call('sanad_ai_control_center.api.get_accounts_overview')); } catch (e) {}
 			try { this.ownUse = await call('sanad_ai_control_center.own_use.list_accounts'); } catch (e) {}
 			this.loading = false;
+		},
+		async loadSeats() {
+			try { this.seats = (await call('sanad_ai_control_center.api.get_governance_overview')).seats || []; } catch (e) { /* control center unreachable */ }
 		},
 		async openAdd(prefillModel) {
 			this.f = EMPTY();
@@ -159,11 +172,13 @@ export default {
 		async submitGateway() {
 			const f = this.f;
 			if (!f.provider || !f.token || !f.serve_as_model) { toast.error('Provider, API key, and Serve-as-model are required'); return; }
+			if (this.isToken && !f.only_for_seat) { toast.error('Choose who the subscription token is for (Only for (person))'); return; }
 			this.busy.connect = true;
 			try {
 				await call('sanad_ai_control_center.api.connect_account', {
 					provider: f.provider, token: f.token, account_label: f.label || f.provider,
 					serve_as_model: f.serve_as_model, weight: f.weight || 1, monthly_budget: f.monthly_budget || null,
+					...(this.isToken ? { only_for_seat: f.only_for_seat } : {}),
 				});
 				toast.success('Provider connected to the gateway pool');
 				this.show = false; this.load();

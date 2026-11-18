@@ -124,3 +124,12 @@ export const manageSeatArgs = (m, action) => {
 	if (action === 'update' && m.policy !== m.policy_initial) args.policy = fromChoice(m.policy);
 	return args;
 };
+
+// A Claude subscription token (`claude setup-token`) is for one person: the Providers form then asks "Only for (person)".
+// The prefix is the one the control center and the gateway use.
+export const isSubscriptionToken = (key) => String(key || '').trim().startsWith('sk-ant-oat');
+
+export const seatChoices = (seats = []) =>
+	(seats || [])
+		.filter((s) => s.status !== 'revoked')
+		.map((s) => ({ label: `${s.user} (${s.subscription})`, value: s.name }));

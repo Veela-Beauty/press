@@ -7,6 +7,7 @@ This file documents changes (current commit level since, no tagged releases yet)
 ## 17-11-2026: Policies screens fixed after the live UI review (0.7.18)
 
 ### Changed
+- `AiProviders.vue`: when the pasted key starts with `sk-ant-oat` (a Claude subscription token), the Add account form shows "Only for (person)" (a select of live seats) with the hint "A subscription is for one person only." and sends `only_for_seat`; a token without a person is not sent. Needs control center 0.1.2. Helpers `isSubscriptionToken` and `seatChoices` in `policies-derive.js`, 6 tests in `ai-providers-token.test.js`.
 - `AiPolicyForm.vue`: Models card in two columns with the release select as the 4th cell; inline red message under the name, models and release fields (toast kept); one title row instead of four; note when no skills releases can be read.
 - `AiSeats.vue`: default-policy block one line per site with a fixed w-64 select; table scrolls sideways, cells padded, Tier hidden below 1280; Manage seat footer has Revoke (outlined red) left and Save right; long dashes removed.
 - `policies-derive.js`: `policyErrors` per field, `validatePolicy` built on it.
