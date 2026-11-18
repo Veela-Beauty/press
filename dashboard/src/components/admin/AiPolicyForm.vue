@@ -157,6 +157,7 @@ export default {
 			try {
 				const r = await call(`${API}.save_policy`, savePayload(this.form, this.isNew));
 				toast.success(savedMessage(r));
+				(r.warnings || []).forEach((w) => toast.warning(w));
 				this.$emit('saved');
 			} catch (e) { toast.error(e.messages?.[0] || 'Could not save the policy'); }
 			this.saving = false;

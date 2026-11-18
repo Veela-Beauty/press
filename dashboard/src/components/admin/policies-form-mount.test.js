@@ -21,7 +21,8 @@ vi.mock('frappe-ui', () => ({
 		},
 	},
 }));
-vi.mock('vue-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+const toastMock = (globalThis.__toastMock = { error: vi.fn(), success: vi.fn(), warning: vi.fn() });
+vi.mock('vue-sonner', () => ({ toast: globalThis.__toastMock }));
 
 import AiPolicyForm from './AiPolicyForm.vue';
 
@@ -82,6 +83,23 @@ describe('AiPolicyForm mounted', () => {
 		await flushPromises();
 		expect(w.text()).not.toContain('No skills releases available yet');
 		expect(w.text()).toContain('HTTP 417: no skills token configured yet');
+		w.unmount();
+	});
+
+	it('a saved policy that lists a one-person model shows the control center warning', async () => {
+		toastMock.warning.mockClear();
+		calls.handler = (method) => {
+			if (method.endsWith('list_releases')) return Promise.resolve({ releases: [{ name: 'skills-1' }] });
+			if (method.endsWith('get_policy')) return Promise.resolve({ policy_name: 'Std', rules_release: 'skills-1', permission_mode: 'Ask before acting', route: 'Through our gateway', model_light: 'fast', model_normal: 'fast', model_hard: 'claude-opus-own' });
+			if (method.endsWith('save_policy')) return Promise.resolve({ ok: true, seats_queued: 2, warnings: ['Model claude-opus-own is for one person only. 2 seats using this policy will be refused it (403) unless it is that person.'] });
+			return Promise.resolve({ models: [{ serves_as: 'fast' }, { serves_as: 'claude-opus-own' }] });
+		};
+		const w = mount(AiPolicyForm, { props: { name: 'Std' }, attachTo: document.body });
+		await flushPromises();
+		await saveBtn(w).trigger('click');
+		await flushPromises();
+		expect(toastMock.warning).toHaveBeenCalledTimes(1);
+		expect(toastMock.warning.mock.calls[0][0]).toContain('for one person only');
 		w.unmount();
 	});
 

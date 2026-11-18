@@ -80,7 +80,25 @@ describe('AiProviders add account: Only for (person)', () => {
 		await flushPromises();
 		expect(field(w, 'Only for (person)').exists()).toBe(true);
 		expect(w.text()).toContain('A subscription is for one person only.');
-		expect(field(w, 'Only for (person)').findAll('option').map((o) => o.text())).toEqual(['owner@example.com (basher.example)']);
+		expect(field(w, 'Only for (person)').findAll('option').map((o) => o.text())).toEqual(['Choose a person', 'owner@example.com (basher.example)']);
+		expect(field(w, 'Only for (person)').element.value).toBe('__none__');
+	});
+
+	it('shows a lock badge with the person on a locked account in the table', async () => {
+		calls.handler = (method) => {
+			if (method.endsWith('get_accounts_overview')) {
+				return Promise.resolve({ groups: [{ model: 'claude-opus-own', accounts: [
+					{ account_label: 'Claude Max', serve_as_model: 'claude-opus-own', connected: true, only_for: 'owner@example.com (basher.example)' },
+					{ account_label: 'DeepSeek', serve_as_model: 'deepseek-chat', connected: true, only_for: null },
+				] }] });
+			}
+			return handler(method);
+		};
+		const w = mount(AiProviders, { attachTo: document.body });
+		await flushPromises();
+		const badges = w.findAll('[data-testid="only-for-badge"]');
+		expect(badges.length).toBe(1);
+		expect(badges[0].text()).toBe('Only for owner@example.com (basher.example)');
 	});
 
 	it('sends only_for_seat with a token, and not at all with an API key', async () => {

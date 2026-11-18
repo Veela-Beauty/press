@@ -20,7 +20,13 @@
 				</thead>
 				<tbody>
 					<tr v-for="(p, i) in providers" :key="i" class="border-b border-gray-50">
-						<td class="py-2 text-gray-800">{{ p.provider }}</td>
+						<td class="py-2 text-gray-800">
+							{{ p.provider }}
+							<span v-if="p.only_for" data-testid="only-for-badge" class="ml-1 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+								<svg viewBox="0 0 16 16" class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" /><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" /></svg>
+								<span>Only for {{ p.only_for }}</span>
+							</span>
+						</td>
 						<td class="font-mono text-gray-500">{{ p.tier }}</td>
 						<td>{{ p.region || '—' }}</td>
 						<td><span v-if="p.connected" class="font-mono">${{ fmt(p.cost) }}</span><span v-else class="text-gray-400">not connected</span></td>
@@ -116,9 +122,9 @@
 <script>
 import { Button, Dialog, FormControl, call } from 'frappe-ui';
 import { toast } from 'vue-sonner';
-import { isSubscriptionToken, seatChoices } from './policies-derive';
+import { isSubscriptionToken, seatChoices, NONE, fromChoice } from './policies-derive';
 
-const EMPTY = () => ({ provider: '', label: '', team: '', token: '', only_for_seat: '', serve_as_model: '', weight: 1, monthly_budget: null, codexAuthJson: '' });
+const EMPTY = () => ({ provider: '', label: '', team: '', token: '', only_for_seat: NONE, serve_as_model: '', weight: 1, monthly_budget: null, codexAuthJson: '' });
 
 export default {
 	name: 'AiProviders',
@@ -140,7 +146,7 @@ export default {
 			return row ? row.auth_class : '';
 		},
 		isToken() { return this.authClass === 'api_key' && isSubscriptionToken(this.f.token); },
-		seatOptions() { return seatChoices(this.seats); },
+		seatOptions() { return [{ label: 'Choose a person', value: NONE }, ...seatChoices(this.seats)]; },
 	},
 	watch: {
 		isToken(on) { if (on && !this.seats.length) this.loadSeats(); },
@@ -172,7 +178,7 @@ export default {
 		async submitGateway() {
 			const f = this.f;
 			if (!f.provider || !f.token || !f.serve_as_model) { toast.error('Provider, API key, and Serve-as-model are required'); return; }
-			if (this.isToken && !f.only_for_seat) { toast.error('Choose who the subscription token is for (Only for (person))'); return; }
+			if (this.isToken && !fromChoice(f.only_for_seat)) { toast.error('Choose who the subscription token is for (Only for (person))'); return; }
 			this.busy.connect = true;
 			try {
 				await call('sanad_ai_control_center.api.connect_account', {
@@ -244,6 +250,7 @@ export default {
 					region: acc.region || '—',
 					cost: acc.spend_to_date != null ? acc.spend_to_date : acc.cost != null ? acc.cost : 0,
 					connected: acc.connected != null ? acc.connected : true,
+					only_for: acc.only_for || '',
 				}));
 			});
 			return rows;
