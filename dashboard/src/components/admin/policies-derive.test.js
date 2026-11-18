@@ -90,6 +90,28 @@ describe('validatePolicy', () => {
 	});
 });
 
+describe('policyErrors', () => {
+	it('is empty for a complete policy', () => {
+		expect(d.policyErrors(form(), true)).toEqual({});
+	});
+	it('marks the name, the release and the models separately', () => {
+		const e = d.policyErrors(form({ policy_name: '', rules_release: '', model_light: '' }), true);
+		expect(e).toEqual({
+			name: 'Give the policy a name.',
+			release: 'Pick a rules and skills release.',
+			models: 'Pick a Light, Normal and Hard model.',
+		});
+	});
+	it('flags a too long name and ignores the name when editing', () => {
+		expect(d.policyErrors(form({ policy_name: 'x'.repeat(141) }), true).name).toBe('The policy name is too long.');
+		expect(d.policyErrors(form({ policy_name: '' }), false)).toEqual({});
+	});
+	it('needs no models on the Own Max route', () => {
+		const f = form({ route: 'Own Claude Max, direct', model_light: '', model_normal: '', model_hard: '' });
+		expect(d.policyErrors(f, false)).toEqual({});
+	});
+});
+
 describe('savePayload', () => {
 	it('builds the save_policy arguments for a new gateway policy', () => {
 		const p = d.savePayload(form({ policy_name: ' Standard ', allowed_actions: 'Read\n\n  Bash(git status)  \n', blocked_actions: '' }), true);

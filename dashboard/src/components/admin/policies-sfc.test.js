@@ -31,6 +31,32 @@ describe('AiPolicyForm.vue', () => {
 	});
 });
 
+describe('AiPolicyForm.vue layout and messages', () => {
+	const src = () => compile('components/admin/AiPolicyForm.vue').src;
+	it('lays the Models card out in two columns with the release as the 4th cell', () => {
+		const models = src().slice(src().indexOf('<h3 class="text-sm font-semibold">Models'), src().indexOf('What Claude Code may do'));
+		expect(models).toContain('grid grid-cols-2');
+		expect(models).not.toContain('grid-cols-3');
+		const grid = models.slice(models.indexOf('grid grid-cols-2'), models.indexOf('<p v-if="own"'));
+		expect(grid).toContain('Rules and skills release');
+		expect(grid).toContain('v-for="slot in slots"');
+	});
+	it('drops the Policy settings heading row', () => {
+		expect(src()).not.toContain('Policy settings');
+	});
+	it('shows an inline message under each field that fails validation', () => {
+		const s = src();
+		expect(s).toContain('policyErrors(this.form, this.isNew)');
+		['errors.name', 'errors.models', 'errors.release'].forEach((k) => expect(s).toContain(`v-if="${k}"`));
+		expect(s).toContain('text-[11px] text-red-600');
+		expect(s).toContain('toast.error(problem)');
+	});
+	it('explains an empty release list instead of showing a bare select', () => {
+		expect(src()).toContain('No skills releases available yet. Ask the control center admin to configure the skills release token.');
+		expect(src()).toContain('releaseListFailed && !form.rules_release');
+	});
+});
+
 describe('AiPolicies.vue', () => {
 	it('parses and its template compiles', () => {
 		const r = compile('components/admin/AiPolicies.vue');
@@ -80,7 +106,7 @@ describe('AiSeats.vue', () => {
 	});
 	it('adds the Policy column, the Manage seat select and the default-policy line, and leaves Provision seat alone', () => {
 		const src = read('components/admin/AiSeats.vue');
-		expect(src).toContain('<th>Policy</th>');
+		expect(src).toMatch(/<th[^>]*>Policy<\/th>/);
 		expect(src).toContain('colspan="8"');
 		expect(src).not.toContain('colspan="7"');
 		expect(src).not.toContain('Loading\u2026');
@@ -91,6 +117,20 @@ describe('AiSeats.vue', () => {
 		expect(src).toContain('Default policy of the site');
 		expect(src).toContain('set_site_default_policy');
 		expect(src).toContain('manageSeatArgs(this.manage, action)');
+		expect(src).not.toMatch(/[\u2013\u2014]/);
+		expect(src).toContain('overflow-x-auto');
+		expect(src).toMatch(/<th class="hidden [^"]*xl:table-cell">Tier<\/th>/);
+		expect(src).toMatch(/class="w-64 shrink-0"/);
+	});
+	it('puts Revoke seat at the left end and Save changes at the right end of the Manage footer', () => {
+		const src = read('components/admin/AiSeats.vue');
+		const foot = src.slice(src.indexOf('<template #actions v-if="manage.status'));
+		expect(foot).toContain('justify-between');
+		expect(foot.indexOf('Revoke seat')).toBeLessThan(foot.indexOf('Save changes'));
+		expect(foot).toMatch(/theme="red"[^>]*variant="outline"|variant="outline"[^>]*theme="red"/);
+	});
+	it('keeps the Provision dialog free of Policy', () => {
+		const src = read('components/admin/AiSeats.vue');
 		const provision = src.slice(src.indexOf("title: 'Provision seat'"), src.indexOf("title: 'Manage seat'"));
 		expect(provision).not.toContain('Policy');
 	});
