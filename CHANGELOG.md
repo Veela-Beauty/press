@@ -4,6 +4,11 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 19-11-2026: Web page previews on the policy form (0.7.19)
+
+### Added
+- `AiPolicyForm.vue`: a "Web page previews" select (Full or Sealed) under "How it runs". Sealed hides Open preview in Basher for web pages Claude makes. `policies-derive.js` gains `PREVIEW_MODES`; a new policy starts on Full and `savePayload` sends `preview_mode`. Needs control center 0.1.3 (`save_policy` takes `preview_mode`).
+
 ## 17-11-2026: Policies screens fixed after the live UI review (0.7.18)
 
 ### Changed

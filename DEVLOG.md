@@ -1,5 +1,13 @@
 # Press Fork Dev Log
 
+### Session 16 - 2026-11-19: Web page previews select on the policy form (0.7.19)
+
+**What we did:** one select "Web page previews" (Full or Sealed) on the policy form, saved through control center 0.1.3 `save_policy(preview_mode)`. Mount test drives the select through the mocked FormControl's props (the mock renders a select with no options, so the DOM value is always empty).
+
+**Files:** dashboard/src/components/admin/AiPolicyForm.vue, policies-derive.js (+tests), policies-form-mount.test.js, press/__init__.py
+
+**Next:** deploy order is control center 0.1.3 first, then this.
+
 ### Session 15 - 2026-11-17: Policies tab, seat policy, default policy (0.7.16)
 
 **What we did:** phase 3 of the Basher team AI plan: Policies tab and policy page, Policy column and Manage seat select on Seats, default policy per site, Sanad AI sidebar child (only if the owner approved it), the prototype and form wording corrected (open point 18). Logic is in `policies-derive.js` (tested); no component mount tests exist in this repo (vitest runs in node), so templates are compile-checked.
