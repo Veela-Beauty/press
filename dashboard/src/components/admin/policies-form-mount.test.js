@@ -24,6 +24,7 @@ vi.mock('frappe-ui', () => ({
 const toastMock = (globalThis.__toastMock = { error: vi.fn(), success: vi.fn(), warning: vi.fn() });
 vi.mock('vue-sonner', () => ({ toast: globalThis.__toastMock }));
 
+import { FormControl } from 'frappe-ui';
 import AiPolicyForm from './AiPolicyForm.vue';
 
 const serving = { models: [{ serves_as: 'fast' }] };
@@ -83,6 +84,28 @@ describe('AiPolicyForm mounted', () => {
 		await flushPromises();
 		expect(w.text()).not.toContain('No skills releases available yet');
 		expect(w.text()).toContain('HTTP 417: no skills token configured yet');
+		w.unmount();
+	});
+
+	it('Web page previews shows the saved Sealed and Save sends the new choice', async () => {
+		let sent = null;
+		calls.handler = (method, args) => {
+			if (method.endsWith('list_releases')) return Promise.resolve({ releases: [{ name: 'skills-1' }] });
+			if (method.endsWith('get_policy')) return Promise.resolve({ policy_name: 'Std', rules_release: 'skills-1', permission_mode: 'Ask before acting', route: 'Through our gateway', preview_mode: 'Sealed', model_light: 'fast', model_normal: 'fast', model_hard: 'fast' });
+			if (method.endsWith('save_policy')) { sent = args; return Promise.resolve({ ok: true, seats_queued: 0 }); }
+			return Promise.resolve(serving);
+		};
+		const w = mount(AiPolicyForm, { props: { name: 'Std' }, attachTo: document.body });
+		await flushPromises();
+		const control = w.findAllComponents(FormControl).find((c) => c.props('label') === 'Web page previews');
+		expect(control.props('type')).toBe('select');
+		expect(control.props('options')).toEqual(['Full', 'Sealed']);
+		expect(control.props('modelValue')).toBe('Sealed');
+		control.vm.$emit('update:modelValue', 'Full');
+		await flushPromises();
+		await saveBtn(w).trigger('click');
+		await flushPromises();
+		expect(sent.preview_mode).toBe('Full');
 		w.unmount();
 	});
 

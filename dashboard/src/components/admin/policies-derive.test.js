@@ -16,6 +16,7 @@ describe('emptyPolicy and fromServer', () => {
 		const f = d.emptyPolicy();
 		expect(f.permission_mode).toBe('Ask before acting');
 		expect(f.route).toBe('Through our gateway');
+		expect(f.preview_mode).toBe('Full');
 		expect(f.policy_name).toBe('');
 		expect(f.rules_release).toBe('');
 	});
@@ -119,6 +120,7 @@ describe('savePayload', () => {
 			policy_name: 'Standard',
 			permission_mode: 'Ask before acting',
 			route: 'Through our gateway',
+			preview_mode: 'Full',
 			model_light: 'fast',
 			model_normal: 'deepseek-chat',
 			model_hard: 'deepseek-reasoner',
@@ -134,6 +136,12 @@ describe('savePayload', () => {
 		expect(p.model_normal).toBeNull();
 		expect(p.model_hard).toBeNull();
 		expect(p.is_new).toBe(0);
+	});
+	it('offers Full then Sealed, reads a saved Sealed and sends it back', () => {
+		expect(d.PREVIEW_MODES).toEqual(['Full', 'Sealed']);
+		const f = d.fromServer({ policy_name: 'Locked', preview_mode: 'Sealed' });
+		expect(f.preview_mode).toBe('Sealed');
+		expect(d.savePayload(form({ preview_mode: f.preview_mode }), false).preview_mode).toBe('Sealed');
 	});
 });
 

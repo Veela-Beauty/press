@@ -17,7 +17,7 @@
 
 		<template v-else>
 			<div class="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
-				<h3 class="text-sm font-semibold">How it runs <span class="font-normal text-gray-400">(permission mode and route)</span></h3>
+				<h3 class="text-sm font-semibold">How it runs <span class="font-normal text-gray-400">(permission mode, route and previews)</span></h3>
 				<div v-if="isNew" class="max-w-md">
 					<FormControl
 						label="Policy name" v-model="form.policy_name" placeholder="Example: Standard"
@@ -33,6 +33,10 @@
 					<FormControl
 						type="select" label="Route" v-model="form.route" :options="routes"
 						description="Own Max goes straight to Anthropic with the person's own login, outside our budget."
+					/>
+					<FormControl
+						type="select" label="Web page previews" v-model="form.preview_mode" :options="previews"
+						description="Sealed hides Open preview in Basher for web pages Claude makes. A guard rail, not a lock."
 					/>
 				</div>
 			</div>
@@ -84,7 +88,7 @@
 import { Button, FormControl, call } from 'frappe-ui';
 import { toast } from 'vue-sonner';
 import {
-	PERMISSION_MODES, ROUTES, MODEL_SLOTS, emptyPolicy, fromServer, isOwnMax, modelOptions,
+	PERMISSION_MODES, ROUTES, PREVIEW_MODES, MODEL_SLOTS, emptyPolicy, fromServer, isOwnMax, modelOptions,
 	releaseOptions, defaultRelease, validatePolicy, policyErrors, savePayload, savedMessage,
 } from './policies-derive.js';
 
@@ -98,7 +102,7 @@ export default {
 	data() {
 		return {
 			form: emptyPolicy(), errors: {}, serving: [], releases: [], unserved: [], releaseError: '',
-			loading: true, saving: false, modes: PERMISSION_MODES, routes: ROUTES, slots: MODEL_SLOTS,
+			loading: true, saving: false, modes: PERMISSION_MODES, routes: ROUTES, previews: PREVIEW_MODES, slots: MODEL_SLOTS,
 		};
 	},
 	computed: {

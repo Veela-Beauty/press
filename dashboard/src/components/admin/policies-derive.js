@@ -4,6 +4,7 @@
 export const PERMISSION_MODES = ['Ask before acting', 'Bypass, no prompts'];
 export const ROUTES = ['Through our gateway', 'Own Claude Max, direct'];
 export const OWN_MAX = 'Own Claude Max, direct';
+export const PREVIEW_MODES = ['Full', 'Sealed'];
 // frappe-ui Select drops options with an empty value, so "no policy" travels as this value.
 export const NONE = '__none__';
 export const MODEL_SLOTS = [
@@ -16,6 +17,7 @@ export const emptyPolicy = () => ({
 	policy_name: '',
 	permission_mode: PERMISSION_MODES[0],
 	route: ROUTES[0],
+	preview_mode: PREVIEW_MODES[0],
 	model_light: '',
 	model_normal: '',
 	model_hard: '',
@@ -84,6 +86,7 @@ export const savePayload = (form, isNew) => {
 		policy_name: (form.policy_name || '').trim(),
 		permission_mode: form.permission_mode,
 		route: form.route,
+		preview_mode: form.preview_mode,
 		model_light: own ? null : form.model_light,
 		model_normal: own ? null : form.model_normal,
 		model_hard: own ? null : form.model_hard,
