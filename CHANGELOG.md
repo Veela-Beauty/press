@@ -4,6 +4,11 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 19-11-2026: A copied Frappe 16 site keeps its own database login (0.7.20)
+
+### Fixed
+- `press/fixtures/site_config_key_blacklist.json`: `db_user` is now a blocked config key (upstream Press 00979c2d1, cherry-picked). Frappe 16 writes `db_user` into site_config.json, and Press copied it from the backup into every restored or cloned v16 site, so the copy logged in as the SOURCE's database user and failed at "Uninstall Unavailable Apps" with 1045 Access denied (hub-sanad-v16, job qdn8hse71g). The record was added by hand on press-ctrl on 19-11-2026; this keeps the fixture in line.
+
 ## 19-11-2026: Web page previews on the policy form (0.7.19)
 
 ### Added
