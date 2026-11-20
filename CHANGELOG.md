@@ -4,6 +4,15 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 20-11-2026: Watch Tower client sites in the morning health report (0.7.21)
+
+### Added
+- `press/watch_tower/health_report.py`: a "Watch Tower client sites" table (status and open findings per client site,
+  last read) after the Watch Tower Alerts table, when the Control Center's Watch Tower Hub module (Monitored Site) is on
+  the site; otherwise nothing changes. Client names and statuses come from client sites and are escaped. It keeps the
+  hub inside the one morning email (Watch Tower plan B, task 6). Live on press-ctrl since 20-11-2026, checked by
+  rendering without sending.
+
 ## 19-11-2026: A copied Frappe 16 site keeps its own database login (0.7.20)
 
 ### Fixed

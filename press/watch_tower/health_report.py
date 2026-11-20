@@ -240,6 +240,7 @@ def _collect_health():
 		"error_count": error_count, "top_errors": top_errors,
 		"recent_errors": recent_errors,
 		"wt_alerts": wt_alerts,
+		"wt_hub": _watch_tower_hub(),
 	}
 
 
@@ -474,6 +475,10 @@ def _send_email(r):
 </table>
 """
 
+	# --- Watch Tower client sites (the Control Center hub) ---
+	if r.get("wt_hub"):
+		html += _watch_tower_hub_html(r["wt_hub"])
+
 	subtitle = f"press-ctrl (89.167.116.92) &bull; {ts} &bull; Uptime: {r['uptime_days']}d {r['uptime_hours']}h"
 	branded = wrap_email(f"{status_icon} Server Health Report", html, subtitle)
 
@@ -483,6 +488,41 @@ def _send_email(r):
 		message=branded,
 		now=True,
 	)
+
+
+def _watch_tower_hub():
+	"""Client sites the Control Center's Watch Tower Hub reads (sanad_ai_control_center), when that module is here."""
+	if not frappe.db.exists("DocType", "Monitored Site"):
+		return []
+	return frappe.get_all(
+		"Monitored Site",
+		filters={"enabled": 1},
+		fields=["client_name", "status", "open_critical", "open_high", "open_medium", "open_low", "last_read_at"],
+		order_by="open_critical desc, open_high desc, client_name asc",
+		limit_page_length=50,
+	)
+
+
+def _watch_tower_hub_html(sites):
+	"""Status and open findings per client site. Names and statuses come from client sites: escaped."""
+	by_status = {}
+	for site in sites:
+		by_status[site.status] = by_status.get(site.status, 0) + 1
+	summary = ", ".join(f"{n} {_escape_html(status)}" for status, n in sorted(by_status.items()))
+	rows = "".join(
+		f"<tr><td>{_escape_html(site.client_name)}</td>"
+		f"<td style='color:{'#22c55e' if site.status == 'Connected' else '#ef4444'}'>{_escape_html(site.status)}</td>"
+		f"<td><b>{site.open_critical or 0}</b></td><td>{site.open_high or 0}</td><td>{site.open_medium or 0}</td>"
+		f"<td>{site.open_low or 0}</td><td>{_escape_html(str(site.last_read_at or '')[:16])}</td></tr>"
+		for site in sites
+	)
+	return f"""
+<h3>Watch Tower client sites ({summary})</h3>
+<table {TABLE}>
+<tr {TH_BG}><th>Client</th><th>Status</th><th>Critical</th><th>High</th><th>Medium</th><th>Low</th><th>Last read</th></tr>
+{rows}
+</table>
+"""
 
 
 def _color(pct, warn_at, crit_at):
