@@ -459,7 +459,11 @@ let router = createRouter({
 		},
 		{
 			path: '/watch-tower',
-			name: 'Watch Tower',
+			redirect: '/watch-tower/overview',
+		},
+		{
+			path: '/watch-tower/overview',
+			name: 'Watch Tower Overview',
 			component: () => import('./pages/WatchTower.vue'),
 		},
 		{

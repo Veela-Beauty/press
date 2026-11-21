@@ -7,7 +7,8 @@ This file documents changes (current commit level since, no tagged releases yet)
 ## 21-11-2026: Watch Tower page in the dashboard (0.7.26)
 
 ### Added
-- `dashboard/src/pages/WatchTower.vue`, route `/watch-tower`, sidebar entry "Watch Tower" for system users (owner
+- `dashboard/src/pages/WatchTower.vue`, route `/watch-tower/overview`, sidebar group "Watch Tower" (the module's control
+  room; rules and what to watch join it later) with Overview as its first item, for system users (owner
   21-11-2026, prototype ACM-SP-02, "Production first"): status strip; client sites Production first, then the ones
   that need action (environment, status, last read, open Critical and High, errors 24 h, email failed and stuck, read
   problem); open Critical and High findings (newest Critical first, 20 shown with the total); installed app versions

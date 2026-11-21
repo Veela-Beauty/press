@@ -154,12 +154,20 @@ export default {
 					disabled: enforce2FA,
 				},
 				{
+					// the module's control room: Overview now, rules and what to watch join this group later
 					name: 'Watch Tower',
 					icon: () => h(Radar),
-					route: '/watch-tower',
-					isActive: routeName === 'Watch Tower',
+					route: '/watch-tower/overview',
 					condition: onboardingComplete && !isSaasUser && this.$session.isSystemUser,
 					disabled: enforce2FA,
+					children: [
+						{
+							name: 'Overview',
+							icon: () => h(LayoutDashboard),
+							route: '/watch-tower/overview',
+							isActive: routeName === 'Watch Tower Overview',
+						},
+					],
 				},
 				{
 					name: 'Telephony',

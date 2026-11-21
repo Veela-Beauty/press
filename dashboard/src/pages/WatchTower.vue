@@ -5,7 +5,12 @@ reads every site every 5 minutes). Rows open the desk records. -->
 	<div class="flex h-full flex-col">
 		<div class="sticky top-0 z-10 shrink-0">
 			<Header>
-				<Breadcrumbs :items="[{ label: 'Watch Tower', route: '/watch-tower' }]" />
+				<Breadcrumbs
+					:items="[
+						{ label: 'Watch Tower', route: '/watch-tower/overview' },
+						{ label: 'Overview', route: '/watch-tower/overview' },
+					]"
+				/>
 			</Header>
 		</div>
 
