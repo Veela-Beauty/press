@@ -15,9 +15,10 @@ const props = defineProps({
 	page: { type: Number, required: true },
 	total: { type: Number, required: true },
 	busy: { type: Boolean, default: false },
+	size: { type: Number, default: PAGE_ROWS }, // rows a page: 6 beside a chart, 20 on the Apps pages
 });
 defineEmits(['go']);
-const pages = computed(() => Math.max(1, Math.ceil(props.total / PAGE_ROWS)));
+const pages = computed(() => Math.max(1, Math.ceil(props.total / props.size)));
 </script>
 
 <style scoped src="./watch-tower.css"></style>

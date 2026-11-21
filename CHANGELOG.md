@@ -4,6 +4,25 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 21-11-2026: Watch Tower Apps page (0.7.31)
+
+### Added
+- Owner 21-11-2026 ("Installed apps make the page too long, better separate; at 100 apps and 100 clients the grid is
+  bad"; prototype ACM-SP-04 approved): "Apps" in the Watch Tower sidebar group. `/watch-tower/apps`: one row per app
+  (git, clients running it, a bar and counts of major behind / older / current, oldest version installed), the most
+  clients behind first, Behind | All, an app search, 20 a page. `/watch-tower/apps/<app>`: the app's git version and
+  the clients running it, behind first, then Production, 20 a page; a row opens the client. Job: Watch Tower, Apps, an
+  app = 3 clicks.
+
+### Changed
+- The Overview loses the apps x clients grid; its "Apps behind git" tile opens the Apps page.
+- The client page's Installed apps: behind first, 6 a page, each app opening its Apps page; the health charts are
+  taller so both cards end level.
+
+### Needs
+- Control Center hub 0.2.15. **Deploy this Press first, then the hub**: hub 0.2.15 stops sending the grid's data,
+  which the 0.7.30 Overview still draws.
+
 ## 21-11-2026: Watch Tower lists in pages (0.7.30)
 
 ### Changed

@@ -77,7 +77,7 @@ Rows, chart segments and client columns open that client's page. -->
 						:tone="apps.tone"
 						:flag="t.apps_behind ? { kind: 'amber', text: 'Plan updates' } : { kind: 'ok', text: 'Current' }"
 						link
-						@open="scrollTo(appsCard)"
+						@open="router.push({ name: 'Watch Tower Apps' })"
 					/>
 				</div>
 
@@ -195,43 +195,6 @@ Rows, chart segments and client columns open that client's page. -->
 						</table>
 					</div>
 				</section>
-
-				<section ref="appsCard" class="wt-card scroll-mt-16">
-					<div class="wt-card-h">
-						<h3>Installed apps</h3>
-						<span class="sub" title="Our apps are marked older when behind git; framework apps only when a whole major behind">
-							against git
-						</span>
-					</div>
-					<div class="overflow-x-auto">
-						<table class="wt-table">
-							<thead>
-								<tr>
-									<th>App</th>
-									<th class="num">Git</th>
-									<th v-for="s in appSites" :key="s.name" class="num site-h">
-										<router-link :to="clientRoute(s.name)">{{ s.client_name }}</router-link>
-									</th>
-								</tr>
-							</thead>
-							<tbody>
-								<tr v-for="app in appNames" :key="app">
-									<td class="mono text-gray-900">{{ app }}</td>
-									<td class="num mono text-gray-500">{{ (data.git[app] || []).join(' / ') || '-' }}</td>
-									<td v-for="s in appSites" :key="s.name" class="num mono" :title="s.apps[app]?.git ? `Git: ${s.apps[app].git}` : ''">
-										<template v-if="s.apps[app]">
-											{{ s.apps[app].version || '-' }}
-											<span v-if="s.apps[app].flag" class="tag" :class="{ major: s.apps[app].flag === 'major behind' }">
-												{{ s.apps[app].flag }}
-											</span>
-										</template>
-										<span v-else class="text-gray-400">-</span>
-									</td>
-								</tr>
-							</tbody>
-						</table>
-					</div>
-				</section>
 			</template>
 		</div>
 	</div>
@@ -260,8 +223,6 @@ import {
 const router = useRouter();
 const clientsCard = ref(null);
 const findingsCard = ref(null);
-const appsCard = ref(null);
-const FIRST = ['frappe', 'erpnext'];
 
 // GET: the hub method answers GET only (a read); frappe-ui posts by default, which Frappe refuses as Not permitted
 const resource = createResource({
@@ -309,13 +270,6 @@ const rest = (s) => s.open_medium + s.open_low;
 const maxOpen = computed(() => Math.max(1, ...data.value.sites.map(open)));
 const seg = (n, color) => ({ width: `${(100 * n) / maxOpen.value}%`, background: color });
 const topErrors = (s) => (s.top_errors || []).map((e) => `${e.count} x ${e.title}`).join('\n');
-
-const appSites = computed(() => data.value.sites.filter((s) => Object.keys(s.apps || {}).length));
-const appNames = computed(() =>
-	[...new Set(appSites.value.flatMap((s) => Object.keys(s.apps)))].sort(
-		(a, b) => (FIRST.indexOf(a) + 1 || 99) - (FIRST.indexOf(b) + 1 || 99) || a.localeCompare(b),
-	),
-);
 
 const clientRoute = (site) => ({ name: 'Watch Tower Client', params: { site } });
 function openClient(site) {

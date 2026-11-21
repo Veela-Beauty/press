@@ -473,6 +473,17 @@ let router = createRouter({
 			props: true,
 		},
 		{
+			path: '/watch-tower/apps',
+			name: 'Watch Tower Apps',
+			component: () => import('./pages/watch-tower/Apps.vue'),
+		},
+		{
+			path: '/watch-tower/apps/:app',
+			name: 'Watch Tower App',
+			component: () => import('./pages/watch-tower/AppDetail.vue'),
+			props: true,
+		},
+		{
 			path: '/backups/overview',
 			name: 'Daman Overview',
 			component: () => import('./pages/backups/BackupOverview.vue'),
