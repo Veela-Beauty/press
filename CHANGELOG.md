@@ -20,6 +20,11 @@ This file documents changes (current commit level since, no tagged releases yet)
   (its `#actions` stay in the page row); `Header.vue` lifts a frappe-ui `Breadcrumbs` placed directly in it, and hides
   a row left with nothing to show. Four Dev Tools pages with nested breadcrumbs keep them in the page.
 - The phone keeps its own menu; sign-up, site login and hidden-sidebar pages are unchanged.
+- Review fixes before release: buttons left in a page row stay on its right when the trail moves up; a flyout opened
+  from the keyboard takes the focus and Escape returns it to the tile; disabled menu entries leave the Tab order; an
+  open flyout resets when the menu unmounts and closes on resize or menu scroll; the top bar loads with the page (no
+  trail shown in the page first) and its separator shows only with a trail; the avatar shows the user's initials from
+  the session's full name, with names for screen readers on the logo, bell and avatar.
 
 ## 21-11-2026: Watch Tower Apps page (0.7.31)
 

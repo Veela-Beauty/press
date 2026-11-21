@@ -5,8 +5,10 @@ pages is open. Still 2 clicks to a page, as when the group opened inline. -->
 	<div
 		ref="tile"
 		role="button"
-		tabindex="0"
+		:tabindex="item.disabled ? -1 : 0"
+		aria-haspopup="true"
 		:aria-expanded="open"
+		:aria-disabled="item.disabled || undefined"
 		:title="item.name"
 		class="as-rail-item"
 		:class="{ active: isActive, 'as-rail-open': open && !isActive, 'pointer-events-none opacity-50': item.disabled }"
@@ -19,7 +21,7 @@ pages is open. Still 2 clicks to a page, as when the group opened inline. -->
 		<lucide-chevron-right class="as-rail-more" />
 	</div>
 	<Teleport to="body">
-		<div v-if="open" ref="panel" class="as-flyout" :style="{ top: `${top}px` }" role="menu" :aria-label="item.name">
+		<div v-if="open" ref="panel" class="as-flyout" :style="{ top: `${top}px` }" :aria-label="item.name">
 			<div class="as-flyout-title">{{ item.name }}</div>
 			<AppSidebarItem v-for="sub in item.children" :key="sub.name" :item="sub" flyout @go="close" />
 		</div>
@@ -48,7 +50,8 @@ const isActive = computed(() => props.item.isActive || props.item.children.some(
 function close() {
 	if (open.value) openGroup.value = null;
 }
-async function toggle() {
+async function toggle(event) {
+	if (props.item.disabled) return;
 	if (open.value) return close();
 	openGroup.value = props.item.name;
 	top.value = tile.value.getBoundingClientRect().top;
@@ -56,6 +59,8 @@ async function toggle() {
 	// keep the flyout inside the window when the group sits low on the rail
 	const room = window.innerHeight - (panel.value?.offsetHeight || 0) - 12;
 	top.value = Math.max(90, Math.min(top.value, room));
+	// opened from the keyboard: go into the flyout, so its pages are one Tab away and not at the end of the page
+	if (event?.type === 'keydown') panel.value?.querySelector('a')?.focus();
 }
 function outside(event) {
 	if (!open.value) return;
@@ -63,18 +68,27 @@ function outside(event) {
 	close();
 }
 function escape(event) {
-	if (event.key === 'Escape') close();
+	if (event.key !== 'Escape') return;
+	close();
+	tile.value?.focus();
 }
+// a flyout placed for one scroll position and window size: close it when either changes
 watch(open, (now) => {
 	const method = now ? 'addEventListener' : 'removeEventListener';
 	document[method]('mousedown', outside);
 	document[method]('keydown', escape);
+	window[method]('resize', close);
+	tile.value?.closest('.as-rail')?.[method]('scroll', close);
 });
 const route = useRoute();
 watch(() => route.fullPath, close);
 onBeforeUnmount(() => {
+	// the rail can go (a hidden-sidebar page) with a flyout open: never come back with it open and no listeners
+	close();
 	document.removeEventListener('mousedown', outside);
 	document.removeEventListener('keydown', escape);
+	window.removeEventListener('resize', close);
+	tile.value?.closest('.as-rail')?.removeEventListener('scroll', close);
 });
 </script>
 

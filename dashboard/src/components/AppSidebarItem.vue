@@ -3,9 +3,11 @@ In a group's flyout (`flyout`): a plain row. -->
 <template>
 	<router-link custom v-slot="{ href, navigate }" :to="item.route">
 		<a
-			:href="href"
+			:href="item.disabled ? undefined : href"
 			:title="item.name"
-			@click="(e) => (navigate(e), emit('go'))"
+			:tabindex="item.disabled ? -1 : undefined"
+			:aria-disabled="item.disabled || undefined"
+			@click="(e) => (item.disabled ? e.preventDefault() : (navigate(e), emit('go')))"
 			:class="[
 				flyout ? 'as-fly-item' : 'as-rail-item',
 				{ active: item.isActive, 'pointer-events-none opacity-50': item.disabled },

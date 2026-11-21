@@ -49,12 +49,11 @@ import { dialogs } from './utils/components';
 import { useRoute } from 'vue-router';
 import { getTeam } from './data/team';
 import { session } from './data/session.js';
+// not async: the page's trail moves up as soon as the page renders, instead of showing in the page first
+import AppTopbar from './components/AppTopbar.vue';
 
 const AppSidebar = defineAsyncComponent(
 	() => import('./components/AppSidebar.vue'),
-);
-const AppTopbar = defineAsyncComponent(
-	() => import('./components/AppTopbar.vue'),
 );
 const MobileNav = defineAsyncComponent(
 	() => import('./components/MobileNav.vue'),

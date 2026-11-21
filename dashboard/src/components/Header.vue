@@ -5,6 +5,7 @@ a row left with no element to show hides. On a phone nothing moves. -->
 <script>
 import { Breadcrumbs as FrappeBreadcrumbs } from 'frappe-ui';
 import { Fragment, Teleport, defineComponent, h, onBeforeUnmount, onMounted, provide, ref } from 'vue';
+import PressBreadcrumbs from './global/Breadcrumbs.vue';
 import { IN_PAGE_HEADER, topbarCrumbsEl } from './topbar';
 
 const flat = (nodes) =>
@@ -38,12 +39,15 @@ export default defineComponent({
 			const nodes = flat(slots.default?.() || []);
 			const crumbs = topbarCrumbsEl.value ? nodes.filter((n) => n.type === FrappeBreadcrumbs) : [];
 			const rest = nodes.filter((n) => !crumbs.includes(n));
+			// the trail left this row (lifted here, or Press's Breadcrumbs moved it): what stays were the actions on its
+			// right, so they stay right instead of sliding to the start of the row
+			const moved = crumbs.length > 0 || (!!topbarCrumbsEl.value && rest.some((n) => n.type === PressBreadcrumbs));
 			return h(
 				'header',
 				{ ref: header, class: ['border-b bg-white px-5 py-2.5 sm:px-5', { 'sticky top-0 z-10': props.sticky }] },
 				[
 					crumbs.length ? h(Teleport, { to: topbarCrumbsEl.value }, crumbs) : null,
-					h('div', { ref: row, class: 'flex items-center justify-between sm:h-7' }, rest),
+					h('div', { ref: row, class: ['flex items-center sm:h-7', moved ? 'justify-end gap-2' : 'justify-between'] }, rest),
 				],
 			);
 		};
