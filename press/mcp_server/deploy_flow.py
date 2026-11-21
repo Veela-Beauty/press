@@ -843,7 +843,7 @@ def bench_deploy_and_wait(
 	apps: list[dict] | str,
 	site_name: str,
 	max_wait_seconds: int = 1500,
-	poll_interval_seconds: int = 30,
+	poll_interval_seconds: int = 5,
 ) -> dict[str, Any]:
 	"""Trigger a deploy + block until the site's bench flips to the new
 	Deploy Candidate, or timeout. Single MCP call covers the entire wait.
@@ -858,7 +858,8 @@ def bench_deploy_and_wait(
 		max_wait_seconds: hard cap (default 1500 = 25 min; leaves 5 min headroom
 			under Press's 1800s gunicorn timeout). Returns status='timeout'
 			beyond this — agent can re-call to keep waiting.
-		poll_interval_seconds: how often to re-check (default 30s). Min 5s.
+		poll_interval_seconds: how often to re-check (default 5s, the minimum: a bench or site that
+			finishes just after a check no longer waits up to 30s to be seen).
 
 	Returns:
 		{
@@ -985,7 +986,7 @@ def site_update_and_wait(
 	skip_failing_patches: bool = False,
 	skip_backups: bool = False,
 	max_wait_seconds: int = 1500,
-	poll_interval_seconds: int = 30,
+	poll_interval_seconds: int = 5,
 ) -> dict[str, Any]:
 	"""Trigger a Site Update (migrate to latest bench) + block until flipped.
 
