@@ -116,25 +116,39 @@ calling the client or changing their app. Data from sanad_ai_control_center.watc
 				</div>
 
 				<div class="grid gap-4 lg:grid-cols-5">
-					<section class="wt-card lg:col-span-3">
+					<section class="wt-card flex flex-col lg:col-span-3">
 						<div class="wt-card-h">
 							<h3>Open findings</h3>
-							<span class="sub">all severities, newest first · showing {{ data.open.length }} of {{ data.open_total }}</span>
+							<span class="sub">all severities, newest first · {{ open.total.value }} open</span>
 							<a class="more" :href="`/app/client-finding?monitored_site=${encodeURIComponent(s.name)}&status=Open`">
 								All in the desk
 							</a>
 						</div>
-						<div v-if="!data.open.length" class="p-8 text-center text-base text-gray-600">No open findings</div>
-						<a v-for="f in data.open" :key="f.name" class="wt-li" :href="`/app/client-finding/${encodeURIComponent(f.name)}`">
-							<span class="badge" :class="SEVERITY_CLASS[f.severity]">{{ f.severity }}</span>
-							<span class="what">
-								<b>{{ f.finding_type }}</b><span class="mono ml-1.5">{{ f.user }}</span>
-								<span v-if="f.subject && f.subject !== f.user" class="ml-1.5 hidden text-gray-600 md:inline">
-									{{ f.subject }}
+						<div v-if="!open.total.value" class="p-8 text-center text-base text-gray-600">No open findings</div>
+						<div :class="{ 'opacity-50': open.more.loading }">
+							<a
+								v-for="f in open.rows.value"
+								:key="f.name"
+								class="wt-li"
+								:href="`/app/client-finding/${encodeURIComponent(f.name)}`"
+							>
+								<span class="badge" :class="SEVERITY_CLASS[f.severity]">{{ f.severity }}</span>
+								<span class="what">
+									<b>{{ f.finding_type }}</b><span class="mono ml-1.5">{{ f.user }}</span>
+									<span v-if="f.subject && f.subject !== f.user" class="ml-1.5 hidden text-gray-600 md:inline">
+										{{ f.subject }}
+									</span>
 								</span>
-							</span>
-							<span class="end">{{ ago(data.as_of, f.raised_on) }}</span>
-						</a>
+								<span class="end">{{ ago(data.as_of, f.raised_on) }}</span>
+							</a>
+						</div>
+						<WtPager
+							class="mt-auto"
+							:page="open.page.value"
+							:total="open.total.value"
+							:busy="open.more.loading"
+							@go="open.go"
+						/>
 					</section>
 					<section class="wt-card lg:col-span-2">
 						<div class="wt-card-h">
@@ -199,8 +213,10 @@ calling the client or changing their app. Data from sanad_ai_control_center.watc
 import { computed, watch } from 'vue';
 import { createResource } from 'frappe-ui';
 import WtHBars from './WtHBars.vue';
+import WtPager from './WtPager.vue';
 import WtStackedBars from './WtStackedBars.vue';
 import WtTile from './WtTile.vue';
+import { usePages } from './paging';
 import { ENV_CLASS, SEVERITY_CLASS, SEVERITY_COLORS, STATUS_CLASS, ago, versus } from './shared';
 
 const props = defineProps({ site: { type: String, required: true } });
@@ -212,16 +228,21 @@ const resource = createResource({
 	makeParams: () => ({ site: props.site }),
 	auto: true,
 });
-// another client: drop the last one's numbers so the skeleton shows instead of them
+const data = computed(() => resource.data);
+const open = usePages(
+	'sanad_ai_control_center.watch_tower_hub.client_profile.get_open_findings',
+	() => ({ rows: data.value.open, total: data.value.open_total }),
+	() => ({ site: props.site }),
+);
+// another client: drop the last one's numbers so the skeleton shows instead of them, and start at page 1
 watch(
 	() => props.site,
 	() => {
+		open.reset();
 		resource.reset();
 		resource.reload();
 	},
 );
-
-const data = computed(() => resource.data);
 const s = computed(() => data.value.site);
 const t = computed(() => data.value.tiles);
 const notConnected = computed(() => resource.error?.exc_type === 'DoesNotExistError');
