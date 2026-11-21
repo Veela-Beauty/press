@@ -4,6 +4,17 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 21-11-2026: Search in the top bar (0.7.35)
+
+### Added
+- Owner 21-11-2026 ("add a search icon here and space between the bell and the avatar"; chose sites, benches and
+  servers): a search icon in the top bar, and "/" anywhere outside a field, open `AppSearch.vue`. Part of a name finds
+  the sites, benches and servers this account may see (Press's own list API, so the team rules apply), grouped, 6 a
+  group; Enter or a click opens one; arrow keys move between results.
+
+### Changed
+- More room between the top bar's icons and the avatar; the unread count sits clear of the bell.
+
 ## 21-11-2026: A group opens the full menu, no drop list (0.7.34)
 
 ### Changed

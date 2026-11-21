@@ -1,12 +1,21 @@
-<!-- The dashboard's top bar in the desk look (owner 2026-11-21, prototype ACM-SP-05): the Accurate blue gradient of the
-press-ctrl desk theme, the white logo, the page's breadcrumbs (Header.vue and Breadcrumbs.vue teleport them into the
-box below), notifications and the account menu that used to sit on top of the sidebar. -->
+<!-- The dashboard's top bar in the desk look (owner 2026-11-21, prototype ACM-SP-05): one solid Accurate blue, the
+white logo, the page's breadcrumbs (Header.vue and Breadcrumbs.vue teleport them into the box below), search (sites,
+benches, servers; the icon or "/"), notifications and the account menu that used to sit on top of the sidebar. -->
 <template>
 	<header class="as-topbar">
 		<router-link to="/" class="as-topbar-logo" title="Accurate Systems" aria-label="Accurate Systems, home"><FCLogo class="h-9 w-9" /></router-link>
 		<span v-show="hasCrumbs" class="as-topbar-sep">|</span>
 		<div ref="crumbs" class="as-topbar-crumbs" />
-		<div class="ml-auto flex items-center gap-3">
+		<div class="ml-auto flex items-center gap-5">
+			<button
+				type="button"
+				class="as-topbar-icon"
+				title="Search sites, benches, servers (/)"
+				aria-label="Search sites, benches, servers"
+				@click="showSearch = true"
+			>
+				<SearchIcon class="h-5 w-5" />
+			</button>
 			<router-link v-if="showBell" to="/notifications" class="as-topbar-icon" title="Notifications" aria-label="Notifications">
 				<Bell class="h-5 w-5" />
 				<span v-if="unreadNotificationsCount.data > 0" class="as-topbar-count">
@@ -20,12 +29,15 @@ box below), notifications and the account menu that used to sit on top of the si
 			</Dropdown>
 		</div>
 		<SwitchTeamDialog v-if="showTeamSwitcher" v-model="showTeamSwitcher" />
+		<AppSearch v-model="showSearch" />
 	</header>
 </template>
 
 <script setup>
 import { computed, defineAsyncComponent, getCurrentInstance, onBeforeUnmount, onMounted, ref } from 'vue';
 import Bell from '~icons/lucide/bell';
+import SearchIcon from '~icons/lucide/search';
+import AppSearch from './AppSearch.vue';
 import { unreadNotificationsCount } from '../data/notifications';
 import { session } from '../data/session';
 import { topbarCrumbsEl } from './topbar';
@@ -34,16 +46,28 @@ const SwitchTeamDialog = defineAsyncComponent(() => import('./SwitchTeamDialog.v
 const { proxy } = getCurrentInstance();
 const crumbs = ref(null);
 const showTeamSwitcher = ref(false);
+const showSearch = ref(false);
+
+// "/" opens the search, unless you are typing somewhere (the desk's own shortcut)
+function slash(event) {
+	if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
+	const el = event.target;
+	if (el.closest?.('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return;
+	event.preventDefault();
+	showSearch.value = true;
+}
 
 // the separator only when a page put its trail here (a site's page and Settings keep theirs in the page)
 const hasCrumbs = ref(false);
 let observer;
 onMounted(() => {
+	document.addEventListener('keydown', slash);
 	topbarCrumbsEl.value = crumbs.value;
 	observer = new MutationObserver(() => (hasCrumbs.value = crumbs.value.children.length > 0));
 	observer.observe(crumbs.value, { childList: true });
 });
 onBeforeUnmount(() => {
+	document.removeEventListener('keydown', slash);
 	observer?.disconnect();
 	topbarCrumbsEl.value = null;
 });
@@ -111,8 +135,8 @@ const menu = [
 }
 .as-topbar-count {
 	position: absolute;
-	top: 0;
-	right: -4px;
+	top: -2px;
+	left: 20px; /* grows to the right, clear of the bell, never into the avatar (gap-5) */
 	min-width: 18px;
 	height: 18px;
 	padding: 0 4px;
