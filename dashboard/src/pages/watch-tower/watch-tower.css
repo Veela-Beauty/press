@@ -23,7 +23,7 @@
 }
 .wt-card-h .sub {
 	font-size: 12.5px;
-	color: #7c838b;
+	color: #6b737b;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -87,7 +87,7 @@
 	font-weight: 550;
 }
 .wt-li .end {
-	color: #7c838b;
+	color: #6b737b;
 	font-size: 12.5px;
 	white-space: nowrap;
 }
@@ -131,7 +131,7 @@
 .wt-table th {
 	font-size: 12.5px;
 	font-weight: 500;
-	color: #7c838b;
+	color: #6b737b;
 	text-align: left;
 	padding: 9px 16px;
 	border-bottom: 1px solid #e9eaec;
@@ -167,10 +167,13 @@
 .wt-table b {
 	font-weight: 550;
 }
-.wt-table .site-h {
-	cursor: pointer;
+.wt-table .site-h a:hover,
+.wt-table a.name:hover {
+	color: #1c2024;
+	text-decoration: underline;
 }
-.wt-table .site-h:hover {
+.wt-table a.name {
+	font-weight: 550;
 	color: #1c2024;
 }
 .dot {
@@ -250,8 +253,11 @@
 }
 .wt-pair {
 	display: grid;
-	grid-template-columns: 1fr 1fr;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 4px;
+}
+.wt-pair > div {
+	min-width: 0;
 }
 .wt-pair .h {
 	font-size: 12.5px;

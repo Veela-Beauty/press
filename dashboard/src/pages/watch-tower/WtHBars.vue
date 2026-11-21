@@ -2,7 +2,7 @@
 <template>
 	<div class="flex flex-col gap-2.5 px-4 py-3">
 		<div v-if="!rows.length" class="py-6 text-center text-base text-gray-600">{{ empty }}</div>
-		<div v-for="[label, n] in rows" :key="label" :class="long ? 'rl' : 'r'">
+		<div v-for="([label, n], i) in rows" :key="`${i}-${label}`" :class="long ? 'rl' : 'r'">
 			<span class="lab" :title="label">{{ label }}</span>
 			<div class="line">
 				<span class="track"><span class="fill" :style="{ width: `${(100 * n) / max}%`, background: color }" /></span>

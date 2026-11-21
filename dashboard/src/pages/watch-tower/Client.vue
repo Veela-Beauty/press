@@ -10,7 +10,7 @@ calling the client or changing their app. Data from sanad_ai_control_center.watc
 					:items="[
 						{ label: 'Watch Tower', route: '/watch-tower/overview' },
 						{ label: 'Overview', route: '/watch-tower/overview' },
-						{ label: data?.site.client_name || site, route: `/watch-tower/clients/${site}` },
+						{ label: data?.site.client_name || site, route: `/watch-tower/clients/${encodeURIComponent(site)}` },
 					]"
 				/>
 				<span v-if="data" class="ml-auto text-sm text-gray-500" title="The hub reads every client every 5 minutes">
@@ -62,7 +62,7 @@ calling the client or changing their app. Data from sanad_ai_control_center.watc
 						</div>
 						<div class="ml-auto flex gap-2">
 							<a class="wt-btn" :href="`/app/monitored-site/${encodeURIComponent(s.name)}`">Open in desk</a>
-							<a class="wt-btn" :href="s.site_url" target="_blank" rel="noopener">Open the site</a>
+							<a v-if="/^https?:\/\//i.test(s.site_url || '')" class="wt-btn" :href="s.site_url" target="_blank" rel="noopener">Open the site</a>
 						</div>
 					</div>
 				</section>
@@ -210,9 +210,13 @@ const resource = createResource({
 	makeParams: () => ({ site: props.site }),
 	auto: true,
 });
+// another client: drop the last one's numbers so the skeleton shows instead of them
 watch(
 	() => props.site,
-	() => resource.reload(),
+	() => {
+		resource.reset();
+		resource.reload();
+	},
 );
 
 const data = computed(() => resource.data);
@@ -244,7 +248,7 @@ const emailLayers = computed(() => [{ name: 'Failed emails', color: '#3d4752', v
 <style scoped>
 .unit {
 	font-size: 15px;
-	color: #7c838b;
+	color: #6b737b;
 	font-weight: 500;
 }
 </style>

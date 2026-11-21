@@ -4,7 +4,7 @@
 		:is="link ? 'button' : 'div'"
 		class="wt-tile"
 		:class="{ link }"
-		type="button"
+		:type="link ? 'button' : undefined"
 		@click="link && $emit('open')"
 	>
 		<div class="t">{{ label }}</div>
@@ -57,7 +57,7 @@ defineEmits(['open']);
 }
 .c {
 	font-size: 12.5px;
-	color: #7c838b;
+	color: #6b737b;
 	margin-top: 2px;
 	min-height: 18px;
 }

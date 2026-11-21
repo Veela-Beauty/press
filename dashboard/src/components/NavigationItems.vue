@@ -158,6 +158,7 @@ export default {
 					name: 'Watch Tower',
 					icon: () => h(Radar),
 					route: '/watch-tower/overview',
+					isActive: ['Watch Tower Overview', 'Watch Tower Client'].includes(routeName),
 					condition: onboardingComplete && !isSaasUser && this.$session.isSystemUser,
 					disabled: enforce2FA,
 					children: [

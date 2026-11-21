@@ -5,7 +5,7 @@ from zero, a 1px surface gap between segments, rounded top, whole-number ticks. 
 		<svg v-if="width" :width="width" :height="height" role="img" :aria-label="label" @mousemove="move">
 			<g v-for="t in ticks" :key="`t${t}`">
 				<line :x1="L" :x2="width - R" :y1="y(t)" :y2="y(t)" stroke="#eceef0" />
-				<text :x="L - 8" :y="y(t) + 4" text-anchor="end" font-size="11.5" fill="#7c838b">{{ t }}</text>
+				<text :x="L - 8" :y="y(t) + 4" text-anchor="end" font-size="11.5" fill="#6b737b">{{ t }}</text>
 			</g>
 			<g v-for="(day, i) in days" :key="day">
 				<rect
@@ -26,7 +26,7 @@ from zero, a 1px surface gap between segments, rounded top, whole-number ticks. 
 					:y="height - 8"
 					text-anchor="middle"
 					font-size="11.5"
-					fill="#7c838b"
+					fill="#6b737b"
 				>
 					{{ shortDay(day) }}
 				</text>
@@ -60,7 +60,7 @@ const width = ref(0);
 const hover = ref(null);
 let observer;
 onMounted(() => {
-	observer = new ResizeObserver(() => (width.value = Math.max(280, host.value.clientWidth - 24)));
+	observer = new ResizeObserver(() => (width.value = Math.max(160, host.value.clientWidth - 24)));
 	observer.observe(host.value);
 });
 onBeforeUnmount(() => observer?.disconnect());
@@ -101,10 +101,11 @@ const segments = computed(() =>
 const pickable = (k) => k < props.pickableLayers;
 
 function move(event) {
+	if (!props.days.length) return;
 	const box = host.value.getBoundingClientRect();
 	const x = event.clientX - box.left - 12; // the host's left padding
 	const i = Math.max(0, Math.min(props.days.length - 1, Math.floor((x - L) / slot.value)));
-	hover.value = { i, left: Math.min(event.clientX - box.left + 14, box.width - 190), top: Math.max(6, event.clientY - box.top - 40) };
+	hover.value = { i, left: Math.min(event.clientX - box.left + 14, box.width - 190), top: Math.max(6, Math.min(event.clientY - box.top - 40, box.height - 30 - 22 * props.layers.length)) };
 }
 </script>
 
@@ -122,7 +123,7 @@ function move(event) {
 	z-index: 5;
 }
 .wt-tip .d {
-	color: #7c838b;
+	color: #6b737b;
 	margin-bottom: 4px;
 }
 .wt-tip .r {

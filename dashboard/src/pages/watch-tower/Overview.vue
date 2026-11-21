@@ -99,7 +99,7 @@ Rows, chart segments and client columns open that client's page. -->
 						</div>
 					</section>
 
-					<section ref="findingsCard" class="wt-card lg:col-span-2">
+					<section ref="findingsCard" class="wt-card scroll-mt-16 lg:col-span-2">
 						<div class="wt-card-h">
 							<h3>Open Critical and High</h3>
 							<span class="sub">newest first · showing {{ data.findings.length }} of {{ data.findings_total }}</span>
@@ -122,7 +122,7 @@ Rows, chart segments and client columns open that client's page. -->
 					</section>
 				</div>
 
-				<section ref="clientsCard" class="wt-card">
+				<section ref="clientsCard" class="wt-card scroll-mt-16">
 					<div class="wt-card-h">
 						<h3>Clients</h3>
 						<span class="sub">Production first, then the ones that need action</span>
@@ -143,7 +143,7 @@ Rows, chart segments and client columns open that client's page. -->
 							<tbody>
 								<tr v-for="(s, i) in data.sites" :key="s.name" class="go" @click="openClient(s.name)">
 									<td>
-										<span class="dot" :style="{ background: clientColor(i) }" /><b>{{ s.client_name }}</b>
+										<span class="dot" :style="{ background: clientColor(i) }" /><router-link class="name" :to="clientRoute(s.name)" @click.stop>{{ s.client_name }}</router-link>
 										<div class="host">
 											<span class="badge small" :class="ENV_CLASS[s.environment]">{{ s.environment }}</span>
 											<span class="mono">{{ s.name }}</span>
@@ -187,7 +187,7 @@ Rows, chart segments and client columns open that client's page. -->
 					</div>
 				</section>
 
-				<section ref="appsCard" class="wt-card">
+				<section ref="appsCard" class="wt-card scroll-mt-16">
 					<div class="wt-card-h">
 						<h3>Installed apps</h3>
 						<span class="sub" title="Our apps are marked older when behind git; framework apps only when a whole major behind">
@@ -195,13 +195,13 @@ Rows, chart segments and client columns open that client's page. -->
 						</span>
 					</div>
 					<div class="overflow-x-auto">
-						<table class="wt-table grid">
+						<table class="wt-table">
 							<thead>
 								<tr>
 									<th>App</th>
 									<th class="num">Git</th>
-									<th v-for="s in appSites" :key="s.name" class="num site-h" @click="openClient(s.name)">
-										{{ s.client_name }}
+									<th v-for="s in appSites" :key="s.name" class="num site-h">
+										<router-link :to="clientRoute(s.name)">{{ s.client_name }}</router-link>
 									</th>
 								</tr>
 							</thead>
@@ -302,8 +302,9 @@ const appNames = computed(() =>
 	),
 );
 
+const clientRoute = (site) => ({ name: 'Watch Tower Client', params: { site } });
 function openClient(site) {
-	router.push({ name: 'Watch Tower Client', params: { site } });
+	router.push(clientRoute(site));
 }
 function scrollTo(card) {
 	card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
