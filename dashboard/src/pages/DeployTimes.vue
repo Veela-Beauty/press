@@ -267,6 +267,9 @@ const developerRows = computed(() =>
 );
 const chartOption = computed(() => {
 	const days = dayList(period.value);
+	// whole-hour ticks: four steps sized from the busiest day (ECharts' own ticks fall between hours)
+	const busiest = Math.max(60, ...days.map((day) => developers.value.reduce((a, d) => a + (d.days[day]?.minutes || 0), 0)));
+	const stepHours = Math.max(1, Math.ceil(busiest / 60 / 4));
 	return {
 		grid: { left: 44, right: 16, top: 16, bottom: 56 },
 		legend: { bottom: 0, icon: 'roundRect', itemWidth: 10, itemHeight: 10, textStyle: { color: '#6b7178' } },
@@ -284,9 +287,11 @@ const chartOption = computed(() => {
 		},
 		yAxis: {
 			type: 'value',
-			minInterval: 60,
+			min: 0,
+			max: stepHours * 4 * 60,
+			interval: stepHours * 60,
 			splitLine: { lineStyle: { color: '#eceef0' } },
-			axisLabel: { color: '#8b9198', formatter: (v) => (v ? `${v / 60} h` : '0') },
+			axisLabel: { color: '#8b9198', formatter: (v) => (v ? `${Math.round(v / 60)} h` : '0') },
 		},
 		series: developers.value.map((d) => ({
 			name: d.name,
