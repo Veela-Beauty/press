@@ -36,6 +36,20 @@ const emit = defineEmits(['go']);
 </script>
 
 <style>
+/* expanded menu: a row, icon beside label (the tile and active colours stay) */
+.as-rail.expanded .as-rail-item {
+	flex-direction: row;
+	gap: 12px;
+	padding: 9px 12px;
+	text-align: left;
+}
+.as-rail.expanded .as-rail-item .as-item-label {
+	font-size: 13.5px;
+}
+.as-rail.expanded .as-rail-item .as-item-badge {
+	position: static;
+	margin-left: auto;
+}
 /* shared by the rail tiles of AppSidebarItemGroup.vue (not scoped) */
 .as-rail-item {
 	position: relative;

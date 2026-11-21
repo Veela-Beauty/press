@@ -1,16 +1,17 @@
 <!-- A menu group on the rail (desk look, ACM-SP-05): its tile opens a flyout of its pages to the right of the rail;
 one flyout at a time; it closes on a click outside, Escape or a page change. The tile is white while one of its
-pages is open. Still 2 clicks to a page, as when the group opened inline. -->
+pages is open. Still 2 clicks to a page, as when the group opened inline. In the expanded menu the group opens inline
+instead, its pages under it, and starts open when one of them is the page you are on. -->
 <template>
 	<div
 		ref="tile"
 		role="button"
 		:tabindex="item.disabled ? -1 : 0"
-		aria-haspopup="true"
-		:aria-expanded="open"
+		:aria-haspopup="menuExpanded ? undefined : 'true'"
+		:aria-expanded="menuExpanded ? inline : open"
 		:aria-disabled="item.disabled || undefined"
 		:title="item.name"
-		class="as-rail-item"
+		class="as-rail-item as-rail-group"
 		:class="{ active: isActive, 'as-rail-open': open && !isActive, 'pointer-events-none opacity-50': item.disabled }"
 		@click="toggle"
 		@keydown.enter.space.prevent="toggle"
@@ -18,7 +19,10 @@ pages is open. Still 2 clicks to a page, as when the group opened inline. -->
 		<component :is="item.icon" class="as-item-icon" />
 		<span class="as-item-label">{{ item.name }}</span>
 		<component v-if="item.badge" :is="item.badge" class="as-item-badge" />
-		<lucide-chevron-right class="as-rail-more" />
+		<lucide-chevron-right class="as-rail-more" :class="{ down: menuExpanded && inline }" />
+	</div>
+	<div v-if="menuExpanded && inline" class="as-rail-children">
+		<AppSidebarItem v-for="sub in item.children" :key="sub.name" :item="sub" />
 	</div>
 	<Teleport to="body">
 		<div v-if="open" ref="panel" class="as-flyout" :style="{ top: `${top}px` }" :aria-label="item.name">
@@ -32,7 +36,7 @@ pages is open. Still 2 clicks to a page, as when the group opened inline. -->
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AppSidebarItem from './AppSidebarItem.vue';
-import { openGroup } from './topbar';
+import { menuExpanded, openGroup } from './topbar';
 
 const props = defineProps({
 	item: {
@@ -46,12 +50,16 @@ const panel = ref(null);
 const top = ref(0);
 const open = computed(() => openGroup.value === props.item.name);
 const isActive = computed(() => props.item.isActive || props.item.children.some((c) => c.isActive));
+// expanded menu: open inline, and open by itself when you land on one of its pages
+const inline = ref(isActive.value);
+watch(isActive, (now) => now && (inline.value = true));
 
 function close() {
 	if (open.value) openGroup.value = null;
 }
 async function toggle(event) {
 	if (props.item.disabled) return;
+	if (menuExpanded.value) return (inline.value = !inline.value);
 	if (open.value) return close();
 	openGroup.value = props.item.name;
 	top.value = tile.value.getBoundingClientRect().top;
@@ -100,6 +108,27 @@ onBeforeUnmount(() => {
 	width: 11px;
 	height: 11px;
 	opacity: 0.65;
+}
+/* expanded with its pages showing: only the page you are on is white, its group a light tint */
+.as-rail.expanded .as-rail-group.active {
+	background: rgba(255, 255, 255, 0.14);
+	color: #fff;
+}
+.as-rail-item .as-rail-more.down {
+	transform: rotate(90deg);
+}
+.as-rail.expanded .as-rail-item .as-rail-more {
+	position: static;
+	margin-left: auto;
+	width: 14px;
+	height: 14px;
+}
+.as-rail.expanded .as-rail-children .as-rail-item {
+	padding-left: 44px; /* under its group: more specific than the expanded row's padding */
+}
+.as-rail-children .as-rail-item .as-item-icon {
+	width: 16px;
+	height: 16px;
 }
 .as-rail-open {
 	background: rgba(255, 255, 255, 0.2);

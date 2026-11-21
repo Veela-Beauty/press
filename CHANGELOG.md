@@ -4,6 +4,14 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 21-11-2026: Expand the dashboard menu (0.7.33)
+
+### Added
+- Owner 21-11-2026 ("where is expand sidebar"; chose the desk-style toggle, remembered): a "..." button at the top of
+  the rail, like the desk's. Expanded: 240 px, icon and label side by side, groups open inline with their pages under
+  them (open by themselves on one of their pages). Collapsed: the 104 px rail with flyouts. The browser remembers the
+  choice (localStorage `as-menu-expanded`); switching closes any open flyout.
+
 ## 21-11-2026: The dashboard in the desk look (0.7.32)
 
 ### Changed
