@@ -4,6 +4,12 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 21-11-2026: Room between the bell's count and the avatar (0.7.36)
+
+### Fixed
+- The live check after 0.7.35 measured the bell's "99+" count ending 5 px from the avatar: the owner asked for space
+  between them. The bell gets 16 px more room on its right while it shows a count.
+
 ## 21-11-2026: Search in the top bar (0.7.35)
 
 ### Added
