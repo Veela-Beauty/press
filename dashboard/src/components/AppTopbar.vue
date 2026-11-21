@@ -133,10 +133,14 @@ const menu = [
 .as-topbar-avatar.open {
 	background: rgba(255, 255, 255, 0.14);
 }
+/* the count sticks out right of the bell: room for it, so it never sits on the avatar (measured 5 px before) */
+.as-topbar-icon:has(.as-topbar-count) {
+	margin-right: 16px;
+}
 .as-topbar-count {
 	position: absolute;
 	top: -2px;
-	left: 20px; /* grows to the right, clear of the bell, never into the avatar (gap-5) */
+	left: 20px; /* grows to the right, clear of the bell */
 	min-width: 18px;
 	height: 18px;
 	padding: 0 4px;
