@@ -453,6 +453,11 @@ let router = createRouter({
 			props: true,
 		},
 		{
+			path: '/deploy-times',
+			name: 'Deploy Times',
+			component: () => import('./pages/DeployTimes.vue'),
+		},
+		{
 			path: '/backups/overview',
 			name: 'Daman Overview',
 			component: () => import('./pages/backups/BackupOverview.vue'),

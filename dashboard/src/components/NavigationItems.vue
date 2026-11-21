@@ -11,6 +11,7 @@ import Package from '~icons/lucide/package';
 import Boxes from '~icons/lucide/boxes';
 import Server from '~icons/lucide/server';
 import ServerCog from '~icons/lucide/server-cog';
+import Timer from '~icons/lucide/timer';
 import Phone from '~icons/lucide/phone';
 import WalletCards from '~icons/lucide/wallet-cards';
 import Key from '~icons/lucide/key';
@@ -140,6 +141,14 @@ export default {
 					icon: () => h(ServerCog),
 					route: '/infrastructure',
 					isActive: routeName === 'Infrastructure',
+					condition: onboardingComplete && !isSaasUser && this.$session.isSystemUser,
+					disabled: enforce2FA,
+				},
+				{
+					name: 'Deploy Times',
+					icon: () => h(Timer),
+					route: '/deploy-times',
+					isActive: routeName === 'Deploy Times',
 					condition: onboardingComplete && !isSaasUser && this.$session.isSystemUser,
 					disabled: enforce2FA,
 				},
