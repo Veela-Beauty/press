@@ -1,5 +1,5 @@
-<!-- One menu entry. On the rail (desk look, ACM-SP-05): icon over label, white tile when it is the page you are on.
-In a group's flyout (`flyout`): a plain row. -->
+<!-- One menu entry (desk look, ACM-SP-05). On the rail: icon over label; in the full menu: icon beside label. A white
+tile when it is the page you are on. -->
 <template>
 	<router-link custom v-slot="{ href, navigate }" :to="item.route">
 		<a
@@ -7,9 +7,9 @@ In a group's flyout (`flyout`): a plain row. -->
 			:title="item.name"
 			:tabindex="item.disabled ? -1 : undefined"
 			:aria-disabled="item.disabled || undefined"
-			@click="(e) => (item.disabled ? e.preventDefault() : (navigate(e), emit('go')))"
+			@click="(e) => (item.disabled ? e.preventDefault() : navigate(e))"
 			:class="[
-				flyout ? 'as-fly-item' : 'as-rail-item',
+				'as-rail-item',
 				{ active: item.isActive, 'pointer-events-none opacity-50': item.disabled },
 				$attrs.class,
 			]"
@@ -27,16 +27,11 @@ defineProps({
 		type: Object,
 		required: true,
 	},
-	flyout: {
-		type: Boolean,
-		default: false,
-	},
 });
-const emit = defineEmits(['go']);
 </script>
 
 <style>
-/* expanded menu: a row, icon beside label (the tile and active colours stay) */
+/* the full menu: a row, icon beside label (the tile and active colours stay) */
 .as-rail.expanded .as-rail-item {
 	flex-direction: row;
 	gap: 12px;
@@ -84,30 +79,5 @@ const emit = defineEmits(['go']);
 .as-rail-item.active {
 	background: #fff;
 	color: #1a5f7a;
-}
-.as-fly-item {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	padding: 8px 10px;
-	border-radius: 6px;
-	font-size: 13.5px;
-	color: #1c2024;
-}
-.as-fly-item .as-item-icon {
-	width: 16px;
-	height: 16px;
-	color: #525a64;
-}
-.as-fly-item:hover {
-	background: #f6f7f8;
-}
-.as-fly-item.active {
-	background: #e8f1f7;
-	color: #1a5f7a;
-	font-weight: 600;
-}
-.as-fly-item .as-item-badge {
-	margin-left: auto;
 }
 </style>
