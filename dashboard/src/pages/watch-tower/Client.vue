@@ -128,8 +128,10 @@ calling the client or changing their app. Data from sanad_ai_control_center.watc
 						<a v-for="f in data.open" :key="f.name" class="wt-li" :href="`/app/client-finding/${encodeURIComponent(f.name)}`">
 							<span class="badge" :class="SEVERITY_CLASS[f.severity]">{{ f.severity }}</span>
 							<span class="what">
-								<b>{{ f.finding_type }}</b> <span class="mono">{{ f.user }}</span>
-								<span class="hidden text-gray-600 md:inline"> {{ f.subject }}</span>
+								<b>{{ f.finding_type }}</b><span class="mono ml-1.5">{{ f.user }}</span>
+								<span v-if="f.subject && f.subject !== f.user" class="ml-1.5 hidden text-gray-600 md:inline">
+									{{ f.subject }}
+								</span>
 							</span>
 							<span class="end">{{ ago(data.as_of, f.raised_on) }}</span>
 						</a>
