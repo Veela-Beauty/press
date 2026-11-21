@@ -1,8 +1,8 @@
 <!-- The dashboard menu in the desk look (owner 2026-11-21, prototype ACM-SP-05): the 104 px icon rail (icon over label)
 in the Accurate blue, or the full 240 px menu (icon beside label, groups inline). "..." keeps it full, remembered per
 browser; a group clicked on the rail opens the full menu as a drawer over the page, closed by choosing a page, a click
-outside or Escape. Same items and conditions as before (NavigationItems.vue); Notifications is the top bar's bell,
-and the account menu is the top bar's avatar. -->
+beside it (a backdrop takes that click, so it never lands on the page) or Escape. Same items and conditions as before
+(NavigationItems.vue); Notifications is the top bar's bell, and the account menu is the top bar's avatar. -->
 <template>
 	<div class="as-rail-slot" :class="{ wide: menuExpanded }">
 		<nav
@@ -31,6 +31,10 @@ and the account menu is the top bar's avatar. -->
 				</template>
 			</NavigationItems>
 		</nav>
+		<!-- a click beside the drawer only closes it: it never lands on the page under it -->
+		<Teleport to="body">
+			<div v-if="menuDrawer && !menuExpanded" class="as-drawer-backdrop" @click="close" />
+		</Teleport>
 	</div>
 </template>
 
@@ -52,21 +56,15 @@ function close() {
 function closeOnPage(event) {
 	if (menuDrawer.value && event.target.closest('a')) close();
 }
-function outside(event) {
-	if (!nav.value?.contains(event.target)) close();
-}
 function escape(event) {
 	if (event.key === 'Escape') close();
 }
 watch(() => route.fullPath, close);
 watch(menuDrawer, (open) => {
-	const method = open ? 'addEventListener' : 'removeEventListener';
-	document[method]('mousedown', outside);
-	document[method]('keydown', escape);
+	document[open ? 'addEventListener' : 'removeEventListener']('keydown', escape);
 });
 onBeforeUnmount(() => {
 	close();
-	document.removeEventListener('mousedown', outside);
 	document.removeEventListener('keydown', escape);
 });
 </script>
@@ -96,8 +94,14 @@ onBeforeUnmount(() => {
 .as-rail.drawer {
 	width: 240px;
 	z-index: 30;
-	background: linear-gradient(180deg, #1a5f7a 0%, #21709a 100%);
+	background: #1a5f7a;
 	box-shadow: 8px 0 24px rgba(16, 24, 40, 0.25);
+}
+.as-drawer-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 29;
+	background: rgba(16, 24, 40, 0.08);
 }
 /* the desk's three dots: the rail's own control, so it sits apart from the menu entries */
 .as-rail-toggle {

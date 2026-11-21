@@ -80,7 +80,7 @@ const menu = [
 	align-items: center;
 	gap: 14px;
 	padding: 0 22px 0 17px;
-	background: linear-gradient(to right, #1a5f7a, #2980b9, #1a5f7a); /* press-ctrl desk theme navbar_gradient */
+	background: #1a5f7a; /* one solid brand blue with the rail, no seam (owner 2026-11-21: "no gradient") */
 	color: #fff;
 }
 .as-topbar-logo :deep(svg),

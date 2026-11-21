@@ -10,8 +10,11 @@ This file documents changes (current commit level since, no tagged releases yet)
 - Owner 21-11-2026 ("on click it should open the full drawer, not this drop list, and remove the > arrows when
   collapsed"): on the collapsed rail, a group (Watch Tower, Backups, Daman Backup, Dev Tools, Sanad AI, Admin Panel)
   opens the full 240 px menu as a drawer over the page, that group open with its pages under it; choosing a page, a
-  click outside or Escape closes it. The flyout list is gone. The rail shows no arrows; they show in the full menu
-  only. "..." still keeps the menu full (remembered).
+  click beside it or Escape closes it (a light backdrop takes that click, so it never lands on the page under the
+  drawer). The flyout list is gone. The rail shows no arrows; they show in the full menu only. "..." still keeps the
+  menu full (remembered).
+- Owner 21-11-2026 ("two colours split here, no gradient"): the top bar, the rail and the drawer are one solid brand
+  blue #1a5f7a, so there is no seam where they meet.
 
 ## 21-11-2026: Expand the dashboard menu (0.7.33)
 
