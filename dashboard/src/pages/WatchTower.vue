@@ -192,7 +192,12 @@ const CHIP_TONE = { Connected: 'text-green-700', Silent: 'text-amber-700', Revok
 const FRAMEWORK = new Set(['frappe', 'erpnext', 'hrms', 'payments', 'lending', 'insights', 'crm', 'webshop']);
 const FIRST = ['frappe', 'erpnext'];
 
-const resource = createResource({ url: 'sanad_ai_control_center.watch_tower_hub.overview.get_overview', auto: true });
+// GET: the hub method answers GET only (a read); frappe-ui posts by default, which Frappe refuses as Not permitted
+const resource = createResource({
+	url: 'sanad_ai_control_center.watch_tower_hub.overview.get_overview',
+	method: 'GET',
+	auto: true,
+});
 const data = computed(() => resource.data);
 const errorText = computed(
 	() => resource.error?.messages?.[0] || resource.error?.message || 'Not permitted: needs the Watch Tower Hub or System Manager role.',
