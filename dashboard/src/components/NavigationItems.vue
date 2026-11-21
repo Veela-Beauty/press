@@ -165,7 +165,7 @@ export default {
 							name: 'Overview',
 							icon: () => h(LayoutDashboard),
 							route: '/watch-tower/overview',
-							isActive: routeName === 'Watch Tower Overview',
+							isActive: ['Watch Tower Overview', 'Watch Tower Client'].includes(routeName),
 						},
 					],
 				},

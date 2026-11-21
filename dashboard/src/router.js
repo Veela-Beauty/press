@@ -464,7 +464,13 @@ let router = createRouter({
 		{
 			path: '/watch-tower/overview',
 			name: 'Watch Tower Overview',
-			component: () => import('./pages/WatchTower.vue'),
+			component: () => import('./pages/watch-tower/Overview.vue'),
+		},
+		{
+			path: '/watch-tower/clients/:site',
+			name: 'Watch Tower Client',
+			component: () => import('./pages/watch-tower/Client.vue'),
+			props: true,
 		},
 		{
 			path: '/backups/overview',
