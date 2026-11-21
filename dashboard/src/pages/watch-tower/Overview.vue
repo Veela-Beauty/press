@@ -99,26 +99,35 @@ Rows, chart segments and client columns open that client's page. -->
 						</div>
 					</section>
 
-					<section ref="findingsCard" class="wt-card scroll-mt-16 lg:col-span-2">
+					<section ref="findingsCard" class="wt-card flex scroll-mt-16 flex-col lg:col-span-2">
 						<div class="wt-card-h">
 							<h3>Open Critical and High</h3>
-							<span class="sub">newest first · showing {{ data.findings.length }} of {{ data.findings_total }}</span>
+							<span class="sub">Critical first, newest first · {{ findings.total.value }} open</span>
 							<a class="more" href="/app/client-finding?status=Open">All in the desk</a>
 						</div>
-						<div v-if="!data.findings.length" class="p-8 text-center text-base text-gray-600">
+						<div v-if="!findings.total.value" class="p-8 text-center text-base text-gray-600">
 							No open Critical or High findings
 						</div>
-						<button
-							v-for="f in data.findings"
-							:key="f.name"
-							class="wt-li"
-							type="button"
-							@click="openClient(f.monitored_site)"
-						>
-							<span class="badge" :class="SEVERITY_CLASS[f.severity]">{{ f.severity }}</span>
-							<span class="what"><b>{{ f.client_name }}</b> <span class="text-gray-600">{{ f.finding_type }}</span></span>
-							<span class="end">{{ ago(data.as_of, f.raised_on) }}</span>
-						</button>
+						<div :class="{ 'opacity-50': findings.more.loading }">
+							<button
+								v-for="f in findings.rows.value"
+								:key="f.name"
+								class="wt-li"
+								type="button"
+								@click="openClient(f.monitored_site)"
+							>
+								<span class="badge" :class="SEVERITY_CLASS[f.severity]">{{ f.severity }}</span>
+								<span class="what"><b>{{ f.client_name }}</b> <span class="text-gray-600">{{ f.finding_type }}</span></span>
+								<span class="end">{{ ago(data.as_of, f.raised_on) }}</span>
+							</button>
+						</div>
+						<WtPager
+							class="mt-auto"
+							:page="findings.page.value"
+							:total="findings.total.value"
+							:busy="findings.more.loading"
+							@go="findings.go"
+						/>
 					</section>
 				</div>
 
@@ -232,8 +241,10 @@ Rows, chart segments and client columns open that client's page. -->
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { createResource } from 'frappe-ui';
+import WtPager from './WtPager.vue';
 import WtTile from './WtTile.vue';
 import WtStackedBars from './WtStackedBars.vue';
+import { usePages } from './paging';
 import {
 	ENV_CLASS,
 	OTHER_COLOR,
@@ -260,6 +271,10 @@ const resource = createResource({
 });
 const data = computed(() => resource.data);
 const t = computed(() => data.value.tiles);
+const findings = usePages('sanad_ai_control_center.watch_tower_hub.overview.get_findings', () => ({
+	rows: data.value.findings,
+	total: data.value.findings_total,
+}));
 const errorText = computed(
 	() => resource.error?.messages?.[0] || resource.error?.message || 'Not permitted: needs the Watch Tower Hub or System Manager role.',
 );

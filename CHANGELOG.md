@@ -4,6 +4,18 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 21-11-2026: Watch Tower lists in pages (0.7.30)
+
+### Changed
+- Owner 21-11-2026 ("too much empty space, same height", then "pagination"): the Overview's open Critical and High
+  findings and a client's open findings show 6 rows with Previous / Page n of N / Next at the card's foot, so the list
+  card ends level with the chart beside it instead of running 20 or 50 rows down. Page 1 comes with the page's read;
+  the next pages from the hub's `get_findings` / `get_open_findings` (`dashboard/src/pages/watch-tower/paging.js`,
+  `WtPager.vue`). Switching client starts again at page 1.
+
+### Needs
+- Control Center hub 0.2.14. Deploy the hub first.
+
 ## 21-11-2026: Watch Tower tiles draw as tiles (0.7.29)
 
 ### Fixed
