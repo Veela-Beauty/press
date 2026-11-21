@@ -168,19 +168,19 @@ calling the client or changing their app. Data from sanad_ai_control_center.watc
 						<div class="wt-pair">
 							<div>
 								<div class="h">Errors</div>
-								<WtStackedBars :days="data.days" :layers="errorLayers" :height="160" label="Errors per day" />
+								<WtStackedBars :days="data.days" :layers="errorLayers" :height="HEALTH_H" label="Errors per day" />
 							</div>
 							<div>
 								<div class="h">Failed emails</div>
-								<WtStackedBars :days="data.days" :layers="emailLayers" :height="160" label="Failed emails per day" />
+								<WtStackedBars :days="data.days" :layers="emailLayers" :height="HEALTH_H" label="Failed emails per day" />
 							</div>
 						</div>
 					</section>
-					<section class="wt-card lg:col-span-2">
+					<section class="wt-card flex flex-col lg:col-span-2">
 						<div class="wt-card-h">
 							<h3>Installed apps</h3>
 							<span class="sub" title="Our apps are marked older when behind git; framework apps only when a whole major behind">
-								against git
+								behind first · {{ data.apps.length }} apps
 							</span>
 						</div>
 						<table class="wt-table">
@@ -192,16 +192,19 @@ calling the client or changing their app. Data from sanad_ai_control_center.watc
 								</tr>
 							</thead>
 							<tbody>
-								<tr v-for="a in data.apps" :key="a.app">
-									<td class="mono text-gray-900">{{ a.app }}</td>
-									<td class="num mono">
-										{{ a.version || '-' }}
-										<span v-if="a.flag" class="tag" :class="{ major: a.flag === 'major behind' }">{{ a.flag }}</span>
+								<tr v-for="x in appsShown" :key="x.app">
+									<td>
+										<router-link class="mono name" :to="{ name: 'Watch Tower App', params: { app: x.app } }">{{ x.app }}</router-link>
 									</td>
-									<td class="num mono text-gray-500">{{ a.git || '-' }}</td>
+									<td class="num mono">
+										{{ x.version || '-' }}
+										<span v-if="x.flag" class="tag" :class="{ major: x.flag === 'major behind' }">{{ x.flag }}</span>
+									</td>
+									<td class="num mono text-gray-500">{{ x.git || '-' }}</td>
 								</tr>
 							</tbody>
 						</table>
+						<WtPager class="mt-auto" :page="appsPage" :total="data.apps.length" @go="(n) => (appsPage = n)" />
 					</section>
 				</div>
 			</template>
@@ -210,13 +213,13 @@ calling the client or changing their app. Data from sanad_ai_control_center.watc
 </template>
 
 <script setup>
-import { computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { createResource } from 'frappe-ui';
 import WtHBars from './WtHBars.vue';
 import WtPager from './WtPager.vue';
 import WtStackedBars from './WtStackedBars.vue';
 import WtTile from './WtTile.vue';
-import { usePages } from './paging';
+import { PAGE_ROWS, usePages } from './paging';
 import { ENV_CLASS, SEVERITY_CLASS, SEVERITY_COLORS, STATUS_CLASS, ago, versus } from './shared';
 
 const props = defineProps({ site: { type: String, required: true } });
@@ -229,6 +232,9 @@ const resource = createResource({
 	auto: true,
 });
 const data = computed(() => resource.data);
+const HEALTH_H = 266; // the health charts' card ends level with a page of 6 apps beside it (prototype ACM-SP-04)
+const appsPage = ref(0); // a client runs tens of apps at most: all arrive, 6 are shown a page
+const appsShown = computed(() => data.value.apps.slice(appsPage.value * PAGE_ROWS, (appsPage.value + 1) * PAGE_ROWS));
 const open = usePages(
 	'sanad_ai_control_center.watch_tower_hub.client_profile.get_open_findings',
 	() => ({ rows: data.value.open, total: data.value.open_total }),
@@ -239,6 +245,7 @@ watch(
 	() => props.site,
 	() => {
 		open.reset();
+		appsPage.value = 0;
 		resource.reset();
 		resource.reload();
 	},

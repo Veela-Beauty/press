@@ -158,7 +158,7 @@ export default {
 					name: 'Watch Tower',
 					icon: () => h(Radar),
 					route: '/watch-tower/overview',
-					isActive: ['Watch Tower Overview', 'Watch Tower Client'].includes(routeName),
+					isActive: routeName.startsWith('Watch Tower'),
 					condition: onboardingComplete && !isSaasUser && this.$session.isSystemUser,
 					disabled: enforce2FA,
 					children: [
@@ -167,6 +167,12 @@ export default {
 							icon: () => h(LayoutDashboard),
 							route: '/watch-tower/overview',
 							isActive: ['Watch Tower Overview', 'Watch Tower Client'].includes(routeName),
+						},
+						{
+							name: 'Apps',
+							icon: () => h(Package),
+							route: '/watch-tower/apps',
+							isActive: ['Watch Tower Apps', 'Watch Tower App'].includes(routeName),
 						},
 					],
 				},
