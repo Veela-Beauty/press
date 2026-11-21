@@ -10,6 +10,8 @@ import subprocess
 import frappe
 from frappe.utils import now_datetime, time_diff_in_seconds, get_datetime
 
+from press.watch_tower import build_wait
+
 
 def send_health_report(doc=None, rule=None):
 	"""Collect server health and send report email. Always returns True."""
@@ -241,6 +243,7 @@ def _collect_health():
 		"recent_errors": recent_errors,
 		"wt_alerts": wt_alerts,
 		"wt_hub": _watch_tower_hub(),
+		"build_wait": build_wait.report_data(),
 	}
 
 
@@ -478,6 +481,9 @@ def _send_email(r):
 	# --- Watch Tower client sites (the Control Center hub) ---
 	if r.get("wt_hub"):
 		html += _watch_tower_hub_html(r["wt_hub"])
+
+	# --- Build waiting per developer and the slowest benches (build_wait.py) ---
+	html += build_wait.html(r.get("build_wait"), TABLE, TH_BG, _escape_html)
 
 	subtitle = f"press-ctrl (89.167.116.92) &bull; {ts} &bull; Uptime: {r['uptime_days']}d {r['uptime_hours']}h"
 	branded = wrap_email(f"{status_icon} Server Health Report", html, subtitle)
