@@ -12,6 +12,7 @@ import Boxes from '~icons/lucide/boxes';
 import Server from '~icons/lucide/server';
 import ServerCog from '~icons/lucide/server-cog';
 import Timer from '~icons/lucide/timer';
+import Radar from '~icons/lucide/radar';
 import Phone from '~icons/lucide/phone';
 import WalletCards from '~icons/lucide/wallet-cards';
 import Key from '~icons/lucide/key';
@@ -151,6 +152,22 @@ export default {
 					isActive: routeName === 'Deploy Times',
 					condition: onboardingComplete && !isSaasUser && this.$session.isSystemUser,
 					disabled: enforce2FA,
+				},
+				{
+					// the module's control room: Overview now, rules and what to watch join this group later
+					name: 'Watch Tower',
+					icon: () => h(Radar),
+					route: '/watch-tower/overview',
+					condition: onboardingComplete && !isSaasUser && this.$session.isSystemUser,
+					disabled: enforce2FA,
+					children: [
+						{
+							name: 'Overview',
+							icon: () => h(LayoutDashboard),
+							route: '/watch-tower/overview',
+							isActive: routeName === 'Watch Tower Overview',
+						},
+					],
 				},
 				{
 					name: 'Telephony',

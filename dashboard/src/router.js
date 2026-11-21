@@ -458,6 +458,15 @@ let router = createRouter({
 			component: () => import('./pages/DeployTimes.vue'),
 		},
 		{
+			path: '/watch-tower',
+			redirect: '/watch-tower/overview',
+		},
+		{
+			path: '/watch-tower/overview',
+			name: 'Watch Tower Overview',
+			component: () => import('./pages/WatchTower.vue'),
+		},
+		{
 			path: '/backups/overview',
 			name: 'Daman Overview',
 			component: () => import('./pages/backups/BackupOverview.vue'),
