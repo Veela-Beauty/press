@@ -1,4 +1,6 @@
 <template>
+	<!-- desk look (ACM-SP-05): in a page's Header the trail moves up into the top bar; the page's actions stay here -->
+	<Teleport :to="topbarCrumbsEl || 'body'" :disabled="!toTopbar">
 	<div class="flex min-w-0 items-center">
 		<div
 			class="flex min-w-0 items-center overflow-hidden text-ellipsis whitespace-nowrap"
@@ -27,10 +29,15 @@
 			</template>
 		</div>
 	</div>
+	</Teleport>
 	<slot name="actions" />
 </template>
 <script setup>
-import { computed } from 'vue';
+import { computed, inject } from 'vue';
+import { IN_PAGE_HEADER, topbarCrumbsEl } from '../topbar';
+
+const inPageHeader = inject(IN_PAGE_HEADER, false);
+const toTopbar = computed(() => inPageHeader && !!topbarCrumbsEl.value);
 
 const props = defineProps({
 	items: {

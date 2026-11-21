@@ -1,56 +1,97 @@
+<!-- One menu entry. On the rail (desk look, ACM-SP-05): icon over label, white tile when it is the page you are on.
+In a group's flyout (`flyout`): a plain row. -->
 <template>
 	<router-link custom v-slot="{ href, navigate }" :to="item.route">
 		<a
 			:href="href"
-			@click="navigate"
-			class="as-nav-item flex items-center rounded-[6px] px-3 py-2 transition"
+			:title="item.name"
+			@click="(e) => (navigate(e), emit('go'))"
 			:class="[
-				item.isActive ? 'as-nav-active' : 'as-nav-inactive',
-				item.disabled ? 'pointer-events-none opacity-50' : '',
+				flyout ? 'as-fly-item' : 'as-rail-item',
+				{ active: item.isActive, 'pointer-events-none opacity-50': item.disabled },
 				$attrs.class,
 			]"
 		>
-			<div class="flex w-full items-center space-x-2">
-				<span class="grid h-5 w-6 place-items-center">
-					<component :is="item.icon" class="h-4 w-4 as-nav-icon" />
-				</span>
-				<span class="text-[13px]">{{ item.name }}</span>
-				<component :is="item.badge" />
-			</div>
+			<component :is="item.icon" class="as-item-icon" />
+			<span class="as-item-label">{{ item.name }}</span>
+			<component v-if="item.badge" :is="item.badge" class="as-item-badge" />
 		</a>
 	</router-link>
 </template>
 
 <script setup>
-let props = defineProps({
+defineProps({
 	item: {
 		type: Object,
 		required: true,
 	},
+	flyout: {
+		type: Boolean,
+		default: false,
+	},
 });
+const emit = defineEmits(['go']);
 </script>
 
-<style scoped>
-/* Rebrand: Dark sidebar nav items */
-/* Solid colors, not translucent white: translucent text blends into the slate and reads matte. */
-.as-nav-item {
-	color: #CBD5E1;
+<style>
+/* shared by the rail tiles of AppSidebarItemGroup.vue (not scoped) */
+.as-rail-item {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+	margin-bottom: 4px;
+	padding: 10px 4px;
+	border-radius: 10px;
+	color: rgba(255, 255, 255, 0.92);
+	text-align: center;
+	cursor: pointer;
 }
-.as-nav-icon {
-	color: #CBD5E1;
+.as-rail-item .as-item-icon {
+	width: 20px;
+	height: 20px;
 }
-.as-nav-inactive:hover {
-	color: white;
-	background: rgba(255,255,255,0.06);
+.as-rail-item .as-item-label {
+	font-size: 11.5px;
+	font-weight: 550;
+	line-height: 1.2;
 }
-.as-nav-inactive:hover .as-nav-icon {
-	color: white;
+.as-rail-item .as-item-badge {
+	position: absolute;
+	top: 4px;
+	right: 6px;
 }
-.as-nav-active {
-	color: white;
-	background: #0B6BD3;
+.as-rail-item:hover {
+	background: rgba(255, 255, 255, 0.12);
 }
-.as-nav-active .as-nav-icon {
-	color: white;
+.as-rail-item.active {
+	background: #fff;
+	color: #1a5f7a;
+}
+.as-fly-item {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 8px 10px;
+	border-radius: 6px;
+	font-size: 13.5px;
+	color: #1c2024;
+}
+.as-fly-item .as-item-icon {
+	width: 16px;
+	height: 16px;
+	color: #525a64;
+}
+.as-fly-item:hover {
+	background: #f6f7f8;
+}
+.as-fly-item.active {
+	background: #e8f1f7;
+	color: #1a5f7a;
+	font-weight: 600;
+}
+.as-fly-item .as-item-badge {
+	margin-left: auto;
 }
 </style>

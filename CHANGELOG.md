@@ -4,6 +4,23 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 21-11-2026: The dashboard in the desk look (0.7.32)
+
+### Changed
+- Owner 21-11-2026 ("why is the auto deploy dashboard not like this style, like LMS and Projects Hub"; prototype
+  ACM-SP-05 approved, the desk look with the icon rail): on a desktop the dashboard takes press-ctrl's desk theme.
+  `AppTopbar.vue` (new): 80 px top bar in the Accurate blue gradient, the white logo, the page's breadcrumbs,
+  notifications (with the unread count) and the account menu (Change Team, Support & Docs, Share Feedback, Logout,
+  moved from the top of the sidebar). `AppSidebar.vue`: the menu as the desk's 104 px icon rail (icon over label, white
+  tile for the page you are on), same items and conditions; Notifications is the top bar's bell.
+  `AppSidebarItemGroup.vue`: a group opens a flyout of its pages (one at a time; closes on a click outside, Escape or
+  a page change), still 2 clicks to a page. Pages sit on a white sheet with the desk's rounded corner (white, not the
+  prototype's grey: on grey the Sites list's filter fields disappeared, checked live).
+- Breadcrumbs move into the top bar: Press's own `Breadcrumbs` teleports its trail when it sits in a page `Header`
+  (its `#actions` stay in the page row); `Header.vue` lifts a frappe-ui `Breadcrumbs` placed directly in it, and hides
+  a row left with nothing to show. Four Dev Tools pages with nested breadcrumbs keep them in the page.
+- The phone keeps its own menu; sign-up, site login and hidden-sidebar pages are unchanged.
+
 ## 21-11-2026: Watch Tower Apps page (0.7.31)
 
 ### Added

@@ -1,136 +1,32 @@
+<!-- The dashboard menu as the desk's icon rail (owner 2026-11-21, prototype ACM-SP-05): 104 px, icon over label, the
+Accurate blue; groups open a flyout of their pages. Same items and conditions as before (NavigationItems.vue);
+Notifications is the top bar's bell, and the account menu moved to the top bar's avatar. -->
 <template>
-	<div
-		class="as-sidebar relative flex min-h-screen w-[240px] flex-col"
-	>
-		<div class="p-2">
-			<Dropdown
-				:options="[
-					{
-						label: 'Change Team',
-						icon: 'command',
-						condition: () =>
-							$team?.doc?.valid_teams?.length > 1 || $team?.doc?.is_desk_user,
-						onClick: () => (showTeamSwitcher = true),
-					},
-					{
-						label: 'Support & Docs',
-						icon: 'help-circle',
-						onClick: docs,
-					},
-					{
-						label: 'Share Feedback',
-						icon: 'file-text',
-						onClick: feedback,
-					},
-					{
-						label: 'Logout',
-						icon: 'log-out',
-						onClick: $session.logout.submit,
-					},
-				]"
-			>
-				<template v-slot="{ open }">
-					<button
-						class="flex w-[224px] items-center rounded-md px-2 py-2 text-left"
-						:class="open ? 'as-sidebar-btn-open' : 'as-sidebar-btn-closed'"
-					>
-						<FCLogo class="as-sidebar-logo mb-1 h-9 w-9 shrink-0" />
-						<div class="ml-2 flex flex-1 flex-col overflow-hidden">
-							<div class="text-sm font-semibold leading-tight as-sidebar-brand">
-								Accurate Systems
-							</div>
-							<Tooltip :text="$team?.doc?.user || null">
-								<div
-									class="mt-0.5 hidden overflow-hidden text-ellipsis whitespace-nowrap pb-1 text-xs leading-none as-sidebar-user sm:inline"
-								>
-									{{ $team?.get.loading ? 'Loading...' : $team?.doc?.user }}
-								</div>
-							</Tooltip>
-						</div>
-						<FeatherIcon
-							name="chevron-down"
-							class="ml-auto h-5 w-5 as-sidebar-chevron"
-						/>
-					</button>
+	<nav class="as-rail" aria-label="Main menu">
+		<NavigationItems>
+			<template v-slot="{ navigation }">
+				<template v-for="item in navigation.filter((i) => i.route !== '/notifications')" :key="item.name">
+					<AppSidebarItemGroup v-if="item.children" :item="item" />
+					<AppSidebarItem v-else :item="item" />
 				</template>
-			</Dropdown>
-		</div>
-		<nav class="px-2">
-			<NavigationItems>
-				<template v-slot="{ navigation }">
-					<template v-for="(item, i) in navigation" :key="item.name">
-						<AppSidebarItemGroup v-if="item.children" :item="item" />
-						<AppSidebarItem v-else :item="item" />
-					</template>
-				</template>
-			</NavigationItems>
-		</nav>
-		<!-- TODO: update component name after dashboard-beta merges -->
-		<SwitchTeamDialog2 v-model="showTeamSwitcher" />
-	</div>
+			</template>
+		</NavigationItems>
+	</nav>
 </template>
 
-<script>
-import { defineAsyncComponent } from 'vue';
+<script setup>
 import AppSidebarItem from './AppSidebarItem.vue';
-import { Tooltip } from 'frappe-ui';
-import NavigationItems from './NavigationItems.vue';
 import AppSidebarItemGroup from './AppSidebarItemGroup.vue';
-
-export default {
-	name: 'AppSidebar',
-	components: {
-		AppSidebarItem,
-		AppSidebarItemGroup,
-		SwitchTeamDialog2: defineAsyncComponent(
-			() => import('./SwitchTeamDialog.vue'),
-		),
-		Tooltip,
-		NavigationItems,
-	},
-	data() {
-		return {
-			showTeamSwitcher: false,
-		};
-	},
-	methods: {
-		docs() {
-			/* Rebrand: Accurate Systems support/docs URL */
-			window.open('https://accuratesystems.com.sa/docs', '_blank');
-		},
-		feedback() {
-			/* Rebrand: Accurate Systems feedback URL */
-			window.open(
-				'https://accuratesystems.com.sa/feedback',
-				'_blank',
-			);
-		},
-	},
-};
+import NavigationItems from './NavigationItems.vue';
 </script>
 
 <style scoped>
-/* Rebrand: Accurate Systems dark sidebar matching prototype */
-.as-sidebar {
-	background: #1E293B;
-	border-right: 1px solid rgba(255,255,255,0.06);
-}
-.as-sidebar-logo {
-	filter: brightness(0) invert(1);
-}
-.as-sidebar-brand {
-	color: #FFFFFF;
-}
-.as-sidebar-user {
-	color: #94A3B8;
-}
-.as-sidebar-chevron {
-	color: #94A3B8;
-}
-.as-sidebar-btn-open {
-	background: rgba(255,255,255,0.1);
-}
-.as-sidebar-btn-closed:hover {
-	background: rgba(255,255,255,0.08);
+.as-rail {
+	width: 104px;
+	height: 100%;
+	overflow-y: auto;
+	padding: 10px 8px 16px;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
 }
 </style>
