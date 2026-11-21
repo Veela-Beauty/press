@@ -4,6 +4,13 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 21-11-2026: Watch Tower page loads its data (0.7.27)
+
+### Fixed
+- `dashboard/src/pages/WatchTower.vue` asks the hub with GET. frappe-ui posts by default and the hub's
+  `get_overview` answers GET only, so the live page said "Not permitted" to everyone (found by the live check
+  right after the 0.7.26 deploy).
+
 ## 21-11-2026: Watch Tower page in the dashboard (0.7.26)
 
 ### Added
