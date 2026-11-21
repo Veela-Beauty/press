@@ -11,7 +11,7 @@ instead, its pages under it, and starts open when one of them is the page you ar
 		:aria-expanded="menuExpanded ? inline : open"
 		:aria-disabled="item.disabled || undefined"
 		:title="item.name"
-		class="as-rail-item"
+		class="as-rail-item as-rail-group"
 		:class="{ active: isActive, 'as-rail-open': open && !isActive, 'pointer-events-none opacity-50': item.disabled }"
 		@click="toggle"
 		@keydown.enter.space.prevent="toggle"
@@ -108,6 +108,11 @@ onBeforeUnmount(() => {
 	width: 11px;
 	height: 11px;
 	opacity: 0.65;
+}
+/* expanded with its pages showing: only the page you are on is white, its group a light tint */
+.as-rail.expanded .as-rail-group.active {
+	background: rgba(255, 255, 255, 0.14);
+	color: #fff;
 }
 .as-rail-item .as-rail-more.down {
 	transform: rotate(90deg);
