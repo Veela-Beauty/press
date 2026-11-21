@@ -1,49 +1,107 @@
-<!-- The dashboard menu as the desk's icon rail (owner 2026-11-21, prototype ACM-SP-05): 104 px, icon over label, the
-Accurate blue; groups open a flyout of their pages. The "..." toggle on top expands it like the desk: 240 px, icon and
-label side by side, groups open inline (remembered per browser). Same items and conditions as before
-(NavigationItems.vue); Notifications is the top bar's bell, and the account menu moved to the top bar's avatar. -->
+<!-- The dashboard menu in the desk look (owner 2026-11-21, prototype ACM-SP-05): the 104 px icon rail (icon over label)
+in the Accurate blue, or the full 240 px menu (icon beside label, groups inline). "..." keeps it full, remembered per
+browser; a group clicked on the rail opens the full menu as a drawer over the page, closed by choosing a page, a click
+beside it (a backdrop takes that click, so it never lands on the page) or Escape. Same items and conditions as before
+(NavigationItems.vue); Notifications is the top bar's bell, and the account menu is the top bar's avatar. -->
 <template>
-	<nav class="as-rail" :class="{ expanded: menuExpanded }" aria-label="Main menu">
-		<button
-			type="button"
-			class="as-rail-toggle"
-			:aria-expanded="menuExpanded"
-			:aria-label="menuExpanded ? 'Collapse the menu' : 'Expand the menu'"
-			:title="menuExpanded ? 'Collapse the menu' : 'Expand the menu'"
-			@click="menuExpanded = !menuExpanded"
+	<div class="as-rail-slot" :class="{ wide: menuExpanded }">
+		<nav
+			ref="nav"
+			class="as-rail"
+			:class="{ expanded: menuExpanded || menuDrawer, drawer: menuDrawer && !menuExpanded }"
+			aria-label="Main menu"
+			@click="closeOnPage"
 		>
-			<span /><span /><span />
-		</button>
-		<NavigationItems>
-			<template v-slot="{ navigation }">
-				<template v-for="item in navigation.filter((i) => i.route !== '/notifications')" :key="item.name">
-					<AppSidebarItemGroup v-if="item.children" :item="item" />
-					<AppSidebarItem v-else :item="item" />
+			<button
+				type="button"
+				class="as-rail-toggle"
+				:aria-expanded="menuExpanded"
+				:aria-label="menuExpanded ? 'Collapse the menu' : 'Keep the menu expanded'"
+				:title="menuExpanded ? 'Collapse the menu' : 'Keep the menu expanded'"
+				@click.stop="menuExpanded = !menuExpanded"
+			>
+				<span /><span /><span />
+			</button>
+			<NavigationItems>
+				<template v-slot="{ navigation }">
+					<template v-for="item in navigation.filter((i) => i.route !== '/notifications')" :key="item.name">
+						<AppSidebarItemGroup v-if="item.children" :item="item" />
+						<AppSidebarItem v-else :item="item" />
+					</template>
 				</template>
-			</template>
-		</NavigationItems>
-	</nav>
+			</NavigationItems>
+		</nav>
+		<!-- a click beside the drawer only closes it: it never lands on the page under it -->
+		<Teleport to="body">
+			<div v-if="menuDrawer && !menuExpanded" class="as-drawer-backdrop" @click="close" />
+		</Teleport>
+	</div>
 </template>
 
 <script setup>
+import { onBeforeUnmount, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import AppSidebarItem from './AppSidebarItem.vue';
 import AppSidebarItemGroup from './AppSidebarItemGroup.vue';
 import NavigationItems from './NavigationItems.vue';
-import { menuExpanded } from './topbar';
+import { menuDrawer, menuExpanded } from './topbar';
+
+const nav = ref(null);
+const route = useRoute();
+
+function close() {
+	menuDrawer.value = false;
+}
+// a page chosen in the drawer closes it, also the page you are already on (no route change then)
+function closeOnPage(event) {
+	if (menuDrawer.value && event.target.closest('a')) close();
+}
+function escape(event) {
+	if (event.key === 'Escape') close();
+}
+watch(() => route.fullPath, close);
+watch(menuDrawer, (open) => {
+	document[open ? 'addEventListener' : 'removeEventListener']('keydown', escape);
+});
+onBeforeUnmount(() => {
+	close();
+	document.removeEventListener('keydown', escape);
+});
 </script>
 
 <style scoped>
-.as-rail {
+/* the slot keeps the rail's room, so a drawer covers the page instead of pushing it */
+.as-rail-slot {
+	position: relative;
 	width: 104px;
-	transition: width 0.15s ease;
 	height: 100%;
+	transition: width 0.15s ease;
+}
+.as-rail-slot.wide {
+	width: 240px;
+}
+.as-rail {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	width: 100%;
 	overflow-y: auto;
 	padding: 10px 8px 16px;
 	scrollbar-width: thin;
 	scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
 }
-.as-rail.expanded {
+.as-rail.drawer {
 	width: 240px;
+	z-index: 30;
+	background: #1a5f7a;
+	box-shadow: 8px 0 24px rgba(16, 24, 40, 0.25);
+}
+.as-drawer-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 29;
+	background: rgba(16, 24, 40, 0.08);
 }
 /* the desk's three dots: the rail's own control, so it sits apart from the menu entries */
 .as-rail-toggle {

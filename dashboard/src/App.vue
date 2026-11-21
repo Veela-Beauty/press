@@ -119,7 +119,7 @@ provide('session', session);
 <style>
 /* desk look (ACM-SP-05): the rail's blue runs behind the sheet, so the sheet's rounded corner shows like the desk's */
 .as-shell-body {
-	background: linear-gradient(180deg, #1a5f7a 0%, #21709a 100%);
+	background: #1a5f7a; /* the same solid blue as the top bar: no seam where they meet */
 }
 /* white, not the prototype's grey: on grey the Sites list's filter fields disappeared (checked live 2026-11-21) */
 .as-sheet {
