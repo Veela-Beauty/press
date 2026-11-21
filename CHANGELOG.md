@@ -4,6 +4,29 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 21-11-2026: Watch Tower redesign with charts and a page per client (0.7.28)
+
+### Changed
+- Watch Tower Overview redrawn to the approved prototype ACM-SP-03 (owner 21-11-2026: "page so ugly", "the client
+  workspace is much more beautiful"; charts like Deploy Times): five tiles (clients needing action, open Critical,
+  open High, new in 24 h, apps behind git) with the change against 24 h or 7 days ago; new findings per day for 30
+  days stacked by client (a segment opens that client); open Critical and High findings; the clients table with a
+  mini bar of open findings; installed apps against git. Files in `dashboard/src/pages/watch-tower/`; the v1
+  `pages/WatchTower.vue` is removed.
+- Charts are drawn in SVG by `WtStackedBars.vue` and `WtHBars.vue` (ported from the prototype, hover tooltip, whole
+  number ticks, colours checked with the dataviz validator), not ECharts, so the page looks like the prototype.
+
+### Added
+- `/watch-tower/clients/<site>` (route "Watch Tower Client"): one client's page. Header (environment, status, last
+  read, Watch Tower and Frappe versions, read problem, open in desk, open the site); tiles (open Critical and High vs
+  24 h ago, new in 7 days vs the 7 before, errors 24 h vs yesterday, email failed and stuck); new findings per day by
+  severity; open findings by type; open findings (rows open the desk record); top errors in 24 h; errors and failed
+  emails per day; installed apps against git. Rows on the Overview open it; the sidebar keeps Overview lit.
+
+### Needs
+- Control Center hub 0.2.13 (`get_overview` tiles and days, `client_profile.get_client`, the daily Monitored Site
+  Day reading). Deploy the hub first.
+
 ## 21-11-2026: Watch Tower page loads its data (0.7.27)
 
 ### Fixed
