@@ -4,6 +4,15 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 21-11-2026: Watch Tower tiles draw as tiles (0.7.29)
+
+### Fixed
+- `dashboard/src/pages/watch-tower/WtTile.vue`: the clickable Overview tiles drew as small grey buttons with their label
+  cut off (found by the live check after the 0.7.28 deploy). `<component is="button">` resolves the string to
+  frappe-ui's globally registered Button component, not the HTML element. The tile is now a div with role=button,
+  focusable and opened with Enter or Space, its 8 px corners kept against style.css's 6 px rule for [role=button].
+- Client page, open findings: the account no longer shows twice when the subject is the account (Token access).
+
 ## 21-11-2026: Watch Tower redesign with charts and a page per client (0.7.28)
 
 ### Changed

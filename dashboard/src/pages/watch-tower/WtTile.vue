@@ -1,17 +1,19 @@
 <!-- A Watch Tower tile: the number, its comparison and a flag (the client-site board's tile, prototype ACM-SP-03). -->
 <template>
-	<component
-		:is="link ? 'button' : 'div'"
+	<!-- a div with role=button, never <component is="button">: Vue resolves that string to frappe-ui's global Button -->
+	<div
 		class="wt-tile"
 		:class="{ link }"
-		:type="link ? 'button' : undefined"
+		:role="link ? 'button' : undefined"
+		:tabindex="link ? 0 : undefined"
 		@click="link && $emit('open')"
+		@keydown.enter.space.prevent="link && $emit('open')"
 	>
 		<div class="t">{{ label }}</div>
 		<div class="v"><slot>{{ value }}</slot></div>
 		<div class="c" :class="tone">{{ compare }}</div>
 		<span v-if="flag" class="wt-flag" :class="flag.kind">{{ flag.text }}</span>
-	</component>
+	</div>
 </template>
 
 <script setup>
@@ -32,12 +34,16 @@ defineEmits(['open']);
 	width: 100%;
 	text-align: left;
 	border: 1px solid #e9eaec;
-	border-radius: 8px;
+	border-radius: 8px !important; /* style.css forces 6px on every [role='button'] */
 	padding: 12px 14px;
 	background: #fff;
 }
 .wt-tile.link {
 	cursor: pointer;
+}
+.wt-tile.link:focus-visible {
+	outline: 2px solid #2a78d6;
+	outline-offset: 2px;
 }
 .wt-tile.link:hover {
 	border-color: #dfe1e4;
