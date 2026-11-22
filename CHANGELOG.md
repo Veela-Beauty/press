@@ -4,6 +4,11 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 22-11-2026: Watch Tower users docs (0.7.42)
+
+### Docs
+- `docs/wiki/02-frontend-development/watch-tower-section.md`: the Users column and tile, prototype ACM-SP-06, versions 0.7.40 and 0.7.41.
+
 ## 22-11-2026: Watch Tower users against the licence cap (0.7.41)
 
 ### Added
