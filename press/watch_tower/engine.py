@@ -16,9 +16,13 @@ from frappe.utils import now_datetime, flt, cint, cstr
 # Circuit Breaker
 # Prevents feedback loops: if Watch Tower itself is generating too many
 # alerts or errors, stop evaluating rules until the storm passes.
-CIRCUIT_BREAKER_MAX_ALERTS_PER_HOUR = 20   # Max alert logs per hour
+CIRCUIT_BREAKER_MAX_EMAILS_PER_HOUR = 30   # Max alert emails sent this hour (a summary email is one, however many rows)
+CIRCUIT_BREAKER_MAX_ALERTS_PER_HOUR = 1000 # Max alert logs per hour: one per document acted on, so this guards a runaway
+                                           # action loop; a busy hour (a phone rollout raised ~30 findings) must not trip it
 CIRCUIT_BREAKER_MAX_QUEUE_SIZE = 500       # Max unsent emails in queue
 CIRCUIT_BREAKER_COOLDOWN_MINUTES = 30      # Pause rules for this long
+BREAKER_KEY = "watch_tower_circuit_breaker_tripped_at"
+EMAILS_KEY = "watch_tower_emails_sent"
 
 # Upper bound on candidate documents fetched per rule evaluation. Without this,
 # a rule targeting a high-volume DocType (e.g. Sales Invoice with no filters)
@@ -29,12 +33,17 @@ MAX_CANDIDATES = 10_000
 
 def _circuit_breaker_tripped() -> str:
     """
-    Check if Watch Tower should pause itself.
-    Returns empty string if OK, or reason string if tripped.
+    Check if Watch Tower should trip its circuit breaker now.
+    Returns empty string if OK, or reason string if tripped. The cooldown is checked apart (_cooldown_reason).
     """
     from frappe.utils import add_to_date
 
-    # Check 1: Too many Watch Tower alerts in the last hour
+    # Check 1: Too many alert emails this hour
+    emails = _emails_this_hour()
+    if emails > CIRCUIT_BREAKER_MAX_EMAILS_PER_HOUR:
+        return f"Circuit breaker: {emails} alert emails this hour (max {CIRCUIT_BREAKER_MAX_EMAILS_PER_HOUR})"
+
+    # Check 2: Too many Watch Tower alert logs in the last hour (a rule acting on its own output)
     one_hour_ago = add_to_date(now_datetime(), hours=-1)
     recent_alerts = frappe.db.count(
         "Watch Tower Alert Log",
@@ -43,27 +52,60 @@ def _circuit_breaker_tripped() -> str:
     if recent_alerts > CIRCUIT_BREAKER_MAX_ALERTS_PER_HOUR:
         return f"Circuit breaker: {recent_alerts} alerts in last hour (max {CIRCUIT_BREAKER_MAX_ALERTS_PER_HOUR})"
 
-    # Check 2: Email queue is backing up (sign of SMTP failure loop)
+    # Check 3: Email queue is backing up (sign of SMTP failure loop)
     unsent = frappe.db.count("Email Queue", {"status": "Not Sent"})
     if unsent > CIRCUIT_BREAKER_MAX_QUEUE_SIZE:
         return f"Circuit breaker: {unsent} unsent emails in queue (max {CIRCUIT_BREAKER_MAX_QUEUE_SIZE})"
 
-    # Check 3: Cooldown -  if we tripped recently, stay paused
-    last_trip = frappe.cache.get_value("watch_tower_circuit_breaker_tripped_at")
-    if last_trip:
-        from frappe.utils import time_diff_in_seconds
-        elapsed = time_diff_in_seconds(now_datetime(), last_trip)
-        if elapsed < CIRCUIT_BREAKER_COOLDOWN_MINUTES * 60:
-            remaining = int((CIRCUIT_BREAKER_COOLDOWN_MINUTES * 60 - elapsed) / 60)
-            return f"Circuit breaker: cooling down ({remaining} min remaining)"
-
     return ""
+
+
+def _cooldown_reason() -> str:
+    """While the breaker cools down, the reason; else empty. Reading it never restarts the cooldown: it ends
+    CIRCUIT_BREAKER_COOLDOWN_MINUTES after the trip (before 22-11-2026 every check re-tripped it, so rules that run
+    more often than the cooldown never ran again)."""
+    from frappe.utils import time_diff_in_seconds
+
+    # expires=True: the key is set with an expiry; without it a miss caches None in frappe.local.cache and the rest of
+    # the job (run_rules evaluates several rules in one job) never sees the trip
+    last_trip = frappe.cache.get_value(BREAKER_KEY, expires=True)
+    if not last_trip:
+        return ""
+    elapsed = time_diff_in_seconds(now_datetime(), last_trip)
+    if elapsed >= CIRCUIT_BREAKER_COOLDOWN_MINUTES * 60:
+        return ""
+    remaining = int((CIRCUIT_BREAKER_COOLDOWN_MINUTES * 60 - elapsed) / 60)
+    return f"Circuit breaker: cooling down ({remaining} min remaining)"
+
+
+def _emails_key() -> str:
+    return frappe.cache.make_key(f"{EMAILS_KEY}:{now_datetime():%Y%m%d%H}")
+
+
+def _emails_this_hour() -> int:
+    raw = frappe.cache.get(_emails_key())
+    return cint(raw.decode() if isinstance(raw, bytes) else raw)
+
+
+def _emails_sent(email_mode: str, matched_docs: int) -> int:
+    """Alert emails one evaluation sent: a Summary is one email; Per Document is one per matched document shown
+    (matched_docs is capped at 50, so a bigger run counts 50: close enough for a storm guard)."""
+    return 1 if email_mode == "Summary" else matched_docs
+
+
+def _count_emails(sent: int):
+    """Add the alert emails just sent to this hour's count (kept two hours, then gone)."""
+    if sent <= 0:
+        return
+    key = _emails_key()
+    frappe.cache.incrby(key, sent)
+    frappe.cache.expire(key, 7200)
 
 
 def _trip_circuit_breaker(reason: str):
     """Record that the circuit breaker was tripped."""
     frappe.cache.set_value(
-        "watch_tower_circuit_breaker_tripped_at",
+        BREAKER_KEY,
         now_datetime(),
         expires_in_sec=CIRCUIT_BREAKER_COOLDOWN_MINUTES * 60,
     )
@@ -172,7 +214,10 @@ def evaluate_rule(rule_name: str, triggered_by: str = "Scheduler") -> Dict:
     if frappe.request and frappe.session.user != "Administrator":
         frappe.throw(frappe._("Not permitted"), frappe.PermissionError)
 
-    # Circuit breaker -  stop if Watch Tower itself is causing a storm
+    # Circuit breaker -  stop if Watch Tower itself is causing a storm. A cooldown is reported, never restarted.
+    cooling = _cooldown_reason()
+    if cooling:
+        return {"status": "Circuit Breaker", "summary": cooling}
     trip_reason = _circuit_breaker_tripped()
     if trip_reason:
         _trip_circuit_breaker(trip_reason)
@@ -250,15 +295,21 @@ def evaluate_rule(rule_name: str, triggered_by: str = "Scheduler") -> Dict:
 
         # Step 5: Send email if configured
         if rule.send_email and result.matched > 0:
+            sent = 0
             try:
                 from .email import send_rule_email
                 send_rule_email(rule, result.to_dict(), result.matched_docs)
+                sent = _emails_sent(rule.email_mode, len(result.matched_docs))
             except Exception as e:
                 result.errors.append(f"Email send failed: {str(e)}")
                 frappe.log_error(
                     title=f"Watch Tower Email Failed: {rule_name}",
                     message=frappe.get_traceback(),
                 )
+            try:
+                _count_emails(sent)  # apart from the send: a counter failure must not read as a failed email
+            except Exception:
+                frappe.logger("watch_tower").warning("Could not count alert emails for the circuit breaker")
 
     except Exception as e:
         result.failed += 1

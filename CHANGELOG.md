@@ -4,6 +4,18 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 22-11-2026: Watch Tower circuit breaker no longer locks itself (0.7.43)
+
+### Fixed
+- `press/watch_tower/engine.py`: every check during the 30-minute cooldown restarted it, so rules that run more often
+  (the Control Center hub runs its rules after each site read) never ran again. From 14:16 on 22-11 no Watch Tower
+  alert email went out. The cooldown is now only reported; it ends 30 minutes after the trip. The trip time is read
+  with `expires=True` (a miss otherwise caches None for the rest of the job).
+- The breaker counted Watch Tower Alert Log rows (one per document acted on, max 20 an hour), so a busy hour tripped
+  it (a phone rollout raised about 30 findings). It now counts alert emails sent (max 30 an hour; a summary email is
+  one); the log-row check stays as a runaway guard at 1000 an hour.
+- Check: `~/docs/scripts/watch-tower/press_breaker_check.py` (branch module in memory, its own cache keys): 7/7.
+
 ## 22-11-2026: Watch Tower users docs (0.7.42)
 
 ### Docs
