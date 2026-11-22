@@ -4,7 +4,6 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
-
 ## 22-11-2026: Watch Tower alert emails are sent (0.7.39)
 
 ### Fixed
