@@ -4,6 +4,13 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 22-11-2026: Watch Tower docs (0.7.40)
+
+### Docs
+- `docs/wiki/02-frontend-development/watch-tower-section.md`: the Watch Tower section of the dashboard (routes, hub reads, charts, paging, versions 0.7.26 to 0.7.39, deploy, live checks).
+- `docs/wiki/08-lessons/2026-11-22-watch-tower-alert-emails-never-sent.md`: why no alert email was sent and how 0.7.39 fixed it.
+- `docs/wiki/01-backend-development/team-roles-permissions.md`: developers hold DevOps Admin, never Platform Admin.
+
 ## 22-11-2026: Watch Tower alert emails are sent (0.7.39)
 
 ### Fixed
