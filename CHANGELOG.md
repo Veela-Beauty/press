@@ -4,6 +4,13 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 22-11-2026: page buttons in the header show (0.7.37)
+
+### Fixed
+- `dashboard/src/components/Header.vue` draws its `#actions` slot at the right end of the page's header row. Seven
+  pages put their buttons there (Daman Backup Overview, Job Queue and Alerts; Dev Overview; Infrastructure; Telephony;
+  Notifications), but Header never had that slot, so Run Backup, the List / Cards switch and the others never showed.
+
 ## 21-11-2026: Room between the bell's count and the avatar (0.7.36)
 
 ### Fixed
