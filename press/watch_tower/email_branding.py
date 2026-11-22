@@ -36,12 +36,13 @@ def _get_smtp_config():
 	try:
 		account = frappe.get_doc("Email Account", {"default_outgoing": 1})
 		password = account.get_password("password") if account.password else ""
-	except Exception:
+	except Exception as e:
 		# no account readable now: report unavailable and read again next time. Never cache this, a cached empty
 		# password kept every alert of a long-running worker unsent (2026-11-22)
-		frappe.logger("watch_tower").warning("No default outgoing Email Account readable for alerts")
+		frappe.logger("watch_tower").warning(f"No default outgoing Email Account readable for alerts: {e!r}")
 		return {}
 	if not password:
+		frappe.logger("watch_tower").warning(f"Email Account {account.name} has no readable password for alerts")
 		return {}
 	_smtp_config.update(
 		{
