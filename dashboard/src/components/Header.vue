@@ -1,7 +1,7 @@
 <!-- A page's header row. Desk look (owner 2026-11-21, prototype ACM-SP-05): on a desktop the page's breadcrumb trail
 shows in the top bar, like the desk. Press's own Breadcrumbs moves its trail there itself (it keeps its #actions slot
-here); a frappe-ui Breadcrumbs placed directly in this slot is lifted here. The page's actions stay in this row, and
-a row left with no element to show hides. On a phone nothing moves. -->
+here); a frappe-ui Breadcrumbs placed directly in this slot is lifted here. The page's actions stay in this row (its
+#actions slot at the right end), and a row left with no element to show hides. On a phone nothing moves. -->
 <script>
 import { Breadcrumbs as FrappeBreadcrumbs } from 'frappe-ui';
 import { Fragment, Teleport, defineComponent, h, onBeforeUnmount, onMounted, provide, ref } from 'vue';
@@ -42,6 +42,10 @@ export default defineComponent({
 			// the trail left this row (lifted here, or Press's Breadcrumbs moved it): what stays were the actions on its
 			// right, so they stay right instead of sliding to the start of the row
 			const moved = crumbs.length > 0 || (!!topbarCrumbsEl.value && rest.some((n) => n.type === PressBreadcrumbs));
+			// a page's own buttons (<template #actions> inside Header: Run Backup, List / Cards...): this slot never
+			// existed, so they never showed; drawn at the row's right end
+			const actions = slots.actions?.() || [];
+			if (actions.length) rest.push(h('div', { class: 'ml-auto flex items-center gap-2' }, actions));
 			return h(
 				'header',
 				{ ref: header, class: ['border-b bg-white px-5 py-2.5 sm:px-5', { 'sticky top-0 z-10': props.sticky }] },
