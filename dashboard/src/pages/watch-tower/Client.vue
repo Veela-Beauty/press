@@ -272,13 +272,15 @@ const errors = computed(() => versus(t.value.errors_24h, t.value.errors_yesterda
 const users = computed(() => s.value.users);
 const usersCompare = computed(() => {
 	if (!users.value) return 'needs Watch Tower 0.7.3';
-	return ['Connected', 'Paused'].includes(s.value.status) ? `${users.value.active_30d} active in 30 days` : 'last known';
+	const when = ['Connected', 'Paused'].includes(s.value.status) ? `${users.value.active_30d} active in 30 days` : 'last known';
+	return users.value.cap ? when : `${when} · no cap set`;
 });
 const usersFlag = computed(() => {
 	const u = users.value;
 	if (!u) return null;
 	if (u.level) return { kind: u.level === 'Over cap' ? 'red' : 'amber', text: u.level };
-	return u.cap ? { kind: 'ok', text: `${Math.round((100 * u.enabled) / u.cap)}% of cap` } : { kind: 'amber', text: 'No cap set' };
+	// floor: 89.9% must not read "90% of cap" beside an OK flag; no cap set is a muted note, not a warning
+	return u.cap ? { kind: 'ok', text: `${Math.floor((100 * u.enabled) / u.cap)}% of cap` } : null;
 });
 const email = computed(() => {
 	const v = versus(t.value.email_failed, t.value.email_failed_yesterday, 'yesterday');

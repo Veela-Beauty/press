@@ -14,7 +14,10 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ### Changed
 - Clients table: Last read moved under the Status badge ("read 3 min ago"), the Open findings bar is 64 px and the
-  table's cells 14 px apart, so seven columns fit at 1440 as in the prototype.
+  table's cells 14 px apart, so the six columns (Users in, Last read folded) fit at 1440 as in the prototype.
+
+### Deploy
+- Hub 0.2.18 first: before it the page has no users data and would say "needs Watch Tower 0.7.3".
 
 ## 22-11-2026: Watch Tower docs (0.7.40)
 
