@@ -87,6 +87,12 @@ def _emails_this_hour() -> int:
     return cint(raw.decode() if isinstance(raw, bytes) else raw)
 
 
+def _emails_sent(email_mode: str, matched_docs: int) -> int:
+    """Alert emails one evaluation sent: a Summary is one email; Per Document is one per matched document shown
+    (matched_docs is capped at 50, so a bigger run counts 50: close enough for a storm guard)."""
+    return 1 if email_mode == "Summary" else matched_docs
+
+
 def _count_emails(sent: int):
     """Add the alert emails just sent to this hour's count (kept two hours, then gone)."""
     if sent <= 0:
@@ -289,16 +295,21 @@ def evaluate_rule(rule_name: str, triggered_by: str = "Scheduler") -> Dict:
 
         # Step 5: Send email if configured
         if rule.send_email and result.matched > 0:
+            sent = 0
             try:
                 from .email import send_rule_email
                 send_rule_email(rule, result.to_dict(), result.matched_docs)
-                _count_emails(1 if rule.email_mode == "Summary" else len(result.matched_docs))
+                sent = _emails_sent(rule.email_mode, len(result.matched_docs))
             except Exception as e:
                 result.errors.append(f"Email send failed: {str(e)}")
                 frappe.log_error(
                     title=f"Watch Tower Email Failed: {rule_name}",
                     message=frappe.get_traceback(),
                 )
+            try:
+                _count_emails(sent)  # apart from the send: a counter failure must not read as a failed email
+            except Exception:
+                frappe.logger("watch_tower").warning("Could not count alert emails for the circuit breaker")
 
     except Exception as e:
         result.failed += 1
