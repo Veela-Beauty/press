@@ -67,7 +67,7 @@ calling the client or changing their app. Data from sanad_ai_control_center.watc
 					</div>
 				</section>
 
-				<div class="grid grid-cols-2 gap-3 md:grid-cols-5">
+				<div class="grid grid-cols-2 gap-3 md:grid-cols-6">
 					<WtTile
 						label="Open critical"
 						:value="t.open_critical"
@@ -92,6 +92,12 @@ calling the client or changing their app. Data from sanad_ai_control_center.watc
 					/>
 					<WtTile label="Email" :compare="email.text" :tone="email.tone">
 						{{ t.email_failed }} <span class="unit">failed</span> · {{ t.email_stuck }} <span class="unit">stuck</span>
+					</WtTile>
+					<WtTile label="Users" :compare="usersCompare" :flag="usersFlag">
+						<template v-if="users">
+							{{ users.enabled }}<span v-if="users.cap" class="unit"> / {{ users.cap }}</span>
+						</template>
+						<template v-else>-</template>
 					</WtTile>
 				</div>
 
@@ -262,6 +268,20 @@ const critical = computed(() => versus(t.value.open_critical, t.value.open_criti
 const high = computed(() => versus(t.value.open_high, t.value.open_high_24h_ago, '24 h ago'));
 const week = computed(() => versus(t.value.new_7d, t.value.new_prev_7d, 'previous 7 days'));
 const errors = computed(() => versus(t.value.errors_24h, t.value.errors_yesterday, 'yesterday'));
+// users against the User Cap (ACM-SP-06); a site that stopped reporting shows its last good read
+const users = computed(() => s.value.users);
+const usersCompare = computed(() => {
+	if (!users.value) return 'needs Watch Tower 0.7.3';
+	const when = ['Connected', 'Paused'].includes(s.value.status) ? `${users.value.active_30d} active in 30 days` : 'last known';
+	return users.value.cap ? when : `${when} · no cap set`;
+});
+const usersFlag = computed(() => {
+	const u = users.value;
+	if (!u) return null;
+	if (u.level) return { kind: u.level === 'Over cap' ? 'red' : 'amber', text: u.level };
+	// floor: 89.9% must not read "90% of cap" beside an OK flag; no cap set is a muted note, not a warning
+	return u.cap ? { kind: 'ok', text: `${Math.floor((100 * u.enabled) / u.cap)}% of cap` } : null;
+});
 const email = computed(() => {
 	const v = versus(t.value.email_failed, t.value.email_failed_yesterday, 'yesterday');
 	return { ...v, text: v.text ? `${v.text} failed` : '' };

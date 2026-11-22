@@ -138,15 +138,15 @@ Rows, chart segments and client columns open that client's page. -->
 						<a class="more" href="/app/monitored-site">All in the desk</a>
 					</div>
 					<div class="overflow-x-auto">
-						<table class="wt-table">
+						<table class="wt-table wt-clients">
 							<thead>
 								<tr>
 									<th>Client</th>
 									<th>Status</th>
-									<th>Last read</th>
 									<th>Open findings</th>
 									<th class="num">Errors 24 h</th>
 									<th>Email</th>
+									<th>Users</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -160,9 +160,9 @@ Rows, chart segments and client columns open that client's page. -->
 									</td>
 									<td>
 										<span class="badge" :class="STATUS_CLASS[s.status]">{{ s.status }}</span>
+										<div class="sub2">read {{ ago(data.as_of, s.last_read_at) }}</div>
 										<div v-if="s.last_error" class="err" :title="s.last_error">{{ s.last_error }}</div>
 									</td>
-									<td class="text-gray-600">{{ ago(data.as_of, s.last_read_at) }}</td>
 									<td>
 										<div class="mini">
 											<div class="bar">
@@ -190,6 +190,17 @@ Rows, chart segments and client columns open that client's page. -->
 										</template>
 										<span v-else class="text-gray-400">-</span>
 									</td>
+									<td class="wt-users" :class="{ stale: stale(s) }" :title="usersTip(s)">
+										<template v-if="s.users">
+											<div>
+												<span class="n" :class="CAP_CLASS[s.users.level]">{{ seats(s.users) }}</span>
+												<span v-if="s.users.level" class="w" :class="CAP_CLASS[s.users.level]">{{ s.users.level }}</span>
+												<span v-else-if="!s.users.cap" class="nocap">no cap set</span>
+											</div>
+											<div class="sub2">{{ stale(s) ? 'last known' : `${s.users.active_30d} active` }}</div>
+										</template>
+										<span v-else class="text-gray-400">-</span>
+									</td>
 								</tr>
 							</tbody>
 						</table>
@@ -209,6 +220,7 @@ import WtTile from './WtTile.vue';
 import WtStackedBars from './WtStackedBars.vue';
 import { usePages } from './paging';
 import {
+	CAP_CLASS,
 	ENV_CLASS,
 	OTHER_COLOR,
 	REST_COLOR,
@@ -217,6 +229,7 @@ import {
 	STATUS_CLASS,
 	ago,
 	clientColor,
+	seats,
 	versus,
 } from './shared';
 
@@ -269,6 +282,10 @@ const open = (s) => s.open_critical + s.open_high + s.open_medium + s.open_low;
 const rest = (s) => s.open_medium + s.open_low;
 const maxOpen = computed(() => Math.max(1, ...data.value.sites.map(open)));
 const seg = (n, color) => ({ width: `${(100 * n) / maxOpen.value}%`, background: color });
+// a site that stopped reporting shows the users of its last good read, greyed
+const stale = (s) => !['Connected', 'Paused'].includes(s.status);
+const usersTip = (s) =>
+	s.users ? `${s.users.enabled} enabled system users · ${s.users.active_30d} active in the last 30 days` : 'Needs Watch Tower 0.7.3 on the site';
 const topErrors = (s) => (s.top_errors || []).map((e) => `${e.count} x ${e.title}`).join('\n');
 
 const clientRoute = (site) => ({ name: 'Watch Tower Client', params: { site } });
