@@ -51,11 +51,14 @@ error, not data. This was the 0.7.27 hotfix.
 - Five tiles at the top.
 - Chart: new findings per day, one colour per client.
 - List: Open Critical and High findings, 6 to a page.
-- Table: Clients, one row per connected site.
+- Table: Clients, one row per connected site. Since 0.7.41 "Last read" sits under the Status badge and a Users column
+  shows "N / cap" with "Near cap" (90%) or "Over cap" (100%) and "N active" under it; "no cap set" when no User Cap is
+  typed on the hub; "-" until the site runs watch_tower 0.7.3; greyed "last known" for a site that stopped reporting.
 
 **Client page**
 - Header: client name, status and environment badges, last error if any.
-- Five tiles and the charts: new findings per day, open findings by type.
+- Six tiles (Users added in 0.7.41: enabled / cap, active in 30 days, a flag with the level or the % of the cap) and
+  the charts: new findings per day, open findings by type.
 - Open findings, 6 to a page.
 - Top errors.
 - Site health per day, last 30 days (one reading per client per day).
@@ -116,6 +119,7 @@ The pages follow these approved prototypes, kept on the owner's machine under
 - ACM-SP-03 (v2): Overview and Client pages.
 - ACM-SP-04: Apps page.
 - ACM-SP-05: the desk look of the dashboard.
+- ACM-SP-06 (v4): users against the licence cap (`watch_tower_press_v4_users_prototype.html`).
 
 ## Version history
 
@@ -131,6 +135,8 @@ The pages follow these approved prototypes, kept on the owner's machine under
 | 0.7.37 | `Header` draws its `#actions` slot. Seven pages never showed their buttons: Daman Overview, Job Queue, Alerts, Dev Overview, Infrastructure, Telephony, Notifications |
 | 0.7.38 | Search box in the top bar; menu scrollbar only on hover; a group opens the menu beside the page, not over it |
 | 0.7.39 | Watch Tower alert emails are actually sent, see [the lesson](../08-lessons/2026-11-22-watch-tower-alert-emails-never-sent.md) |
+| 0.7.40 | Watch Tower docs |
+| 0.7.41 | Users against the licence cap: Users column on the Overview, Users tile on the client page. Needs hub 0.2.18 first |
 
 ## Deploy
 
