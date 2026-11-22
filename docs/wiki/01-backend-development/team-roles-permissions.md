@@ -307,6 +307,48 @@ Turning a feature on for a team: Admin Panel team features (UI), or
 
 ---
 
+## Developers: DevOps Admin, never Platform Admin (2026-11-22)
+
+The owner ruled that the dev team must never see company finance or salaries. So developers hold **DevOps
+Admin**, and **Platform Admin is for the owner only**.
+
+DevOps Admin flags (`ROLE_TO_FLAGS` in `press/press/doctype/team/press_role_bridge.py`):
+
+- On: `all_sites`, `all_release_groups`, `all_servers`, `allow_site_creation`, `allow_bench_creation`,
+  `allow_server_creation`, `allow_apps`, `allow_webhook_configuration`, `allow_dashboard`.
+- Off: `admin_access`, `allow_billing`, `allow_leads`, `allow_customer`, `allow_partner`, `allow_contribution`.
+
+`all_sites`, `all_release_groups` and `all_servers` are what `has_user_permission()` in
+`press/guards/role_guard/document.py` reads, so a member with them sees every site, bench and server of the team
+without listing each one.
+
+### How to change a member
+
+Set `Team Member.press_role`. The `sync_team_member` hook in `press_role_bridge.py` then moves the member to the
+Press Role that carries the canonical flags. Do not make a Press Role by hand: the daily
+`audit_press_role_drift` job (see `press/hooks.py`) re-syncs memberships and corrects flag drift, so a
+hand-made role is undone.
+
+### What DevOps Admin cannot do
+
+These actions need `admin_access`, checked by `require_team_role_flag(team, "admin_access")`:
+
+- Mark a site development or production (`Site.set_development_mode`). The team owner passes this one only
+  (`owner_passes=True`).
+- Set the confidential flag (`Site.set_confidential`, and the check in `Site.validate`) and its admin PIN.
+- Security requests (`press/api/security.py`, `_require_admin`).
+- Team billing.
+
+### What it can still do
+
+- Login as Administrator needs no `admin_access`. On a confidential site only the PIN is asked
+  (`Site.login_as_admin`).
+- Deploy, deploy and update, and site update go through `@protected` (`press/api/site.py`,
+  `press/api/bench.py`). A member without System User type passes when the document belongs to the current team,
+  and the role guard then limits what they see to `all_sites` and `all_release_groups`.
+
+---
+
 ## Gotcha: `get_bench_update()` double team-check (fixed 2026-05-06)
 
 The `@protected("Release Group")` decorator on `deploy_and_update()` correctly exempts System Users from team checks. However, `get_bench_update()` (called internally by `deploy_and_update`) had a **second** team check at `bench_update.py:175` that rejected ALL users including System Users:

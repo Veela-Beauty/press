@@ -279,6 +279,12 @@ git status filtered by site apps, GitHub account selector.
 **Files:** DeployCandidate.vue, build_diagnostics.py, create_app.py, CreateAppDialog.vue, SiteDevTab.vue, bench_app_management.py, bench_dev_overview.py
 **Decisions:** Sibling files for APIs, git -C instead of cd in docker_execute, daily cleanup cron
 
+### Session 2026-11-21 to 22: Watch Tower section v2, Apps page, dashboard fixes, alert emails
+**What we did:** Press 0.7.28 to 0.7.31 rebuilt the Watch Tower pages (SVG charts, client page, pages of 6, Apps page and app page; 0.7.29 fixed tiles drawn as grey buttons). 0.7.37 made `Header` draw its `#actions` slot (7 pages never showed their buttons). 0.7.38 moved search to the top bar and made a menu group open beside the page. 0.7.39 fixed Watch Tower alert emails that were never sent (wrong SMTP login id, cached empty config).
+**Files:** `dashboard/src/pages/watch-tower/*`, `dashboard/src/components/NavigationItems.vue`, `press/watch_tower/email_branding.py`
+**Docs (0.7.40):** new `docs/wiki/02-frontend-development/watch-tower-section.md`, new `docs/wiki/08-lessons/2026-11-22-watch-tower-alert-emails-never-sent.md`, updated `docs/wiki/01-backend-development/team-roles-permissions.md` (developers hold DevOps Admin, never Platform Admin).
+**Decisions:** Hub deploys first when a page needs a new read; every hub read from Press is GET only.
+
 ## Mistakes & Lessons
 ### 2026-04-03 - bash -c wrapping broke shell variables
 **What happened:** Wrapped docker_execute commands in `bash -c '...'` to fix OCI error

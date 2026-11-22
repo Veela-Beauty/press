@@ -17,6 +17,7 @@ Enhanced fork of Frappe Press by Accurate Systems — enterprise capabilities, C
 - [Dashboard Customization Guide](02-frontend-development/rebrand-guide.md) — All customized files, design tokens, how to modify
 - [UI Style Guide](02-frontend-development/ui-style-guide.md) — Colors, typography, component patterns
 - [Site Restore & Upload System](02-frontend-development/site-restore-upload.md) — Direct/chunked upload, S3 fallback, progress tracking
+- [Watch Tower Section](02-frontend-development/watch-tower-section.md) : Overview, client, Apps and app pages: routes, hub reads (GET only), SVG charts, paging, version history, deploy and live checks
 
 ### 03 — Integrations
 - [GitHub App User Tokens](03-integrations/github-app-user-tokens.md) — Per-user GitHub OAuth for in-bench git operations (Option C); architecture, ops, troubleshooting
@@ -40,6 +41,7 @@ Enhanced fork of Frappe Press by Accurate Systems — enterprise capabilities, C
 - [Critical Issues](07-implementation-status/critical-issues.md) — Known blockers and workarounds
 
 ### 08 — Lessons Learned
+- [2026-11-22: Watch Tower alert emails were never sent](08-lessons/2026-11-22-watch-tower-alert-emails-never-sent.md) : the direct SMTP login ignored the relay's own login id and a failed account read was cached with an empty password; a Success alert log and an empty Email Queue proved nothing. Fixed in 0.7.39.
 - [2026-11-06: a team owner could not switch Dev Mode or open Code Server](08-lessons/2026-11-06-owner-gate-and-code-server-first-launch.md) : the dashboard and `require_team_role_flag` disagreed about the owner, `Team.enabled_features` is an allowlist, a Dev tab card read a field never in `dashboard_fields` (second time), and two agent jobs queued together raced on the first Code Server launch.
 - [2026-10-30: a hooks.py change was deployed but Frappe kept the old hooks](08-lessons/2026-10-30-hooks-change-not-seen.md) : 0.7.4's new log-retention entries were invisible to `get_hooks` until the Redis `app_hooks` key was deleted by hand (second time after 2026-09-08); the deploy guide now checks it. Also: press-ctrl's DB `NOW()` is 3 h behind the stored times.
 - [2026-09-24: an MCP token reached another team's sites](08-lessons/2026-09-24-mcp-cross-team-leak.md) : System Users skip Frappe permissions, and the MCP scope check read a different argument from the one each tool used. 59 paths found by an 84-tool audit, closed in `press/mcp_server/scope/`. Also: a user who owns two teams switches default team by timestamp.
