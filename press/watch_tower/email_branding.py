@@ -5,6 +5,7 @@ Shared header/footer for all Watch Tower emails.
 Sends via direct SMTP -  completely bypasses Frappe's Email Queue
 to prevent feedback loops when the queue itself is the problem.
 """
+
 import smtplib
 from ._hard_timeout import hard_timeout, HardTimeoutError
 from email.mime.multipart import MIMEMultipart
@@ -34,25 +35,27 @@ def _get_smtp_config():
 
 	try:
 		account = frappe.get_doc("Email Account", {"default_outgoing": 1})
-		_smtp_config.update({
+		password = account.get_password("password") if account.password else ""
+	except Exception:
+		# no account readable now: report unavailable and read again next time. Never cache this, a cached empty
+		# password kept every alert of a long-running worker unsent (2026-11-22)
+		frappe.logger("watch_tower").warning("No default outgoing Email Account readable for alerts")
+		return {}
+	if not password:
+		return {}
+	_smtp_config.update(
+		{
 			"server": account.smtp_server,
 			"port": account.smtp_port or 587,
-			"login": account.email_id,
-			"password": account.get_password("password") if account.password else "",
+			# a relay such as Brevo logs in with its own login id, not the address (Frappe's own queue does the same)
+			"login": account.login_id
+			if account.get("login_id_is_different") and account.get("login_id")
+			else account.email_id,
+			"password": password,
 			"sender": f"{account.name} <{account.email_id}>",
 			"use_tls": bool(account.use_tls),
-		})
-	except Exception:
-		# Fallback -  hardcoded for Press
-		_smtp_config.update({
-			"server": "mail.acsprosys.com",
-			"port": 587,
-			"login": "info@optiflowsys.com",
-			"password": "",
-			"sender": "Watch Tower <info@optiflowsys.com>",
-			"use_tls": True,
-		})
-
+		}
+	)
 	return _smtp_config
 
 
@@ -68,10 +71,7 @@ def send_alert_email(recipients, subject, message, important=False, **kwargs):
 	import frappe
 
 	cc_list = IMPORTANT_ALERT_CC if important else []
-	all_recipients = list(set(
-		(recipients if isinstance(recipients, list) else [recipients])
-		+ cc_list
-	))
+	all_recipients = list(set((recipients if isinstance(recipients, list) else [recipients]) + cc_list))
 
 	# Try direct SMTP first
 	try:
@@ -80,7 +80,8 @@ def send_alert_email(recipients, subject, message, important=False, **kwargs):
 			_send_smtp(cfg, all_recipients, subject, message)
 			return
 	except Exception as e:
-		frappe.logger("watch_tower").warning(f"Direct SMTP failed: {e}, falling back to frappe.sendmail")
+		_smtp_config.clear()  # read the account again next time: a changed password or login must not stay broken
+		frappe.logger("watch_tower").warning(f"Direct SMTP failed: {e}")
 
 	# No fallback to frappe.sendmail -  it creates Email Queue entries
 	# that pile up as errors when SMTP rejects recipients (caused 104K entries, 1.17 GB).
@@ -97,6 +98,7 @@ def _send_smtp(cfg, recipients, subject, html_body):
 	jobs (DR Restore, etc.) don't starve.
 	"""
 	import frappe
+
 	msg = MIMEMultipart("alternative")
 	msg["From"] = cfg["sender"]
 	msg["To"] = ", ".join(recipients)

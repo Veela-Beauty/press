@@ -4,6 +4,18 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+
+## 22-11-2026: Watch Tower alert emails are sent (0.7.39)
+
+### Fixed
+- `press/watch_tower/email_branding.py`: no Watch Tower alert email went out ("Alert email not sent (SMTP
+  unavailable)" in `logs/watch_tower.log`, every client-site finding since the rules were made). Two causes: the
+  direct SMTP login used the account's address, but the Brevo relay account logs in with its own login id (Frappe's
+  own queue uses it, which is why other emails worked); and a failed read of the Email Account cached a fallback with
+  an empty password for the life of the worker. Now the login id is used when the account has one, nothing empty is
+  cached, and a send failure reads the account again next time. Checked on press-ctrl: two test alerts delivered
+  to the owner through the fixed code.
+
 ## 22-11-2026: search in the top bar, a quiet menu scrollbar, the group menu beside the page (0.7.38)
 
 ### Changed
