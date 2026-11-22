@@ -1,10 +1,11 @@
 <!-- The dashboard menu in the desk look (owner 2026-11-21, prototype ACM-SP-05): the 104 px icon rail (icon over label)
 in the Accurate blue, or the full 240 px menu (icon beside label, groups inline). "..." keeps it full, remembered per
-browser; a group clicked on the rail opens the full menu as a drawer over the page, closed by choosing a page, a click
-beside it (a backdrop takes that click, so it never lands on the page) or Escape. Same items and conditions as before
+browser; a group clicked on the rail opens the full menu beside the page, which moves over to make room (owner
+2026-11-22: covering the page hid its text), closed by choosing a page, a click outside it or Escape. The scrollbar
+shows only while the pointer is on the menu. Same items and conditions as before
 (NavigationItems.vue); Notifications is the top bar's bell, and the account menu is the top bar's avatar. -->
 <template>
-	<div class="as-rail-slot" :class="{ wide: menuExpanded }">
+	<div class="as-rail-slot" :class="{ wide: menuExpanded || menuDrawer }">
 		<nav
 			ref="nav"
 			class="as-rail"
@@ -31,10 +32,6 @@ beside it (a backdrop takes that click, so it never lands on the page) or Escape
 				</template>
 			</NavigationItems>
 		</nav>
-		<!-- a click beside the drawer only closes it: it never lands on the page under it -->
-		<Teleport to="body">
-			<div v-if="menuDrawer && !menuExpanded" class="as-drawer-backdrop" @click="close" />
-		</Teleport>
 	</div>
 </template>
 
@@ -59,18 +56,25 @@ function closeOnPage(event) {
 function escape(event) {
 	if (event.key === 'Escape') close();
 }
+// the page is beside the menu now, not under it: a click there closes the menu and still does its own job
+function outside(event) {
+	if (nav.value && !nav.value.contains(event.target)) close();
+}
 watch(() => route.fullPath, close);
 watch(menuDrawer, (open) => {
-	document[open ? 'addEventListener' : 'removeEventListener']('keydown', escape);
+	const act = open ? 'addEventListener' : 'removeEventListener';
+	document[act]('keydown', escape);
+	document[act]('mousedown', outside);
 });
 onBeforeUnmount(() => {
 	close();
 	document.removeEventListener('keydown', escape);
+	document.removeEventListener('mousedown', outside);
 });
 </script>
 
 <style scoped>
-/* the slot keeps the rail's room, so a drawer covers the page instead of pushing it */
+/* the slot holds the menu's room: 104 px for the rail, 240 px for the full menu, kept or opened by a group */
 .as-rail-slot {
 	position: relative;
 	width: 104px;
@@ -88,20 +92,24 @@ onBeforeUnmount(() => {
 	width: 100%;
 	overflow-y: auto;
 	padding: 10px 8px 16px;
-	scrollbar-width: thin;
+	scrollbar-width: none; /* hidden until the pointer is on the menu (owner 2026-11-22) */
 	scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
 }
-.as-rail.drawer {
-	width: 240px;
-	z-index: 30;
-	background: #1a5f7a;
-	box-shadow: 8px 0 24px rgba(16, 24, 40, 0.25);
+.as-rail:hover {
+	scrollbar-width: thin;
 }
-.as-drawer-backdrop {
-	position: fixed;
-	inset: 0;
-	z-index: 29;
-	background: rgba(16, 24, 40, 0.08);
+.as-rail::-webkit-scrollbar {
+	width: 0;
+}
+.as-rail:hover::-webkit-scrollbar {
+	width: 6px;
+}
+.as-rail:hover::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.3);
+	border-radius: 3px;
+}
+.as-rail.drawer {
+	background: #1a5f7a;
 }
 /* the desk's three dots: the rail's own control, so it sits apart from the menu entries */
 .as-rail-toggle {

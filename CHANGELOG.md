@@ -4,6 +4,17 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 22-11-2026: search in the top bar, a quiet menu scrollbar, the group menu beside the page (0.7.38)
+
+### Changed
+- Owner 22-11-2026 ("the search should open in the top bar, not in the middle of the page"): `AppSearch.vue` is a
+  search box in the top bar like the desk's (translucent on the blue, "Search sites, benches, servers"); results drop
+  down under it; Escape or a click elsewhere closes them; "/" goes to the box. Same search as 0.7.35.
+- "Hide the menu's scrollbar in closed mode, show it on hover": the menu's scrollbar shows only while the pointer is
+  on the menu.
+- "A group opens over the page and hides its text": a group clicked on the rail opens the full menu beside the page,
+  which moves over to make room (no cover, no backdrop); a page chosen, a click outside or Escape closes it.
+
 ## 22-11-2026: page buttons in the header show (0.7.37)
 
 ### Fixed
