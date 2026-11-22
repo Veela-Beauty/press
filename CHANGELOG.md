@@ -4,6 +4,18 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 22-11-2026: Watch Tower users against the licence cap (0.7.41)
+
+### Added
+- Watch Tower Overview, Clients table: a Users column, "322 / 350 Near cap" over "201 active" (Near cap from 90% of the
+  User Cap, Over cap from 100%, "no cap set", "-" until the site runs watch_tower 0.7.3; a site that stopped reporting
+  shows its last known users, greyed). Prototype ACM-SP-06 approved 22-11-2026. Needs hub 0.2.18.
+- Client page: a sixth tile, Users (enabled / cap, active in 30 days, a flag with the level or the % of the cap).
+
+### Changed
+- Clients table: Last read moved under the Status badge ("read 3 min ago"), the Open findings bar is 64 px and the
+  table's cells 14 px apart, so seven columns fit at 1440 as in the prototype.
+
 ## 22-11-2026: Watch Tower docs (0.7.40)
 
 ### Docs

@@ -273,3 +273,49 @@
 		padding: 8px 10px;
 	}
 }
+/* users against the User Cap (prototype ACM-SP-06): a word always goes with the colour */
+.sub2 {
+	font-size: 12px;
+	color: #6b737b;
+	margin-top: 2px;
+}
+.wt-users .n {
+	font-variant-numeric: tabular-nums;
+	font-weight: 550;
+}
+.wt-users .w {
+	font-size: 12px;
+	font-weight: 600;
+	margin-left: 6px;
+}
+.wt-users .near {
+	color: #8a5a00;
+}
+.wt-users .over {
+	color: #c0392b;
+}
+.wt-users .nocap {
+	font-size: 12px;
+	color: #8a9099;
+	margin-left: 6px;
+}
+.wt-users.stale,
+.wt-users.stale .n {
+	color: #8a9099;
+}
+/* the clients table holds seven columns at 1440: room made as in the approved prototype */
+.wt-clients th,
+.wt-clients td {
+	padding-left: 14px;
+	padding-right: 14px;
+}
+.wt-clients .mini .bar {
+	width: 64px;
+}
+@media (max-width: 768px) {
+	.wt-clients th,
+	.wt-clients td {
+		padding-left: 10px;
+		padding-right: 10px;
+	}
+}

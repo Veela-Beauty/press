@@ -8,6 +8,9 @@ export const REST_COLOR = '#c2c6cb'; // the remainder part of a mini bar, not a 
 export const STATUS_CLASS = { Connected: 'b-green', Silent: 'b-amber', Revoked: 'b-red', Paused: 'b-red', New: 'b-gray' };
 export const ENV_CLASS = { Production: 'b-blue', Staging: 'b-gray', Dev: 'b-gray', 'Not set': 'b-gray' };
 export const SEVERITY_CLASS = { Critical: 'b-red', High: 'b-amber', Medium: 'b-gray', Low: 'b-gray' };
+// users against the User Cap (prototype ACM-SP-06): a word always goes with the colour
+export const CAP_CLASS = { 'Near cap': 'near', 'Over cap': 'over' };
+export const seats = (users) => (users.cap ? `${users.enabled} / ${users.cap}` : `${users.enabled}`);
 
 export const clientColor = (index) => (index < CLIENT_COLORS.length ? CLIENT_COLORS[index] : OTHER_COLOR);
 
