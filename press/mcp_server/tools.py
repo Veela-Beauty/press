@@ -605,7 +605,7 @@ TOOLS: dict[str, dict] = {
 	},
 	"bench_deploy_and_wait": {
 		"method": "press.mcp_server.deploy_flow.bench_deploy_and_wait",
-		"description": "ONE-SHOT deploy + wait. Triggers bench_deploy and BLOCKS until the site flips to the new Deploy Candidate, or for at most 100 s (then call again). Prefer bench_deploy_and_update, which returns at once and updates the sites too. Returns {candidate, status: 'flipped'|'timeout', elapsed_seconds, ...}. Args: name (Release Group docname); apps (list of {app, release, hash} dicts from bench_deploy_information); site_name (one site on the RG to watch — multiple sites can be on the RG but this only waits for the named one).",
+		"description": "ONE-SHOT deploy + wait. Triggers bench_deploy and BLOCKS until the site flips to the new Deploy Candidate, or for at most 30 s (then call again). OLDER and BLOCKING: it holds a web worker while it waits. Use bench_deploy_and_update, which returns at once and updates the sites too. Returns {candidate, status: 'flipped'|'timeout', elapsed_seconds, ...}. Args: name (Release Group docname); apps (list of {app, release, hash} dicts from bench_deploy_information); site_name (one site on the RG to watch — multiple sites can be on the RG but this only waits for the named one).",
 		"required_args": ["name", "apps", "site_name"],
 		"args_schema": _schema(
 			["name", "apps", "site_name"],
@@ -613,8 +613,8 @@ TOOLS: dict[str, dict] = {
 				"max_wait_seconds": {
 					"type": "integer",
 					"minimum": 30,
-					"maximum": 100,
-					"description": "Wait at most this long, then status 'timeout': call again to keep waiting (max 100 s: press-ctrl's gunicorn ends a request at 120 s)",
+					"maximum": 30,
+					"description": "Wait at most this long (max 30 s), then status 'timeout': call again, or use bench_deploy_and_update",
 				},
 				"poll_interval_seconds": {
 					"type": "integer",
@@ -628,7 +628,7 @@ TOOLS: dict[str, dict] = {
 	},
 	"bench_deploy_and_update": {
 		"method": "press.mcp_server.deploy_update.bench_deploy_and_update",
-		"description": "ONE call for a whole deploy, the dashboard's Deploy and update: builds the apps, starts the new bench and updates the sites on it once the bench is ready. Returns at once with {build, candidate, sites, next}; then call deploy_update_status(name=<build>) about every 30 s until done is true. Replaces bench_deploy + wait_for_bench_flip + deploy_candidate_status + site_update. Args: name (Release Group docname); apps (list of {app, release, hash} from bench_deploy_information); sites (optional list of Active site names on this Release Group; default all of them).",
+		"description": "ONE call for a whole deploy, the dashboard's Deploy and update: builds the apps, starts the new bench and updates the sites on it once the bench is ready. Returns at once with {build, candidate, sites, next}; then call deploy_update_status(name=<build>) about every 30 s until done is true. Replaces bench_deploy + wait_for_bench_flip + deploy_candidate_status + site_update. Args: name (Release Group docname); apps (list of {app, release, hash} from bench_deploy_information); sites (optional list of Active site names on this Release Group; default: your team's Active sites on it).",
 		"required_args": ["name", "apps"],
 		"args_schema": _schema(
 			["name", "apps"],
@@ -644,7 +644,7 @@ TOOLS: dict[str, dict] = {
 	},
 	"deploy_update_status": {
 		"method": "press.mcp_server.deploy_update.deploy_update_status",
-		"description": "Single-shot status of a bench_deploy_and_update (NOT a blocking wait). Returns {stage: build|bench|sites|done, done, ok, build_status, bench, bench_status, sites: [{site, status, site_update, update_job}], hint?}. Call about every 30 s until done is true; on ok=false follow the hint. Args: name (the build returned by bench_deploy_and_update).",
+		"description": "Single-shot status of a bench_deploy_and_update (NOT a blocking wait). Returns {stage: build|bench|sites|done, done, ok, build_status, benches: [{bench, status}], sites: [{site, status, site_update, update_job}], hint?}. Call about every 30 s until done is true; on ok=false follow the hint. Args: name (the build returned by bench_deploy_and_update).",
 		"required_args": ["name"],
 		"args_schema": _schema(["name"]),
 		"risk": "low",
@@ -739,7 +739,7 @@ TOOLS: dict[str, dict] = {
 	},
 	"site_update_and_wait": {
 		"method": "press.mcp_server.deploy_flow.site_update_and_wait",
-		"description": "ONE-SHOT site_update + wait. Triggers Site Update Migrate and BLOCKS until the site flips onto target_candidate or max_wait_seconds expires. Use AFTER bench_deploy_and_wait reports build Success but the site still hasn't flipped (standalone Press doesn't auto-flip — each site needs an explicit site_update). Returns {site, status: 'flipped'|'timeout', site_update_job, elapsed_seconds, current_bench, current_candidate}. Args: site_name (site FQDN); target_candidate (Deploy Candidate the site should end up on).",
+		"description": "OLDER and BLOCKING (holds a web worker up to 30 s; prefer bench_deploy_and_update, which updates the sites itself). ONE-SHOT site_update + wait. Triggers Site Update Migrate and BLOCKS until the site flips onto target_candidate or max_wait_seconds (max 30 s) expires. Use AFTER bench_deploy_and_wait reports build Success but the site still hasn't flipped (standalone Press doesn't auto-flip — each site needs an explicit site_update). Returns {site, status: 'flipped'|'timeout', site_update_job, elapsed_seconds, current_bench, current_candidate}. Args: site_name (site FQDN); target_candidate (Deploy Candidate the site should end up on).",
 		"required_args": ["site_name", "target_candidate"],
 		"args_schema": _schema(
 			["site_name", "target_candidate"],
@@ -755,8 +755,8 @@ TOOLS: dict[str, dict] = {
 				"max_wait_seconds": {
 					"type": "integer",
 					"minimum": 30,
-					"maximum": 100,
-					"description": "Wait at most this long, then status 'timeout': call again to keep waiting (max 100 s: press-ctrl's gunicorn ends a request at 120 s)",
+					"maximum": 30,
+					"description": "Wait at most this long (max 30 s), then status 'timeout': call again, or use bench_deploy_and_update",
 				},
 				"poll_interval_seconds": {
 					"type": "integer",

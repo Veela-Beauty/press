@@ -85,7 +85,7 @@ SERVER_RECIPES: list[dict[str, Any]] = [
 			"4. deploy_update_status(name=<build>) about every 30 s until done=true (stage: build, bench, sites, done)",
 			"5. ok=false: follow the hint (deploy_failure_details for a failed build, agent_job_traceback(job_name=<update_job>) for a failed site)",
 			"6. (optional) agent_job_progress(job_name=<build-job>) — live step stream",
-			"7. Older path, one site at a time: bench_deploy_and_wait then site_update_and_wait; each waits at most 100 s, then call again.",
+			"7. Older, blocking path, one site at a time: bench_deploy_and_wait then site_update_and_wait; each holds a web worker and waits at most 30 s, then call again.",
 		],
 		"caveats": (
 			"Standalone Press doesn't auto-flip sites after build (Gate C fires). "

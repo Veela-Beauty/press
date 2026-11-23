@@ -1,4 +1,5 @@
 """Deploy-related Watch Tower alerts -  stuck and failed builds."""
+
 import frappe
 from frappe.utils import get_datetime
 from ._helpers import TABLE, TH_BG, SITE_URL, esc, ts_now, should_send_alert
@@ -6,14 +7,24 @@ from ._helpers import now_sql
 
 
 def check_failed_deploys(doc_dict, rule):
-	"""Check for failed deploys in last hour, include error details."""
-	failed = frappe.db.sql(f"""
+	"""Check for failed deploys in last hour, include error details. It ignores doc_dict, so it is memoized like the job
+	checks: its rule had every failed build as a candidate (a text filter) and ran this query 255 times an hour (0.7.52)."""
+	from .scheduler_alerts import _memoized
+
+	return _memoized("failed_deploys", _eval_failed_deploys)
+
+
+def _eval_failed_deploys():
+	failed = frappe.db.sql(
+		f"""
 		SELECT name, status, build_start, build_end, build_error
 		FROM `tabDeploy Candidate Build`
 		WHERE status = 'Failure'
 			AND modified > {now_sql()} - INTERVAL 1 HOUR
 		ORDER BY creation DESC LIMIT 10
-	""", as_dict=True)
+	""",
+		as_dict=True,
+	)
 
 	if not failed:
 		return False
@@ -28,6 +39,7 @@ def check_failed_deploys(doc_dict, rule):
 
 def _send_failed_deploy_email(failed):
 	from ..email_branding import wrap_email, send_alert_email
+
 	ts = ts_now()
 
 	rows = ""

@@ -1,5 +1,13 @@
 # Press Fork Dev Log
 
+### Session 19 - 2026-11-23: code review follow-ups (0.7.52)
+
+**What we did:** /clean-code + /code-review of 0.7.47-0.7.51 and hub 0.2.22; fixes for the decided items: status over every bench, team-default sites in scope/sites.py, 30 s wait cap as a constant, `send_alert_email` returns True/False (timeouts included), `check_failed_deploys` memoized, Watch Tower test file. Found while preparing the runner allow-list: `test_server.py` empties Press MCP Token / Auth Attempt / Call Log in setUp and had run on press-ctrl four times; the rollback kept every token.
+
+**Files:** press/mcp_server/scope/sites.py (new), deploy_update.py, scope/call_guard.py, deploy_flow.py, tools.py, help.py, press/watch_tower/email_branding.py, alerts/deploy_alerts.py, alerts/test_alert_runs.py (new), mcp_server/test_deploy_update.py
+
+**Next:** WT-RULE-1040 -> Server after deploy; hub 0.2.23 digest marks findings only after a successful send. Splits of deploy_flow.py (1,865) and tools.py (1,000) are their own task.
+
 ### Session 18 - 2026-11-23: bench_deploy_and_update, one call per deploy (0.7.49)
 
 **Then 0.7.51:** a refused alert email logs the relay's reason as an error (it was a warning, and only errors reach watch_tower.log). The failing alerts of 20-23 Nov were the error-spike flood: a probe in a long-queue worker logs in fine and one test send was accepted.

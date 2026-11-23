@@ -7,7 +7,7 @@ to prevent feedback loops when the queue itself is the problem.
 """
 
 import smtplib
-from ._hard_timeout import hard_timeout, HardTimeoutError
+from ._hard_timeout import hard_timeout
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -64,7 +64,8 @@ def _get_smtp_config():
 
 def send_alert_email(recipients, subject, message, important=False, **kwargs):
 	"""
-	Send email via direct SMTP -  no Frappe Email Queue involved.
+	Send email via direct SMTP -  no Frappe Email Queue involved. Returns True when the relay took it, False when
+	not (the reason is logged): a caller that marks records as alerted must mark them only on True (0.7.52).
 
 	Args:
 		important: If True, CC client stakeholders (IMPORTANT_ALERT_CC).
@@ -82,7 +83,7 @@ def send_alert_email(recipients, subject, message, important=False, **kwargs):
 		cfg = _get_smtp_config()
 		if cfg.get("password"):
 			_send_smtp(cfg, all_recipients, subject, message)
-			return
+			return True
 	except Exception as e:
 		_smtp_config.clear()  # read the account again next time: a changed password or login must not stay broken
 		# the relay's own answer (a 421 rate limit, a 554 refusal): it was a warning, and only errors reach
@@ -93,6 +94,7 @@ def send_alert_email(recipients, subject, message, important=False, **kwargs):
 	# that pile up as errors when SMTP rejects recipients (caused 104K entries, 1.17 GB).
 	# If direct SMTP fails, just log and move on.
 	frappe.logger("watch_tower").error(f"Alert email not sent ({reason}): {subject}")
+	return False
 
 
 def _send_smtp(cfg, recipients, subject, html_body):
@@ -103,26 +105,21 @@ def _send_smtp(cfg, recipients, subject, html_body):
 	prod 2026-05-02). Hard timeout releases the worker so other queued
 	jobs (DR Restore, etc.) don't starve.
 	"""
-	import frappe
-
 	msg = MIMEMultipart("alternative")
 	msg["From"] = cfg["sender"]
 	msg["To"] = ", ".join(recipients)
 	msg["Subject"] = subject
 	msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-	try:
-		with hard_timeout(15):
-			with smtplib.SMTP(cfg["server"], cfg["port"], timeout=10) as server:
-				if cfg.get("use_tls"):
-					server.starttls()
-				if cfg.get("password"):
-					server.login(cfg["login"], cfg["password"])
-				server.sendmail(cfg["login"], recipients, msg.as_string())
-	except HardTimeoutError:
-		frappe.logger("watch_tower").error(
-			f"_send_smtp hard-timeout (>15s) to " + cfg["server"] + "; alert dropped: " + subject
-		)
+	# a hard timeout (HardTimeoutError) reaches send_alert_email, which logs it with the subject and returns False:
+	# caught here it read as sent (0.7.52)
+	with hard_timeout(15):
+		with smtplib.SMTP(cfg["server"], cfg["port"], timeout=10) as server:
+			if cfg.get("use_tls"):
+				server.starttls()
+			if cfg.get("password"):
+				server.login(cfg["login"], cfg["password"])
+			server.sendmail(cfg["login"], recipients, msg.as_string())
 
 
 def wrap_email(title, body_html, subtitle=""):
