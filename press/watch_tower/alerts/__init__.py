@@ -41,5 +41,8 @@ from .site_alerts import (
 # GitHub
 from .github_alerts import check_github_token_health
 
+# MCP speed
+from .mcp_alerts import check_mcp_calls_slow
+
 # Cleanup utility
 from ._helpers import cleanup_old_error_logs

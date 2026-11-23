@@ -1,5 +1,13 @@
 # Press Fork Dev Log
 
+### Session 17 - 2026-11-23: site-config read in 0.2 s, Watch Tower rule for slow MCP calls (0.7.47)
+
+**What we did:** a developer said MCP was slow from Antigravity. Server time per call was 17 to 490 ms except `site_config_get` (2 to 3 s); the rest of his 11 s was his own line (0.4 to 2.5 s to connect per request, against 0.004 s from the dev box). `site_config_get` now reads the two config files with the bench's plain Python instead of `bench console` (live: 0.19 to 0.21 s, secrets still hidden in the container). New hourly rule "MCP Calls Slow" (`check_mcp_calls_slow`) emails when a tool runs over 3 times its own 7-day average and over 1 s.
+
+**Files:** press/mcp_server/file_ops.py, test_file_ops.py, press/watch_tower/alerts/mcp_alerts.py (new), alerts/__init__.py, press_alerts.py, press/__init__.py, CHANGELOG.md
+
+**Next:** tests ran on press-ctrl's bench Python against the new files (press-ops `scripts/mcp-speed-2026-11-23/run_new_module_tests.py`), so no local Press bench is needed for module tests. `site_file_read` has the same console start (about 1.2 s); same change would apply.
+
 ### Session 16 - 2026-11-19: Web page previews select on the policy form (0.7.19)
 
 **What we did:** one select "Web page previews" (Full or Sealed) on the policy form, saved through control center 0.1.3 `save_policy(preview_mode)`. Mount test drives the select through the mocked FormControl's props (the mock renders a select with no options, so the DOM value is always empty).

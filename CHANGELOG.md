@@ -4,6 +4,21 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 23-11-2026: the site-config read takes 0.2 s, and Watch Tower watches MCP speed (0.7.47)
+
+### Changed
+- `press/mcp_server/file_ops.py` `site_config_get` ran its code in `bench console`, whose start took about 1.2 s of
+  every call. The code needs no Frappe: it now reads `common_site_config.json` and the site's `site_config.json` with
+  the bench's plain Python (`_run_on_site`), still hiding every secret inside the container. Measured on a live site:
+  0.19 to 0.21 s. The answer is now the parsed config; before, it came back wrapped as `{"raw": ...}`.
+
+### Added
+- `press/watch_tower/alerts/mcp_alerts.py` `check_mcp_calls_slow` (rule "MCP Calls Slow", hourly): emails when an MCP
+  tool with 5 or more calls in the last hour averaged over 3 times its own 7-day average and over 1 s. Reads Press MCP
+  Call Log only. It cannot see a caller's own network.
+
+---
+
 ## 23-11-2026: the site-config read works again (0.7.46)
 
 ### Fixed
