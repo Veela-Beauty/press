@@ -12,6 +12,9 @@ This file documents changes (current commit level since, no tagged releases yet)
   the answer replaces `bench` / `bench_status`), fails if any is Broken, and counts the grace from the last one ready.
 - `bench_deploy_and_update` with `sites` left out took every Active site of the group, so on a shared group the guard
   refused the whole deploy. It now takes the calling team's sites (`scope/sites.py` `chosen_sites`).
+  With no team to tell, it refuses ("name the sites") instead of deploying to no site at all.
+- `deploy_update_status` for a build that succeeded but got no bench in 10 minutes says done, failed, with a hint
+  (it waited for ever).
 - `send_alert_email` returns True or False, and a 15 s hard timeout counts as not sent (it was logged and read as
   sent), so a caller that marks records alerted can do it only after a send that worked (the hub digest, 0.2.23).
 - `check_failed_deploys` is memoized like the job checks; WT-RULE-1040 targeted every failed build (a text filter),

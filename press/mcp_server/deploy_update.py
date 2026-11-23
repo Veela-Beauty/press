@@ -25,6 +25,8 @@ _NOT_SCHEDULED = "Not scheduled"
 _SITE_DONE = ("Success", "Failure", "Recovered", "Fatal", _NOT_SCHEDULED)
 # Press schedules the site updates when the bench turns Active; a row still unscheduled after this never will be
 _SCHEDULE_GRACE_SECONDS = 120
+# Press makes the new benches right after a build succeeds; none after this long means it never will
+_NO_BENCH_GRACE_SECONDS = 600
 
 
 @frappe.whitelist()
@@ -73,7 +75,7 @@ def deploy_update_status(name: str) -> dict[str, Any]:
 	"""Where a bench_deploy_and_update is: the build, its new benches (one per server of the group), then each site's
 	update. name = the build. 0.7.52: every bench is read, not only the newest (a two-server group has two)."""
 	build = frappe.db.get_value(
-		"Deploy Candidate Build", name, ["name", "status", "deploy_candidate"], as_dict=True
+		"Deploy Candidate Build", name, ["name", "status", "deploy_candidate", "build_end"], as_dict=True
 	)
 	if not build:
 		frappe.throw(f"Deploy Candidate Build {name!r} not found", frappe.DoesNotExistError)
@@ -111,6 +113,13 @@ def _stage(build, benches, ready: bool, sites: list[dict]) -> dict[str, Any]:
 		return {"stage": "build", "done": False, "ok": False}
 	if any(b.status == "Broken" for b in benches):
 		return {"stage": "bench", "done": True, "ok": False, "hint": "agent_job_list for the broken bench's New Bench job"}
+	if not benches and build.build_end and time_diff_in_seconds(now_datetime(), build.build_end) > _NO_BENCH_GRACE_SECONDS:
+		return {
+			"stage": "bench",
+			"done": True,
+			"ok": False,
+			"hint": "no bench was made for this build in 10 minutes: agent_job_list, then deploy_candidate_status",
+		}
 	if not ready:
 		return {"stage": "bench", "done": False, "ok": False}
 	if any(s["status"] not in _SITE_DONE for s in sites):

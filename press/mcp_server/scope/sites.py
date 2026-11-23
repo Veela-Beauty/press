@@ -18,6 +18,10 @@ def chosen_sites(name: str, sites) -> list:
 	filters = {"group": name, "status": "Active"}
 	if sites is None:
 		filters["team"] = _calling_team()
+		if not filters["team"]:  # a None team matches only team-less sites: the deploy would update none, silently
+			frappe.throw(
+				"could not tell which team you act for: name the sites to update (sites=[...])", frappe.ValidationError
+			)
 	on_group = {
 		s.name: s for s in frappe.get_all("Site", filters=filters, fields=["name", "server", "bench"])
 	}

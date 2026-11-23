@@ -49,6 +49,14 @@ class TestChosenSites(FrappeTestCase):
 		self.assertEqual(self._chosen([])[0], [])
 		self.assertNotIn("team", self._chosen(["a.example.com"])[1][0])  # named: the guard checks the team
 
+	def test_left_out_with_no_team_is_refused_not_a_silent_empty_deploy(self):
+		with (
+			patch.object(scope_sites.frappe, "get_all", return_value=[]),
+			patch.object(scope_sites, "_calling_team", return_value=None),
+			self.assertRaises(frappe.ValidationError),
+		):
+			scope_sites.chosen_sites("rg-1", None)
+
 	def test_bad_input_and_a_site_not_on_the_group_are_refused(self):
 		for bad in ([1], "[not json", {"a": 1}, ["other.example.com"]):
 			with self.assertRaises(frappe.ValidationError):
@@ -103,8 +111,9 @@ class TestBenchDeployAndUpdate(FrappeTestCase):
 
 
 class TestDeployUpdateStatus(FrappeTestCase):
-	def _status(self, build_status, bench_statuses=(), sites=(), bench_update="bu-1"):
-		build = frappe._dict(name="build-1", status=build_status, deploy_candidate="cand-1")
+	def _status(self, build_status, bench_statuses=(), sites=(), bench_update="bu-1", built_minutes_ago=1):
+		build_end = add_to_date(None, minutes=-built_minutes_ago)
+		build = frappe._dict(name="build-1", status=build_status, deploy_candidate="cand-1", build_end=build_end)
 		benches = [
 			frappe._dict(name=f"bench-{i}", status=s, modified=now_datetime())
 			for i, s in enumerate(bench_statuses)
@@ -130,6 +139,9 @@ class TestDeployUpdateStatus(FrappeTestCase):
 
 	def test_every_bench_of_a_two_server_group_is_waited_for(self):
 		self.assertEqual(self._stage("Success"), ("bench", False, False))  # benches not made yet
+		r = self._status("Success", built_minutes_ago=20)  # and none ever came
+		self.assertEqual((r["stage"], r["done"], r["ok"]), ("bench", True, False))
+		self.assertIn("no bench was made", r["hint"])
 		self.assertEqual(self._stage("Success", ["Active", "Installing"]), ("bench", False, False))
 		self.assertEqual(self._stage("Success", ["Active", "Broken"]), ("bench", True, False))
 		self.assertEqual(
