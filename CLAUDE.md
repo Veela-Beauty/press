@@ -138,7 +138,9 @@ The same two rules are also delivered server-side in every Press MCP response's 
 ## Custom Files Added
 
 ### Backend APIs (sibling files — avoids editing upstream 5000-line controllers)
-- `press/press/doctype/bench/bench_dev_overview.py` — Dev Overview + git status + console + logs APIs
+- `press/press/doctype/bench/bench_dev_overview.py` — Dev Overview + git status + console + logs APIs (a re-export
+  stub since 0.7.56: the code is in `dev_overview/` panel, ssh, code_server, site_container, app_files; patch a name
+  in the module it lives in)
   - `get_dev_overview_benches()` — all benches with commit/build/site/gap data
   - `get_dev_panel_data(bench_name)` — per-bench panel (sites, commits, build history)
   - `get_app_git_status(bench_name, site_name)` — per-app git branch/dirty/ahead/remote

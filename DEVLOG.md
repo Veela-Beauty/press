@@ -1,5 +1,13 @@
 # Press Fork Dev Log
 
+### Session 21 - 2026-11-23: import fix (0.7.55) and bench_dev_overview.py split (0.7.56)
+
+**What we did:** mapping importers for the split found bench_app_push.py and bench_vscode.py could not import on prod (they imported `ensure_team_access` from bench_dev_overview, which never defined it); fixed and deployed as 0.7.55. Then the split: bench_dev_overview.py 1,326 -> 51-line stub + dev_overview/ (5 modules, 181-409 lines), one commit per file, AST identity over 35 definitions, 24/24 whitelisted through the stub path, 111 tests same per-test result on press-ctrl. The split helper had added `from __future__ import annotations` to every new module, which switches off Frappe's whitelist type check; it now copies that import only from a source that has it.
+
+**Files:** press/press/doctype/bench/bench_dev_overview.py, dev_overview/* (new), test_bench_dev_{actions,console,git_status,logs,overview,panel,processlist}.py, docs/wiki/04-bench-management/dev-actions.md, CLAUDE.md
+
+**Next:** six bench dev test files already failed before the split (stale `only_for` and git-status assertions, push test reaching the real bench_app_push); worth their own fix. 0.7.56 deploys only on the owner's word.
+
 ### Session 20 - 2026-11-23: deploy_flow.py and tools.py split (0.7.54)
 
 **What we did:** /clean-code execute: deploy_flow.py 1,859 -> 62-line stub + deploy_ops/ (6 modules, 171-505 lines); tools.py 977 -> ~100-line stub + tool_catalog/ (6 parts). One commit per new file; AST identity check over all 29 definitions and 86 catalog entries; same test results as before on press-ctrl. Tooling in press-ops `scripts/split-2026-11-23/` (split_module.py, run_phases.py, cut_catalog.py, verify_split_identical.py) for the next split.

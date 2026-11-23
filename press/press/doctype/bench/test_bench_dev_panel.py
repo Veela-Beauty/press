@@ -62,7 +62,7 @@ def _job(name, site, job_type="New Site", creation="2026-01-10"):
     return _FDict(name=name, site=site, job_type=job_type, creation=creation, status="Failure")
 
 
-PATCH = "press.press.doctype.bench.bench_dev_overview.frappe"
+PATCH = "press.press.doctype.bench.dev_overview.panel.frappe"
 
 
 class TestGetDevPanelData(unittest.TestCase):

@@ -24,7 +24,7 @@ sys.modules.setdefault("frappe", _frappe_stub)
 
 import press.press.doctype.bench.bench_dev_overview as _bdo  # noqa: E402
 
-PATCH = "press.press.doctype.bench.bench_dev_overview.frappe"
+PATCH = "press.press.doctype.bench.dev_overview.panel.frappe"
 
 
 def _app_entry(app, hash_="abc123"):

@@ -83,7 +83,7 @@ def _site_row(name, bench, status="Active", is_dev=0):
 
 
 class TestGetDevOverviewBenches(unittest.TestCase):
-    PATCH = "press.press.doctype.bench.bench_dev_overview.frappe"
+    PATCH = "press.press.doctype.bench.dev_overview.panel.frappe"
 
     @patch(PATCH)
     def test_returns_empty_list_when_no_benches(self, mf):
@@ -232,9 +232,9 @@ def _cert(name, valid_until, ssh_certificate="ssh-cert..."):
     return c
 
 
-@patch("press.press.doctype.bench.bench_dev_overview.ensure_team_access", lambda **kw: None)
+@patch("press.press.doctype.bench.dev_overview.ssh.ensure_team_access", lambda **kw: None)
 class TestGetSshCertificate(unittest.TestCase):
-    PATCH = "press.press.doctype.bench.bench_dev_overview.frappe"
+    PATCH = "press.press.doctype.bench.dev_overview.ssh.frappe"
 
     def _setup(self, mf, keys, certs_per_key):
         """Wire mocks: bench_doc, rg with get_certificate stub, key list, datetime."""
