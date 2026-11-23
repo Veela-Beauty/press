@@ -2,15 +2,16 @@
 import frappe
 from frappe.utils import get_datetime
 from ._helpers import TABLE, TH_BG, SITE_URL, esc, ts_now, should_send_alert
+from ._helpers import now_sql
 
 
 def check_failed_deploys(doc_dict, rule):
 	"""Check for failed deploys in last hour, include error details."""
-	failed = frappe.db.sql("""
+	failed = frappe.db.sql(f"""
 		SELECT name, status, build_start, build_end, build_error
 		FROM `tabDeploy Candidate Build`
 		WHERE status = 'Failure'
-			AND modified > NOW() - INTERVAL 1 HOUR
+			AND modified > {now_sql()} - INTERVAL 1 HOUR
 		ORDER BY creation DESC LIMIT 10
 	""", as_dict=True)
 

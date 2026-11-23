@@ -1,6 +1,7 @@
 """Daman Backup health Watch Tower alerts."""
 import frappe
 from ._helpers import TABLE, esc, ts_now
+from ._helpers import now_sql
 
 
 def check_backup_health(doc_dict, rule):
@@ -36,11 +37,11 @@ def check_backup_health(doc_dict, rule):
 		)
 
 	# 2. Active clients with no backup in 48 hours
-	stale_clients = frappe.db.sql("""
+	stale_clients = frappe.db.sql(f"""
 		SELECT client_name, last_backup_on, days_since_last_backup
 		FROM `tabBackup Client`
 		WHERE status = 'Active' AND auto_backup_enabled = 1
-			AND (last_backup_on < NOW() - INTERVAL 48 HOUR OR last_backup_on IS NULL)
+			AND (last_backup_on < {now_sql()} - INTERVAL 48 HOUR OR last_backup_on IS NULL)
 	""", as_dict=True)
 
 	failing_names = {fc.client_name for fc in failing_clients}
@@ -53,11 +54,11 @@ def check_backup_health(doc_dict, rule):
 			)
 
 	# 3. Stuck running jobs (> 4 hours)
-	stuck_jobs = frappe.db.sql("""
+	stuck_jobs = frappe.db.sql(f"""
 		SELECT name, client, progress_percent, current_phase, started_at,
-			TIMESTAMPDIFF(MINUTE, started_at, NOW()) as running_min
+			TIMESTAMPDIFF(MINUTE, started_at, {now_sql()}) as running_min
 		FROM `tabBackup Job Queue`
-		WHERE status = 'Running' AND started_at < NOW() - INTERVAL 4 HOUR
+		WHERE status = 'Running' AND started_at < {now_sql()} - INTERVAL 4 HOUR
 	""", as_dict=True)
 
 	for j in stuck_jobs:
@@ -68,10 +69,10 @@ def check_backup_health(doc_dict, rule):
 		)
 
 	# 4. Recent failed jobs (last 24h)
-	recent_fails = frappe.db.sql("""
+	recent_fails = frappe.db.sql(f"""
 		SELECT client, name, error_message, finished_at
 		FROM `tabBackup Job Queue`
-		WHERE status = 'Failed' AND finished_at > NOW() - INTERVAL 24 HOUR
+		WHERE status = 'Failed' AND finished_at > {now_sql()} - INTERVAL 24 HOUR
 		ORDER BY finished_at DESC
 		LIMIT 5
 	""", as_dict=True)

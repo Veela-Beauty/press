@@ -4,7 +4,7 @@ import frappe
 from frappe.utils import get_datetime
 from ._helpers import (
 	TABLE, TH_BG, SITE_URL, NOISE_PATTERNS, ERROR_SPIKE_THRESHOLD,
-	esc, ts_now, should_send_alert,
+	esc, ts_now, should_send_alert, now_sql,
 )
 
 # A background/scheduled job running longer than this is treated as stuck/hung.
@@ -22,7 +22,7 @@ def check_error_log_spike(doc_dict, rule):
 	)
 	count = frappe.db.sql(f"""
 		SELECT COUNT(*) FROM `tabError Log`
-		WHERE creation > NOW() - INTERVAL 1 HOUR AND {noise_clauses}
+		WHERE creation > {now_sql()} - INTERVAL 1 HOUR AND {noise_clauses}
 	""")[0][0]
 
 	if count <= ERROR_SPIKE_THRESHOLD:
@@ -31,14 +31,14 @@ def check_error_log_spike(doc_dict, rule):
 	top_errors = frappe.db.sql(f"""
 		SELECT method, COUNT(*) as cnt
 		FROM `tabError Log`
-		WHERE creation > NOW() - INTERVAL 1 HOUR AND {noise_clauses}
+		WHERE creation > {now_sql()} - INTERVAL 1 HOUR AND {noise_clauses}
 		GROUP BY method ORDER BY cnt DESC LIMIT 5
 	""", as_dict=True)
 
 	recent = frappe.db.sql(f"""
 		SELECT name, method, error, creation
 		FROM `tabError Log`
-		WHERE creation > NOW() - INTERVAL 1 HOUR AND {noise_clauses}
+		WHERE creation > {now_sql()} - INTERVAL 1 HOUR AND {noise_clauses}
 		ORDER BY creation DESC LIMIT 5
 	""", as_dict=True)
 
@@ -225,10 +225,10 @@ def check_scheduled_job_failures(doc_dict, rule):
 
 def _eval_scheduled_job_failures():
 	rows = frappe.db.sql(
-		"""
+		f"""
 		SELECT scheduled_job_type, COUNT(*) AS cnt, MAX(creation) AS last_seen
 		FROM `tabScheduled Job Log`
-		WHERE status = 'Failed' AND creation > NOW() - INTERVAL %s HOUR
+		WHERE status = 'Failed' AND creation > {now_sql()} - INTERVAL %s HOUR
 		GROUP BY scheduled_job_type ORDER BY cnt DESC LIMIT 20
 		""",
 		(LOOKBACK_HOURS,),

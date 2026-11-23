@@ -2,7 +2,7 @@
 
 ### Session 17 - 2026-11-23: site-config read in 0.2 s, Watch Tower rule for slow MCP calls (0.7.47)
 
-**What we did:** a developer said MCP was slow from Antigravity. Server time per call was 17 to 490 ms except `site_config_get` (2 to 3 s); the rest of his 11 s was his own line (0.4 to 2.5 s to connect per request, against 0.004 s from the dev box). `site_config_get` now reads the two config files with the bench's plain Python instead of `bench console` (live: 0.19 to 0.21 s, secrets still hidden in the container). New hourly rule "MCP Calls Slow" (`check_mcp_calls_slow`) emails when a tool runs over 3 times its own 7-day average and over 1 s.
+**What we did:** a developer said MCP was slow from Antigravity. Server time per call was 17 to 490 ms except `site_config_get` (2 to 3 s); the rest of his 11 s was his own line (0.4 to 2.5 s to connect per request, against 0.004 s from the dev box). `site_config_get` now reads the two config files with the bench's plain Python instead of `bench console` (live: 0.19 to 0.21 s, secrets still hidden in the container). New hourly rule "MCP Calls Slow" (`check_mcp_calls_slow`) emails when a tool runs over 3 times its own 7-day average and over 1 s. Then 0.7.48: every Watch Tower window used the database `NOW()` (UTC on press-ctrl, Frappe writes Riyadh time), so "last hour" read 4 hours; 23 queries now use `now_sql()`. Found on the way: rule WT-RULE-1208 "Pending Bench Updates" always fails (`tabDeploy Candidate` has no `status`).
 
 **Files:** press/mcp_server/file_ops.py, test_file_ops.py, press/watch_tower/alerts/mcp_alerts.py (new), alerts/__init__.py, press_alerts.py, press/__init__.py, CHANGELOG.md
 
