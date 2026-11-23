@@ -1,5 +1,13 @@
 # Press Fork Dev Log
 
+### Session 23 - 2026-11-23: rule 1208 and the dashboard tool list (0.7.58)
+
+**What we did:** WT-RULE-1208 read `status` from Deploy Candidate (none) and ran once per bench (4,501 failures a day); it now reads Deploy Candidate Build, Draft or Pending over 3 days within the last 30 days, memoized. The live query returns 0 rows. Added site_create (medium) and site_restore (high) to the dashboard tool list so Issue Token can grant them; the parity audit is 86 = 86.
+
+**Files:** press/watch_tower/alerts/site_alerts.py, alerts/test_alert_runs.py, dashboard/src/components/mcp/_tool_catalog.js
+
+**Watch out:** the edit hook runs the formatter over a whole file; site_alerts.py was never formatted, so edit it by script to keep the diff to the change. The dashboard change needs `yarn build` at deploy.
+
 ### Session 22 - 2026-11-23: stale bench dev tests fixed (0.7.57, tests only)
 
 **What we did:** 0.7.56 deployed (24/24 whitelisted through the stub, MCP bench_dev_info answers). Then the six bench dev test files that failed before the split: permission tests check `ensure_team_access`, git status tests use one result per git command, push tests moved to a new `test_bench_app_push.py` against the real code. 114 tests pass on press-ctrl; a removed guard fails its test.
