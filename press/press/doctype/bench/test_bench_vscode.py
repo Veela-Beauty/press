@@ -24,7 +24,7 @@ sys.modules.setdefault("frappe", _frappe_stub)
 import press.press.doctype.bench.bench_vscode as _bv  # noqa: E402
 
 
-@patch("press.press.doctype.bench.bench_vscode._ensure_team_access", lambda **kw: None)
+@patch("press.press.doctype.bench.bench_vscode.ensure_team_access", lambda **kw: None)
 class TestGetVscodeRemoteUrl(unittest.TestCase):
     PATCH = "press.press.doctype.bench.bench_vscode.frappe"
 
