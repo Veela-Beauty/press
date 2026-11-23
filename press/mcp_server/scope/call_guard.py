@@ -272,6 +272,21 @@ def _rule_whole_team(team: str, args: dict) -> None:
 	assert_team_unlocked(team)
 
 
+def _rule_site_list(team: str, args: dict) -> None:
+	# bench_deploy_and_update updates a list of sites: each must be the team's, allowed by the token and unlocked if
+	# confidential, the same checks a single site_name gets (0.7.49)
+	# the list the tool will act on, so leaving `sites` out (every Active site of the group) is checked too
+	from press.mcp_server.deploy_update import chosen_sites
+
+	sites = [s.name for s in chosen_sites(args.get("name"), args.get("sites"))]
+	allowed = set(getattr(frappe.local, "mcp_token_allowed_sites", None) or ())
+	for site in sites:
+		assert_in_team(team, "Site", site)
+		if allowed and site not in allowed:
+			raise frappe.PermissionError(f"token does not allow Site {site!r}")
+	assert_unlocked(set(sites))
+
+
 def _checker(doctype: str):
 	return lambda team, value: assert_in_team(team, doctype, value)
 
@@ -297,4 +312,5 @@ _TOOL_RULES = {
 	"register_existing_app": _rule_register_app,
 	"list_pending_releases": _rule_list_pending,
 	"mint_dashboard_login_url": _rule_whole_team,
+	"bench_deploy_and_update": _rule_site_list,
 }

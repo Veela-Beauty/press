@@ -180,6 +180,8 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		# bench_deploy. bench_deploy_and_wait also takes site_name, but that
 		# site is only polled for the flip -- the RG is the written resource.
 		"bench_deploy_and_wait",
+		# 0.7.49: name = the Release Group; its sites are checked in call_guard
+		"bench_deploy_and_update",
 		"list_sites_on_release_group",
 		# Takes release_group; was never mapped, so the guard rejected it.
 		"bench_set_app_branch",
@@ -229,6 +231,7 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		"deploy_candidate_schedule_build",
 		"deploy_candidate_status",
 		"deploy_failure_details",
+		"deploy_update_status",
 	}:
 		candidate_or_build = args.get("candidate_name") or args.get("name") or args.get("dn")
 		if candidate_or_build:
