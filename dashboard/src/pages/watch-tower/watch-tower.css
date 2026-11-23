@@ -319,3 +319,25 @@
 		padding-right: 10px;
 	}
 }
+/* a client's checks (prototype ACM-SP-07): a word always goes with the colour */
+.b-redsoft {
+	background: #fbe9e7;
+	color: #c0392b;
+}
+.wt-checks {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+.wt-fail {
+	font-size: 13.5px;
+	color: #1b1f24;
+	margin-top: 4px;
+}
+.wt-fail b {
+	color: #c0392b;
+	font-weight: 600;
+}
+.wt-fail .since {
+	color: #6b737b;
+}

@@ -27,6 +27,14 @@ export function ago(asOf, when) {
 }
 
 export const shortDay = (day) => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
+// "23/11 14:05" from the client's "2026-11-23 14:05:12" (a check's since)
+export const shortTime = (when) => `${shortDay(String(when))} ${String(when).slice(11, 16)}`;
+// a client's checks (prototype ACM-SP-07): the failing ones, and the row's line for them
+export const failingChecks = (site) => (site.checks || []).filter((c) => !c.ok);
+export const failingText = (site) => {
+	const names = site.failing_checks || [];
+	return names.length === 1 ? `${names[0]} failing` : `${names.length} checks failing`;
+};
 
 // "24 h ago: 3" coloured by direction: more open findings is worse
 export function versus(now, before, label, lowerIsBetter = true) {

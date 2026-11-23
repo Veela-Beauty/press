@@ -4,6 +4,16 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 23-11-2026: Watch Tower shows a client's checks (0.7.53)
+
+### Added
+- Overview: «Clients needing action» counts a Production client with a failing check (hub 0.2.24); its chip reads
+  «1 check failing» when that is the only reason. The client's row says «AccuHub link failing» (or «2 checks failing»)
+  in place of «read just now», the messages on hover.
+- Client page: «Checks» on the details line, one badge per check (green working, light red failing), and one line per
+  failing check: what the site says and since when. Prototype ACM-SP-07, owner approved 23 Nov. A hub before 0.2.24
+  sends no checks: nothing shows, as before.
+
 ## 23-11-2026: review follow-ups for the MCP deploy tool and Watch Tower (0.7.52)
 
 ### Fixed

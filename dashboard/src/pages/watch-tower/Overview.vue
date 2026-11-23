@@ -47,7 +47,7 @@ Rows, chart segments and client columns open that client's page. -->
 						label="Clients needing action"
 						:value="t.needing_action"
 						:compare="`of ${t.clients} clients`"
-						:flag="t.needing_action ? { kind: 'red', text: 'Needs review' } : { kind: 'ok', text: 'All read' }"
+						:flag="needFlag"
 						link
 						@open="scrollTo(clientsCard)"
 					/>
@@ -160,7 +160,8 @@ Rows, chart segments and client columns open that client's page. -->
 									</td>
 									<td>
 										<span class="badge" :class="STATUS_CLASS[s.status]">{{ s.status }}</span>
-										<div class="sub2">read {{ ago(data.as_of, s.last_read_at) }}</div>
+										<div v-if="s.failing_checks?.length" class="err" :title="checksTip(s)">{{ failingText(s) }}</div>
+										<div v-else class="sub2">read {{ ago(data.as_of, s.last_read_at) }}</div>
 										<div v-if="s.last_error" class="err" :title="s.last_error">{{ s.last_error }}</div>
 									</td>
 									<td>
@@ -229,6 +230,8 @@ import {
 	STATUS_CLASS,
 	ago,
 	clientColor,
+	failingChecks,
+	failingText,
 	seats,
 	versus,
 } from './shared';
@@ -286,6 +289,16 @@ const seg = (n, color) => ({ width: `${(100 * n) / maxOpen.value}%`, background:
 const stale = (s) => !['Connected', 'Paused'].includes(s.status);
 const usersTip = (s) =>
 	s.users ? `${s.users.enabled} enabled system users · ${s.users.active_30d} active in the last 30 days` : 'Needs Watch Tower 0.7.3 on the site';
+// a failing check on a Production client counts as needing action (hub 0.2.24); the chip says which kind
+const needFlag = computed(() => {
+	const n = t.value.needing_action;
+	const checks = t.value.checks_failing || 0;
+	if (!n) return { kind: 'ok', text: 'All read' };
+	const unread = data.value.sites.some((s) => ['Silent', 'Revoked', 'Paused'].includes(s.status));
+	if (checks && !unread) return { kind: 'red', text: `${checks} check${checks === 1 ? '' : 's'} failing` };
+	return { kind: 'red', text: 'Needs review' };
+});
+const checksTip = (s) => failingChecks(s).map((c) => `${c.name}: ${c.message}`).join('\n');
 const topErrors = (s) => (s.top_errors || []).map((e) => `${e.count} x ${e.title}`).join('\n');
 
 const clientRoute = (site) => ({ name: 'Watch Tower Client', params: { site } });
