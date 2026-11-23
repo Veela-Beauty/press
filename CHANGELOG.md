@@ -4,6 +4,17 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 23-11-2026: Open in VS Code and push app to GitHub work again (0.7.55)
+
+### Fixed
+- `press/press/doctype/bench/bench_app_push.py` and `bench_vscode.py` imported `_ensure_team_access` from
+  `bench_dev_overview`, which had become `press.utils.ensure_team_access` (same `bench_name=` argument), so both
+  modules failed to import on press-ctrl: the dashboard's Open in VS Code (`get_vscode_remote_url`) and pushing an
+  app to GitHub (`push_app_to_github`, the MCP `app_git_push`) raised ImportError. Both import it from `press.utils`.
+  The two tests patched the old name; they patch `ensure_team_access` where it is used.
+
+---
+
 ## 23-11-2026: deploy_flow.py and tools.py split by concern, behaviour unchanged (0.7.54)
 
 ### Changed

@@ -12,7 +12,7 @@ import re
 import frappe
 from frappe import _
 
-from press.press.doctype.bench.bench_dev_overview import _ensure_team_access
+from press.utils import ensure_team_access
 from press.press.doctype.bench.bench_app_ownership import is_app_owned_by_current_team
 
 
@@ -53,7 +53,7 @@ def push_app_to_github(bench_name: str, app: str, message: str, branch_name: str
 	set git config in the container at build time — fine for one dev, wrong
 	for a team.
 	"""
-	_ensure_team_access(bench_name=bench_name)
+	ensure_team_access(bench_name=bench_name)
 	if not is_app_owned_by_current_team(bench_name, app):
 		frappe.throw(
 			_("App {0} is upstream (read-only). Push only works on apps your team owns.").format(app),

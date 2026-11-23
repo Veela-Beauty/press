@@ -2,7 +2,7 @@ import re
 import frappe
 from frappe import _
 
-from press.press.doctype.bench.bench_dev_overview import _ensure_team_access
+from press.utils import ensure_team_access
 
 
 @frappe.whitelist()
@@ -15,9 +15,9 @@ def get_vscode_remote_url(bench_name: str) -> str:
 	Distinct from the 22000+offset admin port used for direct bench-server SSH.
 
 	Permission: caller must have read access to the Bench (frappe.get_doc enforces this).
-	Plus team-membership via _ensure_team_access for parity with sibling APIs.
+	Plus team-membership via ensure_team_access for parity with sibling APIs.
 	"""
-	_ensure_team_access(bench_name=bench_name)
+	ensure_team_access(bench_name=bench_name)
 	bench = frappe.get_doc("Bench", bench_name)
 	if not re.fullmatch(r"[a-zA-Z0-9_.-]+", bench.name):
 		frappe.throw(_("Bench name {0} is not safe for URI composition.").format(bench.name))

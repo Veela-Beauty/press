@@ -232,7 +232,7 @@ def _cert(name, valid_until, ssh_certificate="ssh-cert..."):
     return c
 
 
-@patch("press.press.doctype.bench.bench_dev_overview._ensure_team_access", lambda **kw: None)
+@patch("press.press.doctype.bench.bench_dev_overview.ensure_team_access", lambda **kw: None)
 class TestGetSshCertificate(unittest.TestCase):
     PATCH = "press.press.doctype.bench.bench_dev_overview.frappe"
 
