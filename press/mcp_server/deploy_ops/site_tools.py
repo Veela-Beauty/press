@@ -1,7 +1,7 @@
 # Copyright (c) 2026, Frappe and contributors
 # For license information, please see license.txt
-"""Site tools over MCP: status, a scheduled update, the sites of a release group, and a one-use dashboard login
-link (moved from deploy_flow.py in 0.7.54)."""
+"""Site tools over MCP: status, a scheduled update, the sites of a release group, and a one-use dashboard
+login link (moved from deploy_flow.py in 0.7.54)."""
 
 from __future__ import annotations
 

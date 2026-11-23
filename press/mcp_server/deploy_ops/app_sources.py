@@ -1,7 +1,7 @@
 # Copyright (c) 2026, Frappe and contributors
 # For license information, please see license.txt
-"""App sources and releases over MCP: approve a release, switch a branch, fetch the latest commit, list pending
-releases, and register an existing GitHub app (moved from deploy_flow.py in 0.7.54)."""
+"""App sources and releases over MCP: approve a release, switch a branch, fetch the latest commit, list
+pending releases, and register an existing GitHub app (moved from deploy_flow.py in 0.7.54)."""
 
 from __future__ import annotations
 

@@ -1,7 +1,7 @@
 # Copyright (c) 2026, Frappe and contributors
 # For license information, please see license.txt
-"""Agent Job tools over MCP: list jobs, follow one, read its traceback, and judge an app server's agent healthy,
-slow or stuck (moved from deploy_flow.py in 0.7.54)."""
+"""Agent Job tools over MCP: list jobs, follow one, read its traceback, and judge an app server's agent
+healthy, slow or stuck (moved from deploy_flow.py in 0.7.54)."""
 
 from __future__ import annotations
 

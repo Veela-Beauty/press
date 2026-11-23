@@ -1,19 +1,19 @@
 # Copyright (c) 2026, Frappe and contributors
 # For license information, please see license.txt
-"""Deploy / release / site-update workflow tools for MCP agents.
+"""Deploy / release / site-update workflow tools for MCP agents: a STUB since 0.7.54.
 
-These wrap existing Press whitelisted methods so an agent can drive a full
-build → deploy → migrate workflow without press-ctrl SSH access.
+The tools live in press/mcp_server/deploy_ops/ (candidates, waits, site_tools, agent_tools,
+server_memory, app_sources). This module re-exports them, so the catalog's method paths
+(press.mcp_server.deploy_flow.<tool>) and every `from press.mcp_server.deploy_flow import ...` keep
+working. Add new tools to a deploy_ops module, not here.
 
-All resource scoping is enforced by the MCP server at dispatch time
-(server._extract_target). This module just exposes thin wrappers.
+All resource scoping is enforced by the MCP server at dispatch time (server._extract_target).
 """
+
 from __future__ import annotations
 
-from typing import Any
+import frappe  # noqa: F401  tests patch press.mcp_server.deploy_flow.frappe.db.* through this name
 
-import frappe
-from frappe.utils import add_to_date, now_datetime
 from press.mcp_server.deploy_ops.candidates import (  # noqa: F401  re-exported: dotted paths and imports of this module keep working
 	_BENCH_PROVISION_JOB_TYPES,
 	_derive_provision_stage,

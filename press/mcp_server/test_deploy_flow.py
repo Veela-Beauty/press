@@ -50,9 +50,9 @@ class TestDeployFlow(FrappeTestCase):
 		), patch(
 			"press.mcp_server.deploy_flow.frappe.db.get_value", return_value=None
 		), patch(
-			"press.mcp_server.deploy_flow._installation_for_owner", return_value="4242"
+			"press.mcp_server.deploy_ops.app_sources._installation_for_owner", return_value="4242"
 		), patch(
-			"press.mcp_server.deploy_flow._repo_is_public", return_value=False
+			"press.mcp_server.deploy_ops.app_sources._repo_is_public", return_value=False
 		), patch(
 			"press.mcp_server.deploy_flow.frappe.get_doc", side_effect=fake_get_doc
 		):
@@ -83,9 +83,9 @@ class TestDeployFlow(FrappeTestCase):
 		), patch(
 			"press.mcp_server.deploy_flow.frappe.db.get_value", return_value=None
 		), patch(
-			"press.mcp_server.deploy_flow._installation_for_owner", return_value="4242"
+			"press.mcp_server.deploy_ops.app_sources._installation_for_owner", return_value="4242"
 		), patch(
-			"press.mcp_server.deploy_flow._repo_is_public", return_value=False
+			"press.mcp_server.deploy_ops.app_sources._repo_is_public", return_value=False
 		), patch(
 			"press.mcp_server.deploy_flow.frappe.get_doc", side_effect=fake_get_doc
 		):
@@ -123,7 +123,7 @@ class TestDeployFlow(FrappeTestCase):
 		), patch(
 			"press.mcp_server.deploy_flow.frappe.db.get_value", return_value=None
 		), patch(
-			"press.mcp_server.deploy_flow._repo_is_public", return_value=False
+			"press.mcp_server.deploy_ops.app_sources._repo_is_public", return_value=False
 		), patch(
 			"press.mcp_server.deploy_flow.frappe.get_all", return_value=["77777"]
 		), patch(
@@ -146,7 +146,7 @@ class TestDeployFlow(FrappeTestCase):
 		), patch(
 			"press.mcp_server.deploy_flow.frappe.db.get_value", return_value=None
 		), patch(
-			"press.mcp_server.deploy_flow._repo_is_public", return_value=False
+			"press.mcp_server.deploy_ops.app_sources._repo_is_public", return_value=False
 		), patch(
 			"press.mcp_server.deploy_flow.frappe.get_all", return_value=[]
 		):
@@ -177,7 +177,7 @@ class TestDeployFlow(FrappeTestCase):
 		), patch(
 			"press.mcp_server.deploy_flow.frappe.db.get_value", return_value=None
 		), patch(
-			"press.mcp_server.deploy_flow._repo_is_public", return_value=True
+			"press.mcp_server.deploy_ops.app_sources._repo_is_public", return_value=True
 		), patch(
 			"press.mcp_server.deploy_flow.frappe.get_all", return_value=[]
 		), patch(

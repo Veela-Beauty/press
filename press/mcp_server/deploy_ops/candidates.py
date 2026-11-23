@@ -1,6 +1,7 @@
 # Copyright (c) 2026, Frappe and contributors
 # For license information, please see license.txt
-"""Deploy candidates over MCP: create one, schedule its build, read its status, and follow a new bench's provisioning (moved from deploy_flow.py in 0.7.54)."""
+"""Deploy candidates over MCP: create one, schedule its build, read its status, and follow a new bench's
+provisioning (moved from deploy_flow.py in 0.7.54)."""
 
 from __future__ import annotations
 

@@ -1,7 +1,7 @@
 # Copyright (c) 2026, Frappe and contributors
 # For license information, please see license.txt
-"""Waiting for a bench or a site to move to a new deploy candidate: the single-shot poll and the older, blocking
-wait tools (moved from deploy_flow.py in 0.7.54)."""
+"""Waiting for a bench or a site to move to a new deploy candidate: the single-shot poll and the older,
+blocking wait tools (moved from deploy_flow.py in 0.7.54)."""
 
 from __future__ import annotations
 
