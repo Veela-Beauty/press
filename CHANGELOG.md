@@ -4,6 +4,29 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 23-11-2026: deploy_flow.py and tools.py split by concern, behaviour unchanged (0.7.54)
+
+### Changed
+- `press/mcp_server/deploy_flow.py` (1,859 lines) is a 60-line stub; its 29 definitions live in
+  `press/mcp_server/deploy_ops/` (`candidates`, `waits`, `site_tools`, `agent_tools`, `server_memory`, `app_sources`).
+  The stub re-exports every name, so the catalog's `press.mcp_server.deploy_flow.<tool>` paths and every
+  `from press.mcp_server.deploy_flow import ...` keep working.
+- `press/mcp_server/tools.py` (977 lines) is a ~100-line stub; the catalog lives in `press/mcp_server/tool_catalog/`
+  (`_schema`, `core`, `bench_code`, `sites_benches`, `deploy`, `bench_control`), merged into `TOOLS` in the old key
+  order. A tool name in two parts now fails at import (a dict merge would keep only one, silently).
+- `scripts/audit_mcp_catalog_parity.py` reads the parts (same answer as before: 86 tools, site_create and
+  site_restore still missing from the dashboard mirror). `test_deploy_flow.py` patches `_repo_is_public` and
+  `_installation_for_owner` in `deploy_ops.app_sources`, where `register_existing_app` looks them up.
+
+### Checked
+- Every moved definition and catalog entry is identical to the original (AST compare, press-ops
+  `scripts/split-2026-11-23/verify_split_identical.py`); 108% of the original lines (headers, docstrings, re-exports).
+- On press-ctrl's bench Python against the new files: test_deploy_flow (31), test_help (18), test_deploy_update (17),
+  test_file_ops (20), test_alert_runs (7) give exactly the failures they gave before (2 old ones); new
+  `test_tool_paths.py` (3) passes; `audit_mcp_schema_vs_signature` finds 0 drift.
+
+---
+
 ## 23-11-2026: Watch Tower shows a client's checks (0.7.53)
 
 ### Added
