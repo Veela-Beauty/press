@@ -4,6 +4,11 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 23-11-2026: Watch Tower docs cover a client's checks (0.7.61, docs only)
+
+- The Watch Tower section page describes the checks on the Overview and the client page (0.7.53), the prototype
+  ACM-SP-07 and the version rows.
+
 ## 23-11-2026: deploy notes for 0.7.59 (0.7.60, docs only)
 
 ### Changed

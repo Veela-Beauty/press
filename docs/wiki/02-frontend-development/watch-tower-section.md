@@ -54,9 +54,15 @@ error, not data. This was the 0.7.27 hotfix.
 - Table: Clients, one row per connected site. Since 0.7.41 "Last read" sits under the Status badge and a Users column
   shows "N / cap" with "Near cap" (90%) or "Over cap" (100%) and "N active" under it; "no cap set" when no User Cap is
   typed on the hub; "-" until the site runs watch_tower 0.7.3; greyed "last known" for a site that stopped reporting.
+- Checks (0.7.53, hub 0.2.24, client watch_tower 0.7.6): "Clients needing action" also counts a Production client with
+  a failing check, and its chip reads "1 check failing" when that is the only reason. The client's row shows
+  "AccuHub link failing" (or "2 checks failing") in place of "read just now", the sites' messages on hover. A test
+  copy shows the line in its row but is not counted: copies run with the scheduler paused on purpose.
 
 **Client page**
-- Header: client name, status and environment badges, last error if any.
+- Header: client name, status and environment badges, last error if any. Since 0.7.53 the details line ends with
+  "Checks" and one badge per check (green working, light red failing), and each failing check adds a line: what the
+  site says and since when.
 - Six tiles (Users added in 0.7.41: enabled / cap, active in 30 days, a flag with the level or the % of the cap) and
   the charts: new findings per day, open findings by type.
 - Open findings, 6 to a page.
@@ -120,6 +126,7 @@ The pages follow these approved prototypes, kept on the owner's machine under
 - ACM-SP-04: Apps page.
 - ACM-SP-05: the desk look of the dashboard.
 - ACM-SP-06 (v4): users against the licence cap (`watch_tower_press_v4_users_prototype.html`).
+- ACM-SP-07: a client's checks, an overlay on the live pages (`checks/index.html`).
 
 ## Version history
 
@@ -137,6 +144,8 @@ The pages follow these approved prototypes, kept on the owner's machine under
 | 0.7.39 | Watch Tower alert emails are actually sent, see [the lesson](../08-lessons/2026-11-22-watch-tower-alert-emails-never-sent.md) |
 | 0.7.40 | Watch Tower docs |
 | 0.7.41 | Users against the licence cap: Users column on the Overview, Users tile on the client page. Needs hub 0.2.18 first |
+| 0.7.53 | A client's checks: the needing-action tile, the row line, the client header badges and messages. Needs hub 0.2.24 first |
+| 0.7.61 | Docs: this page covers the checks |
 
 ## Deploy
 
