@@ -25,6 +25,7 @@ sys.modules.setdefault("frappe", _frappe_stub)
 import press.press.doctype.bench.bench_dev_overview as _bdo  # noqa: E402
 
 PATCH = "press.press.doctype.bench.dev_overview.site_container.frappe"
+GUARD = "press.press.doctype.bench.dev_overview.site_container.ensure_team_access"
 
 
 def _site_doc(name, bench_name="bench-001"):
@@ -49,10 +50,14 @@ PROCESSLIST_OUTPUT = """\
 class TestGetDbProcesslist(unittest.TestCase):
 
     @patch(PATCH)
-    def test_requires_system_manager(self, mf):
-        mf.only_for.side_effect = Exception("Not permitted")
-        with self.assertRaises(Exception):
+    def test_requires_team_access(self, mf):
+        with (
+            patch(GUARD, side_effect=PermissionError("Not allowed")) as guard,
+            self.assertRaises(PermissionError),
+        ):
             _bdo.get_db_processlist("test-site")
+        guard.assert_called_once_with(site_name="test-site")
+        mf.get_doc.assert_not_called()
 
     @patch(PATCH)
     def test_returns_list_of_processes(self, mf):
@@ -97,10 +102,14 @@ class TestGetDbProcesslist(unittest.TestCase):
 class TestKillDbProcess(unittest.TestCase):
 
     @patch(PATCH)
-    def test_requires_system_manager(self, mf):
-        mf.only_for.side_effect = Exception("Not permitted")
-        with self.assertRaises(Exception):
+    def test_requires_team_access(self, mf):
+        with (
+            patch(GUARD, side_effect=PermissionError("Not allowed")) as guard,
+            self.assertRaises(PermissionError),
+        ):
             _bdo.kill_db_process("test-site", 142)
+        guard.assert_called_once_with(site_name="test-site")
+        mf.get_doc.assert_not_called()
 
     @patch(PATCH)
     def test_executes_kill_command(self, mf):

@@ -1,6 +1,6 @@
 """
-Unit tests for get_bench_app_names() and push_app_to_github()
-in bench_dev_overview.py
+Unit tests for get_bench_app_names(), push_app_to_github() (a shim) and restart_bench_for_site()
+in dev_overview/panel.py
 
 Run:
   cd /home/eslam/data/erpnext-app-repos/press_local
@@ -9,7 +9,7 @@ Run:
 import sys
 import types
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 # ─── Install frappe stub BEFORE importing bench_dev_overview ──────────────────
 _frappe_stub = types.ModuleType("frappe")
@@ -37,11 +37,14 @@ class TestGetBenchAppNames(unittest.TestCase):
     def tearDown(self):
         _bdo.frappe = _frappe_stub
 
-    def test_requires_system_manager(self):
-        """Must call frappe.only_for('System Manager')."""
-        self.mf.get_all.return_value = []
-        _bdo.get_bench_app_names("bench-0001")
-        self.mf.only_for.assert_called_once_with("System Manager")
+    def test_requires_team_access(self):
+        with (
+            patch.object(_bdo, "ensure_team_access", side_effect=PermissionError("Not allowed")) as guard,
+            self.assertRaises(PermissionError),
+        ):
+            _bdo.get_bench_app_names("bench-0001")
+        guard.assert_called_once_with(bench_name="bench-0001")
+        self.mf.get_all.assert_not_called()
 
     def test_queries_bench_app_doctype(self):
         """Must query 'Bench App' filtered by the given bench name."""
@@ -76,86 +79,14 @@ class TestGetBenchAppNames(unittest.TestCase):
 
 
 class TestPushAppToGithub(unittest.TestCase):
-    """Tests for push_app_to_github() in bench_dev_overview.py"""
+    """push_app_to_github() here is a shim; the code is bench_app_push.py, tested in test_bench_app_push.py."""
 
-    def setUp(self):
-        self.mf = MagicMock()
-        _bdo.frappe = self.mf
-        self.mf.session.user = "admin@example.com"
-
-    def tearDown(self):
-        _bdo.frappe = _frappe_stub
-
-    def _make_bench(self):
-        bench = MagicMock()
-        bench.name = "bench-0001"
-        bench.status = "Active"
-        bench.docker_execute.return_value = {
-            "status": "Success",
-            "output": "Everything up-to-date",
-            "returncode": 0,
-        }
-        return bench
-
-    def test_requires_system_manager(self):
-        self.mf.get_doc.return_value = self._make_bench()
-        _bdo.push_app_to_github("bench-0001", "frappe", "WIP")
-        self.mf.only_for.assert_called_once_with("System Manager")
-
-    def test_fetches_bench_by_name(self):
-        self.mf.get_doc.return_value = self._make_bench()
-        _bdo.push_app_to_github("bench-0001", "frappe", "WIP")
-        self.mf.get_doc.assert_called_with("Bench", "bench-0001")
-
-    def test_calls_docker_execute(self):
-        bench = self._make_bench()
-        self.mf.get_doc.return_value = bench
-        _bdo.push_app_to_github("bench-0001", "frappe", "WIP")
-        bench.docker_execute.assert_called_once()
-
-    def test_git_add_in_command(self):
-        bench = self._make_bench()
-        self.mf.get_doc.return_value = bench
-        _bdo.push_app_to_github("bench-0001", "frappe", "WIP")
-        self.assertIn("git add -A", bench.docker_execute.call_args[0][0])
-
-    def test_git_commit_in_command(self):
-        bench = self._make_bench()
-        self.mf.get_doc.return_value = bench
-        _bdo.push_app_to_github("bench-0001", "frappe", "WIP")
-        self.assertIn("git commit", bench.docker_execute.call_args[0][0])
-
-    def test_git_push_in_command(self):
-        bench = self._make_bench()
-        self.mf.get_doc.return_value = bench
-        _bdo.push_app_to_github("bench-0001", "frappe", "WIP")
-        self.assertIn("git push", bench.docker_execute.call_args[0][0])
-
-    def test_message_in_commit_command(self):
-        bench = self._make_bench()
-        self.mf.get_doc.return_value = bench
-        _bdo.push_app_to_github("bench-0001", "frappe", "my feature")
-        self.assertIn("my feature", bench.docker_execute.call_args[0][0])
-
-    def test_subdir_is_apps_slash_app(self):
-        bench = self._make_bench()
-        self.mf.get_doc.return_value = bench
-        _bdo.push_app_to_github("bench-0001", "erpnext", "fix")
-        self.assertEqual(bench.docker_execute.call_args[1].get("subdir"), "apps/erpnext")
-
-    def test_returns_execute_result(self):
-        bench = self._make_bench()
-        self.mf.get_doc.return_value = bench
-        result = _bdo.push_app_to_github("bench-0001", "frappe", "WIP")
-        self.assertEqual(result["status"], "Success")
-        self.assertEqual(result["returncode"], 0)
-
-    def test_single_quote_in_message_escaped(self):
-        bench = self._make_bench()
-        self.mf.get_doc.return_value = bench
-        _bdo.push_app_to_github("bench-0001", "frappe", "it's done")
-        cmd = bench.docker_execute.call_args[0][0]
-        self.assertNotIn("'it's done'", cmd)
+    def test_hands_every_argument_to_bench_app_push(self):
+        target = "press.press.doctype.bench.bench_app_push.push_app_to_github"
+        with patch(target, return_value={"step": "done"}) as impl:
+            result = _bdo.push_app_to_github("bench-0001", "myapp", "WIP", branch_name="feat/x")
+        impl.assert_called_once_with("bench-0001", "myapp", "WIP", branch_name="feat/x")
+        self.assertEqual(result, {"step": "done"})
 
 
 class TestRestartBenchForSite(unittest.TestCase):
@@ -168,10 +99,14 @@ class TestRestartBenchForSite(unittest.TestCase):
     def tearDown(self):
         _bdo.frappe = _frappe_stub
 
-    def test_requires_system_manager(self):
-        self.mf.get_doc.return_value = MagicMock()
-        _bdo.restart_bench_for_site("bench-001")
-        self.mf.only_for.assert_called_once_with("System Manager")
+    def test_requires_team_access(self):
+        with (
+            patch.object(_bdo, "ensure_team_access", side_effect=PermissionError("Not allowed")) as guard,
+            self.assertRaises(PermissionError),
+        ):
+            _bdo.restart_bench_for_site("bench-001")
+        guard.assert_called_once_with(bench_name="bench-001")
+        self.mf.get_doc.assert_not_called()
 
     def test_fetches_bench_by_name(self):
         bench = MagicMock()

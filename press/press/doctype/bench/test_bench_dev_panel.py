@@ -63,6 +63,7 @@ def _job(name, site, job_type="New Site", creation="2026-01-10"):
 
 
 PATCH = "press.press.doctype.bench.dev_overview.panel.frappe"
+GUARD = "press.press.doctype.bench.dev_overview.panel.ensure_team_access"
 
 
 class TestGetDevPanelData(unittest.TestCase):
@@ -95,10 +96,14 @@ class TestGetDevPanelData(unittest.TestCase):
         self.assertIn("errors", r["errors"])
 
     @patch(PATCH)
-    def test_requires_system_manager(self, mf):
-        mf.only_for.side_effect = Exception("Not permitted")
-        with self.assertRaises(Exception):
+    def test_requires_team_access(self, mf):
+        with (
+            patch(GUARD, side_effect=PermissionError("Not allowed")) as guard,
+            self.assertRaises(PermissionError),
+        ):
             _bdo.get_dev_panel_data("bench-001")
+        guard.assert_called_once_with(bench_name="bench-001")
+        mf.get_doc.assert_not_called()
 
     @patch(PATCH)
     def test_migrated_true_when_activity_exists(self, mf):
