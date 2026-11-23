@@ -6,5 +6,6 @@
   gather_facts: yes
   roles:
     - role: docker
+      when: not (skip_docker | default(false) | bool)
     - role: proxysql
     - role: proxysql_monitor

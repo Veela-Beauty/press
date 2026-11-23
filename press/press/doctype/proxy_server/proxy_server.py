@@ -59,6 +59,7 @@ class ProxyServer(BaseServer):
 		provider: DF.Literal["Generic", "Scaleway", "AWS EC2", "OCI", "Hetzner", "Vodacom", "DigitalOcean"]
 		proxysql_admin_password: DF.Password | None
 		proxysql_monitor_password: DF.Password | None
+		proxysql_port: DF.Int
 		public: DF.Check
 		root_public_key: DF.Code | None
 		self_hosted_server_domain: DF.Data | None
@@ -292,6 +293,9 @@ class ProxyServer(BaseServer):
 					"server": self.name,
 					"proxysql_admin_password": self.get_password("proxysql_admin_password"),
 					"default_hostgroup": default_hostgroup,
+					"proxysql_port": self.proxysql_port or 3306,
+					# an app server already runs Docker with benches on it; the docker role restarts the daemon
+					"skip_docker": bool(frappe.db.exists("Server", self.name)),
 				},
 			)
 			play = ansible.run()
