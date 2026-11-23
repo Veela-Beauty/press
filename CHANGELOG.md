@@ -9,6 +9,11 @@ This file documents changes (current commit level since, no tagged releases yet)
 ### Security
 - `recover_token` returned any token's plaintext to any System User (12 on press-ctrl, the whole team), so a member
   could take the owner's token (risky tools enabled) and act as him over MCP. Only the token's owner may recover it now.
+- `frappe.client.get_password` gave any System Manager the stored copy of any MCP token (a Password field kept for
+  Recover). Press overrides it to refuse `Press MCP Token`; other DocTypes go to Frappe unchanged. System Console and
+  bench console can still decrypt, so who holds System Manager is still the real wall.
+- Watch Tower Alert Log granted read to role All, so the 8 website users could read every alert through the REST API.
+  Read is System Manager only now.
 - `Press MCP Call Log` keeps every agent's code, SQL and output on every site; System Manager (11 users) could read it.
   Read is now the new role MCP Auditor only (patch `v0_0_5.add_mcp_auditor_role` creates it; who holds it is set per
   site). Members still see their own calls in the dashboard.

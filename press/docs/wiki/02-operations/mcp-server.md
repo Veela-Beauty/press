@@ -234,7 +234,8 @@ These four were found and fixed in one session — kept here as the canonical "t
 
 - Tokens stored as PBKDF2-SHA256 hash in `Press MCP Token` doctype. A copy is kept encrypted (`token_plaintext`, a
   Password field) for the dashboard's Recover button; since 0.7.59 `recover_token` returns it to the token's owner only
-  (before, any System User could read anyone's token and act as them).
+  (before, any System User could read anyone's token and act as them), and `frappe.client.get_password` refuses
+  `Press MCP Token` (`press.overrides.get_password`). System Console and bench console can still decrypt it.
 - Every MCP call logged to `Press MCP Call Log` with sha-256 hash chain (verify via `audit_verify_chain` tool — System User only).
   The row keeps the arguments and the response (each cut at 5,000 characters), so it holds agents' code, SQL and output
   on client sites. Since 0.7.59 only the role **MCP Auditor** may read it (System Manager could before); a member sees
@@ -258,8 +259,8 @@ is new:
 | rare tool | a successful `site_restore`, `site_uninstall_app`, `site_deactivate`, `release_group_archive` / `remove_app`, `bench_ssh_cert_generate`, `bench_run_repo_script` |
 | runaway | a token at 3x its usual calls per active hour, and 60+ calls |
 
-Each event is kept as a Watch Tower Alert Log naming only the pattern, the tool and the call-log row (the Alert Log is
-readable by every user, so no code, SQL, user or output goes there). Each run reads the last 3 hours of calls and the last
+Each event is kept as a Watch Tower Alert Log naming only the pattern, the tool and the call-log row (no code, SQL, user
+or output goes there; until 0.7.59 role All could read the Alert Log, now System Manager only). Each run reads the last 3 hours of calls and the last
 3 full clock hours for refusals and runaway, so a late run leaves no gap; events are recorded only after the email is
 accepted. On the week before release it would have raised 70 events in 32 of 168 hours (secret hunt 39, runaway 14,
 rare tool 12, refusals 3, destructive 1, secret out 1). Dry run on live data: press-ops `scripts/mcp-deploy-update-2026-11-23/35_agent_watch_dry_run.py`.

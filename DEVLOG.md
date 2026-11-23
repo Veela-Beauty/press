@@ -6,7 +6,9 @@
 
 **Files:** press/watch_tower/alerts/mcp_agent_watch.py (new), test_mcp_agent_watch.py (new), mcp_server/auth.py, test_recover_token.py (new), mcp_server/server.py, test_server.py, press_mcp_call_log.json, patches/v0_0_5/add_mcp_auditor_role.py
 
-**Open (owner):** rotate the key in the two lipton-yp responses and clear those rows; Watch Tower Alert Log is readable by role All (8 website users); every team member is System Manager on press-ctrl.
+**Then (owner's choices):** `frappe.client.get_password` refuses Press MCP Token (Recover kept); Alert Log read is System Manager only (role All let 8 website users read it); the two lipton-yp responses with the PRIVATE KEY are cleared at deploy (press-ops 38_apply_agent_watch_access.py).
+
+**Open (owner):** rotate that Google key; every team member is System Manager on press-ctrl, so System Console can still decrypt a token copy and grant MCP Auditor.
 
 ### Session 23 - 2026-11-23: rule 1208 and the dashboard tool list (0.7.58)
 

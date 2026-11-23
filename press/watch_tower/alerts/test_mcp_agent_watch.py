@@ -202,3 +202,7 @@ class TestNoiseAndAccess(FrappeTestCase):
 			(PRESS / "press" / "doctype" / "press_mcp_call_log" / "press_mcp_call_log.json").read_text()
 		)
 		self.assertEqual([p["role"] for p in meta["permissions"]], ["MCP Auditor"])
+
+	def test_every_user_no_longer_reads_the_alert_log(self):
+		meta = json.loads((PRESS / "watch_tower" / "doctype" / "watch_tower_alert_log" / "watch_tower_alert_log.json").read_text())
+		self.assertEqual([p["role"] for p in meta["permissions"]], ["System Manager"])
