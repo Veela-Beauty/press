@@ -1,5 +1,13 @@
 # Press Fork Dev Log
 
+### Session 22 - 2026-11-23: stale bench dev tests fixed (0.7.57, tests only)
+
+**What we did:** 0.7.56 deployed (24/24 whitelisted through the stub, MCP bench_dev_info answers). Then the six bench dev test files that failed before the split: permission tests check `ensure_team_access`, git status tests use one result per git command, push tests moved to a new `test_bench_app_push.py` against the real code. 114 tests pass on press-ctrl; a removed guard fails its test.
+
+**Files:** press/press/doctype/bench/test_bench_app_push.py (new), test_bench_dev_{actions,console,git_status,logs,panel,processlist}.py
+
+**Watch out:** once a new package is installed on press-ctrl, the runner's `package+=folder` finds the installed copy first; replace each module by name (press-ops `run_devov_tests.sh` does).
+
 ### Session 21 - 2026-11-23: import fix (0.7.55) and bench_dev_overview.py split (0.7.56)
 
 **What we did:** mapping importers for the split found bench_app_push.py and bench_vscode.py could not import on prod (they imported `ensure_team_access` from bench_dev_overview, which never defined it); fixed and deployed as 0.7.55. Then the split: bench_dev_overview.py 1,326 -> 51-line stub + dev_overview/ (5 modules, 181-409 lines), one commit per file, AST identity over 35 definitions, 24/24 whitelisted through the stub path, 111 tests same per-test result on press-ctrl. The split helper had added `from __future__ import annotations` to every new module, which switches off Frappe's whitelist type check; it now copies that import only from a source that has it.

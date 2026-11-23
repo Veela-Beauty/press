@@ -4,6 +4,21 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 23-11-2026: bench dev tests match today's code (0.7.57, tests only)
+
+### Fixed
+- Six bench dev test files failed on the deployed code because they described older code. The permission tests
+  expected `frappe.only_for("System Manager")`; the functions call `ensure_team_access` (team members or System
+  Manager), so the tests now check that it is called with the bench or site and that nothing runs when it refuses.
+  The git status tests expected one batched command; the code runs one `docker_execute` per git command.
+- The push tests checked the old one-command push through the `push_app_to_github` shim. The shim test now checks
+  only the hand-off; new `test_bench_app_push.py` (10 tests) covers `bench_app_push.py`: team check, upstream apps
+  refused, separate add / commit / push, the session user as author, quote escaping, "nothing to commit" still
+  pushes, auth hint, feature branch with a PR link, an unsafe branch name refused.
+- 114 tests pass on press-ctrl (6 files failed before). Removing one guard makes its test fail. No code changed.
+
+---
+
 ## 23-11-2026: bench_dev_overview.py split by concern, behaviour unchanged (0.7.56)
 
 ### Changed
