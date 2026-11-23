@@ -2,6 +2,9 @@
 # For license information, please see license.txt
 """MCP tool catalog — declarative mapping of tool name to whitelisted method.
 
+Since 0.7.54 the entries live in press/mcp_server/tool_catalog/ (core, bench_code, sites_benches, deploy,
+bench_control); this module merges them into TOOLS and keeps the lookups. Add a tool to the part for its area.
+
 Each entry:
 	method: dotted-path to the underlying whitelisted Python function
 	description: shown in tool list
@@ -13,7 +16,7 @@ Each entry:
 		guessing from natural language descriptions.
 	risk: 'low' | 'medium' | 'high' — gates the dialog UX + verify_token
 
-WHEN ADDING / REMOVING / RENAMING A TOOL HERE, ALSO UPDATE:
+WHEN ADDING / REMOVING / RENAMING A TOOL IN A PART, ALSO UPDATE:
 	dashboard/src/components/mcp/_tool_catalog.js  (frontend mirror used by
 	the Issue Token dialog to show categories, risk badges, and search).
 The two files MUST stay in sync; otherwise the new tool will not appear in
@@ -23,6 +26,7 @@ Every `required_args` entry MUST appear as a property in `args_schema` —
 enforced at import time by `_assert_schema_covers_required_args()` below.
 """
 from __future__ import annotations
+
 from press.mcp_server.tool_catalog._schema import (  # noqa: F401  re-exported: dotted paths and imports of this module keep working
 	_ARG_FRAGMENTS,
 	_schema,
@@ -42,6 +46,21 @@ TOOLS: dict[str, dict] = {
 	**DEPLOY_TOOLS,
 	**BENCH_CONTROL_TOOLS,
 }
+
+_PARTS = (CORE_TOOLS, BENCH_CODE_TOOLS, SITES_BENCHES_TOOLS, DEPLOY_TOOLS, BENCH_CONTROL_TOOLS)
+
+
+def _assert_each_tool_in_one_part() -> None:
+	"""Import-time check: a tool name in two parts would keep only the later spec, silently (0.7.54)."""
+	seen: set[str] = set()
+	for part in _PARTS:
+		twice = seen & part.keys()
+		if twice:
+			raise RuntimeError(f"tools {sorted(twice)!r} are defined in two tool_catalog parts; keep one")
+		seen |= part.keys()
+
+
+_assert_each_tool_in_one_part()
 
 
 def _assert_schema_covers_required_args() -> None:

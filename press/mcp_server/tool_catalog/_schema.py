@@ -5,7 +5,6 @@ _schema() that builds a tool's args_schema from them (moved from tools.py in 0.7
 
 from __future__ import annotations
 
-
 # Reusable JSON Schema fragments for args that appear across many tools.
 # Reference these via _S("site_name") etc. when building per-tool schemas to
 # keep arg descriptions consistent and the file scannable.
