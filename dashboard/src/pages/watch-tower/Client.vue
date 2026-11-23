@@ -57,6 +57,13 @@ calling the client or changing their app. Data from sanad_ai_control_center.watc
 								<span>Last read {{ ago(data.as_of, s.last_read_at) }}</span>
 								<span v-if="s.version">Watch Tower {{ s.version }}</span>
 								<span v-if="frappeVersion">Frappe {{ frappeVersion }}</span>
+								<span v-if="s.checks?.length" class="wt-checks">
+									Checks
+									<span v-for="c in s.checks" :key="c.name" class="badge" :class="c.ok ? 'b-green' : 'b-redsoft'" :title="c.message">{{ c.name }}</span>
+								</span>
+							</div>
+							<div v-for="c in failingChecks(s)" :key="c.name" class="wt-fail">
+								<b>{{ c.name }}:</b> {{ c.message }}<span v-if="c.since" class="since"> · failing since {{ shortTime(c.since) }}</span>
 							</div>
 							<div v-if="s.last_error" class="err" style="max-width: none" :title="s.last_error">{{ s.last_error }}</div>
 						</div>
@@ -226,7 +233,7 @@ import WtPager from './WtPager.vue';
 import WtStackedBars from './WtStackedBars.vue';
 import WtTile from './WtTile.vue';
 import { PAGE_ROWS, usePages } from './paging';
-import { ENV_CLASS, SEVERITY_CLASS, SEVERITY_COLORS, STATUS_CLASS, ago, versus } from './shared';
+import { ENV_CLASS, SEVERITY_CLASS, SEVERITY_COLORS, STATUS_CLASS, ago, failingChecks, shortTime, versus } from './shared';
 
 const props = defineProps({ site: { type: String, required: true } });
 
