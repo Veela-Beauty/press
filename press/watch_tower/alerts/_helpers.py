@@ -35,6 +35,12 @@ def ts_now():
 	"""Return formatted timestamp string."""
 	return now_datetime().strftime("%Y-%m-%d %H:%M")
 
+def now_sql():
+	"""Frappe's current time as a SQL value, for `{now_sql()} - INTERVAL 1 HOUR`. creation, modified and the other
+	Frappe timestamps are written in the site's time zone (Asia/Riyadh on press-ctrl), while the database's NOW() runs
+	on its own clock (UTC there, 3 hours behind), so a `NOW() - INTERVAL 1 HOUR` window read the last 4 hours."""
+	return frappe.db.escape(str(now_datetime()))
+
 
 PRESS_CTRL_IP = "89.167.116.92"
 
@@ -103,9 +109,9 @@ def should_send_alert(rule_key: str, fingerprint: str) -> bool:
 
 def cleanup_old_error_logs():
 	"""Delete error logs older than 7 days. Called by scheduler (daily)."""
-	frappe.db.sql("""
+	frappe.db.sql(f"""
 		DELETE FROM `tabError Log`
-		WHERE creation < NOW() - INTERVAL 7 DAY
+		WHERE creation < {now_sql()} - INTERVAL 7 DAY
 		LIMIT 5000
 	""")
 	frappe.db.commit()

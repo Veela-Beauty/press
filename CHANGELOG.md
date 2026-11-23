@@ -4,6 +4,18 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 23-11-2026: Watch Tower windows use Frappe's clock (0.7.48)
+
+### Fixed
+- `press/watch_tower/` (7 files, 23 queries): windows were written `creation > NOW() - INTERVAL 1 HOUR`. On press-ctrl
+  the database's `NOW()` is UTC while Frappe writes `creation`, `modified` and the backup times in Asia/Riyadh, so
+  "the last hour" read the last 4 hours and "older than N days" ran 3 hours late. The queries now take Frappe's time
+  from `alerts/_helpers.py` `now_sql()`. Measured: Error Log "last hour" 993 rows before, 227 after.
+- `health_report.py`: the 24-hour error count compared `creation` with the text "now() - interval 24 hour"; it is a
+  real time now.
+
+---
+
 ## 23-11-2026: the site-config read takes 0.2 s, and Watch Tower watches MCP speed (0.7.47)
 
 ### Changed

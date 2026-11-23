@@ -11,6 +11,7 @@ Runs daily via Watch Tower scheduler.
 """
 import frappe
 from frappe.utils import now_datetime, get_datetime, add_days, date_diff
+from .alerts._helpers import now_sql
 
 # Sites that should NEVER be auto-archived (e.g., the Press site itself)
 PROTECTED_SITES = (
@@ -101,11 +102,11 @@ def _get_last_activity_date(site_name):
 
 def _warn_inactive_sites():
 	"""Find Active sites with no activity for WARN_AFTER_DAYS, send warning."""
-	sites = frappe.db.sql("""
+	sites = frappe.db.sql(f"""
 		SELECT name, modified, bench, team
 		FROM tabSite
 		WHERE status = 'Active'
-			AND modified < NOW() - INTERVAL %s DAY
+			AND modified < {now_sql()} - INTERVAL %s DAY
 		ORDER BY modified
 	""", WARN_AFTER_DAYS, as_dict=True)
 
@@ -157,11 +158,11 @@ def _warn_inactive_sites():
 
 def _archive_inactive_sites():
 	"""Archive Active sites with no activity for ARCHIVE_AFTER_DAYS."""
-	sites = frappe.db.sql("""
+	sites = frappe.db.sql(f"""
 		SELECT name, modified, bench, team
 		FROM tabSite
 		WHERE status = 'Active'
-			AND modified < NOW() - INTERVAL %s DAY
+			AND modified < {now_sql()} - INTERVAL %s DAY
 		ORDER BY modified
 	""", ARCHIVE_AFTER_DAYS, as_dict=True)
 
@@ -213,11 +214,11 @@ def _archive_inactive_sites():
 
 def _delete_old_archived_sites():
 	"""Delete archived sites older than DELETE_AFTER_DAYS."""
-	sites = frappe.db.sql("""
+	sites = frappe.db.sql(f"""
 		SELECT name, modified, bench
 		FROM tabSite
 		WHERE status = 'Archived'
-			AND modified < NOW() - INTERVAL %s DAY
+			AND modified < {now_sql()} - INTERVAL %s DAY
 		ORDER BY modified
 	""", DELETE_AFTER_DAYS, as_dict=True)
 

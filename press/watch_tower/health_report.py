@@ -8,9 +8,10 @@ import os
 import subprocess
 
 import frappe
-from frappe.utils import now_datetime, time_diff_in_seconds, get_datetime
+from frappe.utils import add_to_date, now_datetime, time_diff_in_seconds, get_datetime
 
 from press.watch_tower import build_wait
+from .alerts._helpers import now_sql
 
 
 def send_health_report(doc=None, rule=None):
@@ -116,10 +117,10 @@ def _collect_health():
 	site_usage = {}
 	try:
 		# Get latest usage from Site Activity if available
-		usage_rows = frappe.db.sql("""
+		usage_rows = frappe.db.sql(f"""
 			SELECT site, database_usage, disk_usage
 			FROM `tabSite Activity`
-			WHERE creation > NOW() - INTERVAL 7 DAY
+			WHERE creation > {now_sql()} - INTERVAL 7 DAY
 			AND activity = 'Update Usage'
 			ORDER BY creation DESC
 		""", as_dict=True)
@@ -172,57 +173,57 @@ def _collect_health():
 	""", as_dict=True)
 
 	# --- Recent deploys (last 48h) ---
-	recent_builds = frappe.db.sql("""
+	recent_builds = frappe.db.sql(f"""
 		SELECT name, status, build_start, build_end, build_error
 		FROM `tabDeploy Candidate Build`
-		WHERE creation > NOW() - INTERVAL 48 HOUR
+		WHERE creation > {now_sql()} - INTERVAL 48 HOUR
 		ORDER BY creation DESC
 		LIMIT 10
 	""", as_dict=True)
 
 	# --- Recent agent jobs (last 24h) ---
-	agent_jobs_summary = frappe.db.sql("""
+	agent_jobs_summary = frappe.db.sql(f"""
 		SELECT status, COUNT(*) as cnt
 		FROM `tabAgent Job`
-		WHERE creation > NOW() - INTERVAL 24 HOUR
+		WHERE creation > {now_sql()} - INTERVAL 24 HOUR
 		GROUP BY status
 		ORDER BY cnt DESC
 	""", as_dict=True)
 
-	failed_agent_jobs = frappe.db.sql("""
+	failed_agent_jobs = frappe.db.sql(f"""
 		SELECT name, job_type, server, status, creation
 		FROM `tabAgent Job`
-		WHERE creation > NOW() - INTERVAL 24 HOUR
+		WHERE creation > {now_sql()} - INTERVAL 24 HOUR
 			AND status IN ('Failure', 'Undelivered')
 		ORDER BY creation DESC
 		LIMIT 5
 	""", as_dict=True)
 
 	# --- Error log (24h) ---
-	error_count = frappe.db.count("Error Log", {"creation": [">", "now() - interval 24 hour"]})
-	top_errors = frappe.db.sql("""
+	error_count = frappe.db.count("Error Log", {"creation": [">", add_to_date(now_datetime(), hours=-24)]})
+	top_errors = frappe.db.sql(f"""
 		SELECT method, COUNT(*) as cnt
 		FROM `tabError Log`
-		WHERE creation > NOW() - INTERVAL 24 HOUR
+		WHERE creation > {now_sql()} - INTERVAL 24 HOUR
 		GROUP BY method
 		ORDER BY cnt DESC
 		LIMIT 5
 	""", as_dict=True)
 
 	# Recent errors (last 5 with traceback snippet)
-	recent_errors = frappe.db.sql("""
+	recent_errors = frappe.db.sql(f"""
 		SELECT name, method, error, creation
 		FROM `tabError Log`
-		WHERE creation > NOW() - INTERVAL 24 HOUR
+		WHERE creation > {now_sql()} - INTERVAL 24 HOUR
 		ORDER BY creation DESC
 		LIMIT 5
 	""", as_dict=True)
 
 	# --- Watch Tower alert summary ---
-	wt_alerts = frappe.db.sql("""
+	wt_alerts = frappe.db.sql(f"""
 		SELECT rule_name, status, COUNT(*) as cnt
 		FROM `tabWatch Tower Alert Log`
-		WHERE alert_datetime > NOW() - INTERVAL 24 HOUR
+		WHERE alert_datetime > {now_sql()} - INTERVAL 24 HOUR
 		GROUP BY rule_name, status
 		ORDER BY cnt DESC
 	""", as_dict=True)

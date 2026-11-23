@@ -3,6 +3,7 @@ import frappe
 from .._hard_timeout import hard_timeout, HardTimeoutError
 from frappe.utils import get_datetime
 from ._helpers import TABLE, esc, ts_now, ssh_cmd, should_send_alert
+from ._helpers import now_sql
 
 
 def check_site_reachability(doc_dict, rule):
@@ -215,12 +216,12 @@ def check_bench_updates_pending(doc_dict, rule):
 	from ..email_branding import wrap_email, send_alert_email
 
 	# Check deploy candidates stuck in draft
-	stale_deploys = frappe.db.sql("""
+	stale_deploys = frappe.db.sql(f"""
 		SELECT name, `group`, creation,
-			DATEDIFF(NOW(), creation) as days_old
+			DATEDIFF({now_sql()}, creation) as days_old
 		FROM `tabDeploy Candidate`
 		WHERE status = 'Draft'
-			AND creation < NOW() - INTERVAL 3 DAY
+			AND creation < {now_sql()} - INTERVAL 3 DAY
 		ORDER BY creation DESC
 		LIMIT 5
 	""", as_dict=True)
