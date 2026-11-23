@@ -4,6 +4,28 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 23-11-2026: one MCP call deploys and updates the sites (0.7.49)
+
+### Added
+- `press/mcp_server/deploy_update.py`: `bench_deploy_and_update` queues what the dashboard's Deploy and update button
+  queues (`press.api.bench.deploy_and_update`): build, new bench, then Press updates the chosen sites (default: every
+  Active site of the Release Group) when the bench is ready. It returns at once with the build.
+  `deploy_update_status(name=<build>)` reports build, bench and each site's Site Update in one call. In 30 days agents
+  used about 16 calls a deploy (bench_deploy, wait_for_bench_flip, deploy_candidate_status, site_update), and
+  site_update was refused 281 times because the new bench was not ready.
+- `scope/call_guard.py` `_rule_site_list`: every site in `sites` must be the team's, allowed by the token and unlocked
+  if confidential (the checks a single `site_name` gets). `auth.verify_token` keeps the token's allowed sites on
+  `frappe.local.mcp_token_allowed_sites` for it.
+
+### Changed
+- `bench_deploy_and_wait` and `site_update_and_wait` wait at most 100 s, then answer `timeout` (call again). They
+  promised up to 25 min, but press-ctrl's gunicorn ends a request at 120 s (`-t 120`), so 14 calls in 30 days were cut
+  off instead of answered.
+- `help.py` deploy recipe leads with the new tool. `devbox_proxy/press_tools_catalog.json` regenerated from `tools.py`
+  (86 tools; it lacked `site_create` and `site_restore` too).
+
+---
+
 ## 23-11-2026: Watch Tower windows use Frappe's clock (0.7.48)
 
 ### Fixed

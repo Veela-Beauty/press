@@ -213,6 +213,7 @@ def verify_token(
 		pass
 	_pin_request_team(doc.team)
 	frappe.local.mcp_token_confidential_sites = safe_parse_list(doc.confidential_sites)
+	frappe.local.mcp_token_allowed_sites = safe_parse_list(doc.allowed_sites)
 	return doc.user
 
 

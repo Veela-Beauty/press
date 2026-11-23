@@ -1,5 +1,13 @@
 # Press Fork Dev Log
 
+### Session 18 - 2026-11-23: bench_deploy_and_update, one call per deploy (0.7.49)
+
+**What we did:** new MCP tools `bench_deploy_and_update` (the dashboard's Deploy and update, returns at once) and `deploy_update_status` (build, bench, each site in one call); guard rule for the `sites` list; the two `*_and_wait` tools capped at 100 s under gunicorn's 120 s. 14 new tests pass on press-ctrl's bench Python; test_server (2 ssh-cert tests), test_deploy_flow (1) and test_help (18 tools without a category) fail the same way before and after.
+
+**Files:** press/mcp_server/deploy_update.py (new), test_deploy_update.py (new), tools.py, deploy_flow.py, help.py, auth.py, scope/targets.py, scope/call_guard.py, dashboard/src/components/mcp/_tool_catalog.js, devbox_proxy/press_tools_catalog.json
+
+**Next:** `scope/test_confidential.py` creates sites, so never run it against press-ctrl's database. Frontend catalog still lacks site_create and site_restore (parity audit). tools.py (1,000 lines) and deploy_flow.py (1,860) are over the 700-line gate: split them as their own task.
+
 ### Session 17 - 2026-11-23: site-config read in 0.2 s, Watch Tower rule for slow MCP calls (0.7.47)
 
 **What we did:** a developer said MCP was slow from Antigravity. Server time per call was 17 to 490 ms except `site_config_get` (2 to 3 s); the rest of his 11 s was his own line (0.4 to 2.5 s to connect per request, against 0.004 s from the dev box). `site_config_get` now reads the two config files with the bench's plain Python instead of `bench console` (live: 0.19 to 0.21 s, secrets still hidden in the container). New hourly rule "MCP Calls Slow" (`check_mcp_calls_slow`) emails when a tool runs over 3 times its own 7-day average and over 1 s. Then 0.7.48: every Watch Tower window used the database `NOW()` (UTC on press-ctrl, Frappe writes Riyadh time), so "last hour" read 4 hours; 23 queries now use `now_sql()`. Found on the way: rule WT-RULE-1208 "Pending Bench Updates" always fails (`tabDeploy Candidate` has no `status`).

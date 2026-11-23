@@ -1005,7 +1005,7 @@
   }
  },
  "register_existing_app": {
-  "description": "Register an EXISTING GitHub repository as a new App Source. Different from app_create_locally (which scaffolds a NEW app). Use when a teammate or external maintainer pushed an app to GitHub and you need Press to track it. Args: repository_url (https URL or owner/repo), branch, app_name (must match hooks.py). Optional: app_title, versions (list of Frappe Versions like ['Version 15']; auto-resolved from a version-NN branch or the latest on record if omitted), team. Creates App Source + tries to fetch first release. Returns app_source docname.",
+  "description": "Register an EXISTING GitHub repository as a new App Source. Different from app_create_locally (which scaffolds a NEW app). Use when a teammate or external maintainer pushed an app to GitHub and you need Press to track it. Args: repository_url (https URL or owner/repo), branch, app_name (must match hooks.py). Optional: app_title, versions, team, github_installation_id. PRIVATE repos need a GitHub App installation or the build cannot clone them; it is auto-resolved from an existing App Source with the same repository_owner, and registration now FAILS LOUDLY when it cannot be resolved instead of leaving an App Source that dies later at git clone. Returns app_source docname.",
   "inputSchema": {
    "type": "object",
    "properties": {
@@ -1035,6 +1035,10 @@
     "team": {
      "type": "string",
      "description": "Team docname (defaults to current team)"
+    },
+    "github_installation_id": {
+     "type": "string",
+     "description": "GitHub App installation id used to mint clone tokens. Auto-resolved from an existing App Source with the same repository_owner when omitted. Required for a private repo when none can be resolved."
     }
    },
    "required": [
@@ -1176,7 +1180,7 @@
   }
  },
  "bench_deploy_and_wait": {
-  "description": "ONE-SHOT deploy + wait. Triggers bench_deploy and BLOCKS until the site flips to the new Deploy Candidate, or until max_wait_seconds expires (default 25 min). Use this instead of bench_deploy + a manual wait_for_bench_flip loop. Returns {candidate, status: 'flipped'|'timeout', elapsed_seconds, ...}. Args: name (Release Group docname); apps (list of {app, release, hash} dicts from bench_deploy_information); site_name (one site on the RG to watch \u2014 multiple sites can be on the RG but this only waits for the named one).",
+  "description": "ONE-SHOT deploy + wait. Triggers bench_deploy and BLOCKS until the site flips to the new Deploy Candidate, or for at most 100 s (then call again). Prefer bench_deploy_and_update, which returns at once and updates the sites too. Returns {candidate, status: 'flipped'|'timeout', elapsed_seconds, ...}. Args: name (Release Group docname); apps (list of {app, release, hash} dicts from bench_deploy_information); site_name (one site on the RG to watch \u2014 multiple sites can be on the RG but this only waits for the named one).",
   "inputSchema": {
    "type": "object",
    "properties": {
@@ -1217,20 +1221,84 @@
     "max_wait_seconds": {
      "type": "integer",
      "minimum": 30,
-     "maximum": 1700,
-     "description": "Hard cap on the wait (default 1500 = 25 min; max 1700 to stay under Press's 1800s gunicorn timeout)"
+     "maximum": 100,
+     "description": "Wait at most this long, then status 'timeout': call again to keep waiting (max 100 s: press-ctrl's gunicorn ends a request at 120 s)"
     },
     "poll_interval_seconds": {
      "type": "integer",
      "minimum": 5,
      "maximum": 300,
-     "description": "How often to re-check (default 30s, min 5s)"
+     "description": "How often to re-check (default 5s, the minimum)"
     }
    },
    "required": [
     "name",
     "apps",
     "site_name"
+   ]
+  }
+ },
+ "bench_deploy_and_update": {
+  "description": "ONE call for a whole deploy, the dashboard's Deploy and update: builds the apps, starts the new bench and updates the sites on it once the bench is ready. Returns at once with {build, candidate, sites, next}; then call deploy_update_status(name=<build>) about every 30 s until done is true. Replaces bench_deploy + wait_for_bench_flip + deploy_candidate_status + site_update. Args: name (Release Group docname); apps (list of {app, release, hash} from bench_deploy_information); sites (optional list of Active site names on this Release Group; default all of them).",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    },
+    "apps": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "app": {
+        "type": "string",
+        "description": "App name, e.g. 'accubuild_core'"
+       },
+       "release": {
+        "type": "string",
+        "description": "App Release docname (from bench_deploy_information next_release)"
+       },
+       "hash": {
+        "type": "string",
+        "description": "Commit hash for that release (from bench_deploy_information releases[].hash)"
+       }
+      },
+      "required": [
+       "app",
+       "release",
+       "hash"
+      ]
+     },
+     "description": "List of {app, release, hash} dicts. Get release+hash from bench_deploy_information(name).apps[*].releases[0] or .next_release + matching releases[] entry. NOT a flat list of app names \u2014 each entry must be a dict."
+    },
+    "sites": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Active sites on this Release Group to update (default: all of them)"
+    }
+   },
+   "required": [
+    "name",
+    "apps"
+   ]
+  }
+ },
+ "deploy_update_status": {
+  "description": "Single-shot status of a bench_deploy_and_update (NOT a blocking wait). Returns {stage: build|bench|sites|done, done, ok, build_status, bench, bench_status, sites: [{site, status, site_update, update_job}], hint?}. Call about every 30 s until done is true; on ok=false follow the hint. Args: name (the build returned by bench_deploy_and_update).",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    }
+   },
+   "required": [
+    "name"
    ]
   }
  },
@@ -1374,14 +1442,14 @@
     "max_wait_seconds": {
      "type": "integer",
      "minimum": 30,
-     "maximum": 1700,
-     "description": "Hard cap on the wait (default 1500 = 25 min; max 1700 to stay under Press's 1800s gunicorn timeout)"
+     "maximum": 100,
+     "description": "Wait at most this long, then status 'timeout': call again to keep waiting (max 100 s: press-ctrl's gunicorn ends a request at 120 s)"
     },
     "poll_interval_seconds": {
      "type": "integer",
      "minimum": 5,
      "maximum": 300,
-     "description": "How often to re-check (default 30s, min 5s)"
+     "description": "How often to re-check (default 5s, the minimum)"
     }
    },
    "required": [
@@ -1743,6 +1811,107 @@
     "version",
     "new_apps",
     "cluster"
+   ]
+  }
+ },
+ "site_create": {
+  "description": "Create a site on a specific Release Group. 'new_subdomain' is the subdomain ONLY (no dots) \u2014 Press appends the root domain. Pass 'database' (a Remote File docname) to restore a backup AT CREATION instead of creating empty then restoring; upload the backup first via POST press.api.site.upload_backup_file with a sid from mint_dashboard_login_url. 'apps' is a list of app NAME strings and must include frappe.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "new_subdomain": {
+     "type": "string",
+     "description": "Subdomain for the new site (without the root domain)"
+    },
+    "release_group": {
+     "type": "string",
+     "description": "Release Group docname"
+    },
+    "apps": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "App names to install, e.g. ['frappe','erpnext']. Defaults to ['frappe']."
+    },
+    "plan": {
+     "type": "string",
+     "description": "Site Plan docname ('' lets Press pick)"
+    },
+    "cluster": {
+     "type": "string",
+     "description": "Cluster docname, e.g. 'Default'"
+    },
+    "server": {
+     "type": "string",
+     "description": "App server docname, e.g. 'press-f1.sandbox.mvpstorm.com'"
+    },
+    "root_domain": {
+     "type": "string",
+     "description": "Root domain for the site ('' uses Press Settings default)"
+    },
+    "database": {
+     "type": "string",
+     "description": "Remote File docname of the database backup"
+    },
+    "public": {
+     "type": "string",
+     "description": "Remote File docname of the public files archive"
+    },
+    "private": {
+     "type": "string",
+     "description": "Remote File docname of the private files archive"
+    },
+    "config": {
+     "type": "string",
+     "description": "Remote File docname of the site_config backup"
+    }
+   },
+   "required": [
+    "new_subdomain",
+    "release_group"
+   ]
+  }
+ },
+ "site_restore": {
+  "description": "Restore backup files into an EXISTING site. OVERWRITES its database \u2014 there is no undo. Each of database/public/private/config takes a Remote File docname (upload via POST press.api.site.upload_backup_file first); at least one is required. Runs as an agent job: poll site_status or agent_job_list. For a fresh site use site_create with 'database' instead.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "site": {
+     "type": "string",
+     "description": "Site name (FQDN), e.g. 'example.sandbox.mvpstorm.com'"
+    },
+    "database": {
+     "type": "string",
+     "description": "Remote File docname of the database backup"
+    },
+    "public": {
+     "type": "string",
+     "description": "Remote File docname of the public files archive"
+    },
+    "private": {
+     "type": "string",
+     "description": "Remote File docname of the private files archive"
+    },
+    "config": {
+     "type": "string",
+     "description": "Remote File docname of the site_config backup"
+    },
+    "skip_failing_patches": {
+     "type": "boolean",
+     "description": "Continue the post-restore migrate past a failing patch"
+    },
+    "skip_tables": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Table names to exclude from the restore"
+    }
+   },
+   "required": [
+    "site"
    ]
   }
  }

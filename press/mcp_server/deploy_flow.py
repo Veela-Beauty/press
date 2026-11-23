@@ -856,7 +856,7 @@ def bench_deploy_and_wait(
 		site_name: Site FQDN to watch. The deploy may affect multiple sites
 			on the same RG; this method only waits for the named one to flip.
 		max_wait_seconds: hard cap (default 1500 = 25 min; leaves 5 min headroom
-			under Press's 1800s gunicorn timeout). Returns status='timeout'
+			capped at 100 s: gunicorn ends a request at 120 s). Returns status='timeout'
 			beyond this — agent can re-call to keep waiting.
 		poll_interval_seconds: how often to re-check (default 5s, the minimum: a bench or site that
 			finishes just after a check no longer waits up to 30s to be seen).
@@ -875,7 +875,7 @@ def bench_deploy_and_wait(
 	Use this INSTEAD of bench_deploy + a manual loop on wait_for_bench_flip.
 	The single-call shape means the agent doesn't have to manage its own
 	timer + re-poll. Long-running HTTP request (up to max_wait_seconds) — safe
-	within Press's gunicorn 1800s timeout.
+	within the 100 s cap (gunicorn -t 120 on press-ctrl).
 	"""
 	import json
 	import time
@@ -893,7 +893,8 @@ def bench_deploy_and_wait(
 		)
 
 	poll_interval = max(5, int(poll_interval_seconds))
-	max_wait = max(poll_interval, int(max_wait_seconds))
+	# press-ctrl's gunicorn ends a request at 120 s (-t 120), so a longer wait was cut off, not answered (0.7.49)
+	max_wait = min(100, max(poll_interval, int(max_wait_seconds)))
 
 	# Step 1 — trigger the deploy. Returns the Deploy Candidate docname.
 	candidate = _bench_deploy(name=name, apps=apps)
@@ -932,7 +933,7 @@ def bench_deploy_and_wait(
 				"elapsed_seconds": elapsed,
 				**{k: v for k, v in last_poll.items() if k != "status"},
 			}
-		time.sleep(poll_interval)
+		time.sleep(max(0, min(poll_interval, deadline - time.monotonic())))
 
 	elapsed = int(time.monotonic() - start)
 	return {
@@ -999,7 +1000,8 @@ def site_update_and_wait(
 	import time
 
 	poll_interval = max(5, int(poll_interval_seconds))
-	max_wait = max(poll_interval, int(max_wait_seconds))
+	# press-ctrl's gunicorn ends a request at 120 s (-t 120), so a longer wait was cut off, not answered (0.7.49)
+	max_wait = min(100, max(poll_interval, int(max_wait_seconds)))
 
 	site = frappe.get_doc("Site", site_name)
 
@@ -1008,6 +1010,9 @@ def site_update_and_wait(
 	# and dies with "Could not find suitable Destination Bench". That is a timing artefact,
 	# not a real missing bench, so retry briefly instead of making the caller re-issue the
 	# whole tool call and re-guess the cadence.
+	# one deadline for the whole call, retries included: gunicorn ends the request at 120 s (0.7.49)
+	start = time.monotonic()
+	deadline = start + max_wait
 	job_name = None
 	last_error = None
 	for _attempt in range(6):
@@ -1023,19 +1028,19 @@ def site_update_and_wait(
 			last_error = str(exc)
 			frappe.db.rollback()
 			site.reload()
+			if time.monotonic() + 10 > deadline:
+				break
 			time.sleep(10)
 	if job_name is None:
 		frappe.throw(
-			f"site_update could not be scheduled for {site_name!r} after 6 attempts over "
-			f"~60s: {last_error}. If this persists the Deploy Candidate Difference for "
+			f"site_update could not be scheduled for {site_name!r} within {max_wait}s "
+			f"(retried every 10s): {last_error}. If this persists the Deploy Candidate Difference for "
 			f"{target_candidate!r} is genuinely missing — confirm the build succeeded with "
 			"deploy_candidate_status.",
 			frappe.ValidationError,
 		)
 	frappe.db.commit()
 
-	start = time.monotonic()
-	deadline = start + max_wait
 	last_poll: dict[str, Any] = {}
 	while time.monotonic() < deadline:
 		frappe.db.commit()
@@ -1049,7 +1054,7 @@ def site_update_and_wait(
 				"elapsed_seconds": elapsed,
 				**{k: v for k, v in last_poll.items() if k not in ("status", "site")},
 			}
-		time.sleep(poll_interval)
+		time.sleep(max(0, min(poll_interval, deadline - time.monotonic())))
 
 	elapsed = int(time.monotonic() - start)
 	return {

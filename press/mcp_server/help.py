@@ -81,12 +81,11 @@ SERVER_RECIPES: list[dict[str, Any]] = [
 			"0. (if upstream pushed new commits) app_source_fetch_latest(app=<app>, release_group=<RG>) — polls GitHub + creates a Draft App Release. Skip if bench_deploy_information already shows a Draft.",
 			"1. bench_deploy_information(name=<RG>) — see what's deployable",
 			"2. app_release_approve(release_name=<r>) for every Draft release",
-			"3. bench_deploy_and_wait(name=<RG>, apps=[{app,release,hash}...], site_name=<site>, max_wait_seconds=120)",
-			"4. (optional) agent_job_progress(job_name=<build-job>) — live step stream",
-			"5. deploy_candidate_status(name=<candidate>) — confirm Success",
-			"6. site_update_and_wait(site_name=<site>, target_candidate=<candidate>) — per-site flip",
-			"7. If status != 'flipped': read the hint. Gates B/C/D/E tell you exactly what to call next.",
-			"8. On flip_failed: agent_job_traceback(job_name=<failed_migrate_job>) — see the real error.",
+			"3. bench_deploy_and_update(name=<RG>, apps=[{app,release,hash}...], sites=[<site>...] or leave out for all) — returns at once with the build; Press updates the sites when the bench is ready",
+			"4. deploy_update_status(name=<build>) about every 30 s until done=true (stage: build, bench, sites, done)",
+			"5. ok=false: follow the hint (deploy_failure_details for a failed build, agent_job_traceback(job_name=<update_job>) for a failed site)",
+			"6. (optional) agent_job_progress(job_name=<build-job>) — live step stream",
+			"7. Older path, one site at a time: bench_deploy_and_wait then site_update_and_wait; each waits at most 100 s, then call again.",
 		],
 		"caveats": (
 			"Standalone Press doesn't auto-flip sites after build (Gate C fires). "
@@ -238,6 +237,7 @@ TOOL_CATEGORY: dict[str, str] = {
 	"bench_dev_info": "readonly",
 	"site_domains_list": "readonly",
 	"deploy_candidate_status": "readonly",
+	"deploy_update_status": "readonly",
 	"site_status": "readonly",
 	"agent_job_list": "readonly",
 	"wait_for_bench_flip": "readonly",
@@ -252,6 +252,7 @@ TOOL_CATEGORY: dict[str, str] = {
 	# Bench / Release Group
 	"clone_bench": "bench_rg",
 	"bench_deploy": "bench_rg",
+	"bench_deploy_and_update": "bench_rg",
 	"bench_restart": "bench_rg",
 	"bench_update_config": "bench_rg",
 	"bench_ssh_cert_get": "bench_rg",

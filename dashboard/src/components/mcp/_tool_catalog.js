@@ -32,6 +32,7 @@ export const TOOL_CATALOG = {
 	bench_dev_info:           { category: 'readonly', risk: 'low', label: 'Bench — Dev Info',              desc: 'Bench dev connection info: server IP, SSH port, dev flag' },
 	site_domains_list:        { category: 'readonly', risk: 'low', label: 'Site — Domains List',           desc: 'List domains attached to a site' },
 	deploy_candidate_status:  { category: 'readonly', risk: 'low', label: 'Deploy — Candidate Status',     desc: 'Status of a Deploy Candidate Build OR Candidate' },
+	deploy_update_status:     { category: 'readonly', risk: 'low', label: 'Deploy and Update Status',      desc: 'Build, bench and each site of a bench_deploy_and_update, in one call' },
 	site_status:              { category: 'readonly', risk: 'low', label: 'Site — Status',                 desc: 'Site bench + status + recent agent jobs' },
 	agent_job_list:           { category: 'readonly', risk: 'low', label: 'Agent Jobs — List',             desc: 'List recent Agent Jobs filtered by site / status / window' },
 	agent_job_traceback:      { category: 'readonly', risk: 'low', label: 'Agent Job — Traceback',         desc: 'One-shot diagnostic: returns status + output_tail + traceback_tail for an Agent Job. Use before deciding to restart anything.' },
@@ -54,6 +55,7 @@ export const TOOL_CATALOG = {
 	clone_bench:                            { category: 'bench_rg', risk: 'medium', label: 'Clone Bench',                          desc: 'Clone a Release Group on the same server with the same apps' },
 	bench_deploy:                           { category: 'bench_rg', risk: 'medium', label: 'Bench — Deploy',                       desc: "Trigger a deploy for a Release Group's apps" },
 	bench_deploy_and_wait:                  { category: 'bench_rg', risk: 'medium', label: 'Bench — Deploy and Wait',              desc: 'One-shot deploy + block until site flips to new candidate (or timeout)' },
+	bench_deploy_and_update:                { category: 'bench_rg', risk: 'medium', label: 'Deploy and Update Bench',              desc: 'One call: build, new bench and site updates, like the dashboard Deploy and update; returns at once' },
 	bench_set_app_branch:                   { category: 'bench_rg', risk: 'medium', label: 'Bench — Set App Branch',               desc: "Change an App Source's git branch before triggering a deploy" },
 	bench_restart:                          { category: 'bench_rg', risk: 'medium', label: 'Bench — Restart',                      desc: 'Restart a Bench (gunicorn + workers)' },
 	bench_update_config:                    { category: 'bench_rg', risk: 'medium', label: 'Bench — Update Config',                desc: 'Bulk-update bench common_site_config keys' },
@@ -139,6 +141,7 @@ export const PRESETS = {
 		'deploy_candidate_schedule_build', 'deploy_candidate_status',
 		'site_schedule_update', 'wait_for_bench_flip', 'site_status',
 		'agent_job_list', 'bench_deploy_information', 'bench_deploy',
+		'bench_deploy_and_update', 'deploy_update_status',
 	],
 };
 
