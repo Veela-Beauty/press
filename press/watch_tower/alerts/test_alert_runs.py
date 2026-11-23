@@ -23,7 +23,7 @@ from frappe.utils import get_datetime
 
 from press.watch_tower import email_branding
 from press.watch_tower._hard_timeout import HardTimeoutError
-from press.watch_tower.alerts import deploy_alerts, mcp_alerts, scheduler_alerts
+from press.watch_tower.alerts import deploy_alerts, mcp_alerts, scheduler_alerts, site_alerts
 
 WATCH_TOWER = pathlib.Path(email_branding.__file__).parent
 SQL_WORD = re.compile(r"\b(select|update|delete|where|interval|datediff|timestampdiff)\b", re.I)
@@ -125,6 +125,35 @@ class TestOncePerEvaluation(FrappeTestCase):
 		):
 			results = [deploy_alerts.check_failed_deploys({"name": f"server-{i}"}, None) for i in range(4)]
 		self.assertEqual((results, sql.call_count), ([False] * 4, 1))
+
+	def test_the_pending_build_check_reads_builds_once_for_many_benches(self):
+		"""WT-RULE-1208 failed on all 4,501 benches every day: it read `status` from Deploy Candidate (0.7.58)."""
+		with (
+			patch.object(site_alerts.frappe, "cache", return_value=FakeCache()),
+			patch.object(site_alerts.frappe.db, "sql", return_value=[]) as sql,
+			patch.object(site_alerts.frappe, "log_error") as log_error,
+		):
+			results = [site_alerts.check_bench_updates_pending({"name": f"bench-{i}"}, None) for i in range(4)]
+		self.assertEqual((results, sql.call_count), ([False] * 4, 1))
+		log_error.assert_not_called()
+		query = sql.call_args[0][0]
+		self.assertIn("FROM `tabDeploy Candidate Build`", query)
+		self.assertIn("status IN ('Draft', 'Pending')", query)
+		self.assertIn("INTERVAL 30 DAY", query)
+
+	def test_a_build_that_never_started_sends_one_email_for_many_benches(self):
+		row = frappe._dict(name="ttso2sautm", group="bench-0034", status="Draft", days_old=5)
+		with (
+			patch.object(site_alerts.frappe, "cache", return_value=FakeCache()),
+			patch.object(site_alerts.frappe.db, "sql", return_value=[row]),
+			patch.object(site_alerts, "should_send_alert", return_value=True),
+			patch.object(email_branding, "send_alert_email") as send,
+			patch.object(site_alerts.frappe, "log_error"),
+		):
+			results = [site_alerts.check_bench_updates_pending({"name": f"bench-{i}"}, None) for i in range(4)]
+		self.assertEqual(results, [True] * 4)
+		send.assert_called_once()
+		self.assertIn("ttso2sautm", send.call_args.kwargs["message"])
 
 
 class AcceptingSMTP:

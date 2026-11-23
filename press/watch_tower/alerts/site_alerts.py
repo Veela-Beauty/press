@@ -212,16 +212,25 @@ def check_email_queue_growth(doc_dict, rule):
 
 
 def check_bench_updates_pending(doc_dict, rule):
-	"""Alert if sites have pending updates sitting for >3 days."""
+	"""Alert when a deploy build never started (Draft or Pending for over 3 days). Global: memoized because the
+	engine calls it once per Bench (4,500+ candidates)."""
+	from .scheduler_alerts import _memoized
+
+	return _memoized("bench_updates_pending", _eval_bench_updates_pending)
+
+
+def _eval_bench_updates_pending():
 	from ..email_branding import wrap_email, send_alert_email
 
-	# Check deploy candidates stuck in draft
+	# The status lives on Deploy Candidate Build (Deploy Candidate has none). Builds over 30 days old are
+	# never-run leftovers (first deploys of May 2026), not news: without the window they would alert every day.
 	stale_deploys = frappe.db.sql(f"""
-		SELECT name, `group`, creation,
+		SELECT name, `group`, status, creation,
 			DATEDIFF({now_sql()}, creation) as days_old
-		FROM `tabDeploy Candidate`
-		WHERE status = 'Draft'
+		FROM `tabDeploy Candidate Build`
+		WHERE status IN ('Draft', 'Pending')
 			AND creation < {now_sql()} - INTERVAL 3 DAY
+			AND creation > {now_sql()} - INTERVAL 30 DAY
 		ORDER BY creation DESC
 		LIMIT 5
 	""", as_dict=True)
@@ -236,15 +245,15 @@ def check_bench_updates_pending(doc_dict, rule):
 	ts = ts_now()
 
 	rows = "".join(
-		f"<tr><td>{esc(d.name)}</td><td>{esc(d.group)}</td>"
+		f"<tr><td>{esc(d.name)}</td><td>{esc(d.group)}</td><td>{esc(d.status)}</td>"
 		f"<td><b>{d.days_old} days</b></td></tr>"
 		for d in stale_deploys
 	)
 
 	body = f"""
-<p><b>{len(stale_deploys)} deploy candidate(s)</b> have been in Draft for over 3 days.</p>
+<p><b>{len(stale_deploys)} deploy build(s)</b> have not started for over 3 days.</p>
 <table {TABLE}>
-<tr style="background:#f8fafc"><th>Deploy</th><th>Group</th><th>Age</th></tr>
+<tr style="background:#f8fafc"><th>Build</th><th>Group</th><th>Status</th><th>Age</th></tr>
 {rows}
 </table>"""
 
