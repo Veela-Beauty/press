@@ -23,7 +23,6 @@ import re
 import sys
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOLS_PY = REPO_ROOT / "press" / "mcp_server" / "tools.py"  # merges the parts in CATALOG_DIR
 CATALOG_DIR = REPO_ROOT / "press" / "mcp_server" / "tool_catalog"
@@ -31,9 +30,9 @@ CATALOG_JS = REPO_ROOT / "dashboard" / "src" / "components" / "mcp" / "_tool_cat
 
 
 def py_tool_names() -> set[str]:
-	"""Tool names of the catalog. Since 0.7.54 tools.py merges the parts in press/mcp_server/tool_catalog/ (each an
-	AREA_TOOLS dict literal); their keys are read from the code, nothing is imported. A name in two parts is an
-	error here too (tools.py refuses it at import)."""
+	"""Tool names of the catalog. Since 0.7.54 tools.py merges the parts in
+	press/mcp_server/tool_catalog/ (each an AREA_TOOLS dict literal); their keys are read from the code,
+	nothing is imported. A name in two parts is an error here too (tools.py refuses it at import)."""
 	names: dict[str, str] = {}
 	for part in sorted(CATALOG_DIR.glob("*.py")):
 		for node in ast.parse(part.read_text()).body:

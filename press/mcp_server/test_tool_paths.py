@@ -1,7 +1,8 @@
 # Copyright (c) 2026, Frappe and contributors
 # For license information, please see license.txt
-"""The split of 0.7.54 kept every path: each catalog tool resolves to a whitelisted function, no tool is in two
-catalog parts, and deploy_flow.py still exports every deploy_ops tool. Mock-only: reads code, writes nothing."""
+"""The split of 0.7.54 kept every path: each catalog tool resolves to a whitelisted function, no tool is in
+two catalog parts, and deploy_flow.py still exports every deploy_ops tool. Mock-only: reads code, writes
+nothing."""
 
 from __future__ import annotations
 
