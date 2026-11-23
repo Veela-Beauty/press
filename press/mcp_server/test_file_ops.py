@@ -80,18 +80,30 @@ class TestMCPFileOps(FrappeTestCase):
 		self.assertEqual(result.get("developer_mode"), 1)
 
 	def test_site_config_get_hides_every_secret_on_the_site_itself(self):
-		"""The hiding runs in the code sent to the site: app secrets and URL passwords never reach the answer."""
-		from press.mcp_server.file_ops import _REDACT_SNIPPET
+		"""The hiding runs in the code sent to the site, which the bench console runs with globals and locals apart
+		(0.7.45 failed there with a NameError): app secrets and URL passwords never reach the answer."""
+		import contextlib
+		import io
+		import json
 
-		env = {}
-		exec(_REDACT_SNIPPET, env)
-		clean = env["_clean"]
-		for key in ("sanad_review_seal_key", "sanad_review_converter_password", "some_api_token", "client_secret"):
-			self.assertEqual(clean(key, "abc"), "(hidden)", key)
-		self.assertEqual(clean("redis_cache", "redis://:pw@localhost:13000"), "redis://:(hidden)@localhost:13000")
-		self.assertEqual(clean("redis_queue", "redis://u:pw@h:11000/0"), "redis://u:(hidden)@h:11000/0")
-		for key, value in (("host_name", "https://x.example.com"), ("db_host", "10.0.0.1"), ("webserver_port", 8000)):
-			self.assertEqual(clean(key, value), value, key)
+		from press.mcp_server.file_ops import _site_code
+
+		checks = [
+			("sanad_review_seal_key", "abc"), ("sanad_review_converter_password", "abc"), ("some_api_token", "abc"),
+			("client_secret", "abc"), ("redis_cache", "redis://:pw@localhost:13000"),
+			("redis_queue", "redis://u:pw@h:11000/0"), ("host_name", "https://x.example.com"),
+			("db_host", "10.0.0.1"), ("webserver_port", 8000),
+		]
+		code = _site_code([f"print(json.dumps([clean(k, v) for k, v in {checks!r}]))"])
+		self.assertNotIn("\n\n", code)  # a blank line would end the statement in the console
+		out = io.StringIO()
+		with contextlib.redirect_stdout(out):
+			exec(code, {}, {})
+		self.assertEqual(
+			json.loads(out.getvalue()),
+			["(hidden)"] * 4
+			+ ["redis://:(hidden)@localhost:13000", "redis://u:(hidden)@h:11000/0", "https://x.example.com", "10.0.0.1", 8000],
+		)
 		sent = []
 		with patch(
 			"press.press.doctype.bench.bench_dev_overview.run_python_on_site",
@@ -99,7 +111,7 @@ class TestMCPFileOps(FrappeTestCase):
 		):
 			site_config_get(site_name="x.example.com")
 			site_config_get(site_name="x.example.com", key="sanad_review_seal_key")
-		self.assertTrue(all(_REDACT_SNIPPET in code and "_clean(" in code for code in sent))
+		self.assertTrue(all("_press_config()" in code and "clean(" in code for code in sent))
 
 	# --- site_config_set ---
 
