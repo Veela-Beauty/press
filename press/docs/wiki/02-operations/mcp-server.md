@@ -259,8 +259,10 @@ is new:
 | runaway | a token at 3x its usual calls per active hour, and 60+ calls |
 
 Each event is kept as a Watch Tower Alert Log naming only the pattern, the tool and the call-log row (the Alert Log is
-readable by every user, so no code, SQL, user or output goes there). On the week before release it would have raised 55
-events in 21 of 168 hours. Dry run on live data: press-ops `scripts/mcp-deploy-update-2026-11-23/35_agent_watch_dry_run.py`.
+readable by every user, so no code, SQL, user or output goes there). Each run reads the last 3 hours of calls and the last
+3 full clock hours for refusals and runaway, so a late run leaves no gap; events are recorded only after the email is
+accepted. On the week before release it would have raised 70 events in 32 of 168 hours (secret hunt 39, runaway 14,
+rare tool 12, refusals 3, destructive 1, secret out 1). Dry run on live data: press-ops `scripts/mcp-deploy-update-2026-11-23/35_agent_watch_dry_run.py`.
 - Risky tokens for non-System users start in `pending` status, must be approved via Admin Panel → MCP → "Approve" button.
 - Rate limit: ~100 calls/minute per token (`rate_limit.py`). Cleanup cron purges expired logs daily.
 - `help` calls do NOT count against rate limit.

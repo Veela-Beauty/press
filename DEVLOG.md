@@ -2,7 +2,7 @@
 
 ### Session 24 - 2026-11-23: MCP security before team-wide use (0.7.59)
 
-**What we did:** read-only audit of what MCP records: every call (args + response, hash-chained) in Press MCP Call Log, readable by 11 System Managers; no real secret values stored (pattern proven on a fake one), but two run_python responses on lipton-yp.sandbox hold a PRIVATE KEY block (owner to rotate). Found `recover_token` let any System User read any token. Built MCP Agent Watch (6 patterns, dry run 55 events / 21 email-hours a week), made the call log MCP Auditor only, owner-only token recovery, stopped the [MCP-DESTRUCTIVE] Error Log lines.
+**What we did:** read-only audit of what MCP records: every call (args + response, hash-chained) in Press MCP Call Log, readable by 11 System Managers; no real secret values stored (pattern proven on a fake one), but two run_python responses on lipton-yp.sandbox hold a PRIVATE KEY block (owner to rotate). Found `recover_token` let any System User read any token. Built MCP Agent Watch (6 patterns, dry run 70 events / 32 email-hours a week; an independent review's 3 MUST FIX fixed: 3-hour window, record after the email, every event recorded), made the call log MCP Auditor only, owner-only token recovery, stopped the [MCP-DESTRUCTIVE] Error Log lines.
 
 **Files:** press/watch_tower/alerts/mcp_agent_watch.py (new), test_mcp_agent_watch.py (new), mcp_server/auth.py, test_recover_token.py (new), mcp_server/server.py, test_server.py, press_mcp_call_log.json, patches/v0_0_5/add_mcp_auditor_role.py
 

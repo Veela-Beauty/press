@@ -9,6 +9,10 @@ import frappe
 def after_install():
 	create_administrator_team()
 	create_default_cluster()
+	# patches are marked done on a fresh install, so the role the call log grants read to is made here too
+	from press.patches.v0_0_5.add_mcp_auditor_role import execute as add_mcp_auditor_role
+
+	add_mcp_auditor_role()
 
 
 def create_administrator_team():
