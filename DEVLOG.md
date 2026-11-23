@@ -1,5 +1,13 @@
 # Press Fork Dev Log
 
+### Session 24 - 2026-11-23: MCP security before team-wide use (0.7.59)
+
+**What we did:** read-only audit of what MCP records: every call (args + response, hash-chained) in Press MCP Call Log, readable by 11 System Managers; no real secret values stored (pattern proven on a fake one), but two run_python responses on lipton-yp.sandbox hold a PRIVATE KEY block (owner to rotate). Found `recover_token` let any System User read any token. Built MCP Agent Watch (6 patterns, dry run 55 events / 21 email-hours a week), made the call log MCP Auditor only, owner-only token recovery, stopped the [MCP-DESTRUCTIVE] Error Log lines.
+
+**Files:** press/watch_tower/alerts/mcp_agent_watch.py (new), test_mcp_agent_watch.py (new), mcp_server/auth.py, test_recover_token.py (new), mcp_server/server.py, test_server.py, press_mcp_call_log.json, patches/v0_0_5/add_mcp_auditor_role.py
+
+**Open (owner):** rotate the key in the two lipton-yp responses and clear those rows; Watch Tower Alert Log is readable by role All (8 website users); every team member is System Manager on press-ctrl.
+
 ### Session 23 - 2026-11-23: rule 1208 and the dashboard tool list (0.7.58)
 
 **What we did:** WT-RULE-1208 read `status` from Deploy Candidate (none) and ran once per bench (4,501 failures a day); it now reads Deploy Candidate Build, Draft or Pending over 3 days within the last 30 days, memoized. The live query returns 0 rows. Added site_create (medium) and site_restore (high) to the dashboard tool list so Issue Token can grant them; the parity audit is 86 = 86.
