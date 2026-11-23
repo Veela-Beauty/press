@@ -4,6 +4,16 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 23-11-2026: the site-config read works again (0.7.46)
+
+### Fixed
+- `press/mcp_server/file_ops.py` `site_config_get` (0.7.45) answered `{}` for every site: Press feeds the code to
+  `bench console` (IPython), where a name defined at the top of the code is not seen inside a function or a
+  comprehension, so the hiding helpers raised a NameError. The code now runs inside one function with the helpers as
+  closures (`_site_code`). The test runs it with globals and locals apart, as the console does.
+
+---
+
 ## 23-11-2026: the MCP site-config read hides every secret, on the site itself (0.7.45)
 
 ### Security

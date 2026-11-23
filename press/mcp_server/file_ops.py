@@ -24,17 +24,24 @@ _SENSITIVE_PREFIXES = ("db_password", "encryption_key")
 # only db_password* and encryption_key* were held back, so app secrets (a seal key, a converter password, the redis
 # passwords) came back in clear.
 _HIDDEN = "(hidden)"
-_REDACT_SNIPPET = (
-	"import re\n"
-	"_SECRET_WORDS = ('password', 'secret', 'token', 'key')\n"
-	"_URL_PASSWORD = re.compile(r'^([a-z][a-z0-9+.-]*://[^:@/]*:)[^@/]+(@)', re.I)\n"
-	"def _hidden(k):\n"
-	"\treturn any(w in str(k).lower() for w in _SECRET_WORDS)\n"
-	"def _clean(k, v):\n"
-	f"\tif _hidden(k):\n\t\treturn {_HIDDEN!r}\n"
-	f"\tif isinstance(v, str):\n\t\treturn _URL_PASSWORD.sub(r'\\g<1>{_HIDDEN}\\g<2>', v)\n"
-	"\treturn v\n"
-)
+
+
+def _site_code(body: list[str]) -> str:
+	"""The code sent to the site: body runs inside one function, with clean(k, v) beside it. Press feeds it to
+	`bench console` (IPython), where a name defined at the top is not seen inside a def or a comprehension, so the
+	helpers are closures of _press_config (0.7.45 defined them at the top and every read failed with a NameError)."""
+	return (
+		"def _press_config():\n"
+		"\timport frappe, json, re\n"
+		"\twords = ('password', 'secret', 'token', 'key')\n"
+		"\turl_password = re.compile(r'^([a-z][a-z0-9+.-]*://[^:@/]*:)[^@/]+(@)', re.I)\n"
+		"\tdef clean(k, v):\n"
+		"\t\tif any(w in str(k).lower() for w in words):\n"
+		f"\t\t\treturn {_HIDDEN!r}\n"
+		"\t\tif isinstance(v, str):\n"
+		f"\t\t\treturn url_password.sub(r'\\g<1>{_HIDDEN}\\g<2>', v)\n"
+		"\t\treturn v\n" + "".join(f"\t{line}\n" for line in body) + "_press_config()\n"
+	)
 
 
 @frappe.whitelist()
@@ -42,25 +49,22 @@ def site_config_get(site_name: str, key: str | None = None) -> dict[str, Any]:
 	"""Read site_config.json. If key is given, return {key: value}; else return all keys.
 
 	db_password* and encryption_key* are never returned; any other secret (a key name holding password, secret, token
-	or key, and the password inside a URL) comes back as "(hidden)", hidden on the site itself (_REDACT_SNIPPET).
+	or key, and the password inside a URL) comes back as "(hidden)", hidden on the site itself (_site_code).
 	"""
 	from press.press.doctype.bench.bench_dev_overview import run_python_on_site
 
 	if key:
 		_validate_config_key(key)
-		code = (
-			"import frappe, json\n"
-			+ _REDACT_SNIPPET
-			+ f"v = _clean({key!r}, frappe.conf.get({key!r}))\n"
-			f"print(json.dumps({{'key': {key!r}, 'value': v}}))"
+		code = _site_code(
+			[f"v = clean({key!r}, frappe.conf.get({key!r}))", f"print(json.dumps({{'key': {key!r}, 'value': v}}))"]
 		)
 	else:
-		code = (
-			"import frappe, json\n"
-			+ _REDACT_SNIPPET
-			+ "safe = {k: _clean(k, v) for k, v in dict(frappe.conf).items() "
-			"if not any(str(k).startswith(p) for p in ('db_password', 'encryption_key'))}\n"
-			"print(json.dumps(safe))"
+		code = _site_code(
+			[
+				"safe = {k: clean(k, v) for k, v in dict(frappe.conf).items() "
+				"if not any(str(k).startswith(p) for p in ('db_password', 'encryption_key'))}",
+				"print(json.dumps(safe))",
+			]
 		)
 	raw = run_python_on_site(site_name=site_name, code=code)
 	return _parse_python_output(raw)
