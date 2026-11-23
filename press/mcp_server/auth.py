@@ -377,12 +377,11 @@ def recover_token(token_id: str, password: str | None = None) -> dict[str, str]:
 	Older tokens (issued before this field existed) return ValidationError
 	— caller should fall back to reissue.
 
-	Caller must own the token. System Users can recover any token.
+	Only the token's owner may recover it (0.7.59). Until then any System User could read anyone's token, and
+	with it act as that person over MCP; an admin revokes or reissues instead.
 	"""
 	doc = frappe.get_doc("Press MCP Token", token_id)
-	user = frappe.session.user
-	is_system = frappe.session.data.user_type == "System User"
-	if doc.user != user and not is_system:
+	if doc.user != frappe.session.user:
 		raise frappe.PermissionError("you can only recover your own tokens")
 
 	from frappe.utils.password import get_decrypted_password
