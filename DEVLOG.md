@@ -2,6 +2,8 @@
 
 ### Session 18 - 2026-11-23: bench_deploy_and_update, one call per deploy (0.7.49)
 
+**Then 0.7.51:** a refused alert email logs the relay's reason as an error (it was a warning, and only errors reach watch_tower.log). The failing alerts of 20-23 Nov were the error-spike flood: a probe in a long-queue worker logs in fine and one test send was accepted.
+
 **Then 0.7.50:** `check_error_log_spike` memoized and throttled; WT-RULE-1043 pointed at Server (it had every Error Log as a candidate: 17+ min a long worker each hour, one email attempt per error). Rule run: 4.5 s.
 
 **What we did:** new MCP tools `bench_deploy_and_update` (the dashboard's Deploy and update, returns at once) and `deploy_update_status` (build, bench, each site in one call); guard rule for the `sites` list; the two `*_and_wait` tools capped at 100 s under gunicorn's 120 s. 14 new tests pass on press-ctrl's bench Python; test_server (2 ssh-cert tests), test_deploy_flow (1) and test_help (18 tools without a category) fail the same way before and after.
