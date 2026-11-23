@@ -4,6 +4,18 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 23-11-2026: the error-spike check runs once per hour, not once per error (0.7.50)
+
+### Fixed
+- `press/watch_tower/alerts/scheduler_alerts.py` `check_error_log_spike` counts errors itself and ignores the document
+  it is called for, but it was neither memoized nor throttled, and its rule (WT-RULE-1043) targeted Error Log with a
+  filter Frappe read as text, so every Error Log was a candidate (capped at 10,000). It held a long worker 17+ minutes
+  every hour, tried one alert email per candidate, and kept a worker restart waiting during the 0.7.49 deploy. It is
+  now memoized and throttled like the job checks (at most 3 emails per 6 h for the same top errors); the rule was
+  pointed at Server (4 rows) on press-ctrl the same day (press-ops `scripts/mcp-deploy-update-2026-11-23/`).
+
+---
+
 ## 23-11-2026: one MCP call deploys and updates the sites (0.7.49)
 
 ### Added

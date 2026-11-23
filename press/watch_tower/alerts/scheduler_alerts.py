@@ -1,10 +1,18 @@
 """Scheduler and error log Watch Tower alerts."""
+
 import datetime
 import frappe
 from frappe.utils import get_datetime
 from ._helpers import (
-	TABLE, TH_BG, SITE_URL, NOISE_PATTERNS, ERROR_SPIKE_THRESHOLD,
-	esc, ts_now, should_send_alert, now_sql,
+	TABLE,
+	TH_BG,
+	SITE_URL,
+	NOISE_PATTERNS,
+	ERROR_SPIKE_THRESHOLD,
+	esc,
+	ts_now,
+	should_send_alert,
+	now_sql,
 )
 
 # A background/scheduled job running longer than this is treated as stuck/hung.
@@ -14,7 +22,13 @@ LOOKBACK_HOURS = 1
 
 
 def check_error_log_spike(doc_dict, rule):
-	"""Check if REAL error count exceeds threshold, filtering out noise."""
+	"""Check if REAL error count exceeds threshold, filtering out noise. It ignores doc_dict, so it is memoized and
+	throttled like the job checks below: it ran, and emailed, once per candidate document, and its rule had every
+	Error Log as a candidate (0.7.50)."""
+	return _memoized("error_log_spike", _eval_error_log_spike)
+
+
+def _eval_error_log_spike():
 	# Build parameterized noise filter -  NOISE_PATTERNS is a hardcoded tuple,
 	# but we use frappe.db.escape() defensively to prevent injection if patterns change.
 	noise_clauses = " AND ".join(
@@ -28,19 +42,29 @@ def check_error_log_spike(doc_dict, rule):
 	if count <= ERROR_SPIKE_THRESHOLD:
 		return False
 
-	top_errors = frappe.db.sql(f"""
+	top_errors = frappe.db.sql(
+		f"""
 		SELECT method, COUNT(*) as cnt
 		FROM `tabError Log`
 		WHERE creation > {now_sql()} - INTERVAL 1 HOUR AND {noise_clauses}
 		GROUP BY method ORDER BY cnt DESC LIMIT 5
-	""", as_dict=True)
+	""",
+		as_dict=True,
+	)
 
-	recent = frappe.db.sql(f"""
+	# fingerprint on the top methods, not the count: a lasting spike then sends at most 3 emails per 6 h
+	if not should_send_alert("error_log_spike", "|".join(sorted(str(e.method or "") for e in top_errors))):
+		return True
+
+	recent = frappe.db.sql(
+		f"""
 		SELECT name, method, error, creation
 		FROM `tabError Log`
 		WHERE creation > {now_sql()} - INTERVAL 1 HOUR AND {noise_clauses}
 		ORDER BY creation DESC LIMIT 5
-	""", as_dict=True)
+	""",
+		as_dict=True,
+	)
 
 	_send_error_spike_email(count, top_errors, recent)
 	return True
@@ -57,6 +81,7 @@ def check_scheduler_health(doc_dict, rule):
 
 	try:
 		from frappe.core.doctype.scheduled_job_type.scheduled_job_type import sync_jobs
+
 		sync_jobs()
 		frappe.db.commit()
 		auto_fixed = True
@@ -79,19 +104,25 @@ def check_worker_queue_depth(doc_dict, rule):
 	try:
 		result = subprocess.run(
 			["redis-cli", "-p", "11000", "llen", "default"],
-			capture_output=True, text=True, timeout=5,
+			capture_output=True,
+			text=True,
+			timeout=5,
 		)
 		default_len = int(result.stdout.strip()) if result.stdout.strip().isdigit() else 0
 
 		result = subprocess.run(
 			["redis-cli", "-p", "11000", "llen", "long"],
-			capture_output=True, text=True, timeout=5,
+			capture_output=True,
+			text=True,
+			timeout=5,
 		)
 		long_len = int(result.stdout.strip()) if result.stdout.strip().isdigit() else 0
 
 		result = subprocess.run(
 			["redis-cli", "-p", "11000", "llen", "short"],
-			capture_output=True, text=True, timeout=5,
+			capture_output=True,
+			text=True,
+			timeout=5,
 		)
 		short_len = int(result.stdout.strip()) if result.stdout.strip().isdigit() else 0
 
@@ -120,6 +151,7 @@ def check_worker_queue_depth(doc_dict, rule):
 
 def _send_error_spike_email(count, top_errors, recent):
 	from ..email_branding import wrap_email, send_alert_email
+
 	ts = ts_now()
 
 	top_rows = ""
@@ -131,9 +163,7 @@ def _send_error_spike_email(count, top_errors, recent):
 		created = get_datetime(e.creation).strftime("%H:%M:%S")
 		snippet = esc(str(e.error or "")[:200])
 		recent_rows += (
-			f"<tr><td>{created}</td>"
-			f"<td>{esc(e.method or '')}</td>"
-			f"<td><small>{snippet}</small></td></tr>"
+			f"<tr><td>{created}</td><td>{esc(e.method or '')}</td><td><small>{snippet}</small></td></tr>"
 		)
 
 	body = f"""
@@ -159,11 +189,12 @@ def _send_error_spike_email(count, top_errors, recent):
 
 def _send_scheduler_alert_email(auto_fixed):
 	from ..email_branding import wrap_email, send_alert_email
+
 	ts = ts_now()
 	fix_status = (
 		"\U0001f527 <b>Auto-fixed:</b> sync_jobs ran successfully."
-		if auto_fixed else
-		"\u274c <b>Auto-fix failed.</b> Manual intervention required."
+		if auto_fixed
+		else "\u274c <b>Auto-fix failed.</b> Manual intervention required."
 	)
 
 	body = f"""
@@ -331,6 +362,7 @@ def _eval_stuck_jobs():
 
 # ----- shared RQ helpers (version-tolerant; return empty / None instead of raising) -----
 
+
 def _recent_job_ids(registry, n=200):
 	"""Most-recent N job ids from an RQ registry. Registries sort oldest-first, so the
 	last N are the newest; falls back to the head slice on older RQ versions. Never raises."""
@@ -351,6 +383,7 @@ def _rq_queues():
 	try:
 		from frappe.utils.background_jobs import get_redis_conn
 		from rq import Queue
+
 		return Queue.all(connection=get_redis_conn())
 	except Exception:
 		return []
@@ -378,8 +411,10 @@ def _exc_last_line(job):
 
 # ----- email bodies -----
 
+
 def _send_job_failure_email(rows, total, last_err):
 	from ..email_branding import wrap_email, send_alert_email
+
 	ts = ts_now()
 	job_rows = "".join(
 		f"<tr><td>{esc(r.scheduled_job_type)}</td><td><b>{r.cnt}</b></td>"
@@ -405,6 +440,7 @@ def _send_job_failure_email(rows, total, last_err):
 
 def _send_bg_failure_email(failed):
 	from ..email_branding import wrap_email, send_alert_email
+
 	ts = ts_now()
 	rows_html = "".join(
 		f"<tr><td>{esc(qn)}</td><td>{esc(fn)}</td><td><small>{esc(err[:200])}</small></td></tr>"
@@ -426,6 +462,7 @@ def _send_bg_failure_email(failed):
 
 def _send_stuck_email(stuck):
 	from ..email_branding import wrap_email, send_alert_email
+
 	ts = ts_now()
 	rows_html = "".join(
 		f"<tr><td>{esc(qn)}</td><td>{esc(fn)}</td><td><b>{mins}</b> min</td></tr>"
