@@ -17,7 +17,9 @@ from press.mcp_server import deploy_flow, tools
 
 
 class TestToolPaths(FrappeTestCase):
-	def test_every_tool_method_resolves_to_a_whitelisted_function(self):
+	def test_every_tool_method_resolves_and_the_deploy_flow_ones_stay_whitelisted(self):
+		"""The MCP dispatcher calls a tool's method in-process, so it need not be whitelisted
+		(bench_ops.* are not); the deploy_flow tools were, and the split must keep them so."""
 		broken = {}
 		for name, spec in tools.TOOLS.items():
 			try:
@@ -25,8 +27,10 @@ class TestToolPaths(FrappeTestCase):
 			except Exception as e:  # report every broken path, not only the first
 				broken[name] = f"{spec['method']}: {e!r}"
 				continue
-			if not callable(fn) or fn not in frappe.whitelisted:
-				broken[name] = f"{spec['method']}: not a whitelisted function"
+			if not callable(fn):
+				broken[name] = f"{spec['method']}: not callable"
+			elif spec["method"].startswith("press.mcp_server.deploy_flow.") and fn not in frappe.whitelisted:
+				broken[name] = f"{spec['method']}: no longer whitelisted"
 		self.assertEqual(broken, {})
 
 	def test_each_tool_is_in_one_catalog_part(self):
