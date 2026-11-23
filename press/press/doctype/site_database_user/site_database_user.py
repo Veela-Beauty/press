@@ -319,7 +319,7 @@ class SiteDatabaseUser(Document):
 		database = self._get_database_name()
 		return {
 			"host": proxy_server,
-			"port": 3306,
+			"port": frappe.db.get_value("Proxy Server", proxy_server, "proxysql_port") or 3306,
 			"database": database,
 			"username": self.username,
 			"password": self.get_password("password"),

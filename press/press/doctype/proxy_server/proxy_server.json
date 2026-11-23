@@ -60,6 +60,7 @@
   "proxysql_admin_password",
   "proxysql_monitor_password",
   "is_proxysql_setup",
+  "proxysql_port",
   "memory_limits_section",
   "mem_limits",
   "vpn_tab",
@@ -261,6 +262,14 @@
    "fieldtype": "Check",
    "label": "Is ProxySQL Setup",
    "read_only": 1
+  },
+  {
+   "default": "3306",
+   "description": "Host port ProxySQL listens on. Use another port when this box also runs MariaDB on 3306.",
+   "fieldname": "proxysql_port",
+   "fieldtype": "Int",
+   "label": "ProxySQL Port",
+   "non_negative": 1
   },
   {
    "fieldname": "proxysql_monitor_password",
@@ -490,7 +499,7 @@
   }
  ],
  "links": [],
- "modified": "2026-03-05 18:15:53.238373",
+ "modified": "2026-11-23 04:41:02.366395",
  "modified_by": "Administrator",
  "module": "Press",
  "name": "Proxy Server",
