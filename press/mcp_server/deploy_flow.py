@@ -837,6 +837,12 @@ def agent_health(server: str, lookback_minutes: int = 10) -> dict[str, Any]:
 	}
 
 
+# The two blocking *_and_wait tools hold one of press-ctrl's 9 sync gunicorn workers while they wait, and gunicorn ends
+# a request at 120 s (-t 120): 0.7.49 capped the wait at 100 s, 0.7.52 at 30 s so parallel agents cannot fill the web
+# workers. Past the cap they answer status='timeout': call again, or use bench_deploy_and_update, which returns at once.
+HTTP_WAIT_CAP_SECONDS = 30
+
+
 @frappe.whitelist()
 def bench_deploy_and_wait(
 	name: str,
@@ -856,7 +862,7 @@ def bench_deploy_and_wait(
 		site_name: Site FQDN to watch. The deploy may affect multiple sites
 			on the same RG; this method only waits for the named one to flip.
 		max_wait_seconds: hard cap (default 1500 = 25 min; leaves 5 min headroom
-			capped at 100 s: gunicorn ends a request at 120 s). Returns status='timeout'
+			capped at HTTP_WAIT_CAP_SECONDS). Returns status='timeout'
 			beyond this — agent can re-call to keep waiting.
 		poll_interval_seconds: how often to re-check (default 5s, the minimum: a bench or site that
 			finishes just after a check no longer waits up to 30s to be seen).
@@ -875,7 +881,7 @@ def bench_deploy_and_wait(
 	Use this INSTEAD of bench_deploy + a manual loop on wait_for_bench_flip.
 	The single-call shape means the agent doesn't have to manage its own
 	timer + re-poll. Long-running HTTP request (up to max_wait_seconds) — safe
-	within the 100 s cap (gunicorn -t 120 on press-ctrl).
+	within HTTP_WAIT_CAP_SECONDS.
 	"""
 	import json
 	import time
@@ -893,8 +899,7 @@ def bench_deploy_and_wait(
 		)
 
 	poll_interval = max(5, int(poll_interval_seconds))
-	# press-ctrl's gunicorn ends a request at 120 s (-t 120), so a longer wait was cut off, not answered (0.7.49)
-	max_wait = min(100, max(poll_interval, int(max_wait_seconds)))
+	max_wait = min(HTTP_WAIT_CAP_SECONDS, max(poll_interval, int(max_wait_seconds)))
 
 	# Step 1 — trigger the deploy. Returns the Deploy Candidate docname.
 	candidate = _bench_deploy(name=name, apps=apps)
@@ -1000,8 +1005,7 @@ def site_update_and_wait(
 	import time
 
 	poll_interval = max(5, int(poll_interval_seconds))
-	# press-ctrl's gunicorn ends a request at 120 s (-t 120), so a longer wait was cut off, not answered (0.7.49)
-	max_wait = min(100, max(poll_interval, int(max_wait_seconds)))
+	max_wait = min(HTTP_WAIT_CAP_SECONDS, max(poll_interval, int(max_wait_seconds)))
 
 	site = frappe.get_doc("Site", site_name)
 

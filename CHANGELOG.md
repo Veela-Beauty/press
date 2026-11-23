@@ -4,6 +4,31 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 23-11-2026: review follow-ups for the MCP deploy tool and Watch Tower (0.7.52)
+
+### Fixed
+- `deploy_update_status` read only the newest bench of a build; a two-server group (bench-0007) has one bench per
+  server, so sites waiting for the slower one were marked "Not scheduled". It now waits for every bench (`benches` in
+  the answer replaces `bench` / `bench_status`), fails if any is Broken, and counts the grace from the last one ready.
+- `bench_deploy_and_update` with `sites` left out took every Active site of the group, so on a shared group the guard
+  refused the whole deploy. It now takes the calling team's sites (`scope/sites.py` `chosen_sites`).
+- `send_alert_email` returns True or False, and a 15 s hard timeout counts as not sent (it was logged and read as
+  sent), so a caller that marks records alerted can do it only after a send that worked (the hub digest, 0.2.23).
+- `check_failed_deploys` is memoized like the job checks; WT-RULE-1040 targeted every failed build (a text filter),
+  so its query ran 255 times an hour. The rule record moves to Server after this deploy.
+
+### Changed
+- `bench_deploy_and_wait` and `site_update_and_wait` wait at most 30 s (`deploy_flow.HTTP_WAIT_CAP_SECONDS`, was
+  100 s) and say they are the older, blocking path: each holds one of press-ctrl's 9 sync web workers while it waits.
+- `chosen_sites` moved to `scope/sites.py`: the scope layer no longer imports the tool it guards.
+
+### Tests
+- `press/watch_tower/alerts/test_alert_runs.py` (new, mock-only): no Watch Tower SQL uses the database `NOW()`, the
+  MCP-slowness cutoffs come from Frappe's clock, the error-spike and failed-deploy checks run once per evaluation, a
+  refused or timed-out alert email returns False with the reason. `test_deploy_update.py` covers the above.
+
+---
+
 ## 23-11-2026: a refused alert email says why (0.7.51)
 
 ### Fixed

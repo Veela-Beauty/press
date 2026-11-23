@@ -276,7 +276,7 @@ def _rule_site_list(team: str, args: dict) -> None:
 	# bench_deploy_and_update updates a list of sites: each must be the team's, allowed by the token and unlocked if
 	# confidential, the same checks a single site_name gets (0.7.49)
 	# the list the tool will act on, so leaving `sites` out (every Active site of the group) is checked too
-	from press.mcp_server.deploy_update import chosen_sites
+	from press.mcp_server.scope.sites import chosen_sites
 
 	sites = [s.name for s in chosen_sites(args.get("name"), args.get("sites"))]
 	allowed = set(getattr(frappe.local, "mcp_token_allowed_sites", None) or ())

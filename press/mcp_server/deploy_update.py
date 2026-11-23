@@ -17,37 +17,14 @@ from typing import Any
 import frappe
 from frappe.utils import now_datetime, time_diff_in_seconds
 
+from press.mcp_server.scope.sites import chosen_sites
+
 _BUILD_FAILED = ("Failure",)
 _BENCH_READY = ("Active", "Archived")  # Archived: a later deploy replaced the bench after this one ran
 _NOT_SCHEDULED = "Not scheduled"
 _SITE_DONE = ("Success", "Failure", "Recovered", "Fatal", _NOT_SCHEDULED)
 # Press schedules the site updates when the bench turns Active; a row still unscheduled after this never will be
 _SCHEDULE_GRACE_SECONDS = 120
-
-
-def chosen_sites(name: str, sites) -> list:
-	"""The sites a bench_deploy_and_update acts on: the named Active sites of Release Group `name`, or all of them
-	when `sites` is left out ([] means none). call_guard checks this same list, so leaving `sites` out cannot reach
-	a site the token may not."""
-	if isinstance(sites, str):
-		try:
-			sites = json.loads(sites) if sites.lstrip().startswith("[") else ([sites] if sites else None)
-		except ValueError:
-			frappe.throw("sites must be a list of site names", frappe.ValidationError)
-	if sites is not None and (not isinstance(sites, list) or not all(isinstance(s, str) for s in sites)):
-		frappe.throw("sites must be a list of site names", frappe.ValidationError)
-	on_group = {
-		s.name: s
-		for s in frappe.get_all(
-			"Site", filters={"group": name, "status": "Active"}, fields=["name", "server", "bench"]
-		)
-	}
-	if sites is None:
-		return list(on_group.values())
-	missing = [s for s in sites if s not in on_group]
-	if missing:
-		frappe.throw(f"not Active sites on {name}: {', '.join(missing)}", frappe.ValidationError)
-	return [on_group[s] for s in sites]
 
 
 @frappe.whitelist()
@@ -93,29 +70,29 @@ def bench_deploy_and_update(
 
 @frappe.whitelist()
 def deploy_update_status(name: str) -> dict[str, Any]:
-	"""Where a bench_deploy_and_update is: the build, the new bench, then each site's update. name = the build."""
+	"""Where a bench_deploy_and_update is: the build, its new benches (one per server of the group), then each site's
+	update. name = the build. 0.7.52: every bench is read, not only the newest (a two-server group has two)."""
 	build = frappe.db.get_value(
 		"Deploy Candidate Build", name, ["name", "status", "deploy_candidate"], as_dict=True
 	)
 	if not build:
 		frappe.throw(f"Deploy Candidate Build {name!r} not found", frappe.DoesNotExistError)
-	bench = frappe.db.get_value(
+	benches = frappe.get_all(
 		"Bench",
-		{"candidate": build.deploy_candidate},
-		["name", "status", "modified"],
-		as_dict=True,
-		order_by="creation desc",
+		filters={"candidate": build.deploy_candidate},
+		fields=["name", "status", "modified"],
+		order_by="creation",
 	)
-	ready = bench if bench and bench.status in _BENCH_READY else None
+	ready = bool(benches) and all(b.status in _BENCH_READY for b in benches)
 	bench_update = frappe.db.get_value(
 		"Bench Update", {"candidate": build.deploy_candidate}, "name", order_by="creation desc"
 	)
-	sites = _visible(_site_rows(bench_update, ready)) if bench_update else []
+	ready_since = max(b.modified for b in benches) if ready else None
+	sites = _visible(_site_rows(bench_update, ready_since)) if bench_update else []
 	result = {
 		"build": build.name,
 		"build_status": build.status,
-		"bench": bench.name if bench else None,
-		"bench_status": bench.status if bench else None,
+		"benches": [{"bench": b.name, "status": b.status} for b in benches],
 		"sites": sites,
 	}
 	if not bench_update:
@@ -123,43 +100,36 @@ def deploy_update_status(name: str) -> dict[str, Any]:
 			"this build was not started by bench_deploy_and_update, so it updates no sites; "
 			"update each with site_update_and_wait"
 		)
+	return {**result, **_stage(build, benches, ready, sites)}
+
+
+def _stage(build, benches, ready: bool, sites: list[dict]) -> dict[str, Any]:
+	"""stage, done, ok and a hint: build first, then every bench, then every site."""
 	if build.status in _BUILD_FAILED:
-		return {
-			**result,
-			"stage": "build",
-			"done": True,
-			"ok": False,
-			"hint": f"deploy_failure_details(name={name!r})",
-		}
-	if build.status != "Success" or not bench or (not ready and bench.status != "Broken"):
-		return {
-			**result,
-			"stage": "build" if build.status != "Success" else "bench",
-			"done": False,
-			"ok": False,
-		}
+		return {"stage": "build", "done": True, "ok": False, "hint": f"deploy_failure_details(name={build.name!r})"}
+	if build.status != "Success":
+		return {"stage": "build", "done": False, "ok": False}
+	if any(b.status == "Broken" for b in benches):
+		return {"stage": "bench", "done": True, "ok": False, "hint": "agent_job_list for the broken bench's New Bench job"}
 	if not ready:
-		return {
-			**result,
-			"stage": "bench",
-			"done": True,
-			"ok": False,
-			"hint": "agent_job_list for the bench's New Bench job",
-		}
+		return {"stage": "bench", "done": False, "ok": False}
 	if any(s["status"] not in _SITE_DONE for s in sites):
-		return {**result, "stage": "sites", "done": False, "ok": False}
-	failed = [s for s in sites if s["status"] != "Success"]
-	hint = (
-		"agent_job_traceback(job_name=<update_job>) for a failed site; a site that is Not scheduled had another "
-		"update pending or running: site_status, then site_update_and_wait"
-	)
-	return {**result, "stage": "done", "done": True, "ok": not failed, **({"hint": hint} if failed else {})}
+		return {"stage": "sites", "done": False, "ok": False}
+	if all(s["status"] == "Success" for s in sites):
+		return {"stage": "done", "done": True, "ok": True}
+	return {
+		"stage": "done",
+		"done": True,
+		"ok": False,
+		"hint": "agent_job_traceback(job_name=<update_job>) for a failed site; a site that is Not scheduled had another "
+		"update pending or running: site_status, then site_update_and_wait",
+	}
 
 
-def _site_rows(bench_update: str, ready_bench) -> list[dict]:
+def _site_rows(bench_update: str, ready_since) -> list[dict]:
 	"""Each site of the Bench Update and its Site Update status. The Bench Site Update row keeps "Pending" after its
 	Site Update is created, so the Site Update's own status is read. Press skips a site that already has an update
-	pending or running, and its row then stays Pending with no Site Update: Not scheduled, once the bench is ready."""
+	pending or running, and its row then stays Pending with no Site Update: Not scheduled, once every bench is ready."""
 	rows = frappe.get_all(
 		"Bench Site Update", filters={"parent": bench_update}, fields=["site", "site_update", "status"]
 	)
@@ -171,10 +141,7 @@ def _site_rows(bench_update: str, ready_bench) -> list[dict]:
 			fields=["name", "status", "update_job"],
 		)
 	}
-	late = bool(
-		ready_bench
-		and time_diff_in_seconds(now_datetime(), ready_bench.modified) > _SCHEDULE_GRACE_SECONDS
-	)
+	late = bool(ready_since and time_diff_in_seconds(now_datetime(), ready_since) > _SCHEDULE_GRACE_SECONDS)
 	out = []
 	for r in rows:
 		update = updates.get(r.site_update)
