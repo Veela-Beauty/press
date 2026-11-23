@@ -18,12 +18,31 @@ MAX_FILE_BYTES = 5 * 1024 * 1024  # 5 MB cap on file_read/file_write
 
 _SENSITIVE_PREFIXES = ("db_password", "encryption_key")
 
+# A site's secrets never leave the site: the code that reads site_config.json runs on the site and hides them there,
+# so they reach neither this tool's answer nor the Agent Job output Press keeps. Hidden: the value of any key whose name
+# holds password, secret, token or key, and the password inside a URL value (redis://:password@host). Before 0.7.45
+# only db_password* and encryption_key* were held back, so app secrets (a seal key, a converter password, the redis
+# passwords) came back in clear.
+_HIDDEN = "(hidden)"
+_REDACT_SNIPPET = (
+	"import re\n"
+	"_SECRET_WORDS = ('password', 'secret', 'token', 'key')\n"
+	"_URL_PASSWORD = re.compile(r'^([a-z][a-z0-9+.-]*://[^:@/]*:)[^@/]+(@)', re.I)\n"
+	"def _hidden(k):\n"
+	"\treturn any(w in str(k).lower() for w in _SECRET_WORDS)\n"
+	"def _clean(k, v):\n"
+	f"\tif _hidden(k):\n\t\treturn {_HIDDEN!r}\n"
+	f"\tif isinstance(v, str):\n\t\treturn _URL_PASSWORD.sub(r'\\g<1>{_HIDDEN}\\g<2>', v)\n"
+	"\treturn v\n"
+)
+
 
 @frappe.whitelist()
 def site_config_get(site_name: str, key: str | None = None) -> dict[str, Any]:
 	"""Read site_config.json. If key is given, return {key: value}; else return all keys.
 
-	Sensitive keys (db_password*, encryption_key*) are never returned.
+	db_password* and encryption_key* are never returned; any other secret (a key name holding password, secret, token
+	or key, and the password inside a URL) comes back as "(hidden)", hidden on the site itself (_REDACT_SNIPPET).
 	"""
 	from press.press.doctype.bench.bench_dev_overview import run_python_on_site
 
@@ -31,14 +50,16 @@ def site_config_get(site_name: str, key: str | None = None) -> dict[str, Any]:
 		_validate_config_key(key)
 		code = (
 			"import frappe, json\n"
-			f"v = frappe.conf.get({key!r})\n"
+			+ _REDACT_SNIPPET
+			+ f"v = _clean({key!r}, frappe.conf.get({key!r}))\n"
 			f"print(json.dumps({{'key': {key!r}, 'value': v}}))"
 		)
 	else:
 		code = (
 			"import frappe, json\n"
-			"safe = {k: v for k, v in dict(frappe.conf).items() "
-			"if not any(k.startswith(p) for p in ('db_password', 'encryption_key'))}\n"
+			+ _REDACT_SNIPPET
+			+ "safe = {k: _clean(k, v) for k, v in dict(frappe.conf).items() "
+			"if not any(str(k).startswith(p) for p in ('db_password', 'encryption_key'))}\n"
 			"print(json.dumps(safe))"
 		)
 	raw = run_python_on_site(site_name=site_name, code=code)
