@@ -24,7 +24,7 @@ _frappe_stub.db = MagicMock()
 _frappe_stub.logger = lambda: MagicMock()
 sys.modules.setdefault("frappe", _frappe_stub)
 
-import press.press.doctype.bench.bench_dev_overview as _bdo  # noqa: E402
+import press.press.doctype.bench.dev_overview.panel as _bdo  # noqa: E402
 
 
 class TestGetBenchAppNames(unittest.TestCase):
