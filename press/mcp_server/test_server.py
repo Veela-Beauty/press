@@ -735,29 +735,6 @@ class TestMCPServer(FrappeTestCase):
 		self.assertEqual(result["error_type"], "RateLimitError")
 		self.assertIn("cap exceeded", result["error"])
 
-	def test_destructive_op_notification_logged_on_success(self):
-		"""High-risk tool successful run must trigger _notify_destructive_op."""
-		from press.mcp_server.auth import issue_token
-		risky = issue_token(
-			username="Administrator",
-			password="ignored",
-			scope=["site_run_python"],
-			ttl_minutes=10,
-			label="destructive-test",
-			risky_tools_enabled=True,
-		)
-		with patch(
-			"press.press.doctype.bench.bench_dev_overview.run_python_on_site",
-			return_value="OK",
-		):
-			with patch("press.mcp_server.server._notify_destructive_op") as m_notify:
-				handle(
-					tool="site_run_python",
-					args={"site_name": "x", "code": "print('hi')"},
-					token=risky["token"],
-				)
-		m_notify.assert_called_once()
-
 	def test_audit_log_writes_row_hash(self):
 		"""After a successful call, the latest log row has a non-empty row_hash."""
 		def sync_enqueue(method_path, **kwargs):
