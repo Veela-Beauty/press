@@ -4,6 +4,16 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 23-11-2026: a refused alert email says why (0.7.51)
+
+### Fixed
+- `press/watch_tower/email_branding.py` `send_alert_email` logged the relay's answer as a warning, and only errors reach
+  `watch_tower.log`, so every failure read "Alert email not sent (SMTP unavailable)" (16,665 of them 20-23 Nov, the
+  error-spike flood that 0.7.50 ends). The failure line now carries the reason, e.g. `SMTPDataError: (421, ...)`, and
+  the two "mail account not readable" notes are errors too.
+
+---
+
 ## 23-11-2026: the error-spike check runs once per hour, not once per error (0.7.50)
 
 ### Fixed

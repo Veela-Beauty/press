@@ -39,10 +39,12 @@ def _get_smtp_config():
 	except Exception as e:
 		# no account readable now: report unavailable and read again next time. Never cache this, a cached empty
 		# password kept every alert of a long-running worker unsent (2026-11-22)
-		frappe.logger("watch_tower").warning(f"No default outgoing Email Account readable for alerts: {e!r}")
+		frappe.logger("watch_tower").error(f"No default outgoing Email Account readable for alerts: {e!r}")
 		return {}
 	if not password:
-		frappe.logger("watch_tower").warning(f"Email Account {account.name} has no readable password for alerts")
+		frappe.logger("watch_tower").error(
+			f"Email Account {account.name} has no readable password for alerts"
+		)
 		return {}
 	_smtp_config.update(
 		{
@@ -75,6 +77,7 @@ def send_alert_email(recipients, subject, message, important=False, **kwargs):
 	all_recipients = list(set((recipients if isinstance(recipients, list) else [recipients]) + cc_list))
 
 	# Try direct SMTP first
+	reason = "no readable mail account or password"
 	try:
 		cfg = _get_smtp_config()
 		if cfg.get("password"):
@@ -82,12 +85,14 @@ def send_alert_email(recipients, subject, message, important=False, **kwargs):
 			return
 	except Exception as e:
 		_smtp_config.clear()  # read the account again next time: a changed password or login must not stay broken
-		frappe.logger("watch_tower").warning(f"Direct SMTP failed: {e}")
+		# the relay's own answer (a 421 rate limit, a 554 refusal): it was a warning, and only errors reach
+		# watch_tower.log, so 16,665 refusals in Nov 2026 showed no reason (0.7.51)
+		reason = f"{type(e).__name__}: {e}"[:300]
 
 	# No fallback to frappe.sendmail -  it creates Email Queue entries
 	# that pile up as errors when SMTP rejects recipients (caused 104K entries, 1.17 GB).
 	# If direct SMTP fails, just log and move on.
-	frappe.logger("watch_tower").error(f"Alert email not sent (SMTP unavailable): {subject}")
+	frappe.logger("watch_tower").error(f"Alert email not sent ({reason}): {subject}")
 
 
 def _send_smtp(cfg, recipients, subject, html_body):
