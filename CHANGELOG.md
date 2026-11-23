@@ -4,6 +4,23 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 23-11-2026: bench_dev_overview.py split by concern, behaviour unchanged (0.7.56)
+
+### Changed
+- `press/press/doctype/bench/bench_dev_overview.py` (1,326 lines) is a 51-line stub; its 35 definitions live in
+  `press/press/doctype/bench/dev_overview/`: `panel` (Dev Overview page, dev panel, git status, restart, push),
+  `ssh` (certificates, key registration, instructions, connect), `code_server`, `site_container` (SQL and Python
+  console, database process list, bench logs) and `app_files` (read-only app source files). The stub re-exports
+  every name, so the dashboard's `frappe.call` paths, the MCP catalog methods and every
+  `from press.press.doctype.bench.bench_dev_overview import ...` keep working; all 24 whitelisted functions stay
+  whitelisted through the stub path.
+- The new modules do not add `from __future__ import annotations` (the original had none): Frappe 15 skips its
+  argument type check for string annotations, so adding it would have switched that check off.
+- Seven bench dev tests patch `frappe` (and `ensure_team_access`) in the module the code moved to; no assertion
+  changed. The 111 tests give the same result, test by test, as before the split.
+
+---
+
 ## 23-11-2026: Open in VS Code and push app to GitHub work again (0.7.55)
 
 ### Fixed

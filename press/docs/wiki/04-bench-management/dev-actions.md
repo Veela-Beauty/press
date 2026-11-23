@@ -35,7 +35,7 @@ Certificates are valid for 6 hours. Reopen the dialog when one expires.
 
 ## Backend method
 
-The dialog calls `press.press.doctype.bench.bench_dev_overview.get_vscode_remote_url` which returns:
+The dialog calls `press.press.doctype.bench.bench_vscode.get_vscode_remote_url` which returns:
 
 ```
 vscode://vscode-remote/ssh-remote+<bench>@<proxy_server>:2222/home/frappe/frappe-bench
@@ -48,7 +48,9 @@ The `proxy_server` is read from the bench's `Server` document (fetched via `frap
 - Component: `dashboard/src/components/group/ReleaseGroupActions.vue`
 - VS Code dialog: `dashboard/src/components/group/VSCodeLaunchDialog.vue`
 - SSH cert dialog: `dashboard/src/components/group/SSHCertificateDialog.vue`
-- Backend APIs: `press/press/doctype/bench/bench_dev_overview.py`
+- Backend APIs: `press/press/doctype/bench/bench_dev_overview.py` (a re-export stub since 0.7.56; the code is in
+  `dev_overview/`: `ssh.py` for certificates and SSH, `code_server.py`, `panel.py`, `site_container.py`, `app_files.py`)
+  and `bench_vscode.py` (the VS Code link)
 
 ## Troubleshooting
 
