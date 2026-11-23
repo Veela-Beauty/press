@@ -8,7 +8,9 @@
 
 **Then (owner's choices):** `frappe.client.get_password` refuses Press MCP Token (Recover kept); Alert Log read is System Manager only (role All let 8 website users read it); the two lipton-yp responses with the PRIVATE KEY are cleared at deploy (press-ops 38_apply_agent_watch_access.py).
 
-**Open (owner):** rotate that Google key; every team member is System Manager on press-ctrl, so System Console can still decrypt a token copy and grant MCP Auditor.
+**Deploy (19:11):** live; rule WT-RULE-120625 ran at 19:16 and recorded 2 secret-hunt events (owner's token, 16:28). The get_password override was not dispatched until the cache was cleared again (clear-cache ran before the restarts; see lessons-learned). The 19:16 email was accepted by Brevo but not received by the owner; a neutral test and a resend went out at 20:18 (45_mail_test_agent_watch.py); mvpstorm.com has no SPF record.
+
+**Open (owner):** which of the 20:18 test emails arrived; rotate that Google key; every team member is System Manager on press-ctrl, so System Console can still decrypt a token copy and grant MCP Auditor.
 
 ### Session 23 - 2026-11-23: rule 1208 and the dashboard tool list (0.7.58)
 

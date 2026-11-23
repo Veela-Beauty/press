@@ -49,6 +49,22 @@
 **Cause:** No Email Account configured
 **Fix:** Create dummy Email Account with `default_outgoing=1` or set `disable_mail_notifications=1` in site_config.json
 
+### A new override in hooks.py does nothing after a deploy
+**Cause:** `bench clear-cache` ran before the web and worker restart. The old processes, still on the old code,
+rebuilt `app_hooks` in Redis from the old `hooks.py`, so Frappe kept dispatching to the original method (0.7.59:
+`frappe.client.get_password` still went to Frappe, not `press.overrides.get_password`).
+**Check:** press-ops `scripts/mcp-deploy-update-2026-11-23/41_check_override_hook.py` prints where a method dispatches.
+**Fix:** run `bench --site demo.mvpstorm.com clear-cache` again once every process runs the new code; deploy scripts
+clear the cache after the restarts (`40_deploy_0759.sh`).
+
+### Alert email accepted but not received
+**Cause:** after Brevo accepts a message, the receiving side can still drop or file it: Gmail Spam, Promotions or
+Updates, or a Brevo block. mvpstorm.com has Brevo DKIM (`brevo1`, `brevo2`) and DMARC `p=reject`, but no SPF record.
+**Check:** a recorded Watch Tower event means the relay took the email; send a neutral test and the alert again with
+`45_mail_test_agent_watch.py`, then search the inbox and its tabs for both subjects.
+**Fix:** if only the neutral test arrives, reword the alert; if neither arrives, read Brevo's transactional log.
+Add SPF for mvpstorm.com (`v=spf1 include:spf.brevo.com ~all`) either way.
+
 ### Cluster `public` flag resets on save
 **Cause:** Unknown — Cluster.save() resets public to 0
 **Fix:** Set via direct DB: `frappe.db.set_value("Cluster", "Default", "public", 1)`
