@@ -80,7 +80,7 @@ The wrapper file: `press/test_auth.py`.
    means the allowlist is right.
 5. Run `python3 scripts/audit_dashboard_method_exists.py` — exits 0
    means the dotted path actually resolves.
-6. If MCP: add to `press/mcp_server/tools.py` AND
+6. If MCP: add to the right part in `press/mcp_server/tool_catalog/` (merged by `tools.py`) AND
    `dashboard/src/components/mcp/_tool_catalog.js` — the parity audit
    enforces both.
 7. Push. CI runs the wrapper test and stops the merge if anything drifted.

@@ -41,7 +41,7 @@ Every successful response also includes a `_hint` field pointing agents to `help
 
 ## Tool catalog (57 tools, 5 categories)
 
-Full live source: `press/mcp_server/tools.py`. Mirrored to UI in `dashboard/src/components/mcp/_tool_catalog.js` (a drift detector test enforces parity).
+Full live source: `press/mcp_server/tool_catalog/` (one part per area, merged by `press/mcp_server/tools.py` since 0.7.54). Mirrored to UI in `dashboard/src/components/mcp/_tool_catalog.js` (a drift detector test enforces parity).
 
 | Category | Risk | Count | Examples |
 |---|---|---|---|
@@ -210,7 +210,10 @@ These four were found and fixed in one session — kept here as the canonical "t
 
 ## Adding a new tool
 
-1. Add the entry to `press/mcp_server/tools.py:TOOLS`:
+1. Add the entry to the part for its area in `press/mcp_server/tool_catalog/` (`core`, `bench_code`,
+   `sites_benches`, `deploy`, `bench_control`); `tools.py` merges them into `TOOLS` and refuses at import a
+   name that is in two parts. A deploy-flow tool's code goes in `press/mcp_server/deploy_ops/<module>.py`, re-exported
+   from `deploy_flow.py` so its `press.mcp_server.deploy_flow.<tool>` path works:
    ```python
    "my_new_tool": {
        "method": "press.module.path.my_function",
@@ -222,6 +225,9 @@ These four were found and fixed in one session — kept here as the canonical "t
 2. Add the same to `dashboard/src/components/mcp/_tool_catalog.js` (UI mirror — agents see it in the dialog).
 3. Add the category to `press/mcp_server/help.py:TOOL_CATEGORY`.
 4. Run the drift detector test: `bench --site demo.mvpstorm.com run-tests --module press.mcp_server.test_help` — `test_every_tool_has_a_category_mapping` will fail if you skip step 3.
+   **Never run `test_server.py` against press-ctrl**: its setUp empties the Press MCP Token, Auth Attempt and Call Log
+   tables (only the test rollback saved every token on 2026-11-23). There, run mock-only tests through press-ops
+   `scripts/mcp-speed-2026-11-23/run_new_module_tests.py`, which refuses a test file that writes.
 5. Add a test to `press/mcp_server/test_server.py` exercising the dispatch.
 
 ## Auth + audit

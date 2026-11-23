@@ -1,5 +1,13 @@
 # Press Fork Dev Log
 
+### Session 20 - 2026-11-23: deploy_flow.py and tools.py split (0.7.54)
+
+**What we did:** /clean-code execute: deploy_flow.py 1,859 -> 62-line stub + deploy_ops/ (6 modules, 171-505 lines); tools.py 977 -> ~100-line stub + tool_catalog/ (6 parts). One commit per new file; AST identity check over all 29 definitions and 86 catalog entries; same test results as before on press-ctrl. Tooling in press-ops `scripts/split-2026-11-23/` (split_module.py, run_phases.py, cut_catalog.py, verify_split_identical.py) for the next split.
+
+**Files:** press/mcp_server/deploy_flow.py, deploy_ops/*, tools.py, tool_catalog/*, test_deploy_flow.py, test_tool_paths.py (new), scripts/audit_mcp_catalog_parity.py, docs/wiki/02-operations/{mcp-server,contract-audit-suite}.md
+
+**Next:** new deploy-flow tools go in a deploy_ops module, new catalog entries in a tool_catalog part. bench_dev_overview.py (1,326) is the next file over 700.
+
 ### Session 19 - 2026-11-23: code review follow-ups (0.7.52)
 
 **What we did:** /clean-code + /code-review of 0.7.47-0.7.51 and hub 0.2.22; fixes for the decided items: status over every bench, team-default sites in scope/sites.py, 30 s wait cap as a constant, `send_alert_email` returns True/False (timeouts included), `check_failed_deploys` memoized, Watch Tower test file. Found while preparing the runner allow-list: `test_server.py` empties Press MCP Token / Auth Attempt / Call Log in setUp and had run on press-ctrl four times; the rollback kept every token.
