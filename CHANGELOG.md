@@ -4,6 +4,20 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 23-11-2026: Pending Bench Updates rule works; Issue Token can grant site_create and site_restore (0.7.58)
+
+### Fixed
+- Watch Tower rule WT-RULE-1208 "Pending Bench Updates" failed on every one of the 4,501 benches each day: it read
+  `status` from `tabDeploy Candidate`, which has none (it lives on Deploy Candidate Build). `check_bench_updates_pending`
+  now reads builds that never started (Draft or Pending for over 3 days, created in the last 30 days, so the 13
+  never-run builds of May and June 2026 do not alert every day), and is memoized like the other global checks: one
+  query per run instead of one per bench. On the live data it matches nothing.
+- The dashboard's tool list (`dashboard/src/components/mcp/_tool_catalog.js`) lacked `site_create` and `site_restore`,
+  so the Issue Token screen could not grant them. Added with the server's risk: Site Create is medium (site lifecycle),
+  Site Restore Backup is high (dangerous: it overwrites the database). `scripts/audit_mcp_catalog_parity.py`: 86 = 86.
+
+---
+
 ## 23-11-2026: bench dev tests match today's code (0.7.57, tests only)
 
 ### Fixed

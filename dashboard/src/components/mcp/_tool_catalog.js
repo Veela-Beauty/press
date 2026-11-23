@@ -69,6 +69,7 @@ export const TOOL_CATALOG = {
 
 	// SITE LIFECYCLE (medium risk)
 	clone_site:                  { category: 'site_lifecycle', risk: 'medium', label: 'Clone Site',                       desc: 'Clone a Site onto a target bench (3 modes)' },
+	site_create:                 { category: 'site_lifecycle', risk: 'medium', label: 'Site — Create',                    desc: 'Create a site on a Release Group, empty or from an uploaded backup' },
 	move_site_to_release_group:  { category: 'site_lifecycle', risk: 'medium', label: 'Move Site to Release Group',       desc: 'Move a Site to a different Release Group' },
 	lock_acquire:                { category: 'site_lifecycle', risk: 'medium', label: 'Lock — Acquire',                   desc: 'Acquire an advisory lock on Site or Release Group' },
 	lock_release:                { category: 'site_lifecycle', risk: 'medium', label: 'Lock — Release',                   desc: 'Release an advisory lock you hold' },
@@ -96,6 +97,7 @@ export const TOOL_CATALOG = {
 	app_git_push:              { category: 'dangerous', risk: 'high', label: 'App — Git Push to GitHub',        desc: 'Commit + push an app to GitHub from inside the bench' },
 	site_uninstall_app:        { category: 'dangerous', risk: 'high', label: 'Site — Uninstall App',            desc: 'Uninstall an app from a site' },
 	site_deactivate:           { category: 'dangerous', risk: 'high', label: 'Site — Deactivate',               desc: 'Deactivate a site (maintenance mode)' },
+	site_restore:              { category: 'dangerous', risk: 'high', label: 'Site — Restore Backup',           desc: 'Restore uploaded backup files into an existing site (overwrites its database, no undo)' },
 	bench_update:              { category: 'dangerous', risk: 'high', label: 'Bench — Update',                  desc: 'Update a Bench to the latest deploy' },
 	site_update:               { category: 'dangerous', risk: 'high', label: 'Site — Update',                   desc: 'Update a site to the latest bench deploy' },
 	bench_ssh_cert_generate:   { category: 'dangerous', risk: 'high', label: 'Bench — Generate SSH Certificate', desc: 'Generate SSH cert (grants shell access to bench)' },
