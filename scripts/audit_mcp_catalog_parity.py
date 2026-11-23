@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit: press/mcp_server/tools.py ↔ dashboard/src/components/mcp/_tool_catalog.js parity.
+"""Audit: press/mcp_server/tool_catalog/ ↔ dashboard/src/components/mcp/_tool_catalog.js parity.
 
 The two files describe the same set of MCP tools — backend = source of truth
 (determines what dispatching/auth/scope check does), frontend mirror = used
@@ -67,7 +67,7 @@ def main() -> int:
 	py_names = py_tool_names()
 	js_names = js_tool_names()
 
-	print(f"tools.py:           {len(py_names)} tools")
+	print(f"tool_catalog/:      {len(py_names)} tools")
 	print(f"_tool_catalog.js:   {len(js_names)} tools")
 
 	in_py_not_js = sorted(py_names - js_names)
@@ -75,11 +75,11 @@ def main() -> int:
 
 	if in_py_not_js or in_js_not_py:
 		if in_py_not_js:
-			print(f"\n!! {len(in_py_not_js)} tools in tools.py but NOT in _tool_catalog.js:")
+			print(f"\n!! {len(in_py_not_js)} tools in tool_catalog/ but NOT in _tool_catalog.js:")
 			for n in in_py_not_js:
 				print(f"  -- {n}  (cannot be granted via Issue Token UI)")
 		if in_js_not_py:
-			print(f"\n!! {len(in_js_not_py)} tools in _tool_catalog.js but NOT in tools.py:")
+			print(f"\n!! {len(in_js_not_py)} tools in _tool_catalog.js but NOT in tool_catalog/:")
 			for n in in_js_not_py:
 				print(f"  -- {n}  (UI checkbox would produce a token with a dead scope)")
 		print("\nFix: add the missing tool(s) to whichever file is short.")

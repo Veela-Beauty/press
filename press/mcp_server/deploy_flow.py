@@ -55,8 +55,3 @@ from press.mcp_server.deploy_ops.waits import (  # noqa: F401  re-exported: dott
 	site_update_with_hint,
 	wait_for_bench_flip,
 )
-
-
-# ---------------------------------------------------------------------------
-# App lifecycle tools — fetch latest, list pending, register existing
-# ---------------------------------------------------------------------------
