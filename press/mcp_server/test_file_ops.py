@@ -68,50 +68,91 @@ class TestMCPFileOps(FrappeTestCase):
 		with self.assertRaises(frappe.PermissionError):
 			site_config_get(site_name="x.example.com", key="db_password")
 
-	def test_site_config_get_all_redacts_sensitive_in_output(self):
-		"""Even without a specific key, the agent code strips sensitive keys before printing."""
-		fake_response = '{"developer_mode": 1, "some_key": "value"}'
-		with patch(
-			"press.press.doctype.bench.bench_dev_overview.run_python_on_site",
-			return_value=fake_response,
-		):
-			result = site_config_get(site_name="x.example.com")
-		self.assertNotIn("db_password", result)
-		self.assertEqual(result.get("developer_mode"), 1)
-
-	def test_site_config_get_hides_every_secret_on_the_site_itself(self):
-		"""The hiding runs in the code sent to the site, which the bench console runs with globals and locals apart
-		(0.7.45 failed there with a NameError): app secrets and URL passwords never reach the answer."""
+	def _fake_bench(self, sent, common, site_conf):
+		"""A site and bench whose docker_execute runs the sent code here, in a folder laid out like a bench."""
+		import base64
 		import contextlib
 		import io
 		import json
+		import os
+		import re
+		import tempfile
+		from types import SimpleNamespace
 
-		from press.mcp_server.file_ops import _site_code
+		def docker_execute(cmd):
+			sent.append(cmd)
+			code = base64.b64decode(re.search(r"echo (\S+) \|", cmd).group(1)).decode()
+			out, cwd = io.StringIO(), os.getcwd()
+			with tempfile.TemporaryDirectory() as root:
+				os.makedirs(os.path.join(root, "sites", "x.example.com"))
+				for path, data in (
+					("sites/common_site_config.json", common),
+					("sites/x.example.com/site_config.json", site_conf),
+				):
+					with open(os.path.join(root, path), "w") as f:
+						json.dump(data, f)
+				os.chdir(root)
+				try:
+					with contextlib.redirect_stdout(out):
+						exec(code, {}, {})
+				finally:
+					os.chdir(cwd)
+			return {"output": out.getvalue(), "returncode": 0}
 
-		checks = [
-			("sanad_review_seal_key", "abc"), ("sanad_review_converter_password", "abc"), ("some_api_token", "abc"),
-			("client_secret", "abc"), ("redis_cache", "redis://:pw@localhost:13000"),
-			("redis_queue", "redis://u:pw@h:11000/0"), ("host_name", "https://x.example.com"),
-			("db_host", "10.0.0.1"), ("webserver_port", 8000),
-		]
-		code = _site_code([f"print(json.dumps([clean(k, v) for k, v in {checks!r}]))"])
-		self.assertNotIn("\n\n", code)  # a blank line would end the statement in the console
-		out = io.StringIO()
-		with contextlib.redirect_stdout(out):
-			exec(code, {}, {})
-		self.assertEqual(
-			json.loads(out.getvalue()),
-			["(hidden)"] * 4
-			+ ["redis://:(hidden)@localhost:13000", "redis://u:(hidden)@h:11000/0", "https://x.example.com", "10.0.0.1", 8000],
-		)
-		sent = []
-		with patch(
-			"press.press.doctype.bench.bench_dev_overview.run_python_on_site",
-			side_effect=lambda site_name, code: sent.append(code) or '{"key": "x_key", "value": "(hidden)"}',
+		return SimpleNamespace(name="x.example.com"), SimpleNamespace(docker_execute=docker_execute)
+
+	def _config_get(self, sent, common, site_conf, **kwargs):
+		site_bench = self._fake_bench(sent, common, site_conf)
+		with patch("press.utils.ensure_team_access"), patch(
+			"press.press.doctype.bench.bench_dev_overview._get_site_bench", return_value=site_bench
 		):
-			site_config_get(site_name="x.example.com")
-			site_config_get(site_name="x.example.com", key="sanad_review_seal_key")
-		self.assertTrue(all("_press_config()" in code and "clean(" in code for code in sent))
+			return site_config_get(site_name="x.example.com", **kwargs)
+
+	def test_site_config_get_reads_both_files_with_plain_python(self):
+		"""The site's file wins over the bench's common file, as in frappe.conf; no bench console start (0.7.47)."""
+		sent = []
+		common = {"developer_mode": 0, "webserver_port": 8000, "db_host": "10.0.0.1"}
+		result = self._config_get(sent, common, {"developer_mode": 1, "host_name": "https://x.example.com"})
+		self.assertEqual(
+			result,
+			{"developer_mode": 1, "webserver_port": 8000, "db_host": "10.0.0.1", "host_name": "https://x.example.com"},
+		)
+		self.assertEqual(self._config_get(sent, common, {}, key="webserver_port"), {"key": "webserver_port", "value": 8000})
+		self.assertTrue(all("env/bin/python -" in cmd and "bench --site" not in cmd for cmd in sent))
+
+	def test_site_config_get_hides_every_secret_on_the_site_itself(self):
+		"""The hiding runs in the code sent to the site: db_password* and encryption_key* are left out, app secrets and
+		URL passwords come back as (hidden), and neither reaches the answer or the command Press logs."""
+		sent = []
+		common = {"redis_cache": "redis://:pw@localhost:13000", "redis_queue": "redis://u:pw@h:11000/0"}
+		site_conf = {
+			"db_password": "pw", "encryption_key": "pw", "sanad_review_seal_key": "pw",
+			"sanad_review_converter_password": "pw", "some_api_token": "pw", "client_secret": "pw",
+			"host_name": "https://x.example.com",
+		}
+		result = self._config_get(sent, common, site_conf)
+		self.assertEqual(
+			result,
+			{
+				"redis_cache": "redis://:(hidden)@localhost:13000", "redis_queue": "redis://u:(hidden)@h:11000/0",
+				"sanad_review_seal_key": "(hidden)", "sanad_review_converter_password": "(hidden)",
+				"some_api_token": "(hidden)", "client_secret": "(hidden)", "host_name": "https://x.example.com",
+			},
+		)
+		key = self._config_get(sent, common, site_conf, key="sanad_review_seal_key")
+		self.assertEqual(key, {"key": "sanad_review_seal_key", "value": "(hidden)"})
+		self.assertFalse(any("pw" in cmd for cmd in sent))
+
+	def test_site_config_get_reports_a_failed_read(self):
+		from types import SimpleNamespace
+
+		bench = SimpleNamespace(docker_execute=lambda cmd: {"output": "FileNotFoundError", "returncode": 1})
+		with patch("press.utils.ensure_team_access"), patch(
+			"press.press.doctype.bench.bench_dev_overview._get_site_bench",
+			return_value=(SimpleNamespace(name="x.example.com"), bench),
+		):
+			result = site_config_get(site_name="x.example.com")
+		self.assertEqual(result["error"], "reading the site config failed")
 
 	# --- site_config_set ---
 

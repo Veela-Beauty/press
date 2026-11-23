@@ -6,6 +6,7 @@ These exist so agents don't have to use the unrestricted site_run_python tool
 for routine config edits and file reads. All operations are path-validated
 to stay within the site's public/private folders.
 """
+
 from __future__ import annotations
 
 import json
@@ -26,13 +27,18 @@ _SENSITIVE_PREFIXES = ("db_password", "encryption_key")
 _HIDDEN = "(hidden)"
 
 
-def _site_code(body: list[str]) -> str:
-	"""The code sent to the site: body runs inside one function, with clean(k, v) beside it. Press feeds it to
-	`bench console` (IPython), where a name defined at the top is not seen inside a def or a comprehension, so the
-	helpers are closures of _press_config (0.7.45 defined them at the top and every read failed with a NameError)."""
+def _site_code(site: str, body: list[str]) -> str:
+	"""The code sent to the site: body runs inside one function, with conf and clean(k, v) beside it. conf is the bench's
+	common_site_config.json with the site's site_config.json over it, the files frappe.conf is built from (values set
+	only at run time, such as environment overrides, are not in it). The code needs no Frappe, so it runs with the
+	bench's plain Python (_run_on_site); 0.7.46 ran it in `bench console`, whose start took about 1.2 s of each call."""
 	return (
 		"def _press_config():\n"
-		"\timport frappe, json, re\n"
+		"\timport json, re\n"
+		"\tconf = {}\n"
+		f"\tfor path in ('sites/common_site_config.json', {f'sites/{site}/site_config.json'!r}):\n"
+		"\t\twith open(path) as f:\n"
+		"\t\t\tconf.update(json.load(f))\n"
 		"\twords = ('password', 'secret', 'token', 'key')\n"
 		"\turl_password = re.compile(r'^([a-z][a-z0-9+.-]*://[^:@/]*:)[^@/]+(@)', re.I)\n"
 		"\tdef clean(k, v):\n"
@@ -51,23 +57,40 @@ def site_config_get(site_name: str, key: str | None = None) -> dict[str, Any]:
 	db_password* and encryption_key* are never returned; any other secret (a key name holding password, secret, token
 	or key, and the password inside a URL) comes back as "(hidden)", hidden on the site itself (_site_code).
 	"""
-	from press.press.doctype.bench.bench_dev_overview import run_python_on_site
-
 	if key:
 		_validate_config_key(key)
-		code = _site_code(
-			[f"v = clean({key!r}, frappe.conf.get({key!r}))", f"print(json.dumps({{'key': {key!r}, 'value': v}}))"]
-		)
+		body = [
+			f"v = clean({key!r}, conf.get({key!r}))",
+			f"print(json.dumps({{'key': {key!r}, 'value': v}}))",
+		]
 	else:
-		code = _site_code(
-			[
-				"safe = {k: clean(k, v) for k, v in dict(frappe.conf).items() "
-				"if not any(str(k).startswith(p) for p in ('db_password', 'encryption_key'))}",
-				"print(json.dumps(safe))",
-			]
-		)
-	raw = run_python_on_site(site_name=site_name, code=code)
-	return _parse_python_output(raw)
+		body = [
+			"safe = {k: clean(k, v) for k, v in conf.items() "
+			"if not any(str(k).startswith(p) for p in ('db_password', 'encryption_key'))}",
+			"print(json.dumps(safe))",
+		]
+	return _run_on_site(site_name, body)
+
+
+def _run_on_site(site_name: str, body: list[str]) -> dict[str, Any]:
+	"""Run _site_code(body) in the site's bench container with the bench's plain Python and parse what it prints.
+	The guard is run_python_on_site's: team access first, then the site's bench."""
+	import base64
+
+	from press.press.doctype.bench.bench_dev_overview import _get_site_bench
+	from press.utils import ensure_team_access
+
+	ensure_team_access(site_name=site_name)
+	site, bench = _get_site_bench(site_name)
+	b64 = base64.b64encode(_site_code(site.name, body).encode()).decode()
+	try:
+		result = bench.docker_execute(f"bash -c 'echo {b64} | base64 -d | env/bin/python -'")
+		output, returncode = result.get("output") or "", result.get("returncode")
+	except Exception as e:
+		return {"error": str(e)}
+	if returncode:
+		return {"error": "reading the site config failed", "output": output[-500:]}
+	return _parse_python_output(output)
 
 
 @frappe.whitelist()
@@ -163,9 +186,7 @@ def _validate_config_key(key: str) -> None:
 	lowered = key.lower()
 	for prefix in _SENSITIVE_PREFIXES:
 		if lowered.startswith(prefix):
-			raise frappe.PermissionError(
-				f"site_config key {key!r} is sensitive; cannot be accessed via MCP"
-			)
+			raise frappe.PermissionError(f"site_config key {key!r} is sensitive; cannot be accessed via MCP")
 
 
 def _resolve_site_path(site_name: str, relative_path: str) -> str:
@@ -174,9 +195,7 @@ def _resolve_site_path(site_name: str, relative_path: str) -> str:
 		raise frappe.ValidationError("relative_path must not contain `..` segments")
 	allowed_prefixes = ("public/files/", "private/files/")
 	if not any(relative_path.startswith(p) for p in allowed_prefixes):
-		raise frappe.ValidationError(
-			f"relative_path must start with one of {allowed_prefixes}"
-		)
+		raise frappe.ValidationError(f"relative_path must start with one of {allowed_prefixes}")
 	full = f"sites/{site_name}/{relative_path}"
 	normalized = os.path.normpath(full)
 	if not normalized.startswith(f"sites/{site_name}/"):
