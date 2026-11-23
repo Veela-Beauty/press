@@ -1500,3 +1500,25 @@ Status: **PERMANENT** (Daman patched + workers tripled + side-effect documented)
 ### Companion docs
 - Internal memory: `~/.claude/projects/-home-eslam/memory/press-rq-worker-starvation-2026-05-23.md` (full diagnostic playbook)
 - Daman commit: https://github.com/accurate-systems/daman-backup-app-server/commit/a685b88
+
+## 2026-11-23: a new whitelisted-method override was not dispatched after the 0.7.59 deploy
+
+### What happened
+0.7.59 added `override_whitelisted_methods["frappe.client.get_password"] = "press.overrides.get_password"`. After the
+deploy, `press.hooks` held the override, yet Frappe still dispatched `frappe.client.get_password` to Frappe's own method.
+
+### Root cause
+The deploy script ran `bench clear-cache` before restarting web and workers. In the seconds between, the old gunicorn
+workers (old code in memory) answered requests, called `frappe.get_hooks`, and wrote `app_hooks` back to Redis from the
+old `hooks.py`. The new processes then read that stale copy. A fresh `_load_app_hooks()` had the override all along.
+
+### How we fixed it
+Deleted the cached `app_hooks` once every process ran 0.7.59; the next request rebuilt it from the new code, and
+`41_check_override_hook.py` showed the dispatch going to `press.overrides.get_password`.
+
+### Lesson
+Clearing a cache is only as good as the code of the processes that refill it. Clear after the last restart.
+
+### Prevention
+Deploy scripts run `bench clear-cache` after web and workers restart (`40_deploy_0759.sh`), then check the dispatch of
+any new override. Status: **PERMANENT**.

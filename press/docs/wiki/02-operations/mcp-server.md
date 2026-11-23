@@ -247,8 +247,8 @@ These four were found and fixed in one session — kept here as the canonical "t
 ### MCP Agent Watch (0.7.59)
 
 Watch Tower rule "MCP Agent Watch" (hourly, `press.watch_tower.press_alerts.check_mcp_agent_watch`, code in
-`press/watch_tower/alerts/mcp_agent_watch.py`) reads the last hour of the call log and emails the owner once with what
-is new:
+`press/watch_tower/alerts/mcp_agent_watch.py`; on press-ctrl it is WT-RULE-120625, target Server) reads the call log
+and emails the owner (eng.elgogary@gmail.com) once per run with what is new:
 
 | Pattern | Raised when |
 |---|---|
@@ -264,6 +264,14 @@ or output goes there; until 0.7.59 role All could read the Alert Log, now System
 3 full clock hours for refusals and runaway, so a late run leaves no gap; events are recorded only after the email is
 accepted. On the week before release it would have raised 70 events in 32 of 168 hours (secret hunt 39, runaway 14,
 rare tool 12, refusals 3, destructive 1, secret out 1). Dry run on live data: press-ops `scripts/mcp-deploy-update-2026-11-23/35_agent_watch_dry_run.py`.
+
+Checking it on press-ctrl (press-ops `scripts/mcp-deploy-update-2026-11-23/`):
+- `44_first_agent_watch_run.py`: runs the rule once as the scheduler does and lists what it recorded (pattern and
+  tool only). An event is recorded only after the relay accepted the email, so a recorded event means Brevo took it.
+- `45_mail_test_agent_watch.py`: sends a neutral test and the last alarm again, records nothing. If the test arrives
+  and the alarm does not, a filter is reading the alarm's words. See Troubleshooting, "Alert email accepted but not
+  received".
+
 - Risky tokens for non-System users start in `pending` status, must be approved via Admin Panel → MCP → "Approve" button.
 - Rate limit: ~100 calls/minute per token (`rate_limit.py`). Cleanup cron purges expired logs daily.
 - `help` calls do NOT count against rate limit.

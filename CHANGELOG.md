@@ -4,6 +4,15 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 23-11-2026: deploy notes for 0.7.59 (0.7.60, docs only)
+
+### Changed
+- Wiki: the MCP Agent Watch rule's name on press-ctrl (WT-RULE-120625) and its checks; the watch reads 3 hours, not 1.
+- Troubleshooting: a new hooks.py override not dispatched after a deploy (clear the cache after the restarts), and an
+  alert email the relay accepted but the inbox never showed. Lessons learned: the stale `app_hooks` of 0.7.59.
+
+---
+
 ## 23-11-2026: MCP security for team use: agent watch, owner-only call log and token recovery (0.7.59)
 
 ### Security
