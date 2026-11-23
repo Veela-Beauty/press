@@ -33,14 +33,14 @@
   {"fieldname": "prev_hash", "fieldtype": "Data", "label": "Previous Row Hash", "read_only": 1, "length": 64, "description": "SHA-256 of the previous Press MCP Call Log row, for tamper-evidence"},
   {"fieldname": "row_hash", "fieldtype": "Data", "label": "Row Hash", "read_only": 1, "length": 64, "search_index": 1, "description": "SHA-256 of (prev_hash || tool || user || token || status || creation)"}
  ],
- "modified": "2026-05-07 00:00:00.000000",
+ "modified": "2026-11-23 20:00:00.000000",
  "modified_by": "Administrator",
  "module": "Press",
  "name": "Press MCP Call Log",
  "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
-  {"read": 1, "report": 1, "role": "System Manager"}
+  {"read": 1, "report": 1, "role": "MCP Auditor"}
  ],
  "sort_field": "creation",
  "sort_order": "DESC"
