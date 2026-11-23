@@ -26,5 +26,6 @@ from .alerts import (  # noqa: F401
 	check_worker_queue_depth,
 	check_bench_updates_pending,
 	check_mcp_calls_slow,
+	check_mcp_agent_watch,
 	cleanup_old_error_logs,
 )

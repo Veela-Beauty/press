@@ -273,9 +273,6 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 			args=args, response=response, status="Success",
 			duration_ms=int((time.perf_counter() - start) * 1000),
 		)
-		# Destructive-op notification (Obj 7)
-		if get_tool_risk(tool) == "high":
-			_notify_destructive_op(tool=tool, user=user, args=args, token_name=token_doc_name)
 		# Deploy-failure follow-up (Obj-10 polish item 8): tools that schedule a
 		# Press build return a build name; enqueue a delayed status check so an
 		# operator/agent gets notified if the build later transitions to Failure.
@@ -578,29 +575,6 @@ def _write_call_log(
 			title=f"MCP audit log write failed for tool {tool}",
 			message=frappe.get_traceback(),
 		)
-
-
-def _notify_destructive_op(
-	tool: str, user: str, args: dict, token_name: str | None
-) -> None:
-	"""Best-effort notification when a high-risk MCP tool runs successfully.
-
-	Writes to Error Log with a distinctive title so operators can grep / hook
-	external alerting on it (e.g., a periodic scheduler scan + Slack post).
-	"""
-	try:
-		summary = (
-			f"MCP destructive op: {tool} by {user} "
-			f"via token {token_name or 'unknown'}"
-		)
-		# Use error_log so it shows up in Frappe's Error Log list — operators
-		# can build an alerting hook on this title prefix.
-		frappe.log_error(
-			title=f"[MCP-DESTRUCTIVE] {tool}",
-			message=f"{summary}\n\nargs: {json.dumps(args, default=str)[:2000]}",
-		)
-	except Exception:
-		pass
 
 
 # Tools whose response includes a build job that may fail asynchronously.

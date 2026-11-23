@@ -1,5 +1,15 @@
 # Press Fork Dev Log
 
+### Session 24 - 2026-11-23: MCP security before team-wide use (0.7.59)
+
+**What we did:** read-only audit of what MCP records: every call (args + response, hash-chained) in Press MCP Call Log, readable by 11 System Managers; no real secret values stored (pattern proven on a fake one), but two run_python responses on lipton-yp.sandbox hold a PRIVATE KEY block (owner to rotate). Found `recover_token` let any System User read any token. Built MCP Agent Watch (6 patterns, dry run 70 events / 32 email-hours a week; an independent review's 3 MUST FIX fixed: 3-hour window, record after the email, every event recorded), made the call log MCP Auditor only, owner-only token recovery, stopped the [MCP-DESTRUCTIVE] Error Log lines.
+
+**Files:** press/watch_tower/alerts/mcp_agent_watch.py (new), test_mcp_agent_watch.py (new), mcp_server/auth.py, test_recover_token.py (new), mcp_server/server.py, test_server.py, press_mcp_call_log.json, patches/v0_0_5/add_mcp_auditor_role.py
+
+**Then (owner's choices):** `frappe.client.get_password` refuses Press MCP Token (Recover kept); Alert Log read is System Manager only (role All let 8 website users read it); the two lipton-yp responses with the PRIVATE KEY are cleared at deploy (press-ops 38_apply_agent_watch_access.py).
+
+**Open (owner):** rotate that Google key; every team member is System Manager on press-ctrl, so System Console can still decrypt a token copy and grant MCP Auditor.
+
 ### Session 23 - 2026-11-23: rule 1208 and the dashboard tool list (0.7.58)
 
 **What we did:** WT-RULE-1208 read `status` from Deploy Candidate (none) and ran once per bench (4,501 failures a day); it now reads Deploy Candidate Build, Draft or Pending over 3 days within the last 30 days, memoized. The live query returns 0 rows. Added site_create (medium) and site_restore (high) to the dashboard tool list so Issue Token can grant them; the parity audit is 86 = 86.

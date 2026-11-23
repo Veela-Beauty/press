@@ -4,6 +4,31 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 23-11-2026: MCP security for team use: agent watch, owner-only call log and token recovery (0.7.59)
+
+### Security
+- `recover_token` returned any token's plaintext to any System User (12 on press-ctrl, the whole team), so a member
+  could take the owner's token (risky tools enabled) and act as him over MCP. Only the token's owner may recover it now.
+- `frappe.client.get_password` gave any System Manager the stored copy of any MCP token (a Password field kept for
+  Recover). Press overrides it to refuse `Press MCP Token`; other DocTypes go to Frappe unchanged. System Console and
+  bench console can still decrypt, so who holds System Manager is still the real wall.
+- Watch Tower Alert Log granted read to role All, so the 8 website users could read every alert through the REST API.
+  Read is System Manager only now.
+- `Press MCP Call Log` keeps every agent's code, SQL and output on every site; System Manager (11 users) could read it.
+  Read is now the new role MCP Auditor only (patch `v0_0_5.add_mcp_auditor_role` creates it; who holds it is set per
+  site). Members still see their own calls in the dashboard.
+
+### Added
+- Watch Tower rule "MCP Agent Watch" (`check_mcp_agent_watch`, hourly, memoized): six patterns over the last hour of
+  the call log (refusal bursts, destructive SQL, secret hunting, a secret or private key in a response, rare dangerous
+  tools, runaway volume); one email to the owner and an Alert Log per event that names only the pattern, tool and row.
+
+### Removed
+- The `[MCP-DESTRUCTIVE]` Error Log line written for every successful high-risk call (6,878 rows, about 1,000 a day,
+  each with the full code or SQL; it buried real errors). The call log keeps the record and the watch reads it.
+
+---
+
 ## 23-11-2026: Pending Bench Updates rule works; Issue Token can grant site_create and site_restore (0.7.58)
 
 ### Fixed
