@@ -15,42 +15,38 @@ USAGE:
 
 WIRE INTO CI: press/test_auth.py:TestDashboardContracts runs this in-process.
 """
+
 from __future__ import annotations
 
+import ast
 import re
 import sys
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TOOLS_PY = REPO_ROOT / "press" / "mcp_server" / "tools.py"
+TOOLS_PY = REPO_ROOT / "press" / "mcp_server" / "tools.py"  # merges the parts in CATALOG_DIR
+CATALOG_DIR = REPO_ROOT / "press" / "mcp_server" / "tool_catalog"
 CATALOG_JS = REPO_ROOT / "dashboard" / "src" / "components" / "mcp" / "_tool_catalog.js"
 
 
 def py_tool_names() -> set[str]:
-	"""Tool names declared in TOOLS dict in tools.py."""
-	text = TOOLS_PY.read_text()
-	# Find TOOLS: dict[str, dict] = { ... } and extract keys
-	tools_start = text.find("TOOLS: dict[str, dict] = {")
-	if tools_start == -1:
-		raise RuntimeError("Could not find TOOLS dict in tools.py")
-	# Find matching closing brace by depth counting
-	depth = 0
-	end = tools_start
-	for i, ch in enumerate(text[tools_start:], start=tools_start):
-		if ch == "{":
-			depth += 1
-		elif ch == "}":
-			depth -= 1
-			if depth == 0:
-				end = i
-				break
-	block = text[tools_start:end]
-	# Tool keys are at indent depth 1 (single leading tab). Deeper keys
-	# (e.g. args_schema property names like "override", "ttl_minutes") sit
-	# at depth 3+ and must be excluded.
-	keys = re.findall(r'^\t"([a-z0-9_]+)"\s*:\s*\{', block, re.MULTILINE)
-	return set(keys)
+	"""Tool names of the catalog. Since 0.7.54 tools.py merges the parts in press/mcp_server/tool_catalog/ (each an
+	AREA_TOOLS dict literal); their keys are read from the code, nothing is imported. A name in two parts is an
+	error here too (tools.py refuses it at import)."""
+	names: dict[str, str] = {}
+	for part in sorted(CATALOG_DIR.glob("*.py")):
+		for node in ast.parse(part.read_text()).body:
+			if isinstance(node, ast.AnnAssign) and getattr(node.target, "id", "").endswith("_TOOLS"):
+				for key in node.value.keys:
+					if key.value in names:
+						raise RuntimeError(
+							f"tool {key.value!r} is in both {names[key.value]} and {part.name}"
+						)
+					names[key.value] = part.name
+	if not names:
+		raise RuntimeError(f"no AREA_TOOLS dict found under {CATALOG_DIR}")
+	return set(names)
 
 
 def js_tool_names() -> set[str]:
@@ -61,7 +57,7 @@ def js_tool_names() -> set[str]:
 	# TOOL_CATEGORIES have `id:`/`label:` not `category:`/`risk:` so a strict
 	# match on both keys keeps the audit precise.
 	keys = re.findall(
-		r'^\t([a-z0-9_]+)\s*:\s*\{[^}]*\bcategory\s*:[^}]*\brisk\s*:',
+		r"^\t([a-z0-9_]+)\s*:\s*\{[^}]*\bcategory\s*:[^}]*\brisk\s*:",
 		text,
 		re.MULTILINE,
 	)
