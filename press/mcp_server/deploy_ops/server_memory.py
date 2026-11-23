@@ -9,7 +9,6 @@ from typing import Any
 import frappe
 from frappe.utils import add_to_date, now_datetime
 
-
 _HOST_MEMORY_PRESSURE_CACHE_TTL = 60  # seconds
 
 

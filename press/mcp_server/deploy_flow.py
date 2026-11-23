@@ -14,36 +14,11 @@ from __future__ import annotations
 
 import frappe  # noqa: F401  tests patch press.mcp_server.deploy_flow.frappe.db.* through this name
 
-from press.mcp_server.deploy_ops.candidates import (  # noqa: F401  re-exported: dotted paths and imports of this module keep working
-	_BENCH_PROVISION_JOB_TYPES,
-	_derive_provision_stage,
-	bench_provision_progress,
-	deploy_candidate_schedule_build,
-	deploy_candidate_status,
-	release_group_create_deploy_candidate,
-)
-from press.mcp_server.deploy_ops.waits import (  # noqa: F401  re-exported: dotted paths and imports of this module keep working
-	HTTP_WAIT_CAP_SECONDS,
-	bench_deploy_and_wait,
-	site_update_and_wait,
-	site_update_with_hint,
-	wait_for_bench_flip,
-)
-from press.mcp_server.deploy_ops.site_tools import (  # noqa: F401  re-exported: dotted paths and imports of this module keep working
-	list_sites_on_release_group,
-	mint_dashboard_login_url,
-	site_schedule_update,
-	site_status,
-)
 from press.mcp_server.deploy_ops.agent_tools import (  # noqa: F401  re-exported: dotted paths and imports of this module keep working
 	agent_health,
 	agent_job_list,
 	agent_job_progress,
 	agent_job_traceback,
-)
-from press.mcp_server.deploy_ops.server_memory import (  # noqa: F401  re-exported: dotted paths and imports of this module keep working
-	_HOST_MEMORY_PRESSURE_CACHE_TTL,
-	host_memory_pressure,
 )
 from press.mcp_server.deploy_ops.app_sources import (  # noqa: F401  re-exported: dotted paths and imports of this module keep working
 	_installation_for_owner,
@@ -54,6 +29,31 @@ from press.mcp_server.deploy_ops.app_sources import (  # noqa: F401  re-exported
 	bench_set_app_branch,
 	list_pending_releases,
 	register_existing_app,
+)
+from press.mcp_server.deploy_ops.candidates import (  # noqa: F401  re-exported: dotted paths and imports of this module keep working
+	_BENCH_PROVISION_JOB_TYPES,
+	_derive_provision_stage,
+	bench_provision_progress,
+	deploy_candidate_schedule_build,
+	deploy_candidate_status,
+	release_group_create_deploy_candidate,
+)
+from press.mcp_server.deploy_ops.server_memory import (  # noqa: F401  re-exported: dotted paths and imports of this module keep working
+	_HOST_MEMORY_PRESSURE_CACHE_TTL,
+	host_memory_pressure,
+)
+from press.mcp_server.deploy_ops.site_tools import (  # noqa: F401  re-exported: dotted paths and imports of this module keep working
+	list_sites_on_release_group,
+	mint_dashboard_login_url,
+	site_schedule_update,
+	site_status,
+)
+from press.mcp_server.deploy_ops.waits import (  # noqa: F401  re-exported: dotted paths and imports of this module keep working
+	HTTP_WAIT_CAP_SECONDS,
+	bench_deploy_and_wait,
+	site_update_and_wait,
+	site_update_with_hint,
+	wait_for_bench_flip,
 )
 
 

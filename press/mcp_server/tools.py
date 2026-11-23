@@ -31,12 +31,11 @@ from press.mcp_server.tool_catalog._schema import (  # noqa: F401  re-exported: 
 	_ARG_FRAGMENTS,
 	_schema,
 )
-from press.mcp_server.tool_catalog.core import CORE_TOOLS
 from press.mcp_server.tool_catalog.bench_code import BENCH_CODE_TOOLS
-from press.mcp_server.tool_catalog.sites_benches import SITES_BENCHES_TOOLS
-from press.mcp_server.tool_catalog.deploy import DEPLOY_TOOLS
 from press.mcp_server.tool_catalog.bench_control import BENCH_CONTROL_TOOLS
-
+from press.mcp_server.tool_catalog.core import CORE_TOOLS
+from press.mcp_server.tool_catalog.deploy import DEPLOY_TOOLS
+from press.mcp_server.tool_catalog.sites_benches import SITES_BENCHES_TOOLS
 
 # Tool name -> spec
 TOOLS: dict[str, dict] = {
