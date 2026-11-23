@@ -1,15 +1,9 @@
+"""Dev Tools API of a bench: a STUB since 0.7.56. The code lives in dev_overview/ (panel, ssh, code_server,
+site_container, app_files); this module re-exports it, so the dashboard's frappe.call paths, the MCP catalog methods
+and `from press.press.doctype.bench.bench_dev_overview import ...` keep working. Patch a moved name where it lives
+(press.press.doctype.bench.dev_overview.<module>.<name>), not here.
 """
-Dev Tools API — dev overview, git status, console, logs, process management.
-Kept in a separate file because bench.py is already >700 lines.
-"""
-import re
-from typing import Any
 
-import frappe
-from frappe import _
-
-from press.press.doctype.bench.bench_app_ownership import is_app_owned_by_current_team
-from press.utils import ensure_team_access
 from press.press.doctype.bench.dev_overview.site_container import (  # noqa: F401  re-exported: dotted paths and imports of this module keep working
 	_LOG_FILES,
 	_LOG_PATTERN,
@@ -55,9 +49,3 @@ from press.press.doctype.bench.dev_overview.panel import (  # noqa: F401  re-exp
 	push_app_to_github,
 	restart_bench_for_site,
 )
-
-
-# ── App Source Read API ──────────────────────────────────────────────────────
-
-
-# ── SSH Instructions API ─────────────────────────────────────────────────────
