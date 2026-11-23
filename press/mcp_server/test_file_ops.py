@@ -79,6 +79,28 @@ class TestMCPFileOps(FrappeTestCase):
 		self.assertNotIn("db_password", result)
 		self.assertEqual(result.get("developer_mode"), 1)
 
+	def test_site_config_get_hides_every_secret_on_the_site_itself(self):
+		"""The hiding runs in the code sent to the site: app secrets and URL passwords never reach the answer."""
+		from press.mcp_server.file_ops import _REDACT_SNIPPET
+
+		env = {}
+		exec(_REDACT_SNIPPET, env)
+		clean = env["_clean"]
+		for key in ("sanad_review_seal_key", "sanad_review_converter_password", "some_api_token", "client_secret"):
+			self.assertEqual(clean(key, "abc"), "(hidden)", key)
+		self.assertEqual(clean("redis_cache", "redis://:pw@localhost:13000"), "redis://:(hidden)@localhost:13000")
+		self.assertEqual(clean("redis_queue", "redis://u:pw@h:11000/0"), "redis://u:(hidden)@h:11000/0")
+		for key, value in (("host_name", "https://x.example.com"), ("db_host", "10.0.0.1"), ("webserver_port", 8000)):
+			self.assertEqual(clean(key, value), value, key)
+		sent = []
+		with patch(
+			"press.press.doctype.bench.bench_dev_overview.run_python_on_site",
+			side_effect=lambda site_name, code: sent.append(code) or '{"key": "x_key", "value": "(hidden)"}',
+		):
+			site_config_get(site_name="x.example.com")
+			site_config_get(site_name="x.example.com", key="sanad_review_seal_key")
+		self.assertTrue(all(_REDACT_SNIPPET in code and "_clean(" in code for code in sent))
+
 	# --- site_config_set ---
 
 	def test_site_config_set_blocks_encryption_key(self):

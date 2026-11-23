@@ -4,6 +4,19 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 23-11-2026: the MCP site-config read hides every secret, on the site itself (0.7.45)
+
+### Security
+- `press/mcp_server/file_ops.py` `site_config_get`: only `db_password*` and `encryption_key*` were held back, so app
+  secrets in a site's config (a seal key, a converter password) and the passwords inside the redis URLs came back in
+  clear, through the tool's answer and in the Agent Job output Press keeps. Now any key whose name holds password,
+  secret, token or key reads `(hidden)`, and a URL's password reads `(hidden)`. The hiding runs in the code Press sends
+  to the site (`_REDACT_SNIPPET`), so the secret never leaves the site. Found by the Sanad Review security review.
+- Setting a key is unchanged (only `db_password*` and `encryption_key*` are refused), so a secret can still be rotated.
+- Not a boundary: `site_run_python` still runs any code on a site, so who holds an MCP token with it is what matters.
+
+---
+
 ## 22-11-2026: Watch Tower circuit breaker no longer locks itself (0.7.43)
 
 ### Fixed
