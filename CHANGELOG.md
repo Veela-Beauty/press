@@ -4,11 +4,12 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
-## 24-11-2026: Watch Tower Integrations page (0.7.67, 0.7.68)
+## 24-11-2026: Watch Tower Integrations page (0.7.67 to 0.7.69)
 
-### Fixed (0.7.68)
+### Fixed (0.7.68, 0.7.69)
 - Integrations at 1024 px: the table ran past the card and cut «With Accurate». Under 1280 px «Last run» and «Sync
-  notes» hide and a long site name is cut (full name on hover), so the four stages stay in view.
+  notes» hide and a long site name is cut to 140 px (full name on hover; 0.7.69, «Closed» was still cut), so the four
+  stages stay in view.
 
 ### Added
 - Watch Tower › Integrations (prototype ACM-SP-08): per client site and project, the AccuHub link's state and task

@@ -149,7 +149,7 @@ tr.proj td:first-child {
 /* under 1280 px the four stages keep their place: Last run and Sync notes hide, a long site name is cut */
 .site-name {
 	display: inline-block;
-	max-width: 240px;
+	max-width: 140px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
