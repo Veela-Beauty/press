@@ -4,6 +4,15 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 24-11-2026: A healthy site no longer stays marked "Site creation failed" (0.7.64)
+
+### Fixed
+- A failed New Site, New Site from Backup or Restore Site job stamps `Site.creation_failed`, which blocks Login as
+  Admin, Update and Backup. Press cleared it only when a Restore Site job succeeded, so a site finished by hand kept the
+  banner and the blocked buttons for good (5 Active sites on 24 Nov, the oldest since 2 Jul). A new hourly job
+  (`site/stale_creation_failed.py`) clears it on an Active site that has a successful Migrate Site or Update Site
+  Migrate job after the flag. Broken sites keep it, so the 14-day auto-drop of a real failure is unchanged.
+
 ## 24-11-2026: Error Log noise on press-ctrl (0.7.62; docs 0.7.63)
 
 ### Fixed
