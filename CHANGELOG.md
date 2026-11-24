@@ -4,6 +4,15 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 24-11-2026: Watch Tower Integrations page (0.7.67)
+
+### Added
+- Watch Tower › Integrations (prototype ACM-SP-08): per client site and project, the AccuHub link's state and task
+  pipeline (Backlog › With OptiFlow › With Accurate › Closed, 30 days). A count opens that stage's tasks
+  (`/watch-tower/integrations/<site>?stage=&project=`): the stages as tabs, a Project pick list (ticks, search,
+  several), each task linking to the client site. Reads `sanad_ai_control_center.watch_tower_hub.integrations`
+  (hub 0.2.27); the task list is read live from the client, nothing is kept. System users only, like Watch Tower.
+
 ## 24-11-2026: The MCP dashboard login says why a confidential site blocks it (0.7.65; docs 0.7.66)
 
 ### Docs (0.7.66)

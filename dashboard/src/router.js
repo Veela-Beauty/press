@@ -484,6 +484,17 @@ let router = createRouter({
 			props: true,
 		},
 		{
+			path: '/watch-tower/integrations',
+			name: 'Watch Tower Integrations',
+			component: () => import('./pages/watch-tower/Integrations.vue'),
+		},
+		{
+			path: '/watch-tower/integrations/:site',
+			name: 'Watch Tower Integration Tasks',
+			component: () => import('./pages/watch-tower/IntegrationTasks.vue'),
+			props: true,
+		},
+		{
 			path: '/backups/overview',
 			name: 'Daman Overview',
 			component: () => import('./pages/backups/BackupOverview.vue'),
