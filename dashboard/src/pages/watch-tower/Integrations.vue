@@ -44,9 +44,9 @@ count opens that stage's tasks (IntegrationTasks.vue). Data from sanad_ai_contro
 							<tr>
 								<th>Client</th>
 								<th>State</th>
-								<th>Last run</th>
+								<th class="hidden xl:table-cell">Last run</th>
 								<th v-for="s in STAGES" :key="s.key" class="num" :class="{ step: s.key !== 'closed' }" :title="s.hint">{{ s.label }}</th>
-								<th class="num">Sync notes</th>
+								<th class="num hidden xl:table-cell">Sync notes</th>
 							</tr>
 						</thead>
 						<tbody v-for="r in data.accuhub" :key="r.site">
@@ -55,7 +55,7 @@ count opens that stage's tasks (IntegrationTasks.vue). Data from sanad_ai_contro
 									<router-link class="name" :to="{ name: 'Watch Tower Client', params: { site: r.site } }">{{ r.client_name || r.site }}</router-link>
 									<div class="host">
 										<span class="badge small" :class="ENV_CLASS[r.environment]">{{ r.environment }}</span>
-										<span class="mono">{{ r.site }}</span>
+										<span class="mono site-name" :title="r.site">{{ r.site }}</span>
 									</div>
 								</td>
 								<td>
@@ -65,7 +65,7 @@ count opens that stage's tasks (IntegrationTasks.vue). Data from sanad_ai_contro
 										<div class="err" :title="r.message">{{ r.message }}</div>
 									</template>
 								</td>
-								<td>
+								<td class="hidden xl:table-cell">
 									<span class="mono">{{ r.last_run ? hhmm(r.last_run) : '-' }}</span>
 									<div class="sub2" :title="r.last_result">{{ result(r.last_result) }}</div>
 								</td>
@@ -73,18 +73,19 @@ count opens that stage's tasks (IntegrationTasks.vue). Data from sanad_ai_contro
 									<router-link v-if="r.totals[s.key]" class="count" :to="tasksRoute(r.site, s.key)">{{ r.totals[s.key] }}</router-link>
 									<span v-else class="zero">{{ r.has_counts ? 0 : '-' }}</span>
 								</td>
-								<td class="num"><span :class="{ zero: !r.notes }">{{ r.has_counts ? r.notes : '-' }}</span></td>
+								<td class="num hidden xl:table-cell"><span :class="{ zero: !r.notes }">{{ r.has_counts ? r.notes : '-' }}</span></td>
 							</tr>
 							<tr v-for="p in r.projects" :key="p.project" class="proj">
-								<td colspan="3">{{ p.title }}</td>
+								<td colspan="2">{{ p.title }}</td>
+								<td class="hidden xl:table-cell" />
 								<td v-for="s in STAGES" :key="s.key" class="num">
 									<router-link v-if="p[s.key]" class="count" :to="tasksRoute(r.site, s.key, p.project)">{{ p[s.key] }}</router-link>
 									<span v-else class="zero">0</span>
 								</td>
-								<td />
+								<td class="hidden xl:table-cell" />
 							</tr>
 							<tr v-if="!r.has_counts" class="proj">
-								<td colspan="8">Counts come with AccuHub link 0.5.0 and Watch Tower 0.7.7 on this site.</td>
+								<td colspan="6">Counts come with AccuHub link 0.5.0 and Watch Tower 0.7.7 on this site.</td>
 							</tr>
 						</tbody>
 					</table>
@@ -144,5 +145,14 @@ tr.proj td {
 }
 tr.proj td:first-child {
 	padding-left: 32px;
+}
+/* under 1280 px the four stages keep their place: Last run and Sync notes hide, a long site name is cut */
+.site-name {
+	display: inline-block;
+	max-width: 240px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	vertical-align: bottom;
 }
 </style>
