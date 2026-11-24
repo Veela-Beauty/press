@@ -4,6 +4,14 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 24-11-2026: The MCP dashboard login says why a confidential site blocks it (0.7.65)
+
+### Changed
+- `mint_dashboard_login_url` is refused while any confidential site of the team is locked, because a dashboard session
+  reaches every site of the team. The refusal named one site only, so asking for a login to another site read like a
+  bug. It now says that a dashboard login reaches every site of the team and lists every locked confidential site. The
+  rule is unchanged.
+
 ## 24-11-2026: A healthy site no longer stays marked "Site creation failed" (0.7.64)
 
 ### Fixed
