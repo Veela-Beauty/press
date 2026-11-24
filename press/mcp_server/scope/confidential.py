@@ -35,11 +35,18 @@ def unlock(allowed_sites, pin: str | None, reason: str, team: str | None) -> lis
 
 
 def assert_team_unlocked(team: str) -> None:
-	assert_unlocked(
-		frappe.get_all(
-			"Site", filters={"team": team, "is_confidential": 1, "status": ("!=", "Archived")}, pluck="name"
-		)
+	"""A dashboard session reaches every site of the team, so every confidential one must be unlocked."""
+	unlocked = set(getattr(frappe.local, "mcp_token_confidential_sites", None) or ())
+	sites = frappe.get_all(
+		"Site", filters={"team": team, "is_confidential": 1, "status": ("!=", "Archived")}, pluck="name"
 	)
+	locked = sorted(set(sites) - unlocked)
+	if locked:
+		raise frappe.PermissionError(
+			"a dashboard login reaches every site of your team, whichever page it opens; this token has not "
+			f"unlocked the confidential site(s) {', '.join(locked)}. Issue a token that names all of them in "
+			"Allowed Sites and enter the Admin PIN"
+		)
 
 
 def assert_unlocked(sites, benches=()) -> None:
