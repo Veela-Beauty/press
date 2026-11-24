@@ -4,7 +4,11 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
-## 24-11-2026: The MCP dashboard login says why a confidential site blocks it (0.7.65)
+## 24-11-2026: The MCP dashboard login says why a confidential site blocks it (0.7.65; docs 0.7.66)
+
+### Docs (0.7.66)
+- DEVLOG session 26; lessons-learned for the stale `creation_failed` and the 0.7.64 deploy traps; troubleshooting
+  entries for the creation-failed banner and the dashboard login refusal; backups notes the hand-finished restore.
 
 ### Changed
 - `mint_dashboard_login_url` is refused while any confidential site of the team is locked, because a dashboard session

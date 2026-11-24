@@ -131,6 +131,15 @@ sudo -u frappe bash -c '
 '
 ```
 
+### After a restore finished by hand
+
+A failed New Site, New Site from Backup or Restore Site job sets `Site.creation_failed`, and the dashboard then shows
+"Site creation failed" and blocks Login as Admin, Update and Backup. Press clears it on a green Restore Site job only.
+Since 0.7.64 an hourly job (`site/stale_creation_failed.py`) also clears it on an Active site that has a green Migrate
+Site or Update Site Migrate after the flag. To clear it at once, run in the press-ctrl console:
+`frappe.db.set_value("Site", "<site>", "creation_failed", None)` and commit. A Broken site keeps the flag on purpose:
+`archive_creation_failed_sites` drops it after 14 days.
+
 ---
 
 ## Backup Retention
