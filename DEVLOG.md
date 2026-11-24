@@ -1,5 +1,15 @@
 # Press Fork Dev Log
 
+### Session 26 - 2026-11-24: stale "Site creation failed" and the dashboard login refusal (0.7.64, 0.7.65)
+
+**What we did:** quest-v15 showed "Site creation failed" while it worked. Its 17 Nov New Site from Backup job failed and the restore was finished by hand; Press clears `Site.creation_failed` only on a green Restore Site job. Cleared by hand on quest-v15, quest-recovery, qifco-demo, sabk-fab and truoos (the last three flagged since July). 0.7.64 (PR #79) adds an hourly job that clears it on an Active site with a green Migrate Site or Update Site Migrate after the flag; live 13:14, first run Complete, 0 flagged. 0.7.65 (PR #80): the `mint_dashboard_login_url` refusal says a dashboard login reaches every site of the team and lists every locked confidential site; live.
+
+**Files:** press/press/doctype/site/stale_creation_failed.py (new), test_stale_creation_failed.py (new), press/hooks.py (one hourly line), press/mcp_server/scope/confidential.py, test_confidential_whole_team.py (new). Scripts in press-ops `scripts/creation-failed-2026-11-24/` (47 and 49 deploy, 48 finish, prechecks).
+
+**Watch out:** three deploy traps (lessons-learned, 2026-11-24): `frappe.get_hooks` shows the old hooks.py before the restarts; `supervisorctl status` exits 3 under `pipefail` and ended the worker wait loop with long-worker-1 STOPPED (started by hand; 46_deploy_0760.sh has the same loop); `insert_single_event` needs `'Hourly'`. site.py and agent_job.py are past the size limit, so new logic goes in its own module.
+
+**Open:** none for this work.
+
 ### Session 25 - 2026-11-24: Error Log noise and a leaked Hetzner token (0.7.62)
 
 **What we did:** the Error Log Spike alert (790 errors, 22 Nov) was steady noise of 5,000 to 6,700 rows a day: fake test VMs in the snapshot job, the removed Hetzner datacenters API, the accurate-portainer cpu/disk probe and MCP audit rows. Data fixed by hand on press-ctrl at 06:55, 0.7.62 deployed at 07:10 (PR #77), rule re-enabled at 07:12. In the first 8 minutes after the restart the Error Log got 1 row.

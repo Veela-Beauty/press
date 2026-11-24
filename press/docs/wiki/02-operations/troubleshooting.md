@@ -65,6 +65,19 @@ Updates, or a Brevo block. mvpstorm.com has Brevo DKIM (`brevo1`, `brevo2`) and 
 **Fix:** if only the neutral test arrives, reword the alert; if neither arrives, read Brevo's transactional log.
 Add SPF for mvpstorm.com (`v=spf1 include:spf.brevo.com ~all`) either way.
 
+### "Site creation failed" on a site that works
+**Cause:** `Site.creation_failed` is still set from a failed New Site or Restore job that was finished by hand. Status
+can be Active; the 14-day drop only takes Broken sites.
+**Check:** `frappe.get_all("Site", filters={"status": "Active", "creation_failed": ("is", "set")}, pluck="name")`.
+**Fix:** since 0.7.64 the hourly `clear_stale_creation_failed` clears it after a green migrate; to clear it now, see
+[Backups: after a restore finished by hand](backups.md#after-a-restore-finished-by-hand).
+
+### MCP `mint_dashboard_login_url` refused over a confidential site
+**Cause:** a dashboard session reaches every site of the team, so the tool needs every confidential site of the team
+unlocked, whichever page `redirect_to` names (`scope/call_guard.py` `_rule_whole_team`). Not a bug.
+**Fix:** read the field the page shows instead, or the owner issues a token that names all those sites and enters the
+Admin PIN. Since 0.7.65 the refusal lists every locked site.
+
 ### Cluster `public` flag resets on save
 **Cause:** Unknown — Cluster.save() resets public to 0
 **Fix:** Set via direct DB: `frappe.db.set_value("Cluster", "Default", "public", 1)`

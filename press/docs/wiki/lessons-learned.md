@@ -1546,3 +1546,49 @@ API client copies its credentials into Error Log on every run.
 After any integration starts failing, search Error Log for `Bearer ` and `Authorization` (32 more rows found this time:
 Cloudflare DNS, MCP audit, agent). Cherry-pick upstream `16fa391b8` before turning the sync back on. Status: **ONGOING
 RISK** (any failing client with a token in its frame does the same).
+
+## 2026-11-24: healthy sites kept "Site creation failed" for months
+
+### What happened
+quest-v15 showed "Site creation failed" and blocked Login as Admin while it served, migrated and backed up fine. The
+same check found 4 more Active sites with the flag, 3 of them since July.
+
+### Root cause
+Press sets `Site.creation_failed` when a New Site or Restore job fails and clears it in one place only: a successful
+Restore Site job. Each of these restores was finished by hand (a later Migrate Site succeeded), so nothing cleared it.
+Agent Job status is written with `db.set_value`, so no doc event can react to a later green migrate.
+
+### How we fixed it
+Cleared the 5 flags by hand, then 0.7.64: an hourly job clears the flag on an Active site with a green Migrate Site or
+Update Site Migrate after it. The update is conditional on the same flag and Active, so a restore that fails during the
+run keeps its new flag.
+
+### Lesson
+A flag that one code path sets and only one other path clears goes stale whenever the work is finished another way.
+
+### Prevention
+The hourly job covers it. Status: **PERMANENT**.
+
+## 2026-11-24: three traps in the 0.7.64 deploy
+
+### What happened
+The first run stopped at its own guard; the second ended in the worker wait loop with long-worker-1 STOPPED (started by
+hand about a minute later); the job registration was refused once.
+
+### Root cause
+1. `frappe.get_hooks` reads the `app_hooks` cache, which still held the old hooks.py before the restarts.
+2. `supervisorctl status` exits 3 while any process is not RUNNING; inside `$(...)` under `set -o pipefail` that ends the
+   script.
+3. `insert_single_event` takes the title-case frequency (`'Hourly'`); `sync_jobs` converts `hourly` before calling it.
+
+### How we fixed it
+press-ops `47_deploy_0764.sh`: read `press.hooks` from disk before the restarts and assert `get_hooks` only after them
+and `delete_value('app_hooks')`; wrap `(supervisorctl status || true)`; pass `'Hourly'`. `48_finish_0764.sh` ran the
+remaining steps.
+
+### Lesson
+A deploy check must read what the restart has not changed yet from disk, not from a cache the old processes fill.
+
+### Prevention
+Copy the wait loop from `49_deploy_0765.sh`, not `46_deploy_0760.sh`. A full `sync_jobs` also deletes job types no hook
+lists (0 on press-ctrl on 24 Nov); `insert_single_event` adds one only. Status: **PERMANENT** in the new scripts.
