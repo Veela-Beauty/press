@@ -174,6 +174,12 @@ export default {
 							route: '/watch-tower/apps',
 							isActive: ['Watch Tower Apps', 'Watch Tower App'].includes(routeName),
 						},
+						{
+							name: 'Integrations',
+							icon: () => h(Plug),
+							route: '/watch-tower/integrations',
+							isActive: ['Watch Tower Integrations', 'Watch Tower Integration Tasks'].includes(routeName),
+						},
 					],
 				},
 				{
