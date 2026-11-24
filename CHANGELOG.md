@@ -4,6 +4,28 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 24-11-2026: Error Log noise on press-ctrl (0.7.62; docs 0.7.63)
+
+### Fixed
+- The Error Log Spike rule (WT-RULE-1043) counted `[MCP-DESTRUCTIVE]` audit rows, which MCP writes on purpose (up to
+  1,346 a day). They are in the rule's noise list now.
+- `infra_board._cpu_disk` wrote an Error Log row on every 1-minute warm for a server it cannot reach (about 1,400 a day
+  for accurate-portainer). It writes one an hour per server now.
+
+### Changed (data on press-ctrl, by hand)
+- 8 fake test VMs (`f5`..`f12-mumbai.fc.dev`, from test runs on 30 May and 8 Sep) no longer snapshot. Each failed
+  `snapshot_aws_servers` every 5 minutes with "Server None not found" (2,304 rows a day).
+- The 12 Hetzner plans skip the machine availability sync. Hetzner removed `GET /datacenters` on 1 Oct 2026, so the check
+  failed for all 3 Hetzner clusters (864 rows a day). Upstream `frappe/press` `16fa391b8` fixes it with hcloud 2.26.0; not
+  cherry-picked yet. The error names "Server Plan accurate-portainer-app" only because its `except` reads a loop variable
+  left over from the loop before.
+
+### Security
+- Each failed availability check stored the Hetzner API token in plain text: the traceback with variables dumped the
+  hcloud request headers. 7,209 rows deleted; the token still has to be rotated. 32 other rows hold Bearer tokens
+  (Cloudflare DNS 17, MCP audit 12, agent 3).
+- 10 test users (`@example.com`, `@example.org`, made by test runs on 19 and 30 May) were enabled System Users. Disabled.
+
 ## 23-11-2026: Watch Tower docs cover a client's checks (0.7.61, docs only)
 
 - The Watch Tower section page describes the checks on the Overview and the client page (0.7.53), the prototype

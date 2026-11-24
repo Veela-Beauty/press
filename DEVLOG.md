@@ -1,5 +1,15 @@
 # Press Fork Dev Log
 
+### Session 25 - 2026-11-24: Error Log noise and a leaked Hetzner token (0.7.62)
+
+**What we did:** the Error Log Spike alert (790 errors, 22 Nov) was steady noise of 5,000 to 6,700 rows a day: fake test VMs in the snapshot job, the removed Hetzner datacenters API, the accurate-portainer cpu/disk probe and MCP audit rows. Data fixed by hand on press-ctrl at 06:55, 0.7.62 deployed at 07:10 (PR #77), rule re-enabled at 07:12. In the first 8 minutes after the restart the Error Log got 1 row.
+
+**Files:** press/watch_tower/alerts/_helpers.py, press/api/infra_board.py. Scripts in press-ops `scripts/error-spike-2026-11-24/`; evidence and undo values on the dev box in `~/docs/ops/press-ctrl/2026-11-24-error-spike/`.
+
+**Watch out:** `supervisorctl restart` of the 3 long workers stops all before starting any, so a busy one (stopwaitsecs 1560) keeps the idle ones down; start those by hand. Leave the build workers alone. `demo.mvpstorm.com` answers 000 from outside; check `autodeploypanel.mvpstorm.com`.
+
+**Open (owner):** rotate the Hetzner token and update the 3 clusters; the other 32 rows with Bearer tokens; why press-ctrl cannot SSH to accurate-portainer; cherry-pick `16fa391b8`; `allow_tests` is still on for demo.mvpstorm.com.
+
 ### Session 24 - 2026-11-23: MCP security before team-wide use (0.7.59)
 
 **What we did:** read-only audit of what MCP records: every call (args + response, hash-chained) in Press MCP Call Log, readable by 11 System Managers; no real secret values stored (pattern proven on a fake one), but two run_python responses on lipton-yp.sandbox hold a PRIVATE KEY block (owner to rotate). Found `recover_token` let any System User read any token. Built MCP Agent Watch (6 patterns, dry run 70 events / 32 email-hours a week; an independent review's 3 MUST FIX fixed: 3-hour window, record after the email, every event recorded), made the call log MCP Auditor only, owner-only token recovery, stopped the [MCP-DESTRUCTIVE] Error Log lines.
