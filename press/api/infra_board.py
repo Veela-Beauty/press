@@ -70,7 +70,11 @@ def _cpu_disk(server: str):
 
 	data = _parse_cpu_disk(out)
 	if data is None:
-		frappe.log_error(f"unparseable cpu/disk output for {server}: {out!r}", "infra_board cpu/disk parse")
+		# An unreachable host answers '' on every 1-minute warm; one Error Log row an hour is enough to see it.
+		logged_key = f"infra_board:cpu_disk_logged:{server}"
+		if not frappe.cache().get_value(logged_key, expires=True):
+			frappe.log_error(f"unparseable cpu/disk output for {server}: {out!r}", "infra_board cpu/disk parse")
+			frappe.cache().set_value(logged_key, 1, expires_in_sec=3600)
 		return None
 	frappe.cache().set_value(cache_key, data, expires_in_sec=60)
 	return data

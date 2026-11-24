@@ -15,6 +15,7 @@ NOISE_PATTERNS = (
 	"COLOR_VALUE",
 	"Error in translation file",
 	"cssutils",
+	"[MCP-DESTRUCTIVE]",  # MCP audit rows, logged on purpose (mcp_server/server.py)
 )
 
 ERROR_SPIKE_THRESHOLD = 100
