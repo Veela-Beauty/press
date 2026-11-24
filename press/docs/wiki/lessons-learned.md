@@ -1522,3 +1522,27 @@ Clearing a cache is only as good as the code of the processes that refill it. Cl
 ### Prevention
 Deploy scripts run `bench clear-cache` after web and workers restart (`40_deploy_0759.sh`), then check the dispatch of
 any new override. Status: **PERMANENT**.
+
+## 2026-11-24: the Hetzner API token sat in 7,209 Error Log rows
+
+### What happened
+The Error Log Spike alert on press-ctrl had fired for weeks. One source, "Failed to sync machine availability", ran every
+5 minutes and failed for each Hetzner cluster. Each of its rows held the cluster's Hetzner API token in plain text.
+
+### Root cause
+Hetzner removed `GET /datacenters` on 1 Oct 2026, and `Cluster._check_hetzner_machine_availability` still calls it.
+`frappe.log_error` stores a traceback with variables, and one frame's locals were the hcloud request `headers`, with
+`Authorization: Bearer <token>`. Anyone who can read Error Log could read the token.
+
+### How we fixed it
+Set `ignore_machine_availability_sync = 1` on the 12 Hetzner plans so the call stops, then deleted the 7,209 rows. The
+owner rotates the token.
+
+### Lesson
+A traceback with variables stores whatever the failing frame holds, request headers included. A repeating failure in an
+API client copies its credentials into Error Log on every run.
+
+### Prevention
+After any integration starts failing, search Error Log for `Bearer ` and `Authorization` (32 more rows found this time:
+Cloudflare DNS, MCP audit, agent). Cherry-pick upstream `16fa391b8` before turning the sync back on. Status: **ONGOING
+RISK** (any failing client with a token in its frame does the same).
