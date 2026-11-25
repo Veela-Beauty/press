@@ -4,6 +4,14 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 25-11-2026: AccuHub tasks as a tree on the tasks page (0.7.72)
+
+### Added
+- The AccuHub tasks page of a client shows the stage's tasks as a tree: each task under its group, indented, with
+  **Created by**, **Created on** and **Assigned on** columns (owner, 25 Nov; needs accuhub_link 0.6.0 on the client
+  site and the hub's 0.2.28). A group that is not in the stage shows as a grey heading and is not counted. A row from
+  an older link shows flat as before, with the new columns empty.
+
 ## 25-11-2026: A new MCP token opens on the deploy tools (0.7.71)
 
 ### Changed
