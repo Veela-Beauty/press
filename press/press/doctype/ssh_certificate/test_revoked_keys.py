@@ -65,6 +65,16 @@ class TestKeysToRevoke(FrappeTestCase):
 		keys, _ = self.run_with([row(key="nonsense'; id", disabled=1)])
 		self.assertEqual(keys, [])
 
+	def test_a_key_re_added_with_a_good_certificate_is_not_listed(self):
+		keys, _ = self.run_with([row(key_name="old", removed=1), row(key_name="new")])
+		self.assertEqual(keys, [])
+
+
+def team_row(**values):
+	return frappe._dict(
+		{"user": "owner@x.com", "enabled": 1, "relaxed_permissions": 0, "ssh_access_enabled": 1, **values}
+	)
+
 
 class TestReaches(FrappeTestCase):
 	"""reaches() mirrors role_guard for a user that is not the session user."""
@@ -72,9 +82,7 @@ class TestReaches(FrappeTestCase):
 	def run_with(
 		self, user_type="Website User", team=None, member=True, any_role=True, mine=(), roles=(), listed=False
 	):
-		team = (
-			team if team is not None else frappe._dict(user="owner@x.com", enabled=1, relaxed_permissions=0)
-		)
+		team = team if team is not None else team_row()
 
 		def get_value(doctype, name, fields=None, as_dict=False):
 			return user_type if doctype == "User" else team
@@ -96,12 +104,18 @@ class TestReaches(FrappeTestCase):
 		self.assertTrue(self.run_with(user_type="System User", member=False))
 
 	def test_disabled_team_reaches_nobody(self):
-		self.assertFalse(
-			self.run_with(team=frappe._dict(user="islam@x.com", enabled=0, relaxed_permissions=0))
-		)
+		self.assertFalse(self.run_with(team=team_row(user="islam@x.com", enabled=0)))
+
+	def test_team_ssh_access_off_reaches_nobody(self):
+		self.assertFalse(self.run_with(team=team_row(user="islam@x.com", ssh_access_enabled=0)))
+
+	def test_no_user_reaches_nothing(self):
+		with patch("frappe.db.get_value") as get_value:
+			self.assertFalse(rk.reaches(None, "team1", "bench-0080"))
+		get_value.assert_not_called()
 
 	def test_owner_reaches(self):
-		self.assertTrue(self.run_with(team=frappe._dict(user="islam@x.com", enabled=1), member=False))
+		self.assertTrue(self.run_with(team=team_row(user="islam@x.com"), member=False))
 
 	def test_left_the_team(self):
 		self.assertFalse(self.run_with(member=False))
@@ -111,7 +125,7 @@ class TestReaches(FrappeTestCase):
 
 	def test_no_role_refused_unless_relaxed(self):
 		self.assertFalse(self.run_with())
-		relaxed = frappe._dict(user="owner@x.com", enabled=1, relaxed_permissions=1)
+		relaxed = team_row(relaxed_permissions=1)
 		self.assertTrue(self.run_with(team=relaxed))
 
 	def test_admin_or_all_benches_role(self):
@@ -142,6 +156,9 @@ class TestWriteCommand(FrappeTestCase):
 		cmd = rk.write_command("")
 		self.assertIn('if ! grep -q "^RevokedKeys "', cmd)
 		self.assertLess(cmd.index("sshd -t"), cmd.index("kill -HUP"))
+		# a failed reload takes the line out again (it sits in the same condition), so the next run retries
+		self.assertIn("&& kill -HUP", cmd)
+		self.assertLess(cmd.index("kill -HUP"), cmd.index("then :"))
 		self.assertIn("sshd_config.before-revoked-keys", cmd.split("else")[1])
 		self.assertLess(
 			cmd.index("> /home/frappe/frappe-bench/config/ssh/revoked_keys.new"), cmd.index("grep")
@@ -183,13 +200,59 @@ class TestSyncBench(FrappeTestCase):
 		self.assertEqual(sent, "failed")
 		set_value.assert_not_called()
 
-	def test_one_failing_bench_does_not_stop_the_others(self):
+	def test_no_return_code_is_a_failure(self):
+		sent, _, set_value = self.run_with(cached=None, returncode=None)
+		self.assertEqual(sent, "failed")
+		set_value.assert_not_called()
+
+	def test_one_failing_bench_does_not_stop_the_others_and_waits(self):
 		benches = [frappe._dict(name="b1", group="g1"), frappe._dict(name="b2", group="g2")]
 		with (
-			patch("frappe.get_all", return_value=benches),
+			patch.object(rk, "benches_to_cover", return_value=benches),
+			patch.object(frappe.cache, "get_value", return_value=None),
+			patch.object(frappe.cache, "set_value") as set_value,
 			patch.object(rk, "sync_bench", side_effect=[Exception("agent down"), True]) as sync,
 			patch.object(rk, "log_error") as log,
 		):
 			rk.sync_development_benches()
 		self.assertEqual(sync.call_count, 2)
 		log.assert_called_once()
+		set_value.assert_called_once_with(
+			rk.CACHE_KEY.format("b1") + ":failed", 1, expires_in_sec=rk.RETRY_SECONDS
+		)
+
+	def test_a_bench_that_failed_lately_is_skipped(self):
+		with (
+			patch.object(rk, "benches_to_cover", return_value=[frappe._dict(name="b1", group="g1")]),
+			patch.object(frappe.cache, "get_value", return_value=1),
+			patch.object(rk, "sync_bench") as sync,
+		):
+			rk.sync_development_benches()
+		sync.assert_not_called()
+
+
+class TestBenchesToCover(FrappeTestCase):
+	def run_with(self, dev_groups, long_groups, benches=()):
+		calls = []
+
+		def get_all(doctype, filters=None, fields=None, pluck=None, distinct=False):
+			calls.append((doctype, filters))
+			if doctype == "SSH Certificate":
+				return list(long_groups)
+			if filters.get("is_development_bench"):
+				return list(dev_groups)
+			return list(benches)
+
+		with patch("frappe.get_all", side_effect=get_all):
+			return rk.benches_to_cover(), calls
+
+	def test_every_active_bench_of_a_dev_group_or_a_30_day_group(self):
+		benches = [frappe._dict(name="b-new", group="g1"), frappe._dict(name="b-old", group="g2")]
+		result, calls = self.run_with(["g1"], ["g2", "g1", None], benches)
+		self.assertEqual(result, benches)
+		self.assertEqual(calls[-1], ("Bench", {"status": "Active", "group": ("in", ["g1", "g2"])}))
+
+	def test_nothing_to_cover(self):
+		result, calls = self.run_with([], [])
+		self.assertEqual(result, [])
+		self.assertEqual(len(calls), 2)

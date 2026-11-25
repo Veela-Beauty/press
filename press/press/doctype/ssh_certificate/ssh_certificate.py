@@ -67,7 +67,7 @@ class SSHCertificate(Document):
 			frappe.throw("Could not guess the key type. Please check your public key.")
 
 	def validate_validity(self):
-		if self.certificate_type != "User":
+		if self.certificate_type != "User" or not (self.is_new() or self.has_value_changed("validity")):
 			return
 		allowed = ("1h", "3h", "6h", "30d") if has_development_bench(self.group) else ("1h", "3h", "6h")
 		if self.validity not in allowed:

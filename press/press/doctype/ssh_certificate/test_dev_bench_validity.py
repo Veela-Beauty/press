@@ -17,8 +17,14 @@ from press.press.doctype.ssh_certificate.ssh_certificate import (
 MODULE = "press.press.doctype.ssh_certificate.ssh_certificate"
 
 
-def cert(validity, certificate_type="User", group="bench-0080"):
-	return SimpleNamespace(certificate_type=certificate_type, validity=validity, group=group)
+def cert(validity, certificate_type="User", group="bench-0080", new=True, changed=False):
+	return SimpleNamespace(
+		certificate_type=certificate_type,
+		validity=validity,
+		group=group,
+		is_new=lambda: new,
+		has_value_changed=lambda field: changed,
+	)
 
 
 class TestDevBenchValidity(FrappeTestCase):
@@ -57,6 +63,18 @@ class TestDevBenchValidity(FrappeTestCase):
 			self.assertRaises(frappe.ValidationError),
 		):
 			SSHCertificate.validate_validity(cert("1d"))
+
+	def test_a_saved_30_day_certificate_is_not_checked_again(self):
+		with patch(f"{MODULE}.has_development_bench", return_value=False) as dev:
+			SSHCertificate.validate_validity(cert("30d", new=False))
+		dev.assert_not_called()
+
+	def test_changing_a_saved_certificate_to_30_days_is_checked(self):
+		with (
+			patch(f"{MODULE}.has_development_bench", return_value=False),
+			self.assertRaises(frappe.ValidationError),
+		):
+			SSHCertificate.validate_validity(cert("30d", new=False, changed=True))
 
 	def test_server_certificates_are_not_checked(self):
 		with patch(f"{MODULE}.has_development_bench") as dev:

@@ -13,13 +13,19 @@ This file documents changes (current commit level since, no tagged releases yet)
   bench action texts say so. Rule in `ssh_certificate.py` (`has_development_bench`, `user_certificate_validity`).
 
 ### Security
-- A signed SSH certificate cannot be called back, so a 30-day one would outlive a removed member. Every minute each
-  active development bench now gets a revoked-keys file (`revoked_keys.py`, hooks `* * * * *`): the keys that still
-  hold a valid certificate for it whose user left the team or was disabled, whose key was disabled or removed, or
-  whose Press Role no longer covers the bench (the dashboard's rule, checked against `_role_covers` for all 5 members
-  x 41 release groups of the Quest team: no difference). The bench's sshd reads it at every login; the `RevokedKeys`
-  line is added to that bench's sshd_config once, checked with `sshd -t`, then sshd reloads. Proven on Quest Dev with
-  a throwaway key: SSH worked, the key was disabled, the next sync refused it. Other benches are unchanged.
+- A signed SSH certificate cannot be called back, so a 30-day one would outlive a removed member. Every minute every
+  Active bench of a group with a development bench or a live 30-day certificate (the certificate's principal is the
+  group, so it opens all of them, including the new bench of a redeploy) gets a revoked-keys file (`revoked_keys.py`,
+  hooks `* * * * *`): the keys that still hold a valid certificate for it whose user left the team or was disabled,
+  whose key was disabled or removed, whose Press Role no longer covers the group (the dashboard's rule, checked
+  against `_role_covers` for all 5 members x 41 release groups of the Quest team: no difference), or whose team's SSH
+  access was turned off. A key that also holds a certificate in good standing (re-added) stays off the list. The
+  bench's sshd reads the file at every login; the `RevokedKeys` line is added to that bench's sshd_config once,
+  checked with `sshd -t`, then sshd reloads, and a failed reload takes the line out again so the next run retries.
+  A failing bench writes one Error Log, then waits 5 minutes. Proven twice on Quest Dev with a throwaway key: SSH
+  worked, the key was disabled, the next sync refused it. Benches outside those groups are unchanged.
+- A saved SSH Certificate is checked for its validity only on insert or when the validity changes, so an old 30-day
+  certificate can still be saved after its development bench is archived.
 
 ## 25-11-2026: AccuHub tasks as a tree on the tasks page (0.7.72)
 
