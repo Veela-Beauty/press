@@ -4,6 +4,18 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 25-11-2026: SSH certificates last 30 days on a development bench (0.7.73)
+
+### Changed
+- A user SSH certificate for a release group with an active development bench (`is_development_bench`) is now
+  signed for 30 days instead of 6 hours (owner, 25 Nov: "make it long access like all our team"). Every other bench
+  keeps 6 hours, and a 30-day certificate is refused on a group without a development bench. The SSH, VS Code and
+  bench action texts say so. Rule in `ssh_certificate.py` (`has_development_bench`, `user_certificate_validity`).
+
+### Security
+- Press cannot revoke a signed SSH certificate (no KRL on the bench's sshd), so a member removed from the team, or
+  whose key is disabled, keeps SSH into a development bench until the certificate ends: up to 30 days, was 6 hours.
+
 ## 25-11-2026: AccuHub tasks as a tree on the tasks page (0.7.72)
 
 ### Added

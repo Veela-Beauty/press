@@ -67,7 +67,10 @@ class SSHCertificate(Document):
 			frappe.throw("Could not guess the key type. Please check your public key.")
 
 	def validate_validity(self):
-		if self.certificate_type == "User" and self.validity not in ("1h", "3h", "6h"):
+		if self.certificate_type != "User":
+			return
+		allowed = ("1h", "3h", "6h", "30d") if has_development_bench(self.group) else ("1h", "3h", "6h")
+		if self.validity not in allowed:
 			frappe.throw("User certificates can only be valid for a short duration")
 
 	def validate_certificate_authority(self):
@@ -142,3 +145,14 @@ class SSHCertificate(Document):
 	@property
 	def certificate_file(self):
 		return os.path.join("/tmp", f"id_{self.key_type}-{self.serial_number}-cert.pub")
+
+
+def has_development_bench(group: str | None) -> bool:
+	return bool(
+		group and frappe.db.exists("Bench", {"group": group, "status": "Active", "is_development_bench": 1})
+	)
+
+
+def user_certificate_validity(group: str) -> str:
+	"""30 days on a release group with a development bench, 6 hours on every other group."""
+	return "30d" if has_development_bench(group) else "6h"

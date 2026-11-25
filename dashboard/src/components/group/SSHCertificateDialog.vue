@@ -94,7 +94,7 @@
 					<p>
 						You will need an SSH certificate to get SSH access to your bench. This
 						certificate will work only with your public-private key pair and will
-						be valid for 6 hours.
+						be valid for 6 hours, or 30 days on a development bench.
 					</p>
 					<div v-if="sshKeys.length > 1" class="space-y-2">
 						<label class="block text-sm font-semibold text-gray-700">Which SSH key should this certificate sign?</label>
