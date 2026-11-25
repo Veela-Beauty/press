@@ -2,8 +2,8 @@
 
 teams.py and call_guard.py stop a token at its team's edge. A member whose Press Role lists only some benches and
 sites (DevOps L1, Viewer) must also stop at that list, as the dashboard does, or a token he mints reaches the whole
-team. So every Site, Release Group and Server a call names or reaches goes through the dashboard's own
-role_guard.check. Both functions run as the token's user, with the token's team pinned.
+team. So every Site, Release Group and Server a call names or reaches must be on the lists the dashboard's role_guard
+reads (an all-sites/benches/servers role passes). Both functions run as the token's user, with the token's team pinned.
 """
 
 from __future__ import annotations
@@ -14,7 +14,14 @@ import frappe
 
 from press.guards import role_guard
 from press.guards.role_guard.document import documents, has_user_permission
-from press.mcp_server.scope.call_guard import _CANDIDATE_ARGS, _RG_ARGS, _benches_of_call, _sites_of_call
+from press.mcp_server.scope.call_guard import (
+	_BENCH_ARGS,
+	_CANDIDATE_ARGS,
+	_IN_CONTAINER_TOOLS,
+	_RG_ARGS,
+	_SITE_ARGS,
+	_sites_of_call,
+)
 from press.mcp_server.scope.sites import chosen_sites
 from press.mcp_server.scope.targets import _candidate_to_release_group, _extract_target
 from press.mcp_server.scope.teams import not_visible
@@ -37,8 +44,9 @@ def assert_call_in_roles(tool: str, args: dict) -> None:
 			f"{tool} reaches the whole team; your role covers only the benches and sites it lists"
 		)
 	for doctype, names in _resources_of_call(tool, args).items():
+		allowed = _visible(doctype) if names else None
 		for name in sorted(names):
-			if not role_guard.check(doctype, name):
+			if allowed is not None and name not in allowed:
 				raise frappe.PermissionError(not_visible(doctype, name))
 
 
@@ -46,10 +54,12 @@ def filter_to_roles(tool: str, response: Any) -> Any:
 	"""Drop rows a limited user may not see from the list tools that read the whole team."""
 	if not is_limited():
 		return response
-	if tool in _LIST_TOOLS and isinstance(response, list):
+	if (tool in _LIST_TOOLS or tool == "agent_job_list") and not isinstance(response, list):
+		return []  # a shape this filter does not know: show a limited member nothing, never everything
+	if tool in _LIST_TOOLS:
 		allowed = _visible(_LIST_TOOLS[tool])
 		return response if allowed is None else [r for r in response if _row_name(r) in allowed]
-	if tool == "agent_job_list" and isinstance(response, list):
+	if tool == "agent_job_list":
 		sites, groups = _visible("Site"), _visible("Release Group")
 		benches = {
 			r["bench"] for r in response if isinstance(r, dict) and r.get("bench") and not r.get("site")
@@ -69,7 +79,12 @@ def _resources_of_call(tool: str, args: dict) -> dict[str, set]:
 		sites.update(s.name for s in chosen_sites(args["name"], args.get("sites")))
 	groups = {args[arg] for arg in _RG_ARGS if args.get(arg)}
 	groups.update(_candidate_to_release_group(args[arg]) for arg in _CANDIDATE_ARGS if args.get(arg))
-	groups.update(frappe.db.get_value("Bench", bench, "group") for bench in _benches_of_call(args))
+	# A bench the call names; and for code or files run inside the container, the bench of a site it names, since
+	# that reaches every site on the bench. A plain site action needs the site only, as on the dashboard.
+	benches = {args[arg] for arg in _BENCH_ARGS if args.get(arg)}
+	if tool in _IN_CONTAINER_TOOLS:
+		benches.update(frappe.db.get_value("Site", args[arg], "bench") for arg in _SITE_ARGS if args.get(arg))
+	groups.update(frappe.db.get_value("Bench", bench, "group") for bench in benches - {None})
 	doctype, name = _extract_target(tool, args)
 	if doctype == "Release Group" and name:
 		groups.add(name)
@@ -79,9 +94,11 @@ def _resources_of_call(tool: str, args: dict) -> dict[str, set]:
 			frappe.db.get_value("Agent Job", args["job_name"], ["site", "bench", "server"], as_dict=True)
 			or {}
 		)
-		if job.get("bench"):
+		if job.get("site"):
+			pass  # _sites_of_call already holds the job's site
+		elif job.get("bench"):
 			groups.add(frappe.db.get_value("Bench", job["bench"], "group"))
-		elif job.get("server") and not job.get("site"):
+		elif job.get("server"):
 			servers.add(job["server"])
 	return {"Site": sites - {None}, "Release Group": groups - {None}, "Server": servers - {None}}
 

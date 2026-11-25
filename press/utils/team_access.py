@@ -44,6 +44,8 @@ def _role_covers(group=None, site_name=None) -> bool:
 
 	if not role_guard.is_restricted() or role_guard.skip_roles():
 		return True
-	if site_name:
-		return bool(role_guard.check("Site", site_name))
-	return bool(group) and bool(role_guard.check("Release Group", group))
+	if site_name and not role_guard.check("Site", site_name):
+		return False
+	if group and not role_guard.check("Release Group", group):
+		return False
+	return bool(site_name or group)

@@ -18,6 +18,9 @@ def execute():
 		for name in frappe.get_all("Team Member", {"press_role": old}, pluck="name"):
 			frappe.db.set_value("Team Member", name, "press_role", new, update_modified=False)
 		for team in frappe.get_all("Press Role", {"title": old}, pluck="team"):
-			if not frappe.db.exists("Press Role", {"team": team, "title": new}):
+			if frappe.db.exists("Press Role", {"team": team, "title": new}):
+				# both titles on one team: leave the old role for a person to merge, and say so in the migrate output
+				print(f"rename_devops_admin_to_devops_l2: team {team} has both {old!r} and {new!r}; merge them by hand")
+			else:
 				_rename_legacy_role(team, new)
 	frappe.clear_cache(doctype="Team Member")

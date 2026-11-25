@@ -58,6 +58,14 @@ class TestEnsureTeamAccess(TestCase):
 		g = self.run_check(user_type="System User", site_name="prime.example.com")
 		g.is_restricted.assert_not_called()
 
+	def test_a_listed_site_cannot_carry_an_unlisted_bench(self):
+		with self.assertRaises(frappe.PermissionError):
+			self.run_check(
+				allowed=[("Site", "quest-dev.example.com")],
+				site_name="quest-dev.example.com",
+				bench_name="bench-0080-000001",
+			)
+
 	def test_other_team_is_refused(self):
 		with self.assertRaises(frappe.PermissionError):
 			self.run_check(limited=False, site_name="unknown.example.com")
