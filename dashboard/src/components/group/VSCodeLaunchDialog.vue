@@ -79,7 +79,7 @@
 				<div class="flex items-start gap-2 rounded bg-gray-100 p-3 text-sm text-gray-700">
 					<FeatherIcon name="info" class="mt-0.5 h-4 w-4 flex-shrink-0" />
 					<p>
-						The certificate is valid for <strong>6 hours</strong>. We'll save it to
+						The certificate is valid for <strong>6 hours</strong> (<strong>30 days</strong> on a development bench). We'll save it to
 						<code>id_{{ sshCertInfo?.key_type || 'ed25519' }}-cert.pub</code> next to your private key
 						(downloads to your browser).
 					</p>
@@ -133,7 +133,7 @@
 					<div class="flex items-start gap-2 rounded bg-gray-100 p-3 text-sm text-gray-700">
 						<FeatherIcon name="info" class="mt-0.5 h-4 w-4 flex-shrink-0" />
 						<p>
-							The certificate is valid for <strong>6 hours</strong>. Reopen this dialog after it expires.
+							The certificate is valid for <strong>6 hours</strong> (<strong>30 days</strong> on a development bench). Reopen this dialog after it expires.
 							Your local SSH key authenticates you — no Code Server password is needed.
 						</p>
 					</div>
@@ -142,7 +142,7 @@
 				<div v-else class="space-y-3 text-p-base text-gray-700">
 					<p>
 						You will need an SSH certificate to connect VS Code over Remote-SSH. The certificate
-						is signed for your registered SSH key and is valid for 6 hours.
+						is signed for your registered SSH key and is valid for 6 hours, or 30 days on a development bench.
 					</p>
 					<div class="space-y-2">
 						<label class="block text-sm font-semibold text-gray-700">

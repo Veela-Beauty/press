@@ -36,6 +36,7 @@ from press.press.doctype.marketplace_app.marketplace_app import (
 )
 from press.press.doctype.resource_tag.tag_helpers import TagHelpers
 from press.press.doctype.server.server import Server
+from press.press.doctype.ssh_certificate.ssh_certificate import user_certificate_validity
 from press.utils import (
 	fmt_timedelta,
 	get_app_tag,
@@ -1132,7 +1133,7 @@ class ReleaseGroup(Document, TagHelpers):
 				"group": self.name,
 				"user": frappe.session.user,
 				"user_ssh_key": ssh_key[0],
-				"validity": "6h",
+				"validity": user_certificate_validity(self.name),
 			}
 		).insert()
 

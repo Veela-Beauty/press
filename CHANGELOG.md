@@ -4,6 +4,29 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 25-11-2026: SSH certificates last 30 days on a development bench (0.7.73)
+
+### Changed
+- A user SSH certificate for a release group with an active development bench (`is_development_bench`) is now
+  signed for 30 days instead of 6 hours (owner, 25 Nov: "make it long access like all our team"). Every other bench
+  keeps 6 hours, and a 30-day certificate is refused on a group without a development bench. The SSH, VS Code and
+  bench action texts say so. Rule in `ssh_certificate.py` (`has_development_bench`, `user_certificate_validity`).
+
+### Security
+- A signed SSH certificate cannot be called back, so a 30-day one would outlive a removed member. Every minute every
+  Active bench of a group with a development bench or a live 30-day certificate (the certificate's principal is the
+  group, so it opens all of them, including the new bench of a redeploy) gets a revoked-keys file (`revoked_keys.py`,
+  hooks `* * * * *`): the keys that still hold a valid certificate for it whose user left the team or was disabled,
+  whose key was disabled or removed, whose Press Role no longer covers the group (the dashboard's rule, checked
+  against `_role_covers` for all 5 members x 41 release groups of the Quest team: no difference), or whose team's SSH
+  access was turned off. A key that also holds a certificate in good standing (re-added) stays off the list. The
+  bench's sshd reads the file at every login; the `RevokedKeys` line is added to that bench's sshd_config once,
+  checked with `sshd -t`, then sshd reloads, and a failed reload takes the line out again so the next run retries.
+  A failing bench writes one Error Log, then waits 5 minutes. Proven twice on Quest Dev with a throwaway key: SSH
+  worked, the key was disabled, the next sync refused it. Benches outside those groups are unchanged.
+- A saved SSH Certificate is checked for its validity only on insert or when the validity changes, so an old 30-day
+  certificate can still be saved after its development bench is archived.
+
 ## 25-11-2026: AccuHub tasks as a tree on the tasks page (0.7.72)
 
 ### Added

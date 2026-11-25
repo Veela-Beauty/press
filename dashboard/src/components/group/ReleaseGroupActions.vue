@@ -306,7 +306,7 @@
 						<div>
 							<h4 class="text-[13px] font-semibold text-gray-900">Generate SSH Certificate</h4>
 							<p class="mt-0.5 text-[11.5px] leading-snug text-gray-500">
-								Required for "Open in VS Code". Valid 6 hours.
+								Required for "Open in VS Code". Valid 6 hours, 30 days on a development bench.
 							</p>
 						</div>
 					</button>
