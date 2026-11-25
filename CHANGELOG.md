@@ -13,8 +13,13 @@ This file documents changes (current commit level since, no tagged releases yet)
   bench action texts say so. Rule in `ssh_certificate.py` (`has_development_bench`, `user_certificate_validity`).
 
 ### Security
-- Press cannot revoke a signed SSH certificate (no KRL on the bench's sshd), so a member removed from the team, or
-  whose key is disabled, keeps SSH into a development bench until the certificate ends: up to 30 days, was 6 hours.
+- A signed SSH certificate cannot be called back, so a 30-day one would outlive a removed member. Every minute each
+  active development bench now gets a revoked-keys file (`revoked_keys.py`, hooks `* * * * *`): the keys that still
+  hold a valid certificate for it whose user left the team or was disabled, whose key was disabled or removed, or
+  whose Press Role no longer covers the bench (the dashboard's rule, checked against `_role_covers` for all 5 members
+  x 41 release groups of the Quest team: no difference). The bench's sshd reads it at every login; the `RevokedKeys`
+  line is added to that bench's sshd_config once, checked with `sshd -t`, then sshd reloads. Proven on Quest Dev with
+  a throwaway key: SSH worked, the key was disabled, the next sync refused it. Other benches are unchanged.
 
 ## 25-11-2026: AccuHub tasks as a tree on the tasks page (0.7.72)
 
