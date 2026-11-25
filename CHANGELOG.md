@@ -4,6 +4,14 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 25-11-2026: A new MCP token opens on the deploy tools (0.7.71)
+
+### Changed
+- The Issue Token dialog opens with the **All deploy** preset ticked (14 tools: fetch and approve releases, build,
+  deploy, update sites, status) instead of 3 read-only list tools, so a developer no longer has to pick it (owner,
+  25 Nov). The member's role still limits what the token reaches (0.7.70), and the high-risk tools still need their
+  own tick and approval.
+
 ## 25-11-2026: DevOps L1 and L2; MCP tokens follow the member's role (0.7.70)
 
 ### Security

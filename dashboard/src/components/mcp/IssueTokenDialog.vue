@@ -233,6 +233,9 @@ import {
 	categoryBorderClass,
 } from './_tool_catalog.js';
 import MultiSelectChips from './MultiSelectChips.vue';
+
+// A new token opens on the deploy tools (owner, 25 Nov 2026); the member's role still limits what it reaches.
+const DEFAULT_PRESET = 'All deploy';
 import HandoverPanel from './HandoverPanel.vue';
 
 const props = defineProps({ modelValue: { type: Boolean, default: false } });
@@ -249,7 +252,7 @@ const form = reactive({
 	authMethod: 'password', // 'password' | 'otp'
 	password: '',
 	otp: '',
-	scope: ['list_release_groups', 'list_sites', 'list_my_tokens'],
+	scope: [...PRESETS[DEFAULT_PRESET]],
 	allowedRGs: [],
 	allowedSites: [],
 	riskyToolsEnabled: false,
@@ -298,7 +301,7 @@ function resetState() {
 	form.otp = '';
 	form.authMethod = 'password';
 	form.ttlDays = 7;
-	form.scope = ['list_release_groups', 'list_sites', 'list_my_tokens'];
+	form.scope = [...PRESETS[DEFAULT_PRESET]];
 	form.allowedRGs = [];
 	form.allowedSites = [];
 	form.riskyToolsEnabled = false;
