@@ -287,6 +287,8 @@ const when = (stamp) => (stamp ? `${Number(stamp.slice(8, 10))} ${MONTHS[Number(
 }
 .cell a {
 	min-width: 0;
+	font-weight: 550;
+	color: #1c2024;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }

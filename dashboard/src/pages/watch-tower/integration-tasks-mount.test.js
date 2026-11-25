@@ -3,24 +3,25 @@
 import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { reactive } from 'vue';
+import { createRouter, createMemoryHistory } from 'vue-router';
 
 const answer = (globalThis.__wtTasks = { data: null });
 vi.mock('frappe-ui', () => ({
 	createResource: () => reactive({ data: globalThis.__wtTasks.data, loading: false, error: null, reload() {} }),
 }));
-vi.mock('vue-router', () => ({
-	useRoute: () => ({ query: { stage: 'backlog' }, fullPath: '/watch-tower/integrations/erp?stage=backlog', name: 'x' }),
-	useRouter: () => ({ replace() {} }),
-}));
 
-import IntegrationTasks from './IntegrationTasks.vue';
+// imported after the mocks: this vitest (0.9) does not hoist vi.mock above static imports
+const { default: IntegrationTasks } = await import('./IntegrationTasks.vue');
 
 const row = (task, extra) => ({ task, title: 'SlfStg2', project: 'PROJ-0002', url: `https://erp/app/task/${task}`, ...extra });
+// a real router: this vitest (0.9) does not apply vi.mock to node_modules imports
+const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', name: 'Watch Tower Integration Tasks', component: {} }] });
+await router.push('/watch-tower/integrations/erp?stage=backlog');
 const page = (rows) => {
 	answer.data = { client_name: 'OptiFlow', read_at: '2026-11-25 17:54:00', projects: [], counts: { backlog: 2, optiflow: 0, accurate: 0, closed: 1 }, rows };
 	return mount(IntegrationTasks, {
 		props: { site: 'erp' },
-		global: { stubs: { Header: true, Breadcrumbs: true, 'lucide-folder': { template: '<i class="folder" />' } } },
+		global: { plugins: [router], stubs: { Header: true, Breadcrumbs: true, 'lucide-folder': { template: '<i class="folder" />' } } },
 	});
 };
 
