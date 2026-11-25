@@ -5,7 +5,7 @@ actually checks).
 The conflict this fixes:
 - We added `Team Member.press_role` (Custom Field) in the 2026-04-23
   team-role-management work. It's a Select field with values like
-  "Platform Admin" / "DevOps Admin" / "Developer" etc. Used by our own
+  "Platform Admin" / "DevOps L2" / "Developer" etc. Used by our own
   team_roles.has_role_access() + Admin Panel feature gating.
 - Stock Press has a separate `Press Role` doctype with 14 boolean flags
   (admin_access, allow_apps, allow_bench_creation, ...) and a child
@@ -26,6 +26,10 @@ This module ensures the two stay in sync:
 from __future__ import annotations
 
 import frappe
+
+# A renamed role title -> its new title. Team Member values and Press Role titles still holding the old one are read
+# as the new one, and a team's old-titled Press Role is renamed in place the first time the new title is needed.
+LEGACY_ROLE_TITLES: dict[str, str] = {"DevOps Admin": "DevOps L2"}
 
 # Canonical flag map. One source of truth for "what does each role mean
 # in terms of stock Press flags". Update here, sync runs everywhere.
@@ -48,8 +52,8 @@ ROLE_TO_FLAGS: dict[str, dict[str, int]] = {
 		"allow_site_creation": 1,
 		"allow_webhook_configuration": 1,
 	},
-	"DevOps Admin": {
-		# Manage servers/benches/deploys but NOT billing/partner
+	"DevOps L2": {
+		# Manage servers/benches/deploys but NOT billing/partner (was "DevOps Admin" until press 0.7.70)
 		"admin_access": 0,
 		"all_servers": 1,
 		"all_sites": 1,
@@ -63,6 +67,24 @@ ROLE_TO_FLAGS: dict[str, dict[str, int]] = {
 		"allow_leads": 0,
 		"allow_partner": 0,
 		"allow_server_creation": 1,
+		"allow_site_creation": 1,
+		"allow_webhook_configuration": 1,
+	},
+	"DevOps L1": {
+		# DevOps L2 tools on the benches and sites listed on the role (its resources) only; no servers
+		"admin_access": 0,
+		"all_servers": 0,
+		"all_sites": 0,
+		"all_release_groups": 0,
+		"allow_apps": 1,
+		"allow_bench_creation": 1,
+		"allow_billing": 0,
+		"allow_contribution": 0,
+		"allow_customer": 0,
+		"allow_dashboard": 1,
+		"allow_leads": 0,
+		"allow_partner": 0,
+		"allow_server_creation": 0,
 		"allow_site_creation": 1,
 		"allow_webhook_configuration": 1,
 	},
@@ -145,6 +167,7 @@ def _ensure_press_role(team: str, role_title: str) -> str:
 	"""Find or create the Press Role doc for (team, role_title) with the
 	canonical flags. Returns the Press Role docname.
 	"""
+	role_title = LEGACY_ROLE_TITLES.get(role_title, role_title)
 	flags = ROLE_TO_FLAGS.get(role_title)
 	if not flags:
 		# Unknown role — coerce to Viewer so we never silently grant more.
@@ -156,6 +179,8 @@ def _ensure_press_role(team: str, role_title: str) -> str:
 		{"team": team, "title": role_title},
 		"name",
 	)
+	if not existing:
+		existing = _rename_legacy_role(team, role_title)
 	if existing:
 		# Make sure flags haven't drifted from canonical (e.g. someone hand-edited)
 		current_flags = frappe.db.get_value(
@@ -174,6 +199,19 @@ def _ensure_press_role(team: str, role_title: str) -> str:
 		**flags,
 	}).insert(ignore_permissions=True)
 	return role_doc.name
+
+
+def _rename_legacy_role(team: str, role_title: str) -> str | None:
+	"""Give the team's Press Role still titled by an old name its new title, so members, resources and the docname
+	stay; returns its name, or None when the team has none."""
+	for old, new in LEGACY_ROLE_TITLES.items():
+		if new != role_title:
+			continue
+		legacy = frappe.db.get_value("Press Role", {"team": team, "title": old}, "name")
+		if legacy:
+			frappe.db.set_value("Press Role", legacy, "title", role_title, update_modified=False)
+			return legacy
+	return None
 
 
 def _add_user_to_role(role_name: str, user: str) -> bool:
@@ -313,7 +351,7 @@ def validate_press_role_flags(doc, method=None) -> None:
 	"""Guard 1: doc_events validate hook on Press Role.
 
 	If a Press Role's title is one of our canonical roles (Platform Admin /
-	DevOps Admin / Developer / etc.), enforce that its flags match
+	DevOps L2 / Developer / etc.), enforce that its flags match
 	ROLE_TO_FLAGS. Prevents silent drift from someone unchecking
 	'admin_access' on a Platform Admin role through the Desk UI.
 

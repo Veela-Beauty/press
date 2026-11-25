@@ -85,6 +85,9 @@ def issue_token(
 	except Exception:
 		_log_attempt(username, ip, success=False)
 		raise
+	if not frappe.db.get_value("User", username, "enabled"):
+		_log_attempt(username, ip, success=False)
+		raise frappe.AuthenticationError("this user is disabled")
 
 	# Determine approval_status for risky tokens
 	approval_status = "approved"
@@ -166,6 +169,8 @@ def _authenticate_token(token_plaintext: str):
 		except Exception:
 			stored_hash = None
 		if stored_hash and passlibctx.verify(token_plaintext, stored_hash):
+			if not frappe.db.get_value("User", row.user, "enabled"):
+				raise frappe.PermissionError("this token's user is disabled")
 			# Re-fetch full doc only when verifying succeeded (rare path)
 			return frappe.get_doc("Press MCP Token", row.name)
 	raise frappe.PermissionError("token not found, revoked, or expired")

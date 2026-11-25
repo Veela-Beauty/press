@@ -1260,7 +1260,7 @@ class Bench(Document):
 		"""Mark bench as development or production.
 
 		Allowed for System Managers OR any team member with `allow_bench_creation`
-		on the bench's team (DevOps Admin / Platform Admin per ROLE_TO_FLAGS).
+		on the bench's team (DevOps L2 / DevOps L1 / Platform Admin per ROLE_TO_FLAGS).
 
 		Side-effect: starts/stops `bench watch` inside the container so JS/CSS
 		edits auto-rebuild on save (only on dev benches). Failures here do not
