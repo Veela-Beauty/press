@@ -1,7 +1,9 @@
 <!-- One stage of a client's AccuHub task pipeline (owner 2026-11-24, prototype ACM-SP-08): the four stages as tabs in
 pipeline order, a Project pick list (ticks, its own search, several allowed) and the stage's tasks, read live from the
 client site through the hub (sanad_ai_control_center.watch_tower_hub.integrations.get_stage_tasks); nothing is kept on
-autodeploy. Stage and projects live in the URL (?stage=&project=), so a link from the Integrations page opens it set. -->
+autodeploy. Stage and projects live in the URL (?stage=&project=), so a link from the Integrations page opens it set.
+The tasks show as a tree with Created by, Created on and Assigned on (accuhub_link 0.6.0, prototype ACH-SP-06): a grey
+row is a group not in this stage, there so its tasks sit under it, and is not counted. -->
 <template>
 	<div class="flex h-full flex-col">
 		<div class="sticky top-0 z-10 shrink-0">
@@ -63,27 +65,45 @@ autodeploy. Stage and projects live in the URL (?stage=&project=), so a link fro
 					<p v-if="picked.length" class="mt-1">for the picked projects</p>
 				</div>
 				<div v-else-if="data" class="overflow-x-auto" :class="{ 'opacity-50': resource.loading }">
-					<table class="wt-table">
+					<table class="wt-table tree">
 						<thead>
 							<tr>
 								<th>Task</th>
 								<th>Project</th>
 								<th>Developer</th>
 								<th>AccuHub state</th>
+								<th>Created by</th>
+								<th>Created on</th>
+								<th>Assigned on</th>
 								<th>Last change</th>
 							</tr>
 						</thead>
 						<tbody>
-							<tr v-for="t in data.rows" :key="t.task">
-								<td><a class="name" :href="t.url" target="_blank" rel="noopener" title="Opens the task on the client site">{{ t.subject }}</a></td>
+							<tr
+								v-for="t in data.rows"
+								:key="t.task"
+								:class="{ head: isHeading(t) }"
+								:title="isHeading(t) ? 'Not in this stage: shown so its tasks sit under it' : undefined"
+							>
+								<td class="task">
+									<div class="cell" :style="{ paddingInlineStart: indent(t) }">
+										<lucide-folder v-if="t.is_group" class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+										<a class="name" :href="t.url" target="_blank" rel="noopener" :title="`${t.subject}: opens the task on the client site`">{{ t.subject }}</a>
+									</div>
+								</td>
 								<td>{{ t.title }}</td>
-								<td><span v-if="t.developer">{{ t.developer }}</span><span v-else class="zero">Not assigned</span></td>
-								<td>{{ t.accuhub_state || '-' }}</td>
-								<td class="mono">{{ when(t.modified) }}</td>
+								<td>
+									<template v-if="!isHeading(t)"><span v-if="t.developer">{{ t.developer }}</span><span v-else class="zero">Not assigned</span></template>
+								</td>
+								<td>{{ t.accuhub_state || (isHeading(t) ? '' : '-') }}</td>
+								<td :title="t.created_by"><span class="who">{{ t.created_by }}</span></td>
+								<td class="mono" :title="t.created_on">{{ taskDay(t.created_on) }}</td>
+								<td class="mono" :title="t.assigned_on">{{ taskDay(t.assigned_on) }}</td>
+								<td class="mono">{{ isHeading(t) ? '' : when(t.modified) }}</td>
 							</tr>
 						</tbody>
 					</table>
-					<p v-if="data.rows.length >= 200" class="sub2 px-4 py-2">The newest 200 tasks of this stage.</p>
+					<p v-if="stageCount(data.rows) >= 200" class="sub2 px-4 py-2">The newest 200 tasks of this stage.</p>
 				</div>
 			</section>
 		</div>
@@ -94,7 +114,7 @@ autodeploy. Stage and projects live in the URL (?stage=&project=), so a link fro
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { createResource } from 'frappe-ui';
-import { STAGES } from './integrations';
+import { STAGES, MONTHS, isHeading, stageCount, indent, taskDay } from './integrations';
 
 const props = defineProps({ site: { type: String, required: true } });
 const route = useRoute();
@@ -145,7 +165,6 @@ function setProjects(list) {
 function toggle(project) {
 	setProjects(picked.value.includes(project) ? picked.value.filter((p) => p !== project) : [...picked.value, project]);
 }
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const when = (stamp) => (stamp ? `${Number(stamp.slice(8, 10))} ${MONTHS[Number(stamp.slice(5, 7)) - 1]}, ${stamp.slice(11, 16)}` : '-');
 </script>
 
@@ -252,5 +271,36 @@ const when = (stamp) => (stamp ? `${Number(stamp.slice(8, 10))} ${MONTHS[Number(
 }
 .zero {
 	color: #a0a6ad;
+}
+/* the tree (prototype ACH-SP-06): eight columns fit at 1440 with 12px cell padding; a long title ends in an ellipsis */
+.tree th,
+.tree td {
+	padding-left: 12px;
+	padding-right: 12px;
+}
+.cell {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	max-width: 420px;
+	color: #6b737b;
+}
+.cell a {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.who {
+	display: block;
+	max-width: 200px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.tree tr.head td {
+	background: #f8f9fa;
+	color: #6b737b;
+}
+.tree tr.head a.name {
+	color: #525a64;
 }
 </style>
