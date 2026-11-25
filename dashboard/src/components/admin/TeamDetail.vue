@@ -177,7 +177,7 @@ export default {
 			members: [], membersLoading: false,
 			sites: [], sitesLoading: false,
 			benches: [], benchesLoading: false,
-			roleOptions: ['Platform Admin', 'DevOps Admin', 'DevOps User', 'Developer', 'Implementor', 'Viewer'],
+			roleOptions: ['Platform Admin', 'DevOps L2', 'DevOps L1', 'DevOps User', 'Developer', 'Implementor', 'Viewer'],
 			showResetPw: false, resetPwUser: '', resetPwValue: '', resettingPw: false,
 		};
 	},
@@ -235,7 +235,7 @@ export default {
 			finally { this.benchesLoading = false; }
 		},
 		roleColor(role) {
-			const m = { 'Platform Admin': 'bg-purple-50 text-purple-700 border-purple-200', 'DevOps Admin': 'bg-blue-50 text-blue-700 border-blue-200', 'DevOps User': 'bg-blue-50 text-blue-600 border-blue-200', 'Developer': 'bg-green-50 text-green-700 border-green-200', 'Implementor': 'bg-orange-50 text-orange-700 border-orange-200', 'Viewer': 'bg-gray-50 text-gray-600 border-gray-200' };
+			const m = { 'Platform Admin': 'bg-purple-50 text-purple-700 border-purple-200', 'DevOps L2': 'bg-blue-50 text-blue-700 border-blue-200', 'DevOps L1': 'bg-amber-50 text-amber-700 border-amber-200', 'DevOps User': 'bg-blue-50 text-blue-600 border-blue-200', 'Developer': 'bg-green-50 text-green-700 border-green-200', 'Implementor': 'bg-orange-50 text-orange-700 border-orange-200', 'Viewer': 'bg-gray-50 text-gray-600 border-gray-200' };
 			return m[role] || '';
 		},
 		async setRole(user, role) {

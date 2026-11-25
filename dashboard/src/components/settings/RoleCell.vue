@@ -31,7 +31,8 @@ function onChange(event) {
 function roleColor(role) {
 	const map = {
 		'Platform Admin': 'bg-red-50 text-red-700',
-		'DevOps Admin':   'bg-orange-50 text-orange-700',
+		'DevOps L2':      'bg-orange-50 text-orange-700',
+		'DevOps L1':      'bg-amber-50 text-amber-700',
 		'Developer':      'bg-blue-50 text-blue-700',
 		'DevOps User':    'bg-green-50 text-green-700',
 		'Implementor':    'bg-purple-50 text-purple-700',

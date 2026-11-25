@@ -1824,7 +1824,7 @@ export default {
 							label: site.doc?.is_development_site ? 'Disable Dev Mode' : 'Enable Dev Mode',
 							icon: 'code',
 							// Allow desk users (System Manager) OR team members with
-							// allow_site_creation flag (Platform Admin / DevOps Admin).
+							// allow_site_creation flag (Platform Admin / DevOps L2 / DevOps L1).
 							// Mirrors backend gate in Site.set_development_mode.
 							condition: () =>
 								session.hasAdminAccess.value &&

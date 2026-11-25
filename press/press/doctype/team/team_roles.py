@@ -2,11 +2,13 @@
 import frappe
 
 from press.api.admin_panel import DEFAULT_FEATURES
+from press.press.doctype.team.press_role_bridge import LEGACY_ROLE_TITLES
 
 # Role definitions with hierarchy
 PRESS_ROLES = {
     "Platform Admin": {"level": 100, "label": "Platform Admin", "description": "Full access to everything"},
-    "DevOps Admin": {"level": 80, "label": "DevOps Admin", "description": "Manage servers, benches, deploys"},
+    "DevOps L2": {"level": 80, "label": "DevOps L2", "description": "Manage servers, benches, deploys"},
+    "DevOps L1": {"level": 70, "label": "DevOps L1", "description": "DevOps tools on the benches and sites listed on the role"},
     "DevOps User": {"level": 60, "label": "DevOps User", "description": "View servers, trigger deploys"},
     "Developer": {"level": 40, "label": "Developer", "description": "Create dev/staging sites, use dev tools"},
     "Implementor": {"level": 20, "label": "Implementor", "description": "Configure sites, install apps"},
@@ -26,6 +28,7 @@ def normalize_press_role(role):
     unknown role drops the user to level 0 — *below* Viewer — silently locking
     them out of every feature.
     """
+    role = LEGACY_ROLE_TITLES.get(role, role)
     if role in PRESS_ROLES:
         return role
     return DEFAULT_ROLE
@@ -63,6 +66,7 @@ def get_user_role(team=None, user=None):
     role = frappe.db.get_value(
         "Team Member", {"parent": team, "user": user}, "press_role",
     )
+    role = LEGACY_ROLE_TITLES.get(role, role)
     if role and role not in PRESS_ROLES:
         frappe.log_error(
             title="Invalid press_role",
@@ -83,6 +87,8 @@ def get_role_level(role_name):
 
 def validate_team_member_role(doc, method=None):
     """doc_events validate hook — block invalid press_role at save time."""
+    if doc.get("press_role") in LEGACY_ROLE_TITLES:
+        doc.press_role = LEGACY_ROLE_TITLES[doc.press_role]
     if doc.get("press_role") and doc.press_role not in PRESS_ROLES:
         frappe.throw(
             frappe._("Invalid press_role {0!r}. Allowed: {1}").format(

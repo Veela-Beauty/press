@@ -85,6 +85,9 @@ def issue_token(
 	except Exception:
 		_log_attempt(username, ip, success=False)
 		raise
+	if not frappe.db.get_value("User", username, "enabled"):
+		_log_attempt(username, ip, success=False)
+		raise frappe.AuthenticationError("this user is disabled")
 
 	# Determine approval_status for risky tokens
 	approval_status = "approved"
@@ -166,6 +169,8 @@ def _authenticate_token(token_plaintext: str):
 		except Exception:
 			stored_hash = None
 		if stored_hash and passlibctx.verify(token_plaintext, stored_hash):
+			if not frappe.db.get_value("User", row.user, "enabled"):
+				raise frappe.PermissionError("this token's user is disabled")
 			# Re-fetch full doc only when verifying succeeded (rare path)
 			return frappe.get_doc("Press MCP Token", row.name)
 	raise frappe.PermissionError("token not found, revoked, or expired")
@@ -182,9 +187,7 @@ def verify_token(
 	Raises frappe.PermissionError on any failure.
 	"""
 	doc = _authenticate_token(token_plaintext)
-	if not doc.team:
-		# With no team the call would fall back to a guessed default team.
-		raise frappe.PermissionError("this token is not tied to a team; issue a new token")
+	_assert_token_team(doc)
 	scope_list = safe_parse_list(doc.scope)
 	if scope_list and tool_name not in scope_list:
 		raise frappe.PermissionError(
@@ -215,6 +218,24 @@ def verify_token(
 	frappe.local.mcp_token_confidential_sites = safe_parse_list(doc.confidential_sites)
 	frappe.local.mcp_token_allowed_sites = safe_parse_list(doc.allowed_sites)
 	return doc.user
+
+
+def _assert_token_team(doc) -> None:
+	if not doc.team:
+		# With no team the call would fall back to a guessed default team.
+		raise frappe.PermissionError("this token is not tied to a team; issue a new token")
+	if not _still_on_team(doc.user, doc.team):
+		raise frappe.PermissionError("this token's user is no longer on its team")
+
+
+def _still_on_team(user: str, team: str) -> bool:
+	"""A member taken off a team must not keep acting for it through a token made before. System Users (the Master
+	token's Administrator) work across teams, as they do on the dashboard."""
+	if frappe.db.get_value("User", user, "user_type") == "System User":
+		return True
+	if frappe.db.get_value("Team", team, "user") == user:
+		return True
+	return bool(frappe.db.exists("Team Member", {"parenttype": "Team", "parent": team, "user": user}))
 
 
 def _pin_request_team(team: str | None) -> None:

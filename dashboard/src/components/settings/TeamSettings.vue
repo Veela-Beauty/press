@@ -20,7 +20,8 @@ import { getToastErrorMessage } from '../../utils/toast';
 // here to match — this is the single UI-side source of truth.
 const PRESS_ROLE_LEVELS = {
 	'Platform Admin': 100,
-	'DevOps Admin': 50,
+	'DevOps L2': 50,
+	'DevOps L1': 45,
 	'Developer': 20,
 	'DevOps User': 10,
 	'Implementor': 10,

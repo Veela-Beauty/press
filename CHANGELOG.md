@@ -4,6 +4,32 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 25-11-2026: DevOps L1 and L2; MCP tokens follow the member's role (0.7.70)
+
+### Security
+- An MCP token reached the whole team whatever its user's role: `issue_token` never read Press Roles, and the call
+  guard checked the team only. Proven on 25 Nov: a token a Viewer with 2 Quest benches made for himself listed 83 sites
+  and 40 benches. Every Site, Release Group and Server a call names or reaches now passes the dashboard's own
+  `role_guard.check`, run as the token's user (`press/mcp_server/scope/roles.py`); `list_sites`,
+  `list_release_groups` and `agent_job_list` are filtered; `mint_dashboard_login_url` is refused for a member limited
+  to listed benches. Owners, admin roles, System Managers and the Master token are unchanged.
+- A disabled user could still make an MCP token. Issuing and using a token now refuse a disabled user.
+- The developer helpers behind `ensure_team_access` (console SQL and Python, logs, git, files, SSH, code server)
+  checked the team only, so a member limited to some benches could reach every site of the team through their API.
+  They now hold him to his role list. `ensure_team_access` moved to `press/utils/team_access.py` (re-exported from
+  `press.utils`).
+
+### Changed
+- DevOps Admin is renamed **DevOps L2** (same rights). A stored "DevOps Admin" still reads as L2, and a team's Press
+  Role titled "DevOps Admin" is renamed in place the first time L2 is needed, so members and resources stay. Patch
+  `v0_0_5.rename_devops_admin_to_devops_l2` moves the stored values and the select options.
+
+### Added
+- **DevOps L1**: DevOps L2's tools on the benches and sites listed on its role page only (all sites, benches and
+  servers off; no server creation). It gets the per-bench and per-site features (Code Server, SSH, logs, site Dev and
+  AI tabs, SQL Playground, Database Access, Dev Overview, Code Health, private benches), never the server-level ones
+  (Servers, Binlog Browser, DB Analyzer, Daman Backup, Security Portal). Prototype PRS-SP-10, decision PRS-DC-09.
+
 ## 24-11-2026: Watch Tower Integrations page (0.7.67 to 0.7.69)
 
 ### Fixed (0.7.68, 0.7.69)

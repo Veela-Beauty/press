@@ -37,6 +37,7 @@ from press.mcp_server.scope.targets import (  # noqa: F401  re-exported for call
 from press.mcp_server.scope.arg_safety import assert_safe_args
 from press.mcp_server.scope.call_guard import assert_call_in_team
 from press.mcp_server.scope.results import filter_to_team
+from press.mcp_server.scope.roles import assert_call_in_roles, filter_to_roles
 from press.mcp_server.scope.test_login import login_user_for
 
 MAX_ARGS_LOG_LEN = 5000  # truncate long arg payloads in audit log
@@ -176,6 +177,9 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 		token_doc_name = _resolve_token_docname(token)
 		# Every resource the call names must be in the token's team, not only the target above.
 		assert_call_in_team(tool, args, frappe.local.mcp_token_team)
+		# ...and inside what the token's user may open on the dashboard (a member limited to listed benches and sites).
+		with _as_user(user):
+			assert_call_in_roles(tool, args)
 
 		# Rate limit per token (Obj 7)
 		check_rate_limit(token_doc_name)
@@ -267,6 +271,8 @@ def handle(tool: str, args: dict | str | None = None, token: str | None = None) 
 			method = frappe.get_attr(spec["method"])
 			response = method(**dispatch_args)
 		response = filter_to_team(tool, response, frappe.local.mcp_token_team)
+		with _as_user(user):
+			response = filter_to_roles(tool, response)
 
 		_log_call(
 			tool=tool, user=user, token_name=token_doc_name,
