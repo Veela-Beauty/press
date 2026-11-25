@@ -233,10 +233,10 @@ import {
 	categoryBorderClass,
 } from './_tool_catalog.js';
 import MultiSelectChips from './MultiSelectChips.vue';
+import HandoverPanel from './HandoverPanel.vue';
 
 // A new token opens on the deploy tools (owner, 25 Nov 2026); the member's role still limits what it reaches.
 const DEFAULT_PRESET = 'All deploy';
-import HandoverPanel from './HandoverPanel.vue';
 
 const props = defineProps({ modelValue: { type: Boolean, default: false } });
 const emit = defineEmits(['update:modelValue', 'issued']);
