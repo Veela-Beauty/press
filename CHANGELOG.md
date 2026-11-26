@@ -4,6 +4,12 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 26-11-2026: SSH docs for 30-day certificates and their revocation (0.7.74, docs only)
+
+### Changed
+- The Team SSH wiki page says certificates last 30 days on a development bench and 6 hours elsewhere, and how the
+  revoked-keys job ends access within a minute; lesson `docs/wiki/08-lessons/2026-11-26-a-long-certificate-needs-a-revocation-list.md`.
+
 ## 25-11-2026: SSH certificates last 30 days on a development bench (0.7.73)
 
 ### Changed
