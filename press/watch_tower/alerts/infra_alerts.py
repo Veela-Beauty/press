@@ -163,6 +163,7 @@ find /tmp -type f -mtime +7 -delete
 	send_alert_email(
 		recipients=["eng.elgogary@gmail.com"],
 		subject=f"\U0001f4bf Disk Alert: {len(issues)} server(s) above 85% \u2014 {ts}",
+		immediate=True,
 		message=wrap_email("\U0001f4bf Server Disk Usage Alert", body, f"Press Infrastructure &bull; {ts}"),
 	)
 	return True
@@ -219,6 +220,7 @@ def check_docker_container_health(doc_dict, rule):
 	send_alert_email(
 		recipients=["eng.elgogary@gmail.com"],
 		subject=f"\U0001f4e6 Docker Alert: {len(issues)} container(s) down \u2014 {ts}",
+		immediate=True,
 		message=wrap_email("\U0001f4e6 Docker Container Health", body, f"Press Infrastructure &bull; {ts}"),
 	)
 	return True
@@ -269,6 +271,7 @@ Deploys, agent jobs, and monitoring will fail.</p>
 	send_alert_email(
 		recipients=["eng.elgogary@gmail.com"],
 		subject=f"\U0001f6a8 SSH Alert: {len(issues)} server(s) unreachable \u2014 {ts}",
+		immediate=True,
 		message=wrap_email("\U0001f6a8 SSH Connectivity Alert", body, f"Press Infrastructure &bull; {ts}"),
 	)
 	return True
@@ -325,6 +328,7 @@ def check_redis_health(doc_dict, rule):
 	send_alert_email(
 		recipients=["eng.elgogary@gmail.com"],
 		subject=f"\U0001f534 Redis Alert: {len(issues)} issue(s) \u2014 {ts}",
+		immediate=True,
 		message=wrap_email("\U0001f534 Redis Health Alert", body, f"press-ctrl &bull; {ts}"),
 	)
 	return True
@@ -387,6 +391,7 @@ def check_mariadb_health(doc_dict, rule):
 	send_alert_email(
 		recipients=["eng.elgogary@gmail.com"],
 		subject=f"\U0001f5c4 MariaDB Alert: {len(issues)} issue(s) \u2014 {ts}",
+		immediate=True,
 		message=wrap_email("\U0001f5c4 MariaDB Health Alert", body, f"press-ctrl &bull; {ts}"),
 	)
 	return True
@@ -435,6 +440,7 @@ def check_microservice_health(doc_dict, rule):
 	send_alert_email(
 		recipients=["eng.elgogary@gmail.com"],
 		subject=f"\U0001f6a8 Microservice Down: {len(issues)} service(s) unreachable \u2014 {ts}",
+		immediate=True,
 		message=wrap_email("\U0001f6a8 Microservice Health Check", body, f"Press Infrastructure &bull; {ts}"),
 	)
 	return True

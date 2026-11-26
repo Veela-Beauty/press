@@ -4,6 +4,25 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 26-11-2026: one morning email instead of an alert flood (0.7.77)
+
+### Changed
+- Alerts that need no action within hours (scheduled and background job failures, error spikes, stuck jobs, worker
+  queue backup, slow MCP calls, the GitHub token check, stale deploys, exposure without a High finding) are no longer
+  emailed one by one: they are kept in Redis (`alerts/digest.py`, at most 2000) and listed once a day in the health
+  report under "Alerts since the last report", one row per alert type with how many times, first and last time. The
+  owner, 26 Nov: about 60 alert emails a day, all through the Brevo account Press also sends customer emails with.
+- Sent at once as before: backup failure, failed deploy build, site down, SSL expiring (`important=True`), and now
+  disk above 85% (owner's choice), SSH unreachable, microservice down, MariaDB, Redis and Docker alerts, the email
+  queue loop, poll_pending_jobs missing, MCP Agent Watch, the site archive and delete notices, exposure with a High
+  finding, and every rule email to its configured recipients (`send_alert_email(immediate=True)`).
+- The health report moved from the midnight daily job to 08:00 (`run_morning_report`, cron `0 8 * * *`); the kept
+  alerts are cleared only after the report was sent.
+
+### Fixed
+- The GitHub token check ran once per candidate record (203 a night; 5 emails got through the relay on 25 Nov): it now
+  runs once an hour at most (`_memoized(..., ttl=3600)`), and counts only enabled App Sources with a failed poll.
+
 ## 26-11-2026: Infrastructure page clean-up (0.7.76)
 
 ### Changed

@@ -254,6 +254,7 @@ def _eval_public_exposure():
 	send_alert_email(
 		recipients=["eng.elgogary@gmail.com"],
 		subject=f"Exposure: {len(findings)} open to the internet - {ts}",
+		immediate=any(r["severity"] == "High" for r in to_rows(findings)),
 		message=wrap_email("Exposure watch", body, f"Press Infrastructure &bull; {ts}"),
 	)
 	return True
