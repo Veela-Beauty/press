@@ -50,29 +50,12 @@
         <div v-if="tree.error" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           Refresh failed, showing the last data: {{ tree.error.messages?.join(', ') || tree.error.message }}
         </div>
-        <!-- Gate-0 preflight banner: only relevant while managed hosts exist -->
-        <div
-          v-if="hasManaged && gate0.data && !gate0.data.ready"
-          class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm"
-        >
-          <div class="flex items-start gap-2">
-            <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-500" />
-            <div>
-              <p class="font-medium text-amber-900">Gate 0 is not provisioned, so managed hosts cannot connect yet.</p>
-              <ul class="mt-1.5 space-y-1 text-amber-800">
-                <li v-for="c in gate0.data.checks.filter((x) => !x.ok)" :key="c.name">
-                  <span class="font-medium">{{ c.name }}:</span> {{ c.hint }}
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
         <NeedsAttention
           :nodes="allNodes"
           :security="security.data?.findings || []"
           :checked-at="security.data?.checked_at"
           :skipped="security.data?.skipped || []"
+          :setup="hasManaged && gate0.data && !gate0.data.ready ? gate0.data.checks.filter((c) => !c.ok) : []"
           class="mb-4"
           @view="onOpen"
         />

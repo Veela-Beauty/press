@@ -23,7 +23,7 @@
       <div class="text-xs font-semibold text-gray-700">
         Security <span class="font-normal text-gray-400">checked from outside {{ checkedTime }}, hourly</span>
       </div>
-      <template v-for="f in security" :key="rowKey(f)">
+      <template v-for="f in shownSecurity" :key="rowKey(f)">
         <div class="flex items-center gap-2">
           <span class="inline-block h-[7px] w-[7px] shrink-0 rounded-full" :class="SEV[f.severity].dot" />
           <span class="w-[62px] shrink-0 rounded-md py-px text-center text-xs font-semibold" :class="SEV[f.severity].chip">
@@ -46,11 +46,31 @@
           </span>
         </div>
       </template>
-      <div v-if="down.length || over.length || servers.length" class="my-1 h-px bg-gray-200" />
+      <button v-if="security.length > 3" class="self-start text-xs text-blue-600 hover:underline" @click="showAllSecurity = !showAllSecurity">
+        {{ showAllSecurity ? 'Show fewer' : `Show ${security.length - 3} more` }}
+      </button>
+      <div v-if="setup.length || down.length || over.length || servers.length" class="my-1 h-px bg-gray-200" />
     </div>
 
     <!-- Triage list (down first, capped at 4) -->
-    <div v-if="down.length || over.length || servers.length" class="mt-3 flex flex-col gap-2">
+    <div v-if="setup.length || down.length || over.length || servers.length" class="mt-3 flex flex-col gap-2">
+      <!-- Setup (was the Gate-0 banner above this box): managed hosts cannot connect yet -->
+      <template v-if="setup.length">
+        <div class="flex items-center gap-2">
+          <span class="inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-amber-500" />
+          <span class="w-[62px] shrink-0 rounded-md py-px text-center text-xs font-semibold bg-amber-50 text-amber-700">Setup</span>
+          <span class="w-[190px] shrink-0 truncate font-mono text-sm text-gray-900">managed hosts</span>
+          <span class="text-sm text-gray-700">cannot connect yet</span>
+          <div class="flex-1" />
+          <Button variant="subtle" :aria-expanded="setupOpen" @click="setupOpen = !setupOpen">
+            {{ setupOpen ? 'Hide' : 'Fix' }}
+          </Button>
+        </div>
+        <div v-if="setupOpen" class="ml-[15px] rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm text-gray-700">
+          <p v-for="c in setup" :key="c.name"><span class="font-medium">{{ c.name }}:</span> {{ c.hint }}</p>
+        </div>
+      </template>
+
       <!-- Down-unit rows -->
       <div
         v-for="d in shownDown"
@@ -58,9 +78,9 @@
         class="flex items-center gap-2"
       >
         <span class="inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-red-500" />
-        <span class="font-mono text-sm text-gray-900">{{ d.unit }}</span>
-        <span class="text-xs text-gray-400">on {{ d.server }}</span>
-        <span class="text-xs text-red-700">{{ stateLabel(d.state) }}</span>
+        <span class="w-[62px] shrink-0 rounded-md py-px text-center text-xs font-semibold bg-red-50 text-red-700">Down</span>
+        <span class="w-[190px] shrink-0 truncate font-mono text-sm text-gray-900" :title="d.unit">{{ d.unit }}</span>
+        <span class="text-sm text-gray-700">on {{ d.server }}, {{ stateLabel(d.state) }}</span>
         <div class="flex-1" />
         <Button variant="subtle" @click="$emit('view', d.server)">View</Button>
       </div>
@@ -72,10 +92,9 @@
         class="flex items-center gap-2"
       >
         <span class="inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-amber-500" />
-        <span class="font-mono text-sm text-gray-900">{{ o.name }}</span>
-        <span class="text-xs text-gray-400">
-          overloaded {{ loadState(o)?.which }} {{ loadState(o)?.val }}%
-        </span>
+        <span class="w-[62px] shrink-0 rounded-md py-px text-center text-xs font-semibold bg-amber-50 text-amber-700">Load</span>
+        <span class="w-[190px] shrink-0 truncate font-mono text-sm text-gray-900" :title="o.name">{{ o.name }}</span>
+        <span class="text-sm text-gray-700">{{ loadState(o)?.which }} {{ loadState(o)?.val }}% used</span>
         <div class="flex-1" />
         <Button variant="subtle" @click="$emit('view', o.name)">View</Button>
       </div>
@@ -87,8 +106,9 @@
         class="flex items-center gap-2"
       >
         <span class="inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-red-500" />
-        <span class="font-mono text-sm text-gray-900">{{ s.name }}</span>
-        <span class="text-xs text-gray-400">server unreachable</span>
+        <span class="w-[62px] shrink-0 rounded-md py-px text-center text-xs font-semibold bg-red-50 text-red-700">Offline</span>
+        <span class="w-[190px] shrink-0 truncate font-mono text-sm text-gray-900" :title="s.name">{{ s.name }}</span>
+        <span class="text-sm text-gray-700">server unreachable</span>
         <div class="flex-1" />
         <Button variant="subtle" @click="$emit('view', s.name)">View</Button>
       </div>
@@ -113,6 +133,8 @@ const props = defineProps({
   security: { type: Array, default: () => [] },
   checkedAt: { type: String, default: null },
   skipped: { type: Array, default: () => [] },
+  // Gate-0 checks that failed: { name, hint }; empty when managed hosts can connect
+  setup: { type: Array, default: () => [] },
 });
 defineEmits(['view']);
 
@@ -120,7 +142,10 @@ const down    = computed(() => issues(props.nodes));
 const over    = computed(() => overloaded(props.nodes));
 const servers = computed(() => unreachableServers(props.nodes));
 const triage  = computed(() => down.value.length + over.value.length + servers.value.length);
-const hasIssues = computed(() => triage.value + props.security.length > 0);
+const hasIssues = computed(() => triage.value + props.security.length + props.setup.length > 0);
+const showAllSecurity = ref(false);
+const shownSecurity = computed(() => (showAllSecurity.value ? props.security : props.security.slice(0, 3)));
+const setupOpen = ref(false);
 
 // Severity is written as text (the chip); the dot repeats it for a quick scan.
 const SEV = {
@@ -144,7 +169,8 @@ const summary = computed(() => {
     return `Nothing needs attention.${props.checkedAt ? ` Security checked from outside ${checkedTime.value}.` : ''}`;
   }
   return [
-    [props.security.length, 'security risks'], [down.value.length, 'down'],
+    [props.security.length, 'security risks'], [props.setup.length ? 1 : 0, 'setup step'],
+    [down.value.length, 'down'],
     [servers.value.length, 'unreachable'], [over.value.length, 'overloaded'],
   ].filter(([n]) => n).map(([n, label]) => `${n} ${label}`).join(', ');
 });

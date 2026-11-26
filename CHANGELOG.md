@@ -4,6 +4,16 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 26-11-2026: Infrastructure page clean-up (0.7.76)
+
+### Changed
+- Prototype PRS-SP-12, owner: "much better", and the server rows that open to their containers stay exactly as they
+  are (ServerChildRows.vue untouched). The title shows once (the list's own "Infrastructure (N)" heading is gone); the
+  four summary tiles are gone from this page (their counts sit on the filter buttons; SummaryCards.vue stays for
+  Telephony); the filters are labelled Source, Health, Runtime; the Gate-0 banner is a Setup row inside Needs
+  attention; every Needs attention row has the same columns (chip, place, meaning, action) with Down, Load, Offline
+  chips; Security shows its worst 3 with "Show N more".
+
 ## 26-11-2026: Security risks on the dashboard (0.7.75)
 
 ### Added

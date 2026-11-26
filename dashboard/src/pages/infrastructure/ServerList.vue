@@ -1,14 +1,10 @@
 <template>
   <div class="flex flex-col gap-4">
-    <SummaryCards :cards="summaryCards" />
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
 
-    <div class="flex flex-wrap items-center gap-2">
-      <h2 class="text-sm font-semibold text-gray-900">
-        Infrastructure
-        <span class="ml-1 font-normal text-gray-400">({{ filtered.length }})</span>
-      </h2>
-
-      <!-- Type: Press / Managed -->
+      <!-- Source: Press / Managed (the page title already says Infrastructure; the counts replace the old tiles) -->
+      <div class="flex items-center gap-1.5">
+      <span class="text-xs text-gray-500">Source</span>
       <div class="flex items-center rounded-md bg-gray-100 p-0.5">
         <button
           v-for="k in kindOptions"
@@ -16,10 +12,13 @@
           class="rounded px-2 py-0.5 text-xs transition-colors"
           :class="kindSeg === k.value ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
           @click="kindSeg = k.value; page = 1"
-        >{{ k.label }}</button>
+        >{{ k.label }}<span class="ml-1 text-gray-400">{{ kindCount(k.value) }}</span></button>
+      </div>
       </div>
 
-      <!-- Status -->
+      <!-- Health -->
+      <div class="flex items-center gap-1.5">
+      <span class="text-xs text-gray-500">Health</span>
       <div class="flex items-center rounded-md bg-gray-100 p-0.5">
         <button
           v-for="s in statusOptions"
@@ -27,18 +26,22 @@
           class="rounded px-2 py-0.5 text-xs transition-colors"
           :class="statusSeg === s.value ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
           @click="statusSeg = s.value; page = 1"
-        >{{ s.label }}</button>
+        >{{ s.label }}<span v-if="s.value !== 'all'" class="ml-1 text-gray-400">{{ healthCount(s.value) }}</span></button>
+      </div>
       </div>
 
       <!-- Runtime (docker/plain) - only meaningful when managed hosts are in view -->
-      <div v-if="kindSeg !== 'press'" class="flex items-center rounded-md bg-gray-100 p-0.5">
+      <div v-if="kindSeg !== 'press'" class="flex items-center gap-1.5">
+      <span class="text-xs text-gray-500">Runtime</span>
+      <div class="flex items-center rounded-md bg-gray-100 p-0.5">
         <button
           v-for="t in typeOptions"
           :key="t.value"
           class="rounded px-2 py-0.5 text-xs transition-colors"
           :class="typeSeg === t.value ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
           @click="typeSeg = t.value; page = 1"
-        >{{ t.label }}</button>
+        >{{ t.label }}<span v-if="t.value !== 'all'" class="ml-1 text-gray-400">{{ runtimeCount(t.value) }}</span></button>
+      </div>
       </div>
 
       <FormControl type="text" placeholder="Search..." v-model="q" class="w-44 text-sm" @input="page = 1" />
@@ -141,9 +144,8 @@
 <script setup>
 import { ref, computed, reactive, nextTick } from 'vue';
 import { Button, FormControl } from 'frappe-ui';
-import { nodeDot, loadState, summary, isManaged, issues, cpuPct, memPct, diskPct } from './infra-derive';
+import { nodeDot, loadState, isManaged, issues, cpuPct, memPct, diskPct } from './infra-derive';
 import MeterBar from './MeterBar.vue';
-import SummaryCards from './SummaryCards.vue';
 import ServerChildRows from './ServerChildRows.vue';
 
 const props = defineProps({
@@ -167,16 +169,12 @@ const kindOptions   = [{ label: 'All', value: 'all' }, { label: 'Press', value: 
 const statusOptions = [{ label: 'All', value: 'all' }, { label: 'Healthy', value: 'healthy' }, { label: 'Issues', value: 'issues' }];
 const typeOptions   = [{ label: 'All', value: 'all' }, { label: 'Docker', value: 'docker' }, { label: 'Plain', value: 'plain' }];
 
-const summaryCards = computed(() => {
-  const managed = props.nodes.filter(isManaged);
-  const press   = props.nodes.filter((n) => !isManaged(n));
-  return [
-    { label: 'Press servers', value: press.length },
-    { label: 'Managed hosts', value: managed.length },
-    { label: 'Units down',    value: summary(managed).unitsDown,                         bad: true },
-    { label: 'Unreachable',   value: props.nodes.filter((n) => n.health === 'unknown').length, bad: true },
-  ];
-});
+// Counts on the filter buttons (they replaced the four summary tiles)
+const inKind = (n, k) => k === 'all' || (k === 'managed' ? isManaged(n) : !isManaged(n));
+const kindCount = (k) => props.nodes.filter((n) => inKind(n, k)).length;
+const healthCount = (h) => props.nodes.filter((n) => inKind(n, kindSeg.value)
+  && (h === 'healthy' ? nodeDot(n) === 'up' : nodeDot(n) !== 'up')).length;
+const runtimeCount = (t) => props.nodes.filter((n) => isManaged(n) && n.server_type === t).length;
 
 const filtered = computed(() => {
   let rows = props.nodes;
