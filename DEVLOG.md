@@ -1,5 +1,15 @@
 # Press Fork Dev Log
 
+### Session 27 - 2026-11-26: Exposure Watch rule, security rows on the dashboard, Infrastructure clean-up (0.7.74 to 0.7.76)
+
+**What we did:** after the Anwar test link showed a public route list, 0.7.74 adds the Exposure Watch rule (`exposure_alerts.py`): open ports on our servers seen from press-ctrl, public `/openapi.json`, admin routes that answer without a key, and Sanad Preview without its login. 0.7.75 (prototype PRS-SP-11) saves the findings to cache for 3 hours and shows them as a Security group in Needs attention on Infrastructure and a "Security risks" tile on the Watch Tower overview (`get_security_findings`, System Manager only). 0.7.76 (prototype PRS-SP-12) cleans the Infrastructure page: title once, no summary tiles, labelled filters with counts, the Gate-0 banner as a Setup row, aligned rows. All live on press-ctrl, PR #89.
+
+**Files:** press/watch_tower/alerts/exposure_alerts.py (new), test_exposure_alerts.py (new, 13 tests, runs without a bench), press/api/infra_board.py (one method), dashboard/src/pages/infrastructure/{InfraDashboard,NeedsAttention,ServerList}.vue, infra-api.js, watch-tower/Overview.vue.
+
+**Watch out:** the owner's rule: the server rows that open to their containers (`ServerChildRows.vue`) never change. `SummaryCards.vue` stays (Telephony uses it). The dashboard is built with `yarn build` in `dashboard/`, not `bench build --app press`. A Python Method rule runs once per candidate document, so the check is memoized.
+
+**Open:** a daily email digest and the two loudest alert causes (16 to 18 failing scheduled jobs an hour, 11 apps failing GitHub polls); Low rows out of the exposure email. The 2 High rows clear when Sanad Brain 0.9.1 is rebuilt.
+
 ### Session 26 - 2026-11-24: stale "Site creation failed" and the dashboard login refusal (0.7.64, 0.7.65)
 
 **What we did:** quest-v15 showed "Site creation failed" while it worked. Its 17 Nov New Site from Backup job failed and the restore was finished by hand; Press clears `Site.creation_failed` only on a green Restore Site job. Cleared by hand on quest-v15, quest-recovery, qifco-demo, sabk-fab and truoos (the last three flagged since July). 0.7.64 (PR #79) adds an hourly job that clears it on an Active site with a green Migrate Site or Update Site Migrate after the flag; live 13:14, first run Complete, 0 flagged. 0.7.65 (PR #80): the `mint_dashboard_login_url` refusal says a dashboard login reaches every site of the team and lists every locked confidential site; live.
@@ -471,4 +481,10 @@ Granting role A does NOT grant role B. A new Press Role created via the dashboar
 2. Vue (`dashboard/src/router.js` `waitUntilTeamLoaded`): on team-resource error, try a one-shot fallback — reset `localStorage.current_team` to `window.default_team` and reload the page. Fresh boot creates a new resource for the right team and recovers without re-login. Only logs out if fallback already attempted OR no default_team available. Added 5-second polling cap as safety net.
 3. `bench build --app press` to ship the JS change.
 **Lesson:** Bare `frappe.throw(message)` defaults to `ValidationError` — a foot-gun anywhere a frontend branches on `exc_type`. Always pass an explicit exception type matching the semantic meaning: `PermissionError` for "not allowed", `DoesNotExistError` for "missing", `ValidationError` for "invalid input". Going forward, never use bare `frappe.throw(string)` in code paths reachable by the dashboard.
+
+### 2026-11-26 - `bench restart` over SSH stopped the press-ctrl workers (third time)
+**What happened:** deploying 0.7.74, `bench restart` ran under a short SSH timeout; the timeout cut it after the stop and before the start, so the workers and the scheduler stayed down about 8 minutes.
+**Root cause:** a group restart stops everything first and waits on a busy long worker; the SSH timeout ends the command in between.
+**How we fixed it:** `supervisorctl start all`. Since then: restart `frappe-bench-web:frappe-bench-frappe-web` alone, then each worker one at a time under `nohup` (build workers left alone); a front-end-only change restarts web only.
+**Lesson:** never run `bench restart` on press-ctrl from a command with a timeout. Restart one process at a time and check `supervisorctl status` after.
 
