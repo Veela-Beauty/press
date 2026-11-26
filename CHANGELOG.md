@@ -4,6 +4,16 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 26-11-2026: Watch Tower exposure watch (0.7.74)
+
+### Added
+- `check_public_exposure` (`watch_tower/alerts/exposure_alerts.py`), hourly, looked at from outside: service ports
+  open to the internet on press-ctrl, sandbox-1 and hetzner-main (press-ctrl is probed from accubuild-stg), a real
+  OpenAPI route list on Sanad Brain, the Anwar bridge and every Traefik host on press-ctrl, Sanad Brain admin routes
+  that answer without a key, and Sanad Preview pages that answer without its login. One email lists each finding
+  with its fix; the usual throttle (3 per 6 hours per finding set). Found on 26 Nov: code-analysis port 8200 open on
+  press-ctrl, Brain /admin/audit open. Tests run without a bench (`test_exposure_alerts.py`).
+
 ## 25-11-2026: SSH certificates last 30 days on a development bench (0.7.73)
 
 ### Changed
