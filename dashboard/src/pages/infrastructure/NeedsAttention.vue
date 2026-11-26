@@ -9,11 +9,13 @@
       <h2 class="text-sm font-semibold text-gray-900">
         {{ hasIssues ? 'Needs attention' : 'All clear' }}
       </h2>
-      <span class="text-xs text-gray-500">
-        {{ hasIssues
-          ? `${security.length} security risks, ${down.length} down, ${servers.length} unreachable, ${over.length} overloaded`
-          : `Nothing needs attention.${checkedAt ? ` Security checked from outside ${checkedTime}.` : ''}` }}
-      </span>
+      <span class="text-xs text-gray-500">{{ summary }}</span>
+    </div>
+    <!-- No check in the last 3 hours (or it skipped something): say so, never imply clean -->
+    <div v-if="!checkedAt || skipped.length" class="mt-2 text-xs text-gray-500">
+      {{ !checkedAt
+        ? 'The security check has not run in the last 3 hours, so open ports and logins are not known.'
+        : `Not checked this hour: ${skipped.join(', ')}.` }}
     </div>
 
     <!-- Security (prototype PRS-SP-11): first, never cut by the 4-row cap below -->
@@ -21,7 +23,7 @@
       <div class="text-xs font-semibold text-gray-700">
         Security <span class="font-normal text-gray-400">checked from outside {{ checkedTime }}, hourly</span>
       </div>
-      <template v-for="(f, i) in security" :key="`sec-${f.where}-${f.what}`">
+      <template v-for="f in security" :key="rowKey(f)">
         <div class="flex items-center gap-2">
           <span class="inline-block h-[7px] w-[7px] shrink-0 rounded-full" :class="SEV[f.severity].dot" />
           <span class="w-[62px] shrink-0 rounded-md py-px text-center text-xs font-semibold" :class="SEV[f.severity].chip">
@@ -30,12 +32,12 @@
           <span class="w-[190px] shrink-0 truncate font-mono text-sm text-gray-900" :title="f.where">{{ f.where }}</span>
           <span class="text-sm text-gray-700">{{ f.what }}</span>
           <div class="flex-1" />
-          <Button variant="subtle" :aria-expanded="openFix === i" @click="openFix = openFix === i ? null : i">
-            {{ openFix === i ? 'Hide' : 'Fix' }}
+          <Button variant="subtle" :aria-expanded="openFix === rowKey(f)" @click="toggleFix(f)">
+            {{ openFix === rowKey(f) ? 'Hide' : 'Fix' }}
           </Button>
         </div>
         <div
-          v-if="openFix === i"
+          v-if="openFix === rowKey(f)"
           class="ml-[15px] rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm text-gray-700"
         >
           {{ f.fix }}
@@ -110,6 +112,7 @@ const props = defineProps({
   // Exposure Watch rows: { severity: High|Medium|Low, where, what, fix }, worst first
   security: { type: Array, default: () => [] },
   checkedAt: { type: String, default: null },
+  skipped: { type: Array, default: () => [] },
 });
 defineEmits(['view']);
 
@@ -125,12 +128,25 @@ const SEV = {
   Medium: { dot: 'bg-amber-500', chip: 'bg-amber-50 text-amber-700' },
   Low:    { dot: 'bg-gray-400',  chip: 'bg-gray-100 text-gray-700' },
 };
+// The open Fix panel follows its row (not its position) when the list reloads.
 const openFix = ref(null);
-// "2026-11-26 09:12" -> "09:12" today, the date and time otherwise
+const rowKey = (f) => `${f.where}|${f.what}`;
+const toggleFix = (f) => { openFix.value = openFix.value === rowKey(f) ? null : rowKey(f); };
+// "2026-11-26 09:12" -> "09:12" today, the date and time otherwise (local date, not UTC)
 const checkedTime = computed(() => {
   if (!props.checkedAt) return '';
   const [day, time] = props.checkedAt.split(' ');
-  return day === new Date().toISOString().slice(0, 10) ? time : props.checkedAt;
+  return day === new Date().toLocaleDateString('sv') ? time : props.checkedAt;
+});
+// Only the counts that are not zero: "7 security risks, 1 overloaded"
+const summary = computed(() => {
+  if (!hasIssues.value) {
+    return `Nothing needs attention.${props.checkedAt ? ` Security checked from outside ${checkedTime.value}.` : ''}`;
+  }
+  return [
+    [props.security.length, 'security risks'], [down.value.length, 'down'],
+    [servers.value.length, 'unreachable'], [over.value.length, 'overloaded'],
+  ].filter(([n]) => n).map(([n, label]) => `${n} ${label}`).join(', ');
 });
 
 // Down units first, then overloaded hosts, then unreachable servers; max 4 combined.

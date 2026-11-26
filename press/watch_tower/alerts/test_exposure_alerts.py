@@ -124,6 +124,19 @@ class TestExposure(unittest.TestCase):
 		)
 		self.assertTrue(all(r["fix"] for r in rows))
 
+	def test_a_failed_probe_is_skipped_not_clean(self):
+		skipped = []
+		down = "https://brain.sanadeoi.mvpstorm.com/admin/audit"
+		found = ex.collect(
+			probe=no_ports, probe_press_ctrl=lambda ip: None, get=answers({down: (0, b"")}), skipped=skipped
+		)
+		self.assertEqual(found, [])
+		self.assertEqual(sorted(skipped), [down, "press-ctrl ports"])
+
+	def test_host_names_with_odd_characters_are_not_probed(self):
+		labels = "Host(`ok.mvpstorm.com`) Host(`evil.com@ok.mvpstorm.com`) Host(`a.com/x#`)"
+		self.assertEqual(ex.traefik_hosts(labels), ["ok.mvpstorm.com"])
+
 	def test_an_open_port_names_its_service_or_says_a_service(self):
 		found = ex.collect(
 			probe=lambda ip: [3000, 6379] if ip == ex.SERVERS["sandbox-1"] else [], get=answers({})

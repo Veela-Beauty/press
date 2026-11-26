@@ -72,6 +72,7 @@
           :nodes="allNodes"
           :security="security.data?.findings || []"
           :checked-at="security.data?.checked_at"
+          :skipped="security.data?.skipped || []"
           class="mb-4"
           @view="onOpen"
         />
@@ -134,10 +135,13 @@ const logUnit = computed(() => {
 
 // --- 15-second polling ---
 let timer = null;
+let securityTimer = null;
 onMounted(() => {
   timer = setInterval(() => { tree.reload(); fresh.value = 'just now'; }, 15000);
+  // the security check runs hourly, so every 5 minutes is plenty
+  securityTimer = setInterval(() => security.reload(), 5 * 60 * 1000);
 });
-onUnmounted(() => clearInterval(timer));
+onUnmounted(() => { clearInterval(timer); clearInterval(securityTimer); });
 
 // --- Derived nodes ---
 const allNodes   = computed(() => tree.data?.servers || []);

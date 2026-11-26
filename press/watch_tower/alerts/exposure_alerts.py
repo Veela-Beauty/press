@@ -143,11 +143,16 @@ def is_open(kind, status, body):
 	return status not in (0, 401, 403)  # login; 0 = unreachable, which the site-reachability check covers
 
 
-def collect(probe=open_ports, probe_press_ctrl=None, get=fetch, extra_hosts=()):
-	"""Findings as (kind, where, what) tuples, sorted."""
+def collect(probe=open_ports, probe_press_ctrl=None, get=fetch, extra_hosts=(), skipped=None):
+	"""Findings as (kind, where, what) tuples, sorted. What could not be checked (the vantage server unreachable,
+	a URL that did not answer) goes into `skipped`, so a failed probe never reads as a clean result."""
+	skipped = skipped if skipped is not None else []
 	findings = []
 	for name, ip in SERVERS.items():
 		ports = probe_press_ctrl(ip) if name == "press-ctrl" and probe_press_ctrl else probe(ip)
+		if ports is None:
+			skipped.append(f"{name} ports")
+			ports = []
 		findings += [
 			("Open port", f"{name} {ip}:{p}", f"{PORT_NAMES.get(p, 'A service')} open to the internet")
 			for p in ports
@@ -162,12 +167,13 @@ def collect(probe=open_ports, probe_press_ctrl=None, get=fetch, extra_hosts=()):
 	findings += [
 		(kind, url, what) for (url, kind, what), (status, body) in results if is_open(kind, status, body)
 	]
+	skipped += [url for (url, _, _), (status, _) in results if status == 0]
 	return sorted(set(findings))
 
 
 def traefik_hosts(labels_text):
 	"""Host names from Traefik router rules in `docker inspect` label output."""
-	return sorted({h for h in HOST_RULE.findall(labels_text) if "*" not in h and "{" not in h})
+	return sorted({h for h in HOST_RULE.findall(labels_text) if re.fullmatch(r"[a-z0-9.-]+", h)})
 
 
 def to_rows(findings):
@@ -186,7 +192,7 @@ def to_rows(findings):
 	return sorted(rows, key=lambda r: (order[r["severity"]], r["where"], r["what"]))
 
 
-def save_findings(findings):
+def save_findings(findings, skipped=()):
 	"""Keep the last hourly result for the Infrastructure page; three hours, so a missed run shows as stale."""
 	import frappe
 	from frappe.utils import now_datetime
@@ -194,7 +200,9 @@ def save_findings(findings):
 	# the site's clock (Asia/Riyadh on press-ctrl), like the rest of Watch Tower
 	checked_at = now_datetime().strftime("%Y-%m-%d %H:%M")
 	frappe.cache().set_value(
-		FINDINGS_KEY, {"checked_at": checked_at, "findings": to_rows(findings)}, expires_in_sec=3 * 3600
+		FINDINGS_KEY,
+		{"checked_at": checked_at, "findings": to_rows(findings), "skipped": sorted(set(skipped))},
+		expires_in_sec=3 * 3600,
 	)
 
 
@@ -217,15 +225,18 @@ def _eval_public_exposure():
 
 	def press_ctrl_from_vantage(ip):
 		ok, out, _ = ssh_cmd(PRESS_CTRL_VANTAGE, vantage_command(ip), timeout=30)
-		return sorted(int(x) for x in out.split() if x.isdigit()) if ok else []
+		return sorted(int(x) for x in out.split() if x.isdigit()) if ok else None
 
 	_, labels, _ = ssh_cmd(
 		SERVERS["press-ctrl"],
 		"docker ps -q | xargs -r docker inspect --format '{{range $k, $v := .Config.Labels}}{{$v}} {{end}}'",
 		timeout=30,
 	)
-	findings = collect(probe_press_ctrl=press_ctrl_from_vantage, extra_hosts=traefik_hosts(labels))
-	save_findings(findings)
+	skipped = []
+	findings = collect(
+		probe_press_ctrl=press_ctrl_from_vantage, extra_hosts=traefik_hosts(labels), skipped=skipped
+	)
+	save_findings(findings, skipped)
 	if not findings:
 		return False
 	if not should_send_alert("public_exposure", "|".join(f"{k} {w}" for k, w, _ in findings)):
