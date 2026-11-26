@@ -1,5 +1,22 @@
 # Press Fork Dev Log
 
+### Session 27 - 2026-11-25/26: 30-day SSH on development benches with revocation (0.7.72 to 0.7.74)
+
+**What we did:** owner asked for longer SSH ("30 days on dev benches", then "30 days + revocation"). 0.7.73 (PR #88):
+30-day user certificates on groups with an active development bench, and an every-minute revoked-keys job for every
+Active bench of those groups. Independent review found 6 real issues (whole-group coverage, failed reload retry, re-added
+keys, returncode, back-off, validity on later saves); all fixed before merge. 0.7.72 went to PR #87 (Watch Tower).
+
+**Files:** press/press/doctype/ssh_certificate/{ssh_certificate.py,revoked_keys.py,test_revoked_keys.py,
+test_dev_bench_validity.py}, release_group.py (one line), hooks.py (one cron line), three dashboard texts. Deploy:
+press-ops `scripts/ssh-30d-dev-2026-11-25/03_deploy_0773.sh` (new job inserted alone with insert_single_event).
+
+**Watch out:** the agent reports a non-zero docker_execute exit as status Success; Frappe's sync_jobs deletes job rows
+missing from hooks; root cannot overwrite a frappe-owned file in /tmp (use a fresh /tmp/<dir>).
+
+**Open:** DevOps L1 is one shared list per team (two developers on two clients see each other's benches): a Press
+change (a role per member or per project) if the owner wants it.
+
 ### Session 26 - 2026-11-24: stale "Site creation failed" and the dashboard login refusal (0.7.64, 0.7.65)
 
 **What we did:** quest-v15 showed "Site creation failed" while it worked. Its 17 Nov New Site from Backup job failed and the restore was finished by hand; Press clears `Site.creation_failed` only on a green Restore Site job. Cleared by hand on quest-v15, quest-recovery, qifco-demo, sabk-fab and truoos (the last three flagged since July). 0.7.64 (PR #79) adds an hourly job that clears it on an Active site with a green Migrate Site or Update Site Migrate after the flag; live 13:14, first run Complete, 0 flagged. 0.7.65 (PR #80): the `mint_dashboard_login_url` refusal says a dashboard login reaches every site of the team and lists every locked confidential site; live.

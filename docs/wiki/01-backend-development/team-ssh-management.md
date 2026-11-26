@@ -47,7 +47,7 @@ Migration automatic via `bench --site <site> migrate` — no patch needed.
 
 ### Data model — SSH Certificate DocType (existing, unchanged)
 
-Each call to `Release Group.generate_certificate(ssh_key_name=)` creates a new `SSH Certificate` signed by the Press CA. Validity = **6 hours**. No DB change — we just added an optional parameter.
+Each call to `Release Group.generate_certificate(ssh_key_name=)` creates a new `SSH Certificate` signed by the Press CA. Validity = **30 days on a release group with an active development bench, 6 hours on every other group** (0.7.73; `ssh_certificate.py` `user_certificate_validity`). A 30-day certificate is refused on a group without a development bench, and the length is checked only on insert or when it changes. Press refuses a second valid certificate for the same key on the same group.
 
 ### Backend APIs
 
@@ -143,8 +143,19 @@ done
 
 - **No secrets on the server.** Team members' GitHub keys never leave their laptop. SSH agent forwarding means the bench has a Unix socket pointing back to the laptop's agent, usable only while the SSH session is open.
 - **Each git commit is attributed to the real person.** No shared service account.
-- **Short-lived.** SSH cert expires in 6 hours — stale sessions lose auth automatically.
-- **Admin-revocable.** Owner flips `is_disabled=1` in Team SSH → next cert request fails immediately. Existing 6h cert is still valid until it expires (or admin can force-expire via Frappe desk if urgent).
+- **Short-lived, except on a development bench.** A certificate expires in 6 hours; on a development bench in 30 days.
+- **Revoked within a minute on a development bench (0.7.73).** An OpenSSH certificate cannot be called back once
+  signed, so every minute `ssh_certificate/revoked_keys.py` (`sync_development_benches`, hooks `* * * * *`) writes a
+  RevokedKeys file into every Active bench of a group with a development bench or a live 30-day certificate: the keys
+  that still hold a valid certificate there whose user left the team or was disabled, whose key was disabled or
+  removed, whose Press Role no longer covers the group, or whose team's SSH access is off. A key that also holds a
+  certificate in good standing stays off the list. The bench's sshd reads `config/ssh/revoked_keys` at every login; the
+  `RevokedKeys` line is added to that bench's `sshd_config` once, checked with `sshd -t`, then sshd reloads (a failed
+  reload takes the line out again). A failing bench writes one Error Log, then waits 5 minutes.
+- **Elsewhere, admin-revocable at the next request.** Owner flips `is_disabled=1` in Team SSH: the next certificate
+  request fails at once, and an existing 6-hour certificate runs out by itself.
+- **The role rule is the dashboard's.** `revoked_keys.reaches()` gives `team_access._role_covers`'s answer for a user
+  who is not the session user (checked for 5 members x 41 release groups, no difference).
 
 ---
 
