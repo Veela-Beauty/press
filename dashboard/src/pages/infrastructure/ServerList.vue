@@ -172,7 +172,9 @@ const typeOptions   = [{ label: 'All', value: 'all' }, { label: 'Docker', value:
 // Counts on the filter buttons (they replaced the four summary tiles)
 const inKind = (n, k) => k === 'all' || (k === 'managed' ? isManaged(n) : !isManaged(n));
 const kindCount = (k) => props.nodes.filter((n) => inKind(n, k)).length;
-const healthCount = (h) => props.nodes.filter((n) => inKind(n, kindSeg.value)
+// Health counts sit inside Source and Runtime, exactly as `filtered` applies them, so a count matches the table
+const inRuntime = (n) => kindSeg.value === 'press' || typeSeg.value === 'all' || n.server_type === typeSeg.value;
+const healthCount = (h) => props.nodes.filter((n) => inKind(n, kindSeg.value) && inRuntime(n)
   && (h === 'healthy' ? nodeDot(n) === 'up' : nodeDot(n) !== 'up')).length;
 const runtimeCount = (t) => props.nodes.filter((n) => isManaged(n) && n.server_type === t).length;
 

@@ -25,8 +25,8 @@
       </div>
       <template v-for="f in shownSecurity" :key="rowKey(f)">
         <div class="flex items-center gap-2">
-          <span class="inline-block h-[7px] w-[7px] shrink-0 rounded-full" :class="SEV[f.severity].dot" />
-          <span class="w-[62px] shrink-0 rounded-md py-px text-center text-xs font-semibold" :class="SEV[f.severity].chip">
+          <span class="inline-block h-[7px] w-[7px] shrink-0 rounded-full" :class="sev(f).dot" />
+          <span class="w-[62px] shrink-0 rounded-md py-px text-center text-xs font-semibold" :class="sev(f).chip">
             {{ f.severity }}
           </span>
           <span class="w-[190px] shrink-0 truncate font-mono text-sm text-gray-900" :title="f.where">{{ f.where }}</span>
@@ -154,6 +154,7 @@ const SEV = {
   Low:    { dot: 'bg-gray-400',  chip: 'bg-gray-100 text-gray-700' },
 };
 // The open Fix panel follows its row (not its position) when the list reloads.
+const sev = (f) => SEV[f.severity] ?? SEV.Low;
 const openFix = ref(null);
 const rowKey = (f) => `${f.where}|${f.what}`;
 const toggleFix = (f) => { openFix.value = openFix.value === rowKey(f) ? null : rowKey(f); };
@@ -168,11 +169,12 @@ const summary = computed(() => {
   if (!hasIssues.value) {
     return `Nothing needs attention.${props.checkedAt ? ` Security checked from outside ${checkedTime.value}.` : ''}`;
   }
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
   return [
-    [props.security.length, 'security risks'], [props.setup.length ? 1 : 0, 'setup step'],
-    [down.value.length, 'down'],
-    [servers.value.length, 'unreachable'], [over.value.length, 'overloaded'],
-  ].filter(([n]) => n).map(([n, label]) => `${n} ${label}`).join(', ');
+    [props.security.length, 'security risk', 'security risks'], [props.setup.length, 'setup step', 'setup steps'],
+    [down.value.length, 'down', 'down'],
+    [servers.value.length, 'unreachable', 'unreachable'], [over.value.length, 'overloaded', 'overloaded'],
+  ].filter(([n]) => n).map(([n, one, many]) => plural(n, one, many)).join(', ');
 });
 
 // Down units first, then overloaded hosts, then unreachable servers; max 4 combined.

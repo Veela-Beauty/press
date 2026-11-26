@@ -55,7 +55,7 @@
           :security="security.data?.findings || []"
           :checked-at="security.data?.checked_at"
           :skipped="security.data?.skipped || []"
-          :setup="hasManaged && gate0.data && !gate0.data.ready ? gate0.data.checks.filter((c) => !c.ok) : []"
+          :setup="setupChecks"
           class="mb-4"
           @view="onOpen"
         />
@@ -129,6 +129,9 @@ onUnmounted(() => { clearInterval(timer); clearInterval(securityTimer); });
 // --- Derived nodes ---
 const allNodes   = computed(() => tree.data?.servers || []);
 const hasManaged = computed(() => allNodes.value.some(isManaged));
+// Gate-0 checks that failed, shown as a Setup row in Needs attention while managed hosts exist
+const setupChecks = computed(() => (hasManaged.value && gate0.data && !gate0.data.ready
+  ? (gate0.data.checks || []).filter((c) => !c.ok) : []));
 
 // --- Breadcrumbs ---
 const crumbs = computed(() => [{ label: 'Infrastructure', route: { name: 'Infrastructure' } }]);
