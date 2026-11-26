@@ -97,6 +97,42 @@ class TestExposure(unittest.TestCase):
 	def test_every_finding_kind_has_a_fix_line(self):
 		self.assertTrue({"Open port", "route-list", "no-key", "login"} <= set(ex.FIX))
 
+	def test_rows_for_the_dashboard_are_plain_words_worst_first(self):
+		found = [
+			("Open port", "press-ctrl 89.167.116.92:9000", "Frappe realtime (socketio) open to the internet"),
+			("Open port", "sandbox-1 65.108.128.91:3000", "Daytona API open to the internet"),
+			(
+				"route-list",
+				"https://brain.sanadeoi.mvpstorm.com/openapi.json",
+				"Sanad Brain: lists all its routes publicly",
+			),
+			(
+				"no-key",
+				"https://brain.sanadeoi.mvpstorm.com/admin/audit",
+				"Sanad Brain: audit log answers without a key",
+			),
+		]
+		rows = ex.to_rows(found)
+		self.assertEqual(
+			[(r["severity"], r["where"], r["what"]) for r in rows],
+			[
+				("High", "Sanad Brain", "audit log answers without a key"),
+				("Medium", "Sanad Brain", "lists all its routes publicly"),
+				("Medium", "sandbox-1 :3000", "Daytona API open to the internet"),
+				("Low", "press-ctrl :9000", "Frappe realtime (socketio) open to the internet"),
+			],
+		)
+		self.assertTrue(all(r["fix"] for r in rows))
+
+	def test_an_open_port_names_its_service_or_says_a_service(self):
+		found = ex.collect(
+			probe=lambda ip: [3000, 6379] if ip == ex.SERVERS["sandbox-1"] else [], get=answers({})
+		)
+		self.assertEqual(
+			sorted(w for k, _, w in found if k == "Open port"),
+			["A service open to the internet", "Daytona API open to the internet"],
+		)
+
 
 if __name__ == "__main__":
 	unittest.main()

@@ -55,32 +55,52 @@ SERVICE_PORTS = (
 ALLOWED_PORTS = {("press-ctrl", 5000)}
 
 PREVIEW = "https://sanad-preview.sanadeoi.mvpstorm.com"
-# (url, kind, what it is). kind: route-list = a real OpenAPI document answers; no-key = 200 without a key;
+# (url, kind, "Place: what it means"). kind: route-list = a real OpenAPI document answers; no-key = 200 without a key;
 # login = anything but 401/403.
 CLOSED_URLS = (
-	("https://brain.sanadeoi.mvpstorm.com/openapi.json", "route-list", "Sanad Brain route list"),
-	("https://brain.sanadeoi.mvpstorm.com/admin/audit", "no-key", "Sanad Brain audit log without a key"),
+	(
+		"https://brain.sanadeoi.mvpstorm.com/openapi.json",
+		"route-list",
+		"Sanad Brain: lists all its routes publicly",
+	),
+	(
+		"https://brain.sanadeoi.mvpstorm.com/admin/audit",
+		"no-key",
+		"Sanad Brain: audit log answers without a key",
+	),
 	(
 		"https://brain.sanadeoi.mvpstorm.com/admin/agents/activity",
 		"no-key",
-		"Sanad Brain agent activity without a key",
+		"Sanad Brain: agent activity answers without a key",
 	),
 	(
 		"https://lipton-anwar-wa.sandbox.sanadeoi.mvpstorm.com/openapi.json",
 		"route-list",
-		"Anwar bridge route list",
+		"Anwar bridge: lists all its routes publicly",
 	),
-	(PREVIEW + "/", "login", "Sanad Preview home without its login"),
-	(PREVIEW + "/research/", "login", "Sanad Preview research without its login"),
-	(PREVIEW + "/plans/", "login", "Sanad Preview plans without its login"),
+	(PREVIEW + "/", "login", "Sanad Preview: home page opens without its login"),
+	(PREVIEW + "/research/", "login", "Sanad Preview: research opens without its login"),
+	(PREVIEW + "/plans/", "login", "Sanad Preview: plans open without its login"),
 )
 HOST_RULE = re.compile(r"Host\(`([^`]+)`\)")
 FIX = {
-	"Open port": "bind it to 127.0.0.1 in compose, or put the service behind Traefik",
-	"route-list": "FastAPI(openapi_url=None)",
-	"no-key": "require the API key on this route",
-	"login": "restore the login (Traefik basicauth middleware)",
+	"Open port": "Publish the port on 127.0.0.1 in its compose file, or put the service behind Traefik. If it must "
+	"stay open, add it to ALLOWED_PORTS in exposure_alerts.py.",
+	"route-list": "Turn the public route list off with FastAPI(openapi_url=None), then redeploy the service.",
+	"no-key": "Require the API key on this route, then redeploy the service.",
+	"login": "Restore the login on this site (its Traefik basic-auth label).",
 }
+SEVERITY = {"no-key": "High", "login": "High", "route-list": "Medium", "Open port": "Medium"}
+LOW_PORTS = {9000}  # Frappe realtime: it checks the session itself
+PORT_NAMES = {
+	3000: "Daytona API",
+	3100: "Sanad EOI app",
+	4000: "Daytona proxy",
+	5000: "Image registry",
+	8200: "Code analysis service",
+	9000: "Frappe realtime (socketio)",
+}
+FINDINGS_KEY = "wt:exposure:last"
 
 
 def open_ports(ip, ports=SERVICE_PORTS, connect=socket.create_connection):
@@ -129,12 +149,13 @@ def collect(probe=open_ports, probe_press_ctrl=None, get=fetch, extra_hosts=()):
 	for name, ip in SERVERS.items():
 		ports = probe_press_ctrl(ip) if name == "press-ctrl" and probe_press_ctrl else probe(ip)
 		findings += [
-			("Open port", f"{name} {ip}:{p}", "reachable from the internet")
+			("Open port", f"{name} {ip}:{p}", f"{PORT_NAMES.get(p, 'A service')} open to the internet")
 			for p in ports
 			if (name, p) not in ALLOWED_PORTS
 		]
 	urls = list(CLOSED_URLS) + [
-		(f"https://{h}/openapi.json", "route-list", f"{h} route list") for h in sorted(set(extra_hosts))
+		(f"https://{h}/openapi.json", "route-list", f"{h}: lists all its routes publicly")
+		for h in sorted(set(extra_hosts))
 	]
 	with concurrent.futures.ThreadPoolExecutor(12) as pool:
 		results = list(pool.map(lambda u: (u, get(u[0])), urls))
@@ -147,6 +168,40 @@ def collect(probe=open_ports, probe_press_ctrl=None, get=fetch, extra_hosts=()):
 def traefik_hosts(labels_text):
 	"""Host names from Traefik router rules in `docker inspect` label output."""
 	return sorted({h for h in HOST_RULE.findall(labels_text) if "*" not in h and "{" not in h})
+
+
+def to_rows(findings):
+	"""Findings as the dashboard shows them: severity in words, the place, what it means, how to fix it."""
+	rows = []
+	for kind, where, what in findings:
+		port = re.match(r"(\S+) \S+:(\d+)$", where) if kind == "Open port" else None
+		if port:
+			severity = "Low" if int(port.group(2)) in LOW_PORTS else SEVERITY[kind]
+			rows.append({"severity": severity, "where": f"{port.group(1)} :{port.group(2)}", "what": what})
+		else:
+			place, _, meaning = what.partition(": ")
+			rows.append({"severity": SEVERITY[kind], "where": place, "what": meaning or what})
+		rows[-1]["fix"] = FIX[kind]
+	order = {"High": 0, "Medium": 1, "Low": 2}
+	return sorted(rows, key=lambda r: (order[r["severity"]], r["where"], r["what"]))
+
+
+def save_findings(findings):
+	"""Keep the last hourly result for the Infrastructure page; three hours, so a missed run shows as stale."""
+	import frappe
+	from frappe.utils import now_datetime
+
+	# the site's clock (Asia/Riyadh on press-ctrl), like the rest of Watch Tower
+	checked_at = now_datetime().strftime("%Y-%m-%d %H:%M")
+	frappe.cache().set_value(
+		FINDINGS_KEY, {"checked_at": checked_at, "findings": to_rows(findings)}, expires_in_sec=3 * 3600
+	)
+
+
+def last_findings():
+	import frappe
+
+	return frappe.cache().get_value(FINDINGS_KEY, expires=True) or {"checked_at": None, "findings": []}
 
 
 def check_public_exposure(doc_dict, rule):
@@ -170,6 +225,7 @@ def _eval_public_exposure():
 		timeout=30,
 	)
 	findings = collect(probe_press_ctrl=press_ctrl_from_vantage, extra_hosts=traefik_hosts(labels))
+	save_findings(findings)
 	if not findings:
 		return False
 	if not should_send_alert("public_exposure", "|".join(f"{k} {w}" for k, w, _ in findings)):

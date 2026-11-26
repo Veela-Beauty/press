@@ -4,6 +4,16 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 26-11-2026: Security risks on the dashboard (0.7.75)
+
+### Added
+- The Infrastructure page's Needs attention box opens with a Security group (prototype PRS-SP-11, approved 26 Nov):
+  one row per Exposure Watch finding with its severity in words, the place, what it means and a Fix that shows how
+  to close it; never cut by the 4-row cap of the other rows. The Watch Tower overview gains a 6th tile, Security
+  risks, that opens the Infrastructure page. Data: `press.api.infra_board.get_security_findings` (System Manager;
+  anyone else gets None, so a Watch Tower Hub user sees no tile and no error), filled by the hourly check
+  (`exposure_alerts.save_findings`, 3-hour cache). 11 tests without a bench.
+
 ## 26-11-2026: Watch Tower exposure watch (0.7.74)
 
 ### Added

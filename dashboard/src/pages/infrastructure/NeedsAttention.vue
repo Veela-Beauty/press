@@ -11,13 +11,44 @@
       </h2>
       <span class="text-xs text-gray-500">
         {{ hasIssues
-          ? `${down.length} down, ${servers.length} unreachable, ${over.length} overloaded`
-          : 'Nothing needs attention.' }}
+          ? `${security.length} security risks, ${down.length} down, ${servers.length} unreachable, ${over.length} overloaded`
+          : `Nothing needs attention.${checkedAt ? ` Security checked from outside ${checkedTime}.` : ''}` }}
       </span>
     </div>
 
+    <!-- Security (prototype PRS-SP-11): first, never cut by the 4-row cap below -->
+    <div v-if="security.length" class="mt-3 flex flex-col gap-2">
+      <div class="text-xs font-semibold text-gray-700">
+        Security <span class="font-normal text-gray-400">checked from outside {{ checkedTime }}, hourly</span>
+      </div>
+      <template v-for="(f, i) in security" :key="`sec-${f.where}-${f.what}`">
+        <div class="flex items-center gap-2">
+          <span class="inline-block h-[7px] w-[7px] shrink-0 rounded-full" :class="SEV[f.severity].dot" />
+          <span class="w-[62px] shrink-0 rounded-md py-px text-center text-xs font-semibold" :class="SEV[f.severity].chip">
+            {{ f.severity }}
+          </span>
+          <span class="w-[190px] shrink-0 truncate font-mono text-sm text-gray-900" :title="f.where">{{ f.where }}</span>
+          <span class="text-sm text-gray-700">{{ f.what }}</span>
+          <div class="flex-1" />
+          <Button variant="subtle" :aria-expanded="openFix === i" @click="openFix = openFix === i ? null : i">
+            {{ openFix === i ? 'Hide' : 'Fix' }}
+          </Button>
+        </div>
+        <div
+          v-if="openFix === i"
+          class="ml-[15px] rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm text-gray-700"
+        >
+          {{ f.fix }}
+          <span class="mt-1 block text-xs text-gray-400">
+            It leaves this list on the first hourly check that no longer finds it.
+          </span>
+        </div>
+      </template>
+      <div v-if="down.length || over.length || servers.length" class="my-1 h-px bg-gray-200" />
+    </div>
+
     <!-- Triage list (down first, capped at 4) -->
-    <div v-if="hasIssues" class="mt-3 flex flex-col gap-2">
+    <div v-if="down.length || over.length || servers.length" class="mt-3 flex flex-col gap-2">
       <!-- Down-unit rows -->
       <div
         v-for="d in shownDown"
@@ -61,30 +92,46 @@
       </div>
 
       <!-- Overflow footer -->
-      <div v-if="total > 4" class="text-xs text-gray-400">
-        +{{ total - 4 }} more
+      <div v-if="triage > 4" class="text-xs text-gray-400">
+        +{{ triage - 4 }} more
       </div>
     </div>
 
-    <!-- Alerts panel: deferred until Watch Tower endpoint confirmed -->
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Button } from 'frappe-ui';
 import { issues, overloaded, unreachableServers, loadState, stateLabel } from './infra-derive';
 
 const props = defineProps({
   nodes: { type: Array, default: () => [] },
+  // Exposure Watch rows: { severity: High|Medium|Low, where, what, fix }, worst first
+  security: { type: Array, default: () => [] },
+  checkedAt: { type: String, default: null },
 });
 defineEmits(['view']);
 
 const down    = computed(() => issues(props.nodes));
 const over    = computed(() => overloaded(props.nodes));
 const servers = computed(() => unreachableServers(props.nodes));
-const total   = computed(() => down.value.length + over.value.length + servers.value.length);
-const hasIssues = computed(() => total.value > 0);
+const triage  = computed(() => down.value.length + over.value.length + servers.value.length);
+const hasIssues = computed(() => triage.value + props.security.length > 0);
+
+// Severity is written as text (the chip); the dot repeats it for a quick scan.
+const SEV = {
+  High:   { dot: 'bg-red-500',   chip: 'bg-red-50 text-red-700' },
+  Medium: { dot: 'bg-amber-500', chip: 'bg-amber-50 text-amber-700' },
+  Low:    { dot: 'bg-gray-400',  chip: 'bg-gray-100 text-gray-700' },
+};
+const openFix = ref(null);
+// "2026-11-26 09:12" -> "09:12" today, the date and time otherwise
+const checkedTime = computed(() => {
+  if (!props.checkedAt) return '';
+  const [day, time] = props.checkedAt.split(' ');
+  return day === new Date().toISOString().slice(0, 10) ? time : props.checkedAt;
+});
 
 // Down units first, then overloaded hosts, then unreachable servers; max 4 combined.
 const shownDown    = computed(() => down.value.slice(0, 4));

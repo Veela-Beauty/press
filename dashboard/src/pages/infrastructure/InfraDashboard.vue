@@ -68,7 +68,13 @@
           </div>
         </div>
 
-        <NeedsAttention :nodes="allNodes" class="mb-4" @view="onOpen" />
+        <NeedsAttention
+          :nodes="allNodes"
+          :security="security.data?.findings || []"
+          :checked-at="security.data?.checked_at"
+          class="mb-4"
+          @view="onOpen"
+        />
         <ServerList
           ref="serverList"
           :nodes="allNodes"
@@ -101,7 +107,7 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import Header from '../../components/Header.vue';
-import { useInfraTree, useGate0Status } from './infra-api';
+import { useInfraTree, useGate0Status, useSecurityFindings } from './infra-api';
 import { isManaged } from './infra-derive';
 import ServerList from './ServerList.vue';
 import NeedsAttention from './NeedsAttention.vue';
@@ -110,6 +116,7 @@ import AddHostWizard from './AddHostWizard.vue';
 
 // --- Data ---
 const tree = useInfraTree();
+const security = useSecurityFindings();
 const gate0 = useGate0Status();
 
 // --- UI state ---
