@@ -154,8 +154,10 @@ Rollback: `02_deploy_0780.sh rollback` restores the code and the dashboard. The 
 - Live, 27 Nov 2026, as the team's dashboard test user (`dashboard-test@optiflowsys.com`, Press role Viewer, which
   names basher-training): the member view on basher-training shows the share login only, "No share user yet. Ask a
   team admin to create one.", no Administrator half, no console error. Pictures: `~/docs/prototypes/press-site-logins/live/`.
-- Not yet measured: each role's clicks (prototype: share 3 steps, first share 5). The share jobs need a share user,
-  and creating one needs a team admin's 6-digit code, so the owner's first use comes first.
+- First real use, 27 Nov 2026 12:51 to 12:52, the owner on basher-training: linked an authenticator app in the code
+  dialog, created the share user with role profile Inventory, showed the password, about 30 seconds in all; three
+  Site Activity rows, each "(app code)". On the site the share user holds Item Manager, Stock Manager and Stock User
+  only. Clicks were not counted (no probe in the owner's browser); prototype budget: share 3 steps, first share 5.
 
 ---
 
