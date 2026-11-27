@@ -6,6 +6,13 @@ from frappe.model.document import Document
 from frappe.model.naming import append_number_if_name_exists
 
 from press.agent import Agent
+from press.press.doctype.code_server.code_server_archive import (
+	ARCHIVE_JOB,
+	UPSTREAM_JOB,
+	archive_outcome,
+	bench_is_archived,
+	latest_job_status,
+)
 from press.utils import log_error
 from press.utils.dns import _change_dns_record, create_dns_record
 
@@ -104,8 +111,10 @@ class CodeServer(Document):
 			agent = Agent(self.proxy_server, server_type="Proxy Server")
 			agent.remove_upstream_file(server=self.server, code_server=self.name)
 
-			agent = Agent(self.server, server_type="Server")
-			agent.archive_code_server(self.bench, self.name)
+			# the editor runs inside the bench container: with the bench archived it is already gone
+			if not bench_is_archived(self.bench):
+				agent = Agent(self.server, server_type="Server")
+				agent.archive_code_server(self.bench, self.name)
 			self.save(ignore_permissions=True)
 		except Exception as e:
 			log_error(title="Archive Code Server Failed", data=e)
@@ -204,27 +213,15 @@ def process_stop_code_server_job_update(job):
 
 
 def process_archive_code_server_job_update(job):
-	frappe.db.get_value("Code Server", job.code_server, "status", for_update=True)
+	bench = frappe.db.get_value("Code Server", job.code_server, "bench", for_update=True)
+	if bench is None:  # renamed to .archived by the other job's callback while this one waited for the lock
+		return
 
-	other_job_type = {
-		"Remove Code Server from Upstream": "Archive Code Server",
-		"Archive Code Server": "Remove Code Server from Upstream",
-	}[job.job_type]
-
-	first = job.status
-	second = frappe.get_value(
-		"Agent Job",
-		{"job_type": other_job_type, "code_server": job.code_server},
-		"status",
-		for_update=True,
-	)
-
-	if "Success" == first == second:
-		updated_status = "Archived"
-	elif "Failure" in (first, second):
-		updated_status = "Broken"
+	if job.job_type == UPSTREAM_JOB:
+		upstream, archive = job.status, latest_job_status(ARCHIVE_JOB, job.code_server)
 	else:
-		updated_status = "Pending"
+		archive, upstream = job.status, latest_job_status(UPSTREAM_JOB, job.code_server)
+	updated_status = archive_outcome(upstream, archive, bench_is_archived(bench))
 
 	frappe.db.set_value("Code Server", job.code_server, "status", updated_status)
 	if updated_status == "Archived":
