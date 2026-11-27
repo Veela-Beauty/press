@@ -50,25 +50,15 @@
         <div v-if="tree.error" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           Refresh failed, showing the last data: {{ tree.error.messages?.join(', ') || tree.error.message }}
         </div>
-        <!-- Gate-0 preflight banner: only relevant while managed hosts exist -->
-        <div
-          v-if="hasManaged && gate0.data && !gate0.data.ready"
-          class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm"
-        >
-          <div class="flex items-start gap-2">
-            <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-500" />
-            <div>
-              <p class="font-medium text-amber-900">Gate 0 is not provisioned, so managed hosts cannot connect yet.</p>
-              <ul class="mt-1.5 space-y-1 text-amber-800">
-                <li v-for="c in gate0.data.checks.filter((x) => !x.ok)" :key="c.name">
-                  <span class="font-medium">{{ c.name }}:</span> {{ c.hint }}
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <NeedsAttention :nodes="allNodes" class="mb-4" @view="onOpen" />
+        <NeedsAttention
+          :nodes="allNodes"
+          :security="security.data?.findings || []"
+          :checked-at="security.data?.checked_at"
+          :skipped="security.data?.skipped || []"
+          :setup="setupChecks"
+          class="mb-4"
+          @view="onOpen"
+        />
         <ServerList
           ref="serverList"
           :nodes="allNodes"
@@ -101,7 +91,7 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import Header from '../../components/Header.vue';
-import { useInfraTree, useGate0Status } from './infra-api';
+import { useInfraTree, useGate0Status, useSecurityFindings } from './infra-api';
 import { isManaged } from './infra-derive';
 import ServerList from './ServerList.vue';
 import NeedsAttention from './NeedsAttention.vue';
@@ -110,6 +100,7 @@ import AddHostWizard from './AddHostWizard.vue';
 
 // --- Data ---
 const tree = useInfraTree();
+const security = useSecurityFindings();
 const gate0 = useGate0Status();
 
 // --- UI state ---
@@ -127,14 +118,20 @@ const logUnit = computed(() => {
 
 // --- 15-second polling ---
 let timer = null;
+let securityTimer = null;
 onMounted(() => {
   timer = setInterval(() => { tree.reload(); fresh.value = 'just now'; }, 15000);
+  // the security check runs hourly, so every 5 minutes is plenty
+  securityTimer = setInterval(() => security.reload(), 5 * 60 * 1000);
 });
-onUnmounted(() => clearInterval(timer));
+onUnmounted(() => { clearInterval(timer); clearInterval(securityTimer); });
 
 // --- Derived nodes ---
 const allNodes   = computed(() => tree.data?.servers || []);
 const hasManaged = computed(() => allNodes.value.some(isManaged));
+// Gate-0 checks that failed, shown as a Setup row in Needs attention while managed hosts exist
+const setupChecks = computed(() => (hasManaged.value && gate0.data && !gate0.data.ready
+  ? (gate0.data.checks || []).filter((c) => !c.ok) : []));
 
 // --- Breadcrumbs ---
 const crumbs = computed(() => [{ label: 'Infrastructure', route: { name: 'Infrastructure' } }]);

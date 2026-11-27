@@ -4,6 +4,19 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 27-11-2026: site logins and sharing on the site Overview (0.7.80)
+
+### Added
+- A "Logins and sharing" card on each site's Overview (prototype PRS-SP-17): the share login (a normal user Press
+  creates on the site with a chosen Role Profile) and the Administrator login, each hidden until Show, and "Copy share
+  message" (site link, user, password). Team admins see the Administrator login, never on a confidential site; anyone
+  whose Press role covers the site sees the share login. Create and reset are for team admins.
+- Before every Show, copy, share, create or reset: a 6-digit code from the user's authenticator app, or an emailed
+  code; then no code for 10 minutes. A user without an app links one inside the same dialog (QR code, setup key,
+  recovery codes). Endpoints in `press/api/site_logins.py`, each checked for the team and the Press role.
+- Every action is recorded in Site Activity as "Share Login" (who, what, how verified); the last 5 show in the card.
+- Site fields `share_user`, `share_password` and the Site Activity option "Share Login": needs a migrate.
+
 ## 27-11-2026: An archived bench's Code Server ends Archived, not Broken (0.7.79)
 
 ### Fixed
@@ -30,6 +43,57 @@ This file documents changes (current commit level since, no tagged releases yet)
 ### Changed
 - The Team SSH wiki page says certificates last 30 days on a development bench and 6 hours elsewhere, and how the
   revoked-keys job ends access within a minute; lesson `docs/wiki/08-lessons/2026-11-26-a-long-certificate-needs-a-revocation-list.md`.
+
+## 26-11-2026: one morning email instead of an alert flood (0.7.77)
+
+### Changed
+- Alerts that need no action within hours (scheduled and background job failures, error spikes, stuck jobs, worker
+  queue backup, slow MCP calls, the GitHub token check, stale deploys, exposure without a High finding) are no longer
+  emailed one by one: they are kept in Redis (`alerts/digest.py`, at most 2000) and listed once a day in the health
+  report under "Alerts since the last report", one row per alert type with how many times, first and last time. The
+  owner, 26 Nov: about 60 alert emails a day, all through the Brevo account Press also sends customer emails with.
+- Sent at once as before: backup failure, failed deploy build, site down, SSL expiring (`important=True`), and now
+  disk above 85% (owner's choice), SSH unreachable, microservice down, MariaDB, Redis and Docker alerts, the email
+  queue loop, poll_pending_jobs missing, MCP Agent Watch, the site archive and delete notices, exposure with a High
+  finding, and every rule email to its configured recipients (`send_alert_email(immediate=True)`).
+- The health report moved from the midnight daily job to 08:00 (`run_morning_report`, cron `0 8 * * *`); the kept
+  alerts are cleared only after the report was sent.
+- The kept alerts survive `bench clear-cache` and migrate: `wt:digest:*` is a persistent cache key (`hooks.py`).
+  Without it a clear-cache between two reports dropped them unseen.
+
+### Fixed
+- The GitHub token check ran once per candidate record (203 a night; 5 emails got through the relay on 25 Nov): it now
+  runs once an hour at most (`_memoized(..., ttl=3600)`), and counts only enabled App Sources with a failed poll.
+
+## 26-11-2026: Infrastructure page clean-up (0.7.76)
+
+### Changed
+- Prototype PRS-SP-12, owner: "much better", and the server rows that open to their containers stay exactly as they
+  are (ServerChildRows.vue untouched). The title shows once (the list's own "Infrastructure (N)" heading is gone); the
+  four summary tiles are gone from this page (their counts sit on the filter buttons; SummaryCards.vue stays for
+  Telephony); the filters are labelled Source, Health, Runtime; the Gate-0 banner is a Setup row inside Needs
+  attention; every Needs attention row has the same columns (chip, place, meaning, action) with Down, Load, Offline
+  chips; Security shows its worst 3 with "Show N more".
+
+## 26-11-2026: Security risks on the dashboard (0.7.75)
+
+### Added
+- The Infrastructure page's Needs attention box opens with a Security group (prototype PRS-SP-11, approved 26 Nov):
+  one row per Exposure Watch finding with its severity in words, the place, what it means and a Fix that shows how
+  to close it; never cut by the 4-row cap of the other rows. The Watch Tower overview gains a 6th tile, Security
+  risks, that opens the Infrastructure page. Data: `press.api.infra_board.get_security_findings` (System Manager;
+  anyone else gets None, so a Watch Tower Hub user sees no tile and no error), filled by the hourly check
+  (`exposure_alerts.save_findings`, 3-hour cache). 11 tests without a bench.
+
+## 26-11-2026: Watch Tower exposure watch (0.7.74)
+
+### Added
+- `check_public_exposure` (`watch_tower/alerts/exposure_alerts.py`), hourly, looked at from outside: service ports
+  open to the internet on press-ctrl, sandbox-1 and hetzner-main (press-ctrl is probed from accubuild-stg), a real
+  OpenAPI route list on Sanad Brain, the Anwar bridge and every Traefik host on press-ctrl, Sanad Brain admin routes
+  that answer without a key, and Sanad Preview pages that answer without its login. One email lists each finding
+  with its fix; the usual throttle (3 per 6 hours per finding set). Found on 26 Nov: code-analysis port 8200 open on
+  press-ctrl, Brain /admin/audit open. Tests run without a bench (`test_exposure_alerts.py`).
 
 ## 25-11-2026: SSH certificates last 30 days on a development bench (0.7.73)
 

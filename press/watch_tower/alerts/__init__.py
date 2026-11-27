@@ -38,6 +38,9 @@ from .site_alerts import (
 	check_bench_updates_pending,
 )
 
+# Exposure: ports open to the internet, public route lists, key-less routes, preview login
+from .exposure_alerts import check_public_exposure
+
 # GitHub
 from .github_alerts import check_github_token_health
 

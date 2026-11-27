@@ -302,6 +302,7 @@ def _send(events, total):
 	return send_alert_email(
 		recipients=RECIPIENTS,
 		subject=f"MCP Agent Watch: {total} event(s) {ts}",
+		immediate=True,
 		message=wrap_email("MCP Agent Watch", body, f"press-ctrl &bull; {ts}"),
 	)
 

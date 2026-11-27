@@ -264,6 +264,18 @@ def get_infra_tree() -> dict:
 	return tree
 
 
+@frappe.whitelist()
+def get_security_findings() -> dict | None:
+	"""The Exposure Watch rule's last hourly result (open ports, route lists, routes without a key, preview login),
+	for the Security rows on this page and the Watch Tower tile. System Manager only, like the tree; anyone else gets
+	None, not an error, because the Watch Tower overview (also open to the Watch Tower Hub role) asks on every load."""
+	if "System Manager" not in frappe.get_roles():
+		return None
+	from press.watch_tower.alerts.exposure_alerts import last_findings
+
+	return last_findings()
+
+
 def warm_infra_tree():
 	"""Scheduled: rebuild + cache the infra tree so the dashboard always reads a
 	warm cache. The build does a supervisorctl probe per bench + host probes (~10s),

@@ -206,6 +206,7 @@ def check_email_queue_growth(doc_dict, rule):
 	send_alert_email(
 		recipients=["eng.elgogary@gmail.com"],
 		subject=f"\U0001f4e7 Email Queue Alert: {unsent + error} stuck \u2014 {ts}",
+		immediate=True,
 		message=wrap_email("\U0001f4e7 Email Queue Growth", body, f"press-ctrl &bull; {ts}"),
 	)
 	return True

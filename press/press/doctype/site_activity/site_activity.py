@@ -46,6 +46,7 @@ class SiteActivity(Document):
 			"Enable Monitoring And Alerts",
 			"Access Offsite Backups",
 			"Archive Notification",
+			"Share Login",
 		]
 		job: DF.Link | None
 		reason: DF.SmallText | None

@@ -454,6 +454,9 @@ scheduler_events.setdefault("daily", []).extend([
     "press.watch_tower.site_activity_sync.sync_site_activity",
     "press.watch_tower.site_lifecycle.run_site_lifecycle",
 ])
+scheduler_events.setdefault("cron", {}).setdefault("0 8 * * *", []).append(
+    "press.watch_tower.jobs.run_morning_report"
+)
 scheduler_events.setdefault("weekly", []).append("press.watch_tower.jobs.run_weekly_watch_tower")
 
 
@@ -532,6 +535,7 @@ __persistent_cache_keys = [
 	"one_time_login_key*",
 	"press-auth-logs",
 	"rl:*",
+	"wt:digest:*",  # Watch Tower alerts waiting for the morning report
 ]
 
 # `frappe.rename_doc` erases all caches, this hook preserves some of them.

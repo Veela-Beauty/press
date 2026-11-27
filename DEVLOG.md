@@ -1,5 +1,25 @@
 # Press Fork Dev Log
 
+### Session 28 - 2026-11-27: one morning email instead of an alert flood (0.7.77)
+
+**What we did:** `send_alert_email` keeps non-urgent alerts in a Redis digest (`alerts/digest.py`) listed in the health report, which moved to 08:00 (`run_morning_report`); urgent alerts (disk included, the owner's choice) are still sent at once. The GitHub check runs once per rule run. `wt:digest:*` is a persistent cache key. Live on press-ctrl 27 Nov 05:38 by file copy, PR #91 (stacked on #89).
+
+**Files:** press/watch_tower/alerts/digest.py and test_digest.py (new), email_branding.py, health_report.py, jobs.py, hooks.py, the alert modules that pass `immediate=True`.
+
+**Watch out:** Brevo holds our mail and releases one batch a day (26 and 27 Nov, about 1.5 days late), so an email's arrival time is not its send time. Press keeps `app_hooks` across clear-cache: after a hooks.py change, delete that key once web and workers have restarted, or the old hooks stay in Redis.
+
+**Open:** confirm the Brevo daily limit on the account; 3 failing app sources on bench-0041 (repos moved to accurate-systems).
+
+### Session 27 - 2026-11-26: Exposure Watch rule, security rows on the dashboard, Infrastructure clean-up (0.7.74 to 0.7.76)
+
+**What we did:** after the Anwar test link showed a public route list, 0.7.74 adds the Exposure Watch rule (`exposure_alerts.py`): open ports on our servers seen from press-ctrl, public `/openapi.json`, admin routes that answer without a key, and Sanad Preview without its login. 0.7.75 (prototype PRS-SP-11) saves the findings to cache for 3 hours and shows them as a Security group in Needs attention on Infrastructure and a "Security risks" tile on the Watch Tower overview (`get_security_findings`, System Manager only). 0.7.76 (prototype PRS-SP-12) cleans the Infrastructure page: title once, no summary tiles, labelled filters with counts, the Gate-0 banner as a Setup row, aligned rows. All live on press-ctrl, PR #89.
+
+**Files:** press/watch_tower/alerts/exposure_alerts.py (new), test_exposure_alerts.py (new, 13 tests, runs without a bench), press/api/infra_board.py (one method), dashboard/src/pages/infrastructure/{InfraDashboard,NeedsAttention,ServerList}.vue, infra-api.js, watch-tower/Overview.vue.
+
+**Watch out:** the owner's rule: the server rows that open to their containers (`ServerChildRows.vue`) never change. `SummaryCards.vue` stays (Telephony uses it). The dashboard is built with `yarn build` in `dashboard/`, not `bench build --app press`. A Python Method rule runs once per candidate document, so the check is memoized.
+
+**Open:** a daily email digest and the two loudest alert causes (16 to 18 failing scheduled jobs an hour, 11 apps failing GitHub polls); Low rows out of the exposure email. The 2 High rows clear when Sanad Brain 0.9.1 is rebuilt.
+
 ### Session 27 - 2026-11-25/26: 30-day SSH on development benches with revocation (0.7.72 to 0.7.74)
 
 **What we did:** owner asked for longer SSH ("30 days on dev benches", then "30 days + revocation"). 0.7.73 (PR #88):
@@ -488,4 +508,10 @@ Granting role A does NOT grant role B. A new Press Role created via the dashboar
 2. Vue (`dashboard/src/router.js` `waitUntilTeamLoaded`): on team-resource error, try a one-shot fallback — reset `localStorage.current_team` to `window.default_team` and reload the page. Fresh boot creates a new resource for the right team and recovers without re-login. Only logs out if fallback already attempted OR no default_team available. Added 5-second polling cap as safety net.
 3. `bench build --app press` to ship the JS change.
 **Lesson:** Bare `frappe.throw(message)` defaults to `ValidationError` — a foot-gun anywhere a frontend branches on `exc_type`. Always pass an explicit exception type matching the semantic meaning: `PermissionError` for "not allowed", `DoesNotExistError` for "missing", `ValidationError` for "invalid input". Going forward, never use bare `frappe.throw(string)` in code paths reachable by the dashboard.
+
+### 2026-11-26 - `bench restart` over SSH stopped the press-ctrl workers (third time)
+**What happened:** deploying 0.7.74, `bench restart` ran under a short SSH timeout; the timeout cut it after the stop and before the start, so the workers and the scheduler stayed down about 8 minutes.
+**Root cause:** a group restart stops everything first and waits on a busy long worker; the SSH timeout ends the command in between.
+**How we fixed it:** `supervisorctl start all`. Since then: restart `frappe-bench-web:frappe-bench-frappe-web` alone, then each worker one at a time under `nohup` (build workers left alone); a front-end-only change restarts web only.
+**Lesson:** never run `bench restart` on press-ctrl from a command with a timeout. Restart one process at a time and check `supervisorctl status` after.
 

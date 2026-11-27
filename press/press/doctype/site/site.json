@@ -20,6 +20,8 @@
   "cluster",
   "admin_password",
   "confidential_admin_pin",
+  "share_user",
+  "share_password",
   "additional_system_user_created",
   "backup_timeout",
   "config_tab",
@@ -165,6 +167,19 @@
    "label": "Confidential Admin PIN (global)",
    "depends_on": "eval:doc.is_confidential",
    "description": "Global PIN required to Login As Administrator on confidential sites. Shared across all sites (stored in Press Settings). The current PIN is never shown; type a new one here to change it, or leave empty to keep it."
+  },
+  {
+   "description": "The login sent with Copy share message on the dashboard (Logins and sharing). Set by Press.",
+   "fieldname": "share_user",
+   "fieldtype": "Data",
+   "label": "Share User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "share_password",
+   "fieldtype": "Password",
+   "label": "Share Password",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_3",
@@ -863,7 +878,7 @@
    "link_fieldname": "site"
   }
  ],
- "modified": "2026-02-09 16:05:29.084553",
+ "modified": "2026-11-27 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Press",
  "name": "Site",

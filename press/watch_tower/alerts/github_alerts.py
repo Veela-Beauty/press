@@ -4,6 +4,14 @@ from ._helpers import ts_now
 
 
 def check_github_token_health(doc_dict, rule):
+	"""The engine calls a Python Method rule once per candidate record (203 a night, 5 emails got through the
+	relay on 25 Nov): one GitHub call and one alert per run (0.7.77)."""
+	from .scheduler_alerts import _memoized
+
+	return _memoized("github_token_health", _eval_github_token_health, ttl=3600)
+
+
+def _eval_github_token_health():
 	"""
 	Check if GitHub API token is working. Fires if:
 	- Token is missing from Press Settings
@@ -46,7 +54,7 @@ def check_github_token_health(doc_dict, rule):
 		except Exception as e:
 			issues.append(f"Could not reach GitHub API: {str(e)[:100]}")
 
-	failed_polls = frappe.db.count("App Source", {"last_github_poll_failed": 1})
+	failed_polls = frappe.db.count("App Source", {"last_github_poll_failed": 1, "enabled": 1})
 	if failed_polls > 10:
 		issues.append(f"<b>{failed_polls}</b> App Sources have failed GitHub polls")
 
