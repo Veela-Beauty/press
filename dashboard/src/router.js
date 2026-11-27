@@ -3,6 +3,7 @@ import { getTeam } from './data/team';
 import generateRoutes from './objects/generateRoutes';
 import partnerRoutes from './router/partner-routes';
 import accountRoutes from './router/account-routes';
+import messagingRoutes from './router/messaging-routes';
 import session from './data/session';
 
 let router = createRouter({
@@ -390,6 +391,7 @@ let router = createRouter({
 			name: 'Telephony',
 			component: () => import('./pages/telephony/TelephonyDashboard.vue'),
 		},
+		...messagingRoutes,
 		{
 			path: '/notifications',
 			name: 'NotificationsFeed',
