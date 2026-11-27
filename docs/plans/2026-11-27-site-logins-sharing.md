@@ -25,15 +25,21 @@ Site Activity ("Share Login") and the last 5 show in the card.
 - Share user: created over the site's REST as Administrator (`Site.get_connection_as_admin`), `role_profile_name` from
   the site's Role Profiles, a random 18-character password, no welcome email.
 
+- Accepted with reason (review finding 5): linking an app inside the dialog proves no more than the session. A
+  session can already use Login as Administrator on a non-confidential site, so it opens nothing new; the link is
+  recorded in Site Activity.
+
 ## Tasks
 - [x] Site fields + Site Activity option (9e38cd50c)
 - [x] `press/api/site_logins.py` + 11 offline tests (c7f839b40)
 - [x] `SiteLogins.vue` card + `SiteLoginsCodeDialog.vue`, placed after SiteDailyUsage in SiteOverview.vue; vite build passes (07cbdd10e)
-- [ ] Audits: layout re-score on the built card, the role jobs measured, code review, security review
-- [ ] Version 0.7.78, CHANGELOG, PR stacked on feat/watch-tower-digest
-- [ ] Deploy only when the owner says "deploy" (needs migrate on press-ctrl)
+- [x] Code and security review: 6 must-fix found, all fixed (bab00a326, adc33acc2); 20 offline tests
+- [ ] Layout re-score and the role jobs measured on the real screen <!-- blocked: needs a dashboard login; the MCP token cannot mint one while the team has an unlocked confidential site -->
+- [x] Version 0.7.80 (0.7.78 and 0.7.79 were taken the same day), CHANGELOG, PR #94 merged into cloudflare-dns (5f818671f); #89 merged, #91 closed as landed
+- [x] Deployed 27 Nov 09:38 Riyadh by file copy + reload_doc of Site and Site Activity, no full migrate (press-ops eed3b58)
 
 ## Resume here (2026-11-27)
-- Done: fields (9e38cd50c), backend + 11 tests (c7f839b40), card + dialog (07cbdd10e), version 0.7.78.
-- In progress: independent code and security review. Next: fixes, PR stacked on feat/watch-tower-digest.
-- Measured on the real screen after deploy (no Press dev site): layout score and the role jobs.
+- Live: 0.7.80 on press-ctrl since 09:38 Riyadh, PR #94.
+- Next: the owner's first real use on basher-training (Create share user needs an authenticator app);
+  then measure the layout and the role jobs on the real screen. Emailed codes wait on Brevo (it delays our mail
+  about 1.5 days, 27 Nov).
