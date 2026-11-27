@@ -17,7 +17,7 @@
  "module": "Press",
  "name": "Messaging Settings",
  "owner": "Administrator",
- "permissions": [{"create": 1, "read": 1, "write": 1, "role": "System Manager"}],
+ "permissions": [{"create": 1, "read": 1, "write": 1, "role": "Administrator"}],
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],

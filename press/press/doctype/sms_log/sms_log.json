@@ -23,7 +23,7 @@
  "module": "Press",
  "name": "SMS Log",
  "owner": "Administrator",
- "permissions": [{"read": 1, "report": 1, "export": 1, "role": "System Manager"}],
+ "permissions": [{"read": 1, "report": 1, "export": 1, "role": "Administrator"}],
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],

@@ -20,7 +20,7 @@
  "module": "Press",
  "name": "SMS Provider",
  "owner": "Administrator",
- "permissions": [{"create": 1, "delete": 1, "read": 1, "write": 1, "role": "System Manager"}],
+ "permissions": [{"create": 1, "delete": 1, "read": 1, "write": 1, "role": "Administrator"}],
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
