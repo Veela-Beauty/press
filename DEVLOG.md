@@ -1,5 +1,15 @@
 # Press Fork Dev Log
 
+### Session 29 - 2026-11-27: site logins and sharing on the site Overview (0.7.80)
+
+**What we did:** prototype PRS-SP-17 (approved) built and shipped: a "Logins and sharing" card on each site's Overview with the share login and the Administrator login, each behind a 6-digit code (authenticator app or emailed code), 10 minutes unlocked, every action in Site Activity as "Share Login". An independent review found 6 must-fix items before deploy (POST only, System Users bound to their team, the rate-limit trap, safe role profiles, per-user code lock-out, app code once); all fixed. Merged with the other session's 0.7.78 and 0.7.79 as 0.7.80 (PR #94, also lands #89 and #91), live on press-ctrl 09:38 Riyadh by file copy + `reload_doc`.
+
+**Files:** press/api/site_logins.py (new), press/api/tests/test_site_logins_offline.py (20 tests), dashboard/src/components/site/SiteLogins.vue and SiteLoginsCodeDialog.vue (new), SiteOverview.vue (3 lines), site.json, site_activity.json and .py. Wiki: docs/wiki/01-backend-development/site-logins-sharing.md.
+
+**Watch out:** `frappe.rate_limiter.rate_limit` keys on the outer endpoint and the IP, so calling a rate-limited whitelisted function from your own endpoint spends your counter. `frappe.whitelist()` allows GET, and a GET request is rolled back, so an audit row written there disappears. `protected("Site")` lets every System User through. The dashboard build writes into `press/public/dashboard` (git-ignored) whatever `--outDir` says.
+
+**Open:** the layout score and each role's clicks on the live screen (needs a dashboard login: the MCP token cannot mint one while a confidential site is not unlocked); emailed codes wait on Brevo.
+
 ### Session 28 - 2026-11-27: one morning email instead of an alert flood (0.7.77)
 
 **What we did:** `send_alert_email` keeps non-urgent alerts in a Redis digest (`alerts/digest.py`) listed in the health report, which moved to 08:00 (`run_morning_report`); urgent alerts (disk included, the owner's choice) are still sent at once. The GitHub check runs once per rule run. `wt:digest:*` is a persistent cache key. Live on press-ctrl 27 Nov 05:38 by file copy, PR #91 (stacked on #89).

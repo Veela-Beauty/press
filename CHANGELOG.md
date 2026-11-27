@@ -16,6 +16,7 @@ This file documents changes (current commit level since, no tagged releases yet)
   recovery codes). Endpoints in `press/api/site_logins.py`, each checked for the team and the Press role.
 - Every action is recorded in Site Activity as "Share Login" (who, what, how verified); the last 5 show in the card.
 - Site fields `share_user`, `share_password` and the Site Activity option "Share Login": needs a migrate.
+- Wiki: [Site Logins and Sharing](docs/wiki/01-backend-development/site-logins-sharing.md).
 
 ## 27-11-2026: An archived bench's Code Server ends Archived, not Broken (0.7.79)
 
