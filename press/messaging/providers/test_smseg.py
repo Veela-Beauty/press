@@ -25,7 +25,7 @@ class TestSmseg(unittest.TestCase):
 				"message": "code 1",
 			},
 		)
-		self.assertEqual(post.call_args.kwargs["timeout"], 10)
+		self.assertEqual(post.call_args.kwargs["timeout"], 8)
 
 	def test_an_http_error_is_not_ok(self):
 		with patch("requests.post", return_value=MagicMock(ok=False, status_code=401, text="bad login")):

@@ -7,7 +7,15 @@
 			<div class="mb-4 flex items-center gap-2">
 				<h1 class="text-lg font-semibold text-gray-900">SMS routes</h1>
 				<div class="flex-1" />
-				<Button variant="solid" label="Save" :loading="saving" @click="save" />
+				<FormControl
+						v-model="siteHourlyCap"
+						type="number"
+						min="1"
+						max="100000"
+						label="Most SMS per site per hour"
+						class="w-56 text-sm"
+					/>
+					<Button variant="solid" label="Save" :loading="saving" @click="save" />
 			</div>
 			<div v-if="error" class="rounded-lg border border-red-200 bg-red-50 p-4 text-base text-red-700">
 				{{ error }}
@@ -70,6 +78,7 @@ const crumbs = [
 
 const rows = ref([]);
 const providers = ref([]);
+const siteHourlyCap = ref(200);
 const saving = ref(false);
 const error = ref('');
 
@@ -78,6 +87,7 @@ async function load() {
 		const out = await call('get_routes');
 		rows.value = out.rows;
 		providers.value = out.providers;
+		siteHourlyCap.value = out.site_hourly_cap;
 	} catch (e) {
 		error.value = errorText(e);
 	}
@@ -86,7 +96,10 @@ async function load() {
 async function save() {
 	saving.value = true;
 	try {
-		await call('save_routes', { rows: JSON.stringify(rows.value) });
+		await call('save_routes', {
+			rows: JSON.stringify(rows.value),
+			site_hourly_cap: siteHourlyCap.value,
+		});
 		toast.success('Routes saved. They apply to SMS sent from now on.');
 	} catch (e) {
 		toast.error(errorText(e));

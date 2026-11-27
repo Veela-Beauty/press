@@ -12,6 +12,8 @@ This file documents changes (current commit level since, no tagged releases yet)
 - `press.api.messaging`: owner-only dashboard calls (sites, switch SMS codes on or off, log, cost by client, routes,
   providers, test SMS) and `request_sms`, which a Basher site calls before each SMS: Press checks the site's key, picks
   the route for the number's country, logs the cost and answers "firebase" or sends through the local provider.
+- `request_sms` is no relay: a site sends a 6-digit code and a language, Press writes the SMS text itself, and anything else is refused.
+- Caps on `request_sms`: 5 SMS per number per hour and a per-site hourly cap (Messaging Settings, default 200, set on the Routes page); over a cap it answers "refused". A provider failure answers "failed" and the log row stays not delivered.
 - The smseg sender (`press/messaging/providers/smseg.py`); a new provider type is one more module.
 - Menu: Telephony moves under a new Communications group, with an SMS group of five pages (Sites, Log, Cost by client,
   Routes, Providers).

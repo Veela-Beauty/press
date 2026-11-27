@@ -13,8 +13,10 @@ sends it) or sends the text through the local provider and answers "server". The
 
 import hmac
 import json
+import re
 
 import frappe
+import phonenumbers
 from frappe.rate_limiter import rate_limit
 from frappe.utils import get_url, nowdate
 
@@ -26,17 +28,12 @@ TOKEN_KEY = "basher_sms_token"
 URL_KEY = "basher_sms_press_url"
 SMS_KEYS = (TOKEN_KEY, URL_KEY)
 BASHER_APP = "basher_hr"
-# Calling codes we route by; any other number takes the "default" route. Longest prefix first.
-CALLING_CODES = (
-	("966", "SA"),
-	("971", "AE"),
-	("965", "KW"),
-	("974", "QA"),
-	("973", "BH"),
-	("968", "OM"),
-	("962", "JO"),
-	("20", "EG"),
-)
+HOUR = 3600
+MAX_SMS_PER_NUMBER_PER_HOUR = 5
+DEFAULT_SITE_HOURLY_CAP = 200
+CODE_PATTERN = re.compile(r"[0-9]{6}")
+TEXT_AR = "رمز تفعيل باشر: {code}. يصلح 10 دقائق."
+TEXT_EN = "Your Basher activation code is {code}. It works for 10 minutes."
 
 
 def _is_system_user():
@@ -49,11 +46,10 @@ def _only_owner():
 
 
 def _country(e164):
-	digits = str(e164 or "").lstrip("+")
-	for code, country in CALLING_CODES:
-		if digits.startswith(code):
-			return country
-	return ""
+	try:
+		return phonenumbers.region_code_for_number(phonenumbers.parse(str(e164 or "")))
+	except phonenumbers.NumberParseException:
+		return ""
 
 
 def _month_range(month):
@@ -65,6 +61,31 @@ def _month_range(month):
 	y, mo = int(year), int(mon)
 	nxt = (y + 1, 1) if mo == 12 else (y, mo + 1)
 	return f"{y:04d}-{mo:02d}-01", f"{nxt[0]:04d}-{nxt[1]:02d}-01"
+
+
+def _month_or_throw(month):
+	try:
+		return _month_range(month)
+	except ValueError:
+		frappe.throw(frappe._("Pick a month like 2026-11."), frappe.ValidationError)
+
+
+def _bump(key, window_seconds=HOUR):
+	"""Atomic counter in Redis (one INCRBY, window set on the first hit); returns the new count."""
+	client = frappe.cache
+	made = client.make_key(key)
+	count = client.incrby(made, 1)
+	if count == 1 or client.ttl(made) < 0:
+		client.expire(made, window_seconds)
+	return count
+
+
+def _over_cap(site, e164):
+	"""Counts this request against the number's and the site's hourly caps; True when either is passed."""
+	cap = frappe.db.get_single_value("Messaging Settings", "site_hourly_cap") or DEFAULT_SITE_HOURLY_CAP
+	if _bump(f"press_sms_number:{e164}") > MAX_SMS_PER_NUMBER_PER_HOUR:
+		return True
+	return _bump(f"press_sms_site:{site}") > int(cap)
 
 
 def _routes():
@@ -82,7 +103,7 @@ def _site_row(site):
 
 
 def _log(**fields):
-	frappe.get_doc({"doctype": "SMS Log", **fields}).insert(ignore_permissions=True)
+	return frappe.get_doc({"doctype": "SMS Log", **fields}).insert(ignore_permissions=True).name
 
 
 def _send_through(provider_name, e164, text):
@@ -99,7 +120,7 @@ def _send_through(provider_name, e164, text):
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 @rate_limit(limit=120, seconds=60)
-def request_sms(site, token, e164, text, purpose="Basher activation"):
+def request_sms(site, token, e164, code, lang="en", purpose="Basher activation"):
 	stored = _stored_token(site)
 	row = _site_row(site)
 	if (
@@ -108,6 +129,12 @@ def request_sms(site, token, e164, text, purpose="Basher activation"):
 		or row.status != "Active"
 	):
 		raise frappe.PermissionError("SMS codes are not on for this site")
+	code = str(code or "")
+	if not CODE_PATTERN.fullmatch(code):
+		frappe.throw(frappe._("The code must be 6 digits."), frappe.ValidationError)
+	if _over_cap(row.name, e164):
+		return {"mode": "refused"}
+	text = (TEXT_AR if lang == "ar" else TEXT_EN).format(code=code)
 	country = _country(e164)
 	route = routes.route_for(country, _routes())
 	mode = routes.mode_of(route["provider"])
@@ -123,17 +150,18 @@ def request_sms(site, token, e164, text, purpose="Basher activation"):
 	if mode == "firebase":
 		_log(**entry, delivered=1)
 		return {"mode": "firebase"}
+	log_name = _log(**entry, delivered=0)
 	ok, _detail = _send_through(route["provider"], e164, text)
-	_log(**entry, delivered=1 if ok else 0)
 	if not ok:
-		frappe.throw(frappe._("The SMS provider did not take the message"), frappe.ValidationError)
+		return {"mode": "failed"}
+	frappe.db.set_value("SMS Log", log_name, "delivered", 1)
 	return {"mode": "server"}
 
 
 @frappe.whitelist()
 def list_sites():
 	_only_owner()
-	start, end = _month_range(None)
+	start, end = _month_or_throw(None)
 	sites = frappe.get_all("Site", filters={"status": "Active"}, fields=["name", "team"], order_by="name asc")
 	with_app = set(
 		frappe.get_all("Site App", filters={"app": BASHER_APP, "parenttype": "Site"}, pluck="parent")
@@ -177,7 +205,13 @@ def set_sms_codes(site, on):
 	on = str(on).lower() in ("1", "true")
 	doc = frappe.get_doc("Site", site)
 	if on:
-		doc._update_configuration({TOKEN_KEY: frappe.generate_hash(length=40), URL_KEY: get_url()})
+		if doc.status != "Active" or BASHER_APP not in {a.app for a in doc.apps}:
+			frappe.throw(
+				frappe._("SMS codes can be switched on only for an Active site that has Basher installed."),
+				frappe.ValidationError,
+			)
+		token = _stored_token(site) or frappe.generate_hash(length=40)
+		doc._update_configuration({TOKEN_KEY: token, URL_KEY: get_url()})
 	else:
 		doc.configuration = [row for row in doc.configuration if row.key not in SMS_KEYS]
 		doc.save()
@@ -188,7 +222,7 @@ def set_sms_codes(site, on):
 @frappe.whitelist()
 def sms_log(team=None, month=None, start=0, limit=100):
 	_only_owner()
-	first, end = _month_range(month)
+	first, end = _month_or_throw(month)
 	filters = [["creation", ">=", first], ["creation", "<", end]]
 	if team:
 		filters.append(["team", "=", team])
@@ -217,7 +251,7 @@ def sms_log(team=None, month=None, start=0, limit=100):
 @frappe.whitelist()
 def cost_by_client(month=None):
 	_only_owner()
-	first, end = _month_range(month)
+	first, end = _month_or_throw(month)
 	rows = frappe.get_all(
 		"SMS Log",
 		filters=[["creation", ">=", first], ["creation", "<", end]],
@@ -254,13 +288,25 @@ def get_routes():
 		or "basher-hr",
 		"rows": [{"country": k, "provider": table[k]["provider"], "price": table[k]["price"]} for k in order],
 		"providers": [routes.FIREBASE, *frappe.get_all("SMS Provider", filters={"enabled": 1}, pluck="name")],
+		"site_hourly_cap": frappe.db.get_single_value("Messaging Settings", "site_hourly_cap")
+		or DEFAULT_SITE_HOURLY_CAP,
 	}
 
 
 @frappe.whitelist()
-def save_routes(rows):
+def save_routes(rows, site_hourly_cap=None):
 	_only_owner()
 	rows = json.loads(rows) if isinstance(rows, str) else rows
+	if site_hourly_cap not in (None, ""):
+		try:
+			site_hourly_cap = int(str(site_hourly_cap))
+		except ValueError:
+			site_hourly_cap = 0
+		if not 1 <= site_hourly_cap <= 100000:
+			frappe.throw(
+				frappe._("Most SMS per site per hour must be a whole number from 1 to 100000."),
+				frappe.ValidationError,
+			)
 	try:
 		table = routes.clean(rows)
 	except ValueError as error:
@@ -273,6 +319,8 @@ def save_routes(rows):
 		)
 	settings = frappe.get_single("Messaging Settings")
 	settings.routes = json.dumps(table)
+	if site_hourly_cap not in (None, ""):
+		settings.site_hourly_cap = site_hourly_cap
 	settings.save(ignore_permissions=True)
 	return {"ok": True}
 

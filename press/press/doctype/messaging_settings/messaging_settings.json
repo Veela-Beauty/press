@@ -3,8 +3,9 @@
  "creation": "2026-11-27 12:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
- "field_order": ["firebase_project", "routes"],
+ "field_order": ["firebase_project", "routes", "site_hourly_cap"],
  "fields": [
+  {"default": "200", "fieldname": "site_hourly_cap", "fieldtype": "Int", "label": "Most SMS per site per hour"},
   {"default": "basher-hr", "fieldname": "firebase_project", "fieldtype": "Data", "label": "Firebase project"},
   {"fieldname": "routes", "fieldtype": "JSON", "label": "Routes per country"}
  ],

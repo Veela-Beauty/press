@@ -6,7 +6,7 @@ confirms it."""
 import requests
 
 URL = "https://smssmartegypt.com/sms/api/json/"
-TIMEOUT_SECONDS = 10
+TIMEOUT_SECONDS = 8
 
 
 def send(settings, to_e164, text):
