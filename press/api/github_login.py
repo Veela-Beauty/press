@@ -22,6 +22,7 @@ TOKEN_URL = "https://github.com/login/oauth/access_token"
 API_URL = "https://api.github.com"
 CALLBACK_PATH = "/api/method/press.api.github.login_callback"
 STATE_SECONDS = 5 * 60
+STATE_COOKIE = "github_login_state"
 TIMEOUT = 15
 
 
@@ -41,11 +42,15 @@ def login(product=None):
 	conf = settings()
 	state = frappe.generate_hash(length=32)
 	frappe.cache().set_value(f"github_login:{state}", {"product": product}, expires_in_sec=STATE_SECONDS)
+	# the same state in this browser's cookie: a sign-in link started elsewhere cannot finish here (login CSRF)
+	frappe.local.cookie_manager.set_cookie(
+		STATE_COOKIE, state, max_age=STATE_SECONDS, httponly=True, samesite="Lax"
+	)
 	query = urlencode(
 		{
 			"client_id": conf["client_id"],
 			"redirect_uri": redirect_uri(conf),
-			"scope": "read:user user:email",
+			"scope": "user:email",
 			"state": state,
 			"allow_signup": "true",
 		}
@@ -57,10 +62,17 @@ def login(product=None):
 def login_callback(code=None, state=None, error=None):
 	key = f"github_login:{state}"
 	payload = frappe.cache().get_value(key) if state else None
-	if not payload:
-		frappe.local.response["http_status_code"] = 401
-		return _("This sign-in did not start here or took longer than 5 minutes. Please try again.")
+	if not payload or frappe.request.cookies.get(STATE_COOKIE) != state:
+		frappe.respond_as_web_page(
+			_("Sign-in expired"),
+			_("This sign-in did not start in this browser or took longer than 5 minutes. Please try again."),
+			primary_action="/dashboard/login",
+			primary_label=_("Sign in again"),
+			http_status_code=401,
+		)
+		return None
 	frappe.cache().delete_value(key)
+	frappe.local.cookie_manager.delete_cookie(STATE_COOKIE)
 
 	product = payload.get("product")
 	product_trial = frappe.db.get_value("Product Trial", product, ["name"], as_dict=1) if product else None
@@ -71,7 +83,6 @@ def login_callback(code=None, state=None, error=None):
 	try:
 		token = exchange_code(settings(), code)
 		email = primary_verified_email(token)
-		first_name, last_name = names(token)
 	except Exception as e:
 		log_error("GitHub Login failed", data=e)
 		return back_to_login(product_trial)
@@ -87,6 +98,7 @@ def login_callback(code=None, state=None, error=None):
 		)
 		return None
 
+	first_name, last_name = names_or_mail_name(token, email)
 	finish_oauth_login(email, first_name, last_name, product_trial, "GitHub")
 	return None
 
@@ -133,14 +145,18 @@ def github_get(token: str, path: str):
 
 def primary_verified_email(token: str) -> str | None:
 	"""Only GitHub's primary AND verified address: an unverified one could belong to someone else's account here."""
-	for row in github_get(token, "/user/emails"):
+	for row in github_get(token, "/user/emails?per_page=100"):
 		if row.get("primary") and row.get("verified") and row.get("email"):
 			return row["email"].strip().lower()
 	return None
 
 
-def names(token: str) -> tuple[str, str]:
-	user = github_get(token, "/user")
+def names_or_mail_name(token: str, email: str) -> tuple[str, str]:
+	"""The GitHub profile name for the account request; a failure here must not block a proven sign-in."""
+	try:
+		user = github_get(token, "/user")
+	except Exception:
+		return email.split("@")[0], ""
 	full = (user.get("name") or user.get("login") or "").strip()
 	first, _sep, last = full.partition(" ")
 	return first, last.strip()
