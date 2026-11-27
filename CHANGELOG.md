@@ -4,6 +4,31 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 27-11-2026: sign in with GitHub and Google; 2FA holds on every sign-in path (0.7.84)
+
+### Added
+- The login page's GitHub button works: `press/api/github_login.py` (GitHub OAuth web flow; one-time state in cache that
+  must also match an HttpOnly SameSite=Lax cookie; only GitHub's primary verified e-mail; Cancel and GitHub failures go
+  back to the login page). `press.api.github.login` (20 starts a minute per address) and `press.api.github.login_callback`
+  are the entry points. Keys: site_config `github_login` (from the existing GitHub App mvpstorm-deploy).
+- Google sign-in has its key (site_config `google_credentials`); its code was already there.
+- 15 offline tests: `python3 press/api/tests/test_github_login_offline.py`.
+
+### Security
+- `press/api/oauth_finish.py`: the account step shared by Google and GitHub (moved from `google.py`). 2FA is now checked
+  before every path: a Google sign-in through a product sign-up link used to skip it. Accounts are signed in under the
+  user name AutoDeploy stores.
+
+---
+
+## 27-11-2026: Inventory link on the Infrastructure page (0.7.83)
+
+### Added
+- An "Inventory" link in the Infrastructure header opens Accurate Systems Infrastructure (our NetBox,
+  https://netbox.mvpstorm.com) in a new tab. Staff only, like the page.
+
+---
+
 ## 27-11-2026: a new site keeps its plan (0.7.82)
 
 ### Fixed
