@@ -1,0 +1,31 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-11-27 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["site", "team", "country", "provider", "mode", "cost_usd", "purpose", "delivered"],
+ "fields": [
+  {"fieldname": "site", "fieldtype": "Link", "in_list_view": 1, "in_standard_filter": 1, "label": "Site", "options": "Site", "read_only": 1, "search_index": 1},
+  {"fieldname": "team", "fieldtype": "Link", "in_list_view": 1, "in_standard_filter": 1, "label": "Client", "options": "Team", "read_only": 1, "search_index": 1},
+  {"fieldname": "country", "fieldtype": "Data", "in_list_view": 1, "label": "Country", "length": 2, "read_only": 1},
+  {"fieldname": "provider", "fieldtype": "Data", "in_list_view": 1, "label": "Provider", "read_only": 1},
+  {"fieldname": "mode", "fieldtype": "Select", "label": "Sent from", "options": "firebase\nserver", "read_only": 1},
+  {"fieldname": "cost_usd", "fieldtype": "Float", "in_list_view": 1, "label": "Cost (USD)", "precision": "4", "read_only": 1},
+  {"fieldname": "purpose", "fieldtype": "Data", "label": "Purpose", "read_only": 1},
+  {"default": "1", "fieldname": "delivered", "fieldtype": "Check", "label": "Handed to the provider", "read_only": 1}
+ ],
+ "in_create": 1,
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-27 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Press",
+ "name": "SMS Log",
+ "owner": "Administrator",
+ "permissions": [{"read": 1, "report": 1, "export": 1, "role": "System Manager"}],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

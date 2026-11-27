@@ -238,7 +238,6 @@ scheduler_events = {
 		"press.press.doctype.site.site.archive_creation_failed_sites",
 		"press.press.doctype.site.site.recover_ghost_pending_sites",
 		"press.press.doctype.site.site_usages.audit_site_usage_freshness",
-
 		"press.press.doctype.git_credential_session_log.git_credential_session_log.prune_old_git_credential_logs",
 		# Auto-delete MCP tokens whose expires_at is more than 24h in the past.
 		# Keeps the dashboard's Active Tokens panel clean — see press/mcp_server/auth.py
@@ -289,7 +288,6 @@ scheduler_events = {
 		"press.press.doctype.database_server.database_server.sync_binlogs_info",
 		"press.press.doctype.team.team.auto_enable_ssh_access_for_7_days_older_teams",
 		"press.press.doctype.database_server.database_server.update_database_schema_sizes",
-	
 		"press.press.doctype.code_server.code_server.rotate_expired_code_server_passwords",
 		"press.cleanup.sandbox_cleanup.expire_sandbox_release_groups",
 		"press.cleanup.expired_locks.cleanup_expired_locks",
@@ -448,12 +446,14 @@ scheduler_events = {
 
 # Watch Tower (press-infra alerting) - appended post-definition to avoid editing the literal
 scheduler_events.setdefault("hourly", []).append("press.watch_tower.jobs.run_hourly_watch_tower")
-scheduler_events.setdefault("daily", []).extend([
-    "press.watch_tower.jobs.run_daily_watch_tower",
-    "press.watch_tower.press_alerts.cleanup_old_error_logs",
-    "press.watch_tower.site_activity_sync.sync_site_activity",
-    "press.watch_tower.site_lifecycle.run_site_lifecycle",
-])
+scheduler_events.setdefault("daily", []).extend(
+	[
+		"press.watch_tower.jobs.run_daily_watch_tower",
+		"press.watch_tower.press_alerts.cleanup_old_error_logs",
+		"press.watch_tower.site_activity_sync.sync_site_activity",
+		"press.watch_tower.site_lifecycle.run_site_lifecycle",
+	]
+)
 scheduler_events.setdefault("weekly", []).append("press.watch_tower.jobs.run_weekly_watch_tower")
 
 
@@ -466,13 +466,29 @@ fixtures = [
 	"MariaDB Variable",
 	"Cloud Region",
 	{"dt": "Role", "filters": [["role_name", "like", "Press%"]]},
+	"Site Config Key",
 	"Site Config Key Blacklist",
 	"Press Method Permission",
 	"Bench Dependency",
 	"Server Storage Plan",
 	"Server Snapshot Plan",
 	"Press Webhook Event",
-	{"dt": "Custom Field", "filters": [["name", "in", ["Release Group-cloned_from", "Release Group-clone_lifetime", "Release Group-clone_expires_at", "Press Settings-mcp_script_repo_allowlist", "Press Settings-mcp_script_timeout_max_seconds"]]]},
+	{
+		"dt": "Custom Field",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"Release Group-cloned_from",
+					"Release Group-clone_lifetime",
+					"Release Group-clone_expires_at",
+					"Press Settings-mcp_script_repo_allowlist",
+					"Press Settings-mcp_script_timeout_max_seconds",
+				],
+			]
+		],
+	},
 ]
 # Testing
 # -------

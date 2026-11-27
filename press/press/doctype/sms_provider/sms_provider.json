@@ -1,0 +1,28 @@
+{
+ "actions": [],
+ "autoname": "field:provider_name",
+ "creation": "2026-11-27 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["provider_name", "provider_type", "sender_name", "enabled", "username", "password"],
+ "fields": [
+  {"fieldname": "provider_name", "fieldtype": "Data", "in_list_view": 1, "label": "Provider", "reqd": 1, "unique": 1},
+  {"fieldname": "provider_type", "fieldtype": "Select", "in_list_view": 1, "label": "Type", "options": "smseg", "reqd": 1},
+  {"fieldname": "sender_name", "fieldtype": "Data", "in_list_view": 1, "label": "Sender name", "length": 11, "reqd": 1},
+  {"default": "1", "fieldname": "enabled", "fieldtype": "Check", "in_list_view": 1, "label": "Enabled"},
+  {"fieldname": "username", "fieldtype": "Data", "label": "Username"},
+  {"fieldname": "password", "fieldtype": "Password", "label": "Password"}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-27 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Press",
+ "name": "SMS Provider",
+ "owner": "Administrator",
+ "permissions": [{"create": 1, "delete": 1, "read": 1, "write": 1, "role": "System Manager"}],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
