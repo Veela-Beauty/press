@@ -2,8 +2,22 @@
   <div class="flex h-full flex-col">
     <!-- Sticky topbar -->
     <div class="sticky top-0 z-10 shrink-0">
+      <!-- One row: the tabs on the left, the open tab's actions on the right (owner 27 Nov: no empty band, no second
+           row). Servers = this page; Inventory = our NetBox (servers, clients, sites, handbooks) inside the page, signed
+           in through AutoDeploy. Staff only, like the page. -->
       <Header>
         <Breadcrumbs :items="crumbs" />
+        <!-- the first tab's text lines up with the page's left edge once the trail has moved to the top bar -->
+        <div class="mr-auto flex" :class="topbarCrumbsEl ? '-ml-4' : 'ml-2'">
+          <button
+            v-for="t in TABS"
+            :key="t.id"
+            type="button"
+            :class="tabClass(tab === t.id)"
+            :aria-pressed="tab === t.id"
+            @click="setTab(t.id)"
+          >{{ t.label }}</button>
+        </div>
         <template #actions>
           <div v-if="tab === 'servers'" class="flex items-center gap-3">
             <!-- List / Cards toggle -->
@@ -26,26 +40,15 @@
               updated {{ fresh }}
             </span>
           </div>
+          <a
+            v-else
+            :href="INVENTORY_URL"
+            target="_blank"
+            rel="noopener"
+            class="px-2 text-sm text-gray-500 hover:text-gray-900"
+          >Open full screen</a>
         </template>
       </Header>
-      <!-- Servers = this page; Inventory = our NetBox (servers, clients, sites, handbooks) inside the page, signed in
-           through AutoDeploy. Staff only, like the page. -->
-      <div :class="[TAB_STRIP_PANEL_TOP, TAB_STRIP_DIVIDER, 'px-3']">
-        <button
-          v-for="t in TABS"
-          :key="t.id"
-          type="button"
-          :class="tabClass(tab === t.id)"
-          @click="setTab(t.id)"
-        >{{ t.label }}</button>
-        <a
-          v-if="tab === 'inventory'"
-          :href="INVENTORY_URL"
-          target="_blank"
-          rel="noopener"
-          class="ml-auto px-2 text-sm text-gray-500 hover:text-gray-900"
-        >Open full screen</a>
-      </div>
     </div>
 
     <!-- Inventory: loaded on first open, then kept, so NetBox stays where you left it when you switch back -->
@@ -119,7 +122,8 @@
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Header from '../../components/Header.vue';
-import { TAB_STRIP_PANEL_TOP, TAB_STRIP_DIVIDER, tabClass } from '../../components/_shared/tabClasses.js';
+import { tabClass } from '../../components/_shared/tabClasses.js';
+import { topbarCrumbsEl } from '../../components/topbar';
 import { useInfraTree, useGate0Status, useSecurityFindings } from './infra-api';
 import { isManaged } from './infra-derive';
 import ServerList from './ServerList.vue';
