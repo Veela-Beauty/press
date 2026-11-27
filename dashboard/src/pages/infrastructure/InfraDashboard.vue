@@ -34,8 +34,8 @@
               >Cards</button>
             </div>
 
-            <!-- Freshness indicator -->
-            <span class="flex items-center gap-1.5 text-xs text-gray-500">
+            <!-- Freshness indicator (not on a phone: the row also holds the tabs) -->
+            <span class="hidden items-center gap-1.5 text-xs text-gray-500 sm:flex">
               <span class="h-1.5 w-1.5 rounded-full bg-green-500" />
               updated {{ fresh }}
             </span>
