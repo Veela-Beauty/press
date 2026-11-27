@@ -4,7 +4,7 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
-## 27-11-2026: A deploy keeps the development bench and its Code Server (0.7.75)
+## 27-11-2026: A deploy keeps the development bench and its Code Server (0.7.78; 0.7.76 and 0.7.77 went to the Watch Tower PRs)
 
 ### Fixed
 - After a deploy the new bench was a normal bench, so the development flag and Code Server stayed on the old bench
