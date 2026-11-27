@@ -3,13 +3,14 @@
 ## Active Known Issues
 
 ### Sites with no plan ("No plan set", Compute 0 hours)
-**Status:** Fixed for new sites in 0.7.82 (not deployed yet). The 64 existing sites still have no plan; the plan to give them waits for the owner.
+**Status:** Fixed 27 Nov 2026. 0.7.82 live on press-ctrl at 10:18 (file copy, press-ops `14_deploy_0782.sh`): a new site keeps its plan. The 63 Active or Inactive sites got USD 25 at 10:20 (owner's choice; `12_set_initial_plan.py`: an Initial Plan and a Subscription each, the way Press does at creation, no change to the site's config, so no new limit reached a running site). The one Broken site keeps no plan. Watch Tower rule WT-RULE-123892 "Sites with no plan" (Daily, in the 08:00 report) lists any Active or Inactive site without one.
 **Symptom:** the site's Overview shows "Current Plan: No plan set", while other sites show their plan.
 **Size (press-ctrl, 27 Nov):** 64 of the 98 sites that are not archived have no plan (62 of 95 Active, 1 Inactive, 1 Broken), all on press-f1 (60) and u4-default (4), all in free-account teams. The newest is `basher-training`, made the same day.
 **Cause:** `Site.validate_site_plan` swaps a dedicated-server plan for the cheapest public-server plan when the site's server is public. press-f1 and u4-default are public, and all four of our plans (Free, USD 10, USD 25, Internal Data Access) are dedicated-server plans, so the swap found nothing and set the plan to empty. No Site Plan Change and no Subscription follow. Every creation path hits it: the dashboard, restores and MCP. (Recorded first as the MCP tool's empty default; an empty plan fails `validate_plan`, so that was not it.) 0.7.82 keeps the chosen plan when there is nothing to swap it for.
 **Compute 0 hours is a separate gap:** `current_cpu_usage` is 0 on all 98 sites, those with a plan too. The figure comes from the log server's request counter, which a site writes only when its plan sets a daily CPU limit.
 **Before setting a plan on an existing site:** a plan writes limits into the site's config. Free and Internal Data Access end the site after 14 days and allow 5 users and 2 companies; USD 10 allows 10 users, 3 companies, 2 GB of database; USD 25 has no user quota. Every plan sets a site-wide daily limit on request time (1, 24, 2 or 3 hours): past it, every request gets HTTP 429 until the next UTC day. Disk-usage suspension skips free-account teams.
-**Check:** press-ops `scripts/site-logins-2026-11-27/05_sites_without_plan.sql` (counts), `06` to `09` (plans, cause, limits, compute source), `10_empty_plan_probe.py`.
+**Check:** press-ops `scripts/site-logins-2026-11-27/05_sites_without_plan.sql` (counts), `06` to `09` (plans, cause, limits, compute source), `10_empty_plan_probe.py`, `17_after_plan_fix.sql` (after: 0 Active or Inactive sites without a plan, 63 Initial Plan records, no agent job, no error).
+**Trap found on the way:** piping a script into `bench console` runs it line by line, so a blank line inside an `if` block ends the block; press-ops `run_on_console.sh` runs a script whole through `exec`.
 
 ### Tenant site hangs (TLS OK, body times out) — wrong upstream IP
 **Status:** Recurring — `charity.sandbox.mvpstorm.com` hit it 2026-05-02 (silent for hours; surfaced via Watch Tower alert)
