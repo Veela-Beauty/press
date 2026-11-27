@@ -4,6 +4,18 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 27-11-2026: Inventory is a tab on the Infrastructure page (0.7.86)
+
+### Changed
+- The Infrastructure page has two tabs: Servers (the page as before) and Inventory, which shows our NetBox
+  (Accurate Systems Infrastructure) inside the page, signed in through AutoDeploy with no login screen. "Open full
+  screen" opens it alone. The Inventory link at the top right is gone (owner: in a bad place).
+- The open tab is kept in the address (`?tab=inventory`); NetBox loads on the first open and keeps its place.
+- Tabs use the shared tab style (`components/_shared/tabClasses.js`).
+- NetBox lets only this page show it in a frame (`frame-ancestors` in its nginx, sanadeoi-infra press-ctrl/netbox).
+
+---
+
 ## 27-11-2026: disk, SSH and site-down alerts email when something starts or clears (0.7.85)
 
 ### Changed
