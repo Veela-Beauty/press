@@ -8,9 +8,10 @@
 - **12:15 logout traced:** another session's migrate saved a Role. Each Role save runs `set_system_user`, and that clears the sessions of System Users who hold desk-less roles (Press Member, Press Admin).
 - **Share user:** basher-training's share user switched from Inventory to HR, then checked by logging in as it.
 - **Compute "0 hours":** explained. The log shipper's agent name (press-f1.demo.mvpstorm.com) does not match the server name.
-- **press-ctrl disk, 89% to 71% (85 GB free):** bench images kept 3 days, offsite backups at most 3 per site (`offsite_backups_count` 3, owner), 116 old uploads deleted, 4 restore-test backups with missing files marked Unavailable (press-ops CHANGELOG, 27 Nov).
+- **press-ctrl disk, 89% to 68% (95 GB free):** bench images kept 3 days, offsite backups at most 3 per site (`offsite_backups_count` 3, owner), 116 old uploads deleted, 4 restore-test backups with missing files marked Unavailable (press-ops CHANGELOG, 27 Nov).
+- **Uploads with a copy elsewhere, owner "go":** 132 hash-folder uploads deleted (90 built a live site, 42 older snapshots of those sources). The 38 with no other copy stay on press-ctrl; 9 are listed on Projects Hub as Sensitive records (ABD, ELT, PPCO, SPF, SST). Wiki known issue added.
 
-**Files:** docs only in this repo (wiki site-logins-sharing.md Testing; known-issues-and-fixes.md Sites with no plan). Scripts are in press-ops: `scripts/site-logins-2026-11-27/` 21 to 37 and `scripts/disk-2026-11-27/` 01 to 14.
+**Files:** docs only in this repo (wiki site-logins-sharing.md Testing; known-issues-and-fixes.md Sites with no plan). Scripts are in press-ops: `scripts/site-logins-2026-11-27/` 21 to 37 and `scripts/disk-2026-11-27/` 01 to 21.
 
 **Watch out:**
 - `offsite_backups_count` 0 means 30 (the FIFO fallback), not forever.
@@ -19,7 +20,7 @@
 
 **Open:**
 - The share job's clicks on the live screen (needs a narrow 1-day token).
-- About 15 GB of uploads of sites that no longer exist (owner).
+- Our MinIO never expires uploads (upstream: 1 day). A rule to remove an upload once a live site holds its data is not built (owner).
 - The CPU % agent-name mismatch.
 - Brevo delays emailed codes.
 

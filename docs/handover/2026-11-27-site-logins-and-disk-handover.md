@@ -12,7 +12,7 @@
   - The disk alert stays at 90%, because GWIS staging needs about 28 GB at 03:00.
 
 ## What's pending (owner)
-- About 15 GB of uploads of sites that no longer exist, plus hash-named folders in press-uploads: keep or delete.
+- About 15 GB of uploads of sites that no longer exist, plus hash-named folders in press-uploads: keep or delete. Done, see the update below.
 - The CPU % field reads 0 because the log shipper's agent name (press-f1.demo.mvpstorm.com) differs from the server name.
 - Measuring the share job's clicks on the live screen needs a narrow 1-day token.
 - Emailed codes wait on Brevo.
@@ -36,3 +36,14 @@
 
 ## Open questions
 - Should restore points reach back more than 3 days for client production sites? The setting covers every site alike.
+
+## Update, 27 Nov evening: uploads
+- Owner: delete an upload when a copy is in the right place; an only copy may go to Projects Hub.
+- Deleted 132 hash-folder uploads, 0 failed:
+  - 90 that a live site was built from;
+  - 42 older snapshots of those same sources.
+- Kept 38 uploads with no other copy (2.29 GB). 9 are listed on Projects Hub as Sensitive records pointing at their press-uploads path: ABD 1, ELT 1, PPCO 5, SPF 1, SST 1.
+- No hub project, kept and listed in the press-ops CHANGELOG: zatca14, saudipolycontest-v14, hstp, two July "stream" dumps, 3 test objects.
+- press-ctrl disk now 68%, 95 GB free.
+- Scripts: press-ops `scripts/disk-2026-11-27/` 15 to 21; hub loader in the home repo `docs/scripts/projects_hub/press_upload_pointers_2026_11_27.py`.
+- Still open: our MinIO never expires uploads, so they build up again. A rule that removes an upload once a live site holds its data is not built.
