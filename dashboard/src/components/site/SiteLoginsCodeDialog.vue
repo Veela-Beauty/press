@@ -1,7 +1,11 @@
 <template>
 	<!-- PRS-SP-17: a 6-digit code before a site login is shown or shared. A user without an authenticator app links one
 	     here (same endpoints as Account > Profile), then saves the recovery codes; the code they type also unlocks. -->
-	<Dialog v-model="show" :options="{ title: dialogTitle, actions }">
+	<Dialog
+		v-model="show"
+		:options="{ title: dialogTitle, actions }"
+		:disableOutsideClickToClose="recoveryCodes.length > 0"
+	>
 		<template #body-content>
 			<TFARecoveryCodes v-if="recoveryCodes.length" :recoveryCodes="recoveryCodes" />
 			<div v-else class="space-y-4">
@@ -63,6 +67,7 @@ export default {
 				return this.modelValue;
 			},
 			set(value) {
+				if (!value && this.recoveryCodes.length) return; // shown once: only Done closes
 				if (!value) this.reset();
 				this.$emit('update:modelValue', value);
 			},
@@ -93,11 +98,8 @@ export default {
 		},
 	},
 	watch: {
-		linking: {
-			immediate: true,
-			handler(value) {
-				if (value && !this.qrUrl) this.$resources.qrUrl.fetch();
-			},
+		modelValue(open) {
+			if (open && this.linking && !this.qrUrl) this.$resources.qrUrl.fetch();
 		},
 	},
 	methods: {
@@ -122,7 +124,7 @@ export default {
 				}
 				// the recovery codes stay on screen whatever happens next: they are shown once
 				this.unlocked = await this.$resources.verifyCode
-					.submit({ name: this.site, code, method: 'app' })
+					.submit({ name: this.site, code, method: 'app', linked: 1 })
 					.then(() => true, () => false);
 				return;
 			}

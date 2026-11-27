@@ -127,8 +127,13 @@ export default {
 		createActions() {
 			return [
 				{ label: 'Cancel', variant: 'outline', onClick: () => (this.createDialog = false) },
-				{ label: 'Create', variant: 'solid', loading: this.$resources.createUser.loading, onClick: this.createUser },
+				{ label: 'Create', variant: 'solid', disabled: !this.roleProfile, loading: this.$resources.createUser.loading, onClick: this.createUser },
 			];
+		},
+	},
+	watch: {
+		unlocked(now) {
+			if (!now) this.revealed = { share: '', admin: '' };
 		},
 	},
 	mounted() {
@@ -138,29 +143,39 @@ export default {
 		clearInterval(this.timer);
 	},
 	methods: {
+		// Every sensitive action runs here: a code first (or within the 10 minutes), and an expired code
+		// on the server reopens the dialog and repeats the same action.
 		guard(fn) {
 			this.now = Date.now();
-			if (this.unlocked) return fn();
+			if (this.unlocked) return this.run(fn);
 			this.pending = fn;
 			this.codeDialog = true;
+		},
+		async run(fn) {
+			try {
+				await fn();
+			} catch (e) {
+				const message = e.messages?.join(' ') || e.message;
+				if (e.exc_type === 'PermissionError' && /code first/.test(message)) {
+					this.unlockedUntil = 0;
+					this.pending = fn;
+					this.codeDialog = true;
+					return;
+				}
+				toast.error(message);
+			}
 		},
 		onVerified() {
 			this.unlockedUntil = Date.now() + UNLOCK_MS;
 			this.now = Date.now();
 			const fn = this.pending;
 			this.pending = null;
-			if (fn) fn();
+			if (fn) this.run(fn);
 		},
 		async secret(which, purpose) {
-			try {
-				const out = await this.$resources.secret.submit({ name: this.site, which, purpose });
-				this.$resources.logins.reload();
-				return out;
-			} catch (e) {
-				if (e.exc_type === 'PermissionError') this.unlockedUntil = 0;
-				toast.error(e.messages?.join(' ') || e.message);
-				return null;
-			}
+			const out = await this.$resources.secret.submit({ name: this.site, which, purpose });
+			this.$resources.logins.reload();
+			return out;
 		},
 		toggle(which) {
 			if (this.revealed[which]) {
@@ -168,43 +183,51 @@ export default {
 				return;
 			}
 			this.guard(async () => {
-				const out = await this.secret(which, 'show');
-				if (out) this.revealed[which] = out.password;
+				this.revealed[which] = (await this.secret(which, 'show')).password;
 			});
 		},
 		copy(which) {
 			this.guard(async () => {
 				const out = await this.secret(which, 'copy');
-				if (out) this.toClipboard(out.password, 'Password copied');
+				await this.toClipboard(out.password, 'Password copied');
 			});
 		},
 		copyMessage() {
 			this.guard(async () => {
 				this.busy = 'message';
-				const out = await this.secret('share', 'message');
-				this.busy = '';
-				if (out) {
+				try {
+					const out = await this.secret('share', 'message');
 					const text = `${this.site}\nOpen: https://${this.site}/login\nUser: ${out.user}\nPassword: ${out.password}`;
-					this.toClipboard(text, 'Share message copied');
+					await this.toClipboard(text, 'Share message copied');
+				} finally {
+					this.busy = '';
 				}
 			});
 		},
 		async toClipboard(text, message) {
-			await navigator.clipboard.writeText(text);
-			toast.success(message);
+			try {
+				await navigator.clipboard.writeText(text);
+				toast.success(message);
+			} catch (e) {
+				toast.error('The browser blocked copying. Use Show and copy it by hand.');
+			}
 		},
 		create() {
 			this.guard(() => {
+				this.roleProfile = '';
 				this.createDialog = true;
 				this.$resources.roleProfiles.fetch();
 			});
 		},
 		async createUser() {
-			if (!this.roleProfile) return;
-			await this.$resources.createUser.submit({ name: this.site, role_profile: this.roleProfile });
-			this.createDialog = false;
-			this.$resources.logins.reload();
-			toast.success('Share user created');
+			try {
+				await this.$resources.createUser.submit({ name: this.site, role_profile: this.roleProfile });
+				this.createDialog = false;
+				this.$resources.logins.reload();
+				toast.success('Share user created');
+			} catch (e) {
+				// the dialog shows the error (ErrorMessage bound to the resource)
+			}
 		},
 		reset() {
 			this.guard(() =>
@@ -216,11 +239,15 @@ export default {
 						variant: 'solid',
 						theme: 'red',
 						onClick: async ({ hide }) => {
-							await this.$resources.resetPassword.submit({ name: this.site });
-							this.revealed.share = '';
-							this.$resources.logins.reload();
+							try {
+								await this.$resources.resetPassword.submit({ name: this.site });
+								this.revealed.share = '';
+								this.$resources.logins.reload();
+								toast.success('New share password set');
+							} catch (e) {
+								toast.error(e.messages?.join(' ') || e.message);
+							}
 							hide();
-							toast.success('New share password set');
 						},
 					},
 				}),
