@@ -27,7 +27,7 @@ class Thrown(Exception):
 		self.exc = exc
 
 
-def build_stubs(state):
+def build_stubs(state):  # noqa: C901 - one flat fixture builder
 	frappe = types.ModuleType("frappe")
 	frappe.PermissionError = type("PermissionError", (Exception,), {})
 	frappe.AuthenticationError = type("AuthenticationError", (Exception,), {})
