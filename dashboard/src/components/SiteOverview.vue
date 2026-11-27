@@ -323,6 +323,7 @@
 		</div>
 
 		<SiteDailyUsage :site="site" />
+		<SiteLogins class="col-span-1 lg:col-span-2" :site="site" />
 
 		<!-- Tags -->
 		<div class="col-span-1 flex items-center space-x-2 lg:col-span-2">
@@ -365,6 +366,7 @@ import DismissableBanner from './DismissableBanner.vue';
 import { getToastErrorMessage } from '../utils/toast';
 import { renderDialog } from '../utils/components';
 import SiteDailyUsage from './SiteDailyUsage.vue';
+import SiteLogins from './site/SiteLogins.vue';
 import AlertBanner from './AlertBanner.vue';
 import { trialDays } from '../utils/site';
 import CustomAlerts from './CustomAlerts.vue';
@@ -374,6 +376,7 @@ export default {
 	props: ['site'],
 	components: {
 		SiteDailyUsage,
+		SiteLogins,
 		Progress,
 		AlertBanner,
 		DismissableBanner,
