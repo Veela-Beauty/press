@@ -740,5 +740,33 @@
   "parenttype": null,
   "title": "Workers",
   "type": "JSON"
+ },
+ {
+  "description": "Basher SMS codes: this site's key for press.api.messaging.request_sms. Set and removed by Communications, SMS, Sites.",
+  "docstatus": 0,
+  "doctype": "Site Config Key",
+  "internal": 1,
+  "key": "basher_sms_token",
+  "modified": "2026-11-27 12:00:00.000000",
+  "name": "basher_sms_token",
+  "parent": null,
+  "parentfield": null,
+  "parenttype": null,
+  "title": "Basher SMS Token",
+  "type": "String"
+ },
+ {
+  "description": "Basher SMS codes: the Press address the site asks before each SMS.",
+  "docstatus": 0,
+  "doctype": "Site Config Key",
+  "internal": 1,
+  "key": "basher_sms_press_url",
+  "modified": "2026-11-27 12:00:00.000000",
+  "name": "basher_sms_press_url",
+  "parent": null,
+  "parentfield": null,
+  "parenttype": null,
+  "title": "Basher SMS Press URL",
+  "type": "String"
  }
 ]

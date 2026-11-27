@@ -21,7 +21,12 @@ the rail shows no arrows. -->
 		<lucide-chevron-right class="as-rail-more" :class="{ down: inline }" />
 	</div>
 	<div v-if="full && inline" class="as-rail-children">
-		<AppSidebarItem v-for="sub in item.children" :key="sub.name" :item="sub" />
+		<template v-for="sub in item.children" :key="sub.name">
+			<div v-if="sub.children" class="as-rail-nested">
+				<AppSidebarItemGroup :item="sub" />
+			</div>
+			<AppSidebarItem v-else :item="sub" />
+		</template>
 	</div>
 </template>
 
@@ -39,7 +44,9 @@ const props = defineProps({
 
 const tile = ref(null);
 const full = computed(() => menuExpanded.value || menuDrawer.value);
-const isActive = computed(() => props.item.isActive || props.item.children.some((c) => c.isActive));
+const isActive = computed(
+	() => props.item.isActive || props.item.children.some((c) => c.isActive || (c.children || []).some((g) => g.isActive)),
+);
 // open inline, and open by itself when you land on one of its pages
 const inline = ref(isActive.value);
 watch(isActive, (now) => now && (inline.value = true));
@@ -78,6 +85,9 @@ async function toggle() {
 }
 .as-rail.expanded .as-rail-children .as-rail-item {
 	padding-left: 44px; /* under its group: more specific than the full menu's row padding */
+}
+.as-rail.expanded .as-rail-nested .as-rail-children .as-rail-item {
+	padding-left: 60px; /* a group inside a group: its pages one step further in */
 }
 .as-rail-children .as-rail-item .as-item-icon {
 	width: 16px;

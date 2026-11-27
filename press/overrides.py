@@ -18,9 +18,14 @@ from press.utils import _get_current_team, _system_user
 @frappe.whitelist()
 def get_password(doctype: str, name: str, fieldname: str):
 	"""frappe.client.get_password, except for MCP tokens (0.7.59): it hands any System Manager any Password field, and
-	the stored copy of an MCP token would let them act as its owner. The owner recovers it from the dashboard."""
+	the stored copy of an MCP token would let them act as its owner. The owner recovers it from the dashboard. An SMS
+	provider's login (0.7.81) is our account and the owner's only: the developers are System Managers here."""
 	if doctype == "Press MCP Token":
-		frappe.throw("An MCP token is recovered only by its owner, from the dashboard", frappe.PermissionError)
+		frappe.throw(
+			"An MCP token is recovered only by its owner, from the dashboard", frappe.PermissionError
+		)
+	if doctype == "SMS Provider":
+		frappe.throw("An SMS provider's login is kept by Press and never read back", frappe.PermissionError)
 	from frappe.client import get_password as frappe_get_password
 
 	return frappe_get_password(doctype, name, fieldname)

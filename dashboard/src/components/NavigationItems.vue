@@ -14,6 +14,7 @@ import ServerCog from '~icons/lucide/server-cog';
 import Timer from '~icons/lucide/timer';
 import Radar from '~icons/lucide/radar';
 import Phone from '~icons/lucide/phone';
+import MessageSquare from '~icons/lucide/message-square';
 import WalletCards from '~icons/lucide/wallet-cards';
 import Key from '~icons/lucide/key';
 import Settings from '~icons/lucide/settings';
@@ -183,12 +184,43 @@ export default {
 					],
 				},
 				{
-					name: 'Telephony',
+					name: 'Communications',
 					icon: () => h(Phone),
 					route: '/telephony',
-					isActive: routeName === 'Telephony',
+					isActive: false,
 					condition: onboardingComplete && !isSaasUser && this.$session.isSystemUser,
 					disabled: enforce2FA,
+					children: [
+						{
+							name: 'Telephony',
+							icon: () => h(Phone),
+							route: '/telephony',
+							isActive: routeName === 'Telephony',
+						},
+						{
+							name: 'SMS',
+							icon: () => h(MessageSquare),
+							route: '/sms/sites',
+							isActive: false,
+							children: [
+								{ name: 'Sites', icon: () => h(Globe), route: '/sms/sites', isActive: routeName === 'SMS Sites' },
+								{ name: 'Log', icon: () => h(Logs), route: '/sms/log', isActive: routeName === 'SMS Log' },
+								{
+									name: 'Cost by client',
+									icon: () => h(WalletCards),
+									route: '/sms/cost',
+									isActive: routeName === 'SMS Cost by Client',
+								},
+								{
+									name: 'Routes',
+									icon: () => h(SlidersHorizontal),
+									route: '/sms/routes',
+									isActive: routeName === 'SMS Routes',
+								},
+								{ name: 'Providers', icon: () => h(Plug), route: '/sms/providers', isActive: routeName === 'SMS Providers' },
+							],
+						},
+					],
 				},
 				{
 					name: 'Backups',

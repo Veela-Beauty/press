@@ -469,6 +469,7 @@ fixtures = [
 	"MariaDB Variable",
 	"Cloud Region",
 	{"dt": "Role", "filters": [["role_name", "like", "Press%"]]},
+	"Site Config Key",
 	"Site Config Key Blacklist",
 	"Press Method Permission",
 	"Bench Dependency",
