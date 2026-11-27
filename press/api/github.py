@@ -14,6 +14,7 @@ import frappe
 import jwt
 import requests
 import tomli
+from frappe.rate_limiter import rate_limit
 
 from press.utils import get_current_team, log_error
 
@@ -471,3 +472,19 @@ def _construct_tree(tree, children, children_map):
 		else:
 			tree[file.name] = None
 	return tree
+
+
+# Sign-in with GitHub (the login page's GitHub button, LoginSignup.vue); the logic is in github_login.py.
+@frappe.whitelist(allow_guest=True)
+@rate_limit(limit=20, seconds=60)
+def login(product=None):
+	from press.api.github_login import login as start_github_login
+
+	return start_github_login(product)
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def login_callback(code=None, state=None, error=None, **kwargs):
+	from press.api.github_login import login_callback as finish_github_login
+
+	return finish_github_login(code=code, state=state, error=error)
