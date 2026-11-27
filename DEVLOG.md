@@ -1,5 +1,28 @@
 # Press Fork Dev Log
 
+### Session 30 - 2026-11-27 (afternoon): test account, owner login, share user to HR, press-ctrl disk
+
+**What we did:**
+- **Test account:** a team test user `dashboard-test@optiflowsys.com` for `mint_dashboard_login_url` (Viewer role, basher-training as its resource). I photographed the live member view, then revoked the token.
+- **Owner login:** the owner could not log in, because the auth hook blocks `login_via_key` for guests. The owner got a temporary password from the console and has to change it.
+- **12:15 logout traced:** another session's migrate saved a Role. Each Role save runs `set_system_user`, and that clears the sessions of System Users who hold desk-less roles (Press Member, Press Admin).
+- **Share user:** basher-training's share user switched from Inventory to HR, then checked by logging in as it.
+- **Compute "0 hours":** explained. The log shipper's agent name (press-f1.demo.mvpstorm.com) does not match the server name.
+- **press-ctrl disk, 89% to 71% (85 GB free):** bench images kept 3 days, offsite backups at most 3 per site (`offsite_backups_count` 3, owner), 116 old uploads deleted, 4 restore-test backups with missing files marked Unavailable (press-ops CHANGELOG, 27 Nov).
+
+**Files:** docs only in this repo (wiki site-logins-sharing.md Testing; known-issues-and-fixes.md Sites with no plan). Scripts are in press-ops: `scripts/site-logins-2026-11-27/` 21 to 37 and `scripts/disk-2026-11-27/` 01 to 14.
+
+**Watch out:**
+- `offsite_backups_count` 0 means 30 (the FIFO fallback), not forever.
+- Remote File sizes overstate MinIO disk use about 3x (282 GB recorded, 99 GB on disk). MinIO frees a deleted object through `.minio.sys/tmp` a few minutes later.
+- `bench console < file` breaks a block at its first blank line. Use press-ops `run_on_console.sh`.
+
+**Open:**
+- The share job's clicks on the live screen (needs a narrow 1-day token).
+- About 15 GB of uploads of sites that no longer exist (owner).
+- The CPU % agent-name mismatch.
+- Brevo delays emailed codes.
+
 ### Session 29 - 2026-11-27: site logins and sharing on the site Overview (0.7.80)
 
 **What we did:** prototype PRS-SP-17 (approved) built and shipped: a "Logins and sharing" card on each site's Overview with the share login and the Administrator login, each behind a 6-digit code (authenticator app or emailed code), 10 minutes unlocked, every action in Site Activity as "Share Login". An independent review found 6 must-fix items before deploy (POST only, System Users bound to their team, the rate-limit trap, safe role profiles, per-user code lock-out, app code once); all fixed. Merged with the other session's 0.7.78 and 0.7.79 as 0.7.80 (PR #94, also lands #89 and #91), live on press-ctrl 09:38 Riyadh by file copy + `reload_doc`.
