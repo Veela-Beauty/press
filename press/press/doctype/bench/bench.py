@@ -538,9 +538,6 @@ class Bench(Document):
 
 		self.check_unarchived_sites()
 
-		from press.press.doctype.bench.bench_dev_carry_over import archive_code_server_of_bench
-
-		archive_code_server_of_bench(self.name)
 		self._mark_applied_patch_as_archived()
 		agent = Agent(self.server)
 		agent.archive_bench(self, retry_new_bench)
@@ -1435,6 +1432,10 @@ def process_new_bench_job_update(job: AgentJob):  # noqa: C901
 
 	StagingSite.create_if_needed(bench)
 	bench = Bench("Bench", job.bench)
+	# Before archive_obsolete_benches is queued, so the old development bench is still Active
+	from press.press.doctype.bench.bench_dev_carry_over import carry_over_development_bench
+
+	carry_over_development_bench(bench.name)
 	frappe.enqueue(
 		"press.press.doctype.bench.bench.archive_obsolete_benches",
 		enqueue_after_commit=True,
@@ -1442,11 +1443,6 @@ def process_new_bench_job_update(job: AgentJob):  # noqa: C901
 		server=bench.server,
 	)
 	bench.add_ssh_user()
-	frappe.enqueue(
-		"press.press.doctype.bench.bench_dev_carry_over.carry_over_development_bench",
-		enqueue_after_commit=True,
-		bench_name=bench.name,
-	)
 
 	if frappe.get_value("Deploy Candidate Build", bench.build, "status") != "Success":
 		return
@@ -1486,6 +1482,10 @@ def process_archive_bench_job_update(job: AgentJob):
 		is_ssh_proxy_setup = frappe.db.get_value("Bench", job.bench, "is_ssh_proxy_setup")
 		if updated_status == "Archived" and is_ssh_proxy_setup:
 			Bench("Bench", job.bench).remove_ssh_user()
+		if updated_status == "Archived":
+			from press.press.doctype.bench.bench_dev_carry_over import archive_code_server_of_bench
+
+			archive_code_server_of_bench(job.bench)
 
 		if bench.team != "Administrator":
 			bench.status = updated_status  # just to ensure the status got changed in webhook payload, reload_doc is costly here

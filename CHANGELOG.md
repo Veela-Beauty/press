@@ -11,7 +11,9 @@ This file documents changes (current commit level since, no tagged releases yet)
   and the developer lost the editor (SSH certificates fell back to 6 hours). When a new bench becomes Active and the
   bench it replaces (same release group and server) is a development bench, the new bench becomes one too, `bench
   watch` starts, and a Code Server named "code-" plus the bench name is set up if the old bench had one. The old
-  bench's Code Server is archived when that bench archives. Code in `bench_dev_carry_over.py`.
+  bench's Code Server is archived once that bench is confirmed Archived, not before. The decision is made
+  before old benches are queued for archive, so the archive job cannot race it. The Code Server is skipped
+  when the team's roles have the feature off. Code in `bench_dev_carry_over.py`.
 
 ## 26-11-2026: SSH docs for 30-day certificates and their revocation (0.7.74, docs only)
 
