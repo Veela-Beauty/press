@@ -3,12 +3,13 @@
 ## Active Known Issues
 
 ### Sites with no plan ("No plan set", Compute 0 hours)
-**Status:** Open, found 27 Nov 2026 from the owner's screenshot. Waiting for the owner's decision; nothing changed.
-**Symptom:** the site's Overview shows "Current Plan: No plan set" and Compute "0 hours", while other sites show their plan and usage.
-**Size (press-ctrl, 27 Nov):** 64 of the 98 sites that are not archived have no plan (62 of 95 Active, 1 Inactive, 1 Broken). 55 were created by the owner's account, 7 by Administrator, 2 by another user; the newest is `basher-training`, made the same day.
-**Cause:** the Press MCP tool `site_create` (`press/mcp_server/site_ops.py`) takes `plan: str = ""` and passes `"plan": plan or ""`, so a site an agent creates without naming a plan gets none. The dashboard's New Site form asks for a plan; the MCP path does not.
-**Check:** press-ops `scripts/site-logins-2026-11-27/05_sites_without_plan.sql` (counts by status and creator, and the list).
-**Options for the owner:** (1) make `site_create` require a plan or default to one named team plan; (2) set a plan on the 64 existing sites (for example one plan for sandbox and dev sites); (3) a Watch Tower check that lists Active sites with no plan.
+**Status:** Fixed for new sites in 0.7.82 (not deployed yet). The 64 existing sites still have no plan; the plan to give them waits for the owner.
+**Symptom:** the site's Overview shows "Current Plan: No plan set", while other sites show their plan.
+**Size (press-ctrl, 27 Nov):** 64 of the 98 sites that are not archived have no plan (62 of 95 Active, 1 Inactive, 1 Broken), all on press-f1 (60) and u4-default (4), all in free-account teams. The newest is `basher-training`, made the same day.
+**Cause:** `Site.validate_site_plan` swaps a dedicated-server plan for the cheapest public-server plan when the site's server is public. press-f1 and u4-default are public, and all four of our plans (Free, USD 10, USD 25, Internal Data Access) are dedicated-server plans, so the swap found nothing and set the plan to empty. No Site Plan Change and no Subscription follow. Every creation path hits it: the dashboard, restores and MCP. (Recorded first as the MCP tool's empty default; an empty plan fails `validate_plan`, so that was not it.) 0.7.82 keeps the chosen plan when there is nothing to swap it for.
+**Compute 0 hours is a separate gap:** `current_cpu_usage` is 0 on all 98 sites, those with a plan too. The figure comes from the log server's request counter, which a site writes only when its plan sets a daily CPU limit.
+**Before setting a plan on an existing site:** a plan writes limits into the site's config. Free and Internal Data Access end the site after 14 days and allow 5 users and 2 companies; USD 10 allows 10 users, 3 companies, 2 GB of database; USD 25 has no user quota. Every plan sets a site-wide daily limit on request time (1, 24, 2 or 3 hours): past it, every request gets HTTP 429 until the next UTC day. Disk-usage suspension skips free-account teams.
+**Check:** press-ops `scripts/site-logins-2026-11-27/05_sites_without_plan.sql` (counts), `06` to `09` (plans, cause, limits, compute source), `10_empty_plan_probe.py`.
 
 ### Tenant site hangs (TLS OK, body times out) — wrong upstream IP
 **Status:** Recurring — `charity.sandbox.mvpstorm.com` hit it 2026-05-02 (silent for hours; surfaced via Watch Tower alert)

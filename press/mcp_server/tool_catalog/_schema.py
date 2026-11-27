@@ -13,6 +13,7 @@ _ARG_FRAGMENTS: dict[str, dict] = {
 	"site": {"type": "string", "description": "Site name (FQDN), e.g. 'example.sandbox.mvpstorm.com'"},
 	"bench_name": {"type": "string", "description": "Bench docname, e.g. 'bench-0011-000187-press-f1'"},
 	"release_group": {"type": "string", "description": "Release Group docname"},
+	"plan": {"type": "string", "description": "Site Plan docname, e.g. 'USD 25'"},
 	"target_bench": {"type": "string", "description": "Target Bench docname to host the cloned/moved site"},
 	"target_release_group": {"type": "string", "description": "Destination Release Group docname"},
 	"new_subdomain": {"type": "string", "description": "Subdomain for the new site (without the root domain)"},

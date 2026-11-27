@@ -46,7 +46,7 @@ class TestSiteOpsValidation(unittest.TestCase):
 		"""
 
 		def exists(doctype, name=None, *args, **kwargs):
-			return doctype == "Release Group"
+			return doctype in ("Release Group", "Site Plan")
 
 		with patch.object(frappe.db, "exists", side_effect=exists), patch.object(
 			frappe.db, "get_single_value", return_value="sandbox.mvpstorm.com"
@@ -55,9 +55,36 @@ class TestSiteOpsValidation(unittest.TestCase):
 				site_ops.site_create(
 					new_subdomain="probe",
 					release_group="bench-0020",
+					plan="USD 25",
 					database="no-such-remote-file",
 				)
 		self.assertIn("upload_backup_file", str(ctx.exception))
+
+	def test_create_refuses_an_empty_plan(self):
+		"""An empty plan used to reach Press, and the site then showed No plan set (27 Nov 2026)."""
+		with patch.object(frappe.db, "exists", return_value=True), patch.object(
+			frappe, "get_all", return_value=["USD 10", "USD 25"]
+		), patch.object(site_ops.site_api, "new") as new:
+			with self.assertRaises(frappe.ValidationError) as ctx:
+				site_ops.site_create(new_subdomain="probe", release_group="bench-0020")
+		self.assertIn("plan is required", str(ctx.exception))
+		self.assertIn("USD 25", str(ctx.exception))
+		new.assert_not_called()
+
+	def test_create_refuses_an_unknown_plan(self):
+		def exists(doctype, name=None, *args, **kwargs):
+			return doctype != "Site Plan"
+
+		with patch.object(frappe.db, "exists", side_effect=exists), patch.object(
+			frappe, "get_all", return_value=["USD 10", "USD 25"]
+		) as get_all, patch.object(site_ops.site_api, "new") as new:
+			with self.assertRaises(frappe.ValidationError) as ctx:
+				site_ops.site_create(new_subdomain="probe", release_group="bench-0020", plan="USD25")
+		self.assertIn("'USD25' is not a Site Plan", str(ctx.exception))
+		get_all.assert_called_once_with(
+			"Site Plan", filters={"enabled": 1, "document_type": "Site"}, pluck="name"
+		)
+		new.assert_not_called()
 
 	def test_restore_requires_at_least_one_file(self):
 		with patch.object(frappe.db, "exists", return_value=True):
@@ -141,6 +168,7 @@ class TestSiteOpsValidation(unittest.TestCase):
 				new_subdomain="PROBE",
 				release_group="bench-0020",
 				apps=["frappe", "erpnext"],
+				plan="USD 25",
 				database="rf-db",
 			)
 
@@ -148,6 +176,7 @@ class TestSiteOpsValidation(unittest.TestCase):
 		self.assertEqual(captured["group"], "bench-0020")
 		self.assertEqual(captured["apps"], ["frappe", "erpnext"])
 		self.assertEqual(captured["files"], {"database": "rf-db"})
+		self.assertEqual(captured["plan"], "USD 25")
 		self.assertEqual(out["site"], "probe.sandbox.mvpstorm.com")
 		self.assertTrue(out["created"])
 

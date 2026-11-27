@@ -130,16 +130,15 @@ BENCH_CONTROL_TOOLS: dict[str, dict] = {
 	"site_create": {
 		"method": "press.mcp_server.site_ops.site_create",
 		"description": "Create a site on a specific Release Group. 'new_subdomain' is the subdomain ONLY (no dots) — Press appends the root domain. Pass 'database' (a Remote File docname) to restore a backup AT CREATION instead of creating empty then restoring; upload the backup first via POST press.api.site.upload_backup_file with a sid from mint_dashboard_login_url. 'apps' is a list of app NAME strings and must include frappe.",
-		"required_args": ["new_subdomain", "release_group"],
+		"required_args": ["new_subdomain", "release_group", "plan"],
 		"args_schema": _schema(
-			["new_subdomain", "release_group"],
+			["new_subdomain", "release_group", "plan"],
 			{
 				"apps": {
 					"type": "array",
 					"items": {"type": "string"},
 					"description": "App names to install, e.g. ['frappe','erpnext']. Defaults to ['frappe'].",
 				},
-				"plan": {"type": "string", "description": "Site Plan docname ('' lets Press pick)"},
 				"cluster": None,
 				"server": None,
 				"root_domain": {
