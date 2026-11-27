@@ -27,5 +27,6 @@ from .alerts import (  # noqa: F401
 	check_bench_updates_pending,
 	check_mcp_calls_slow,
 	check_mcp_agent_watch,
+	check_public_exposure,
 	cleanup_old_error_logs,
 )

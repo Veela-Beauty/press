@@ -42,7 +42,7 @@ Rows, chart segments and client columns open that client's page. -->
 			</div>
 
 			<template v-else-if="data">
-				<div class="grid grid-cols-2 gap-3 md:grid-cols-5">
+				<div class="grid grid-cols-2 gap-3" :class="security.data?.checked_at ? 'md:grid-cols-6' : 'md:grid-cols-5'">
 					<WtTile
 						label="Clients needing action"
 						:value="t.needing_action"
@@ -78,6 +78,15 @@ Rows, chart segments and client columns open that client's page. -->
 						:flag="t.apps_behind ? { kind: 'amber', text: 'Plan updates' } : { kind: 'ok', text: 'Current' }"
 						link
 						@open="router.push({ name: 'Watch Tower Apps' })"
+					/>
+					<WtTile
+						v-if="security.data?.checked_at"
+						label="Security risks"
+						:value="securityCount"
+						compare="on our servers, checked hourly"
+						:flag="securityFlag"
+						link
+						@open="router.push({ name: 'Infrastructure' })"
 					/>
 				</div>
 
@@ -247,6 +256,15 @@ const resource = createResource({
 	auto: true,
 });
 const data = computed(() => resource.data);
+// Exposure Watch (prototype PRS-SP-11): System Manager only; anyone else gets no data and no tile
+const security = createResource({ url: 'press.api.infra_board.get_security_findings', auto: true });
+const securityCount = computed(() => security.data?.findings?.length || 0);
+// Red only for High or Medium; Low rows alone (e.g. socketio on all addresses) ask for a review, not a fix now
+const securityFlag = computed(() => {
+	const rows = security.data?.findings || [];
+	if (rows.some((r) => r.severity !== 'Low')) return { kind: 'red', text: 'Fix now' };
+	return rows.length ? { kind: 'amber', text: 'Review' } : { kind: 'ok', text: 'None' };
+});
 const t = computed(() => data.value.tiles);
 const findings = usePages('sanad_ai_control_center.watch_tower_hub.overview.get_findings', () => ({
 	rows: data.value.findings,

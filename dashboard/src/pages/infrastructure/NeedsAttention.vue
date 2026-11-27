@@ -9,15 +9,68 @@
       <h2 class="text-sm font-semibold text-gray-900">
         {{ hasIssues ? 'Needs attention' : 'All clear' }}
       </h2>
-      <span class="text-xs text-gray-500">
-        {{ hasIssues
-          ? `${down.length} down, ${servers.length} unreachable, ${over.length} overloaded`
-          : 'Nothing needs attention.' }}
-      </span>
+      <span class="text-xs text-gray-500">{{ summary }}</span>
+    </div>
+    <!-- No check in the last 3 hours (or it skipped something): say so, never imply clean -->
+    <div v-if="!checkedAt || skipped.length" class="mt-2 text-xs text-gray-500">
+      {{ !checkedAt
+        ? 'The security check has not run in the last 3 hours, so open ports and logins are not known.'
+        : `Not checked this hour: ${skipped.join(', ')}.` }}
+    </div>
+
+    <!-- Security (prototype PRS-SP-11): first, never cut by the 4-row cap below -->
+    <div v-if="security.length" class="mt-3 flex flex-col gap-2">
+      <div class="text-xs font-semibold text-gray-700">
+        Security <span class="font-normal text-gray-400">checked from outside {{ checkedTime }}, hourly</span>
+      </div>
+      <template v-for="f in shownSecurity" :key="rowKey(f)">
+        <div class="flex items-center gap-2">
+          <span class="inline-block h-[7px] w-[7px] shrink-0 rounded-full" :class="sev(f).dot" />
+          <span class="w-[62px] shrink-0 rounded-md py-px text-center text-xs font-semibold" :class="sev(f).chip">
+            {{ f.severity }}
+          </span>
+          <span class="w-[190px] shrink-0 truncate font-mono text-sm text-gray-900" :title="f.where">{{ f.where }}</span>
+          <span class="text-sm text-gray-700">{{ f.what }}</span>
+          <div class="flex-1" />
+          <Button variant="subtle" :aria-expanded="openFix === rowKey(f)" @click="toggleFix(f)">
+            {{ openFix === rowKey(f) ? 'Hide' : 'Fix' }}
+          </Button>
+        </div>
+        <div
+          v-if="openFix === rowKey(f)"
+          class="ml-[15px] rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm text-gray-700"
+        >
+          {{ f.fix }}
+          <span class="mt-1 block text-xs text-gray-400">
+            It leaves this list on the first hourly check that no longer finds it.
+          </span>
+        </div>
+      </template>
+      <button v-if="security.length > 3" class="self-start text-xs text-blue-600 hover:underline" @click="showAllSecurity = !showAllSecurity">
+        {{ showAllSecurity ? 'Show fewer' : `Show ${security.length - 3} more` }}
+      </button>
+      <div v-if="setup.length || down.length || over.length || servers.length" class="my-1 h-px bg-gray-200" />
     </div>
 
     <!-- Triage list (down first, capped at 4) -->
-    <div v-if="hasIssues" class="mt-3 flex flex-col gap-2">
+    <div v-if="setup.length || down.length || over.length || servers.length" class="mt-3 flex flex-col gap-2">
+      <!-- Setup (was the Gate-0 banner above this box): managed hosts cannot connect yet -->
+      <template v-if="setup.length">
+        <div class="flex items-center gap-2">
+          <span class="inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-amber-500" />
+          <span class="w-[62px] shrink-0 rounded-md py-px text-center text-xs font-semibold bg-amber-50 text-amber-700">Setup</span>
+          <span class="w-[190px] shrink-0 truncate font-mono text-sm text-gray-900">managed hosts</span>
+          <span class="text-sm text-gray-700">cannot connect yet</span>
+          <div class="flex-1" />
+          <Button variant="subtle" :aria-expanded="setupOpen" @click="setupOpen = !setupOpen">
+            {{ setupOpen ? 'Hide' : 'Fix' }}
+          </Button>
+        </div>
+        <div v-if="setupOpen" class="ml-[15px] rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm text-gray-700">
+          <p v-for="c in setup" :key="c.name"><span class="font-medium">{{ c.name }}:</span> {{ c.hint }}</p>
+        </div>
+      </template>
+
       <!-- Down-unit rows -->
       <div
         v-for="d in shownDown"
@@ -25,9 +78,9 @@
         class="flex items-center gap-2"
       >
         <span class="inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-red-500" />
-        <span class="font-mono text-sm text-gray-900">{{ d.unit }}</span>
-        <span class="text-xs text-gray-400">on {{ d.server }}</span>
-        <span class="text-xs text-red-700">{{ stateLabel(d.state) }}</span>
+        <span class="w-[62px] shrink-0 rounded-md py-px text-center text-xs font-semibold bg-red-50 text-red-700">Down</span>
+        <span class="w-[190px] shrink-0 truncate font-mono text-sm text-gray-900" :title="d.unit">{{ d.unit }}</span>
+        <span class="text-sm text-gray-700">on {{ d.server }}, {{ stateLabel(d.state) }}</span>
         <div class="flex-1" />
         <Button variant="subtle" @click="$emit('view', d.server)">View</Button>
       </div>
@@ -39,10 +92,9 @@
         class="flex items-center gap-2"
       >
         <span class="inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-amber-500" />
-        <span class="font-mono text-sm text-gray-900">{{ o.name }}</span>
-        <span class="text-xs text-gray-400">
-          overloaded {{ loadState(o)?.which }} {{ loadState(o)?.val }}%
-        </span>
+        <span class="w-[62px] shrink-0 rounded-md py-px text-center text-xs font-semibold bg-amber-50 text-amber-700">Load</span>
+        <span class="w-[190px] shrink-0 truncate font-mono text-sm text-gray-900" :title="o.name">{{ o.name }}</span>
+        <span class="text-sm text-gray-700">{{ loadState(o)?.which }} {{ loadState(o)?.val }}% used</span>
         <div class="flex-1" />
         <Button variant="subtle" @click="$emit('view', o.name)">View</Button>
       </div>
@@ -54,37 +106,76 @@
         class="flex items-center gap-2"
       >
         <span class="inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-red-500" />
-        <span class="font-mono text-sm text-gray-900">{{ s.name }}</span>
-        <span class="text-xs text-gray-400">server unreachable</span>
+        <span class="w-[62px] shrink-0 rounded-md py-px text-center text-xs font-semibold bg-red-50 text-red-700">Offline</span>
+        <span class="w-[190px] shrink-0 truncate font-mono text-sm text-gray-900" :title="s.name">{{ s.name }}</span>
+        <span class="text-sm text-gray-700">server unreachable</span>
         <div class="flex-1" />
         <Button variant="subtle" @click="$emit('view', s.name)">View</Button>
       </div>
 
       <!-- Overflow footer -->
-      <div v-if="total > 4" class="text-xs text-gray-400">
-        +{{ total - 4 }} more
+      <div v-if="triage > 4" class="text-xs text-gray-400">
+        +{{ triage - 4 }} more
       </div>
     </div>
 
-    <!-- Alerts panel: deferred until Watch Tower endpoint confirmed -->
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Button } from 'frappe-ui';
 import { issues, overloaded, unreachableServers, loadState, stateLabel } from './infra-derive';
 
 const props = defineProps({
   nodes: { type: Array, default: () => [] },
+  // Exposure Watch rows: { severity: High|Medium|Low, where, what, fix }, worst first
+  security: { type: Array, default: () => [] },
+  checkedAt: { type: String, default: null },
+  skipped: { type: Array, default: () => [] },
+  // Gate-0 checks that failed: { name, hint }; empty when managed hosts can connect
+  setup: { type: Array, default: () => [] },
 });
 defineEmits(['view']);
 
 const down    = computed(() => issues(props.nodes));
 const over    = computed(() => overloaded(props.nodes));
 const servers = computed(() => unreachableServers(props.nodes));
-const total   = computed(() => down.value.length + over.value.length + servers.value.length);
-const hasIssues = computed(() => total.value > 0);
+const triage  = computed(() => down.value.length + over.value.length + servers.value.length);
+const hasIssues = computed(() => triage.value + props.security.length + props.setup.length > 0);
+const showAllSecurity = ref(false);
+const shownSecurity = computed(() => (showAllSecurity.value ? props.security : props.security.slice(0, 3)));
+const setupOpen = ref(false);
+
+// Severity is written as text (the chip); the dot repeats it for a quick scan.
+const SEV = {
+  High:   { dot: 'bg-red-500',   chip: 'bg-red-50 text-red-700' },
+  Medium: { dot: 'bg-amber-500', chip: 'bg-amber-50 text-amber-700' },
+  Low:    { dot: 'bg-gray-400',  chip: 'bg-gray-100 text-gray-700' },
+};
+// The open Fix panel follows its row (not its position) when the list reloads.
+const sev = (f) => SEV[f.severity] ?? SEV.Low;
+const openFix = ref(null);
+const rowKey = (f) => `${f.where}|${f.what}`;
+const toggleFix = (f) => { openFix.value = openFix.value === rowKey(f) ? null : rowKey(f); };
+// "2026-11-26 09:12" -> "09:12" today, the date and time otherwise (local date, not UTC)
+const checkedTime = computed(() => {
+  if (!props.checkedAt) return '';
+  const [day, time] = props.checkedAt.split(' ');
+  return day === new Date().toLocaleDateString('sv') ? time : props.checkedAt;
+});
+// Only the counts that are not zero: "7 security risks, 1 overloaded"
+const summary = computed(() => {
+  if (!hasIssues.value) {
+    return `Nothing needs attention.${props.checkedAt ? ` Security checked from outside ${checkedTime.value}.` : ''}`;
+  }
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  return [
+    [props.security.length, 'security risk', 'security risks'], [props.setup.length, 'setup step', 'setup steps'],
+    [down.value.length, 'down', 'down'],
+    [servers.value.length, 'unreachable', 'unreachable'], [over.value.length, 'overloaded', 'overloaded'],
+  ].filter(([n]) => n).map(([n, one, many]) => plural(n, one, many)).join(', ');
+});
 
 // Down units first, then overloaded hosts, then unreachable servers; max 4 combined.
 const shownDown    = computed(() => down.value.slice(0, 4));

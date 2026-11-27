@@ -299,6 +299,7 @@ def _send_warning_email(sites):
 	send_alert_email(
 		recipients=[EMAIL_TO],
 		subject=f"\u26a0\ufe0f {len(sites)} site(s) will be archived soon",
+		immediate=True,
 		message=_brand(f"\u26a0\ufe0f Inactive Sites -  {len(sites)} site(s)", body, ts),
 		now=True,
 	)
@@ -328,6 +329,7 @@ Sites will be permanently deleted after <b>{DELETE_AFTER_DAYS} days</b> in archi
 	send_alert_email(
 		recipients=[EMAIL_TO],
 		subject=f"\U0001f4e6 {len(sites)} site(s) archived (inactive)",
+		immediate=True,
 		message=_brand(f"\U0001f4e6 {len(sites)} site(s) auto-archived", body, ts),
 		now=True,
 	)
@@ -352,6 +354,7 @@ def _send_delete_email(sites):
 	send_alert_email(
 		recipients=[EMAIL_TO],
 		subject=f"\U0001f5d1 {len(sites)} old archived site(s) deleted",
+		immediate=True,
 		message=_brand(f"\U0001f5d1 {len(sites)} archived site(s) deleted", body, ts),
 		now=True,
 	)

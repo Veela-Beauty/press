@@ -212,6 +212,7 @@ bench --site demo.mvpstorm.com execute \\
 	send_alert_email(
 		recipients=["eng.elgogary@gmail.com"],
 		subject="\U0001f6a8 CRITICAL: poll_pending_jobs missing!",
+		immediate=True,
 		message=wrap_email("\U0001f6a8 CRITICAL: Scheduler Missing!", body, f"press-ctrl &bull; {ts}"),
 	)
 
@@ -227,7 +228,7 @@ bench --site demo.mvpstorm.com execute \\
 _MEMO_TTL_SEC = 120
 
 
-def _memoized(key, worker):
+def _memoized(key, worker, ttl=_MEMO_TTL_SEC):
 	"""Run worker() at most once per _MEMO_TTL_SEC; cache the bool result across the
 	engine's per-document calls so one hourly run computes once. A worker that raises is
 	logged once and cached as no-alert, so a transient DB/Redis error can't make the engine
@@ -243,7 +244,7 @@ def _memoized(key, worker):
 	except Exception:
 		frappe.log_error(title=f"Watch Tower job-check failed: {key}", message=frappe.get_traceback())
 		result = False
-	cache.set_value(ck, "1" if result else "0", expires_in_sec=_MEMO_TTL_SEC)
+	cache.set_value(ck, "1" if result else "0", expires_in_sec=ttl)
 	return result
 
 

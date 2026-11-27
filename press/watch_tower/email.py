@@ -74,6 +74,7 @@ def _send_summary_email(rule, context: Dict):
     send_alert_email(
         recipients=recipients,
         subject=subject,
+        immediate=True,
         message=message,
     )
 
@@ -101,6 +102,7 @@ def _send_per_document_emails(rule, context: Dict, matched_docs: List[Dict]):
         send_alert_email(
             recipients=recipients,
             subject=subject,
+            immediate=True,
             message=message,
         )
 

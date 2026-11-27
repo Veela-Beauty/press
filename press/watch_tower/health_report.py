@@ -269,6 +269,15 @@ def _send_email(r):
 	# --- Build body sections ---
 	html = ""
 
+	# --- Alerts kept for this report instead of one email each (alerts/digest.py, 0.7.77) ---
+	from .alerts import digest
+
+	try:
+		kept = digest.peek()
+	except Exception:  # Redis down: send the report without the section, keep the alerts for tomorrow
+		kept = []
+	html += digest.html(kept, TABLE, TH_BG, _escape_html)
+
 	# --- Server Resources ---
 	ram_color = _color(r["ram_pct"], 80, 90)
 	disk_color = _color(r["disk_pct"], 80, 90)
@@ -489,12 +498,18 @@ def _send_email(r):
 	subtitle = f"press-ctrl (89.167.116.92) &bull; {ts} &bull; Uptime: {r['uptime_days']}d {r['uptime_hours']}h"
 	branded = wrap_email(f"{status_icon} Server Health Report", html, subtitle)
 
-	send_alert_email(
+	sent = send_alert_email(
 		recipients=["eng.elgogary@gmail.com"],
 		subject=f"{status_icon} Press Health: {overall} \u2014 {ts_short}",
 		message=branded,
 		now=True,
+		immediate=True,
 	)
+	if sent:
+		try:
+			digest.clear(len(kept))
+		except Exception:
+			frappe.log_error(title="Watch Tower digest not cleared after the health report")
 
 
 def _watch_tower_hub():

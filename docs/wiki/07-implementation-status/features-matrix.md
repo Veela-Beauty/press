@@ -84,6 +84,7 @@ All customizations and enhancements to the upstream `frappe/press` on the `cloud
 | Agent auth PBKDF2 | Upstream | Agent config | Press stores plaintext (encrypted), agent stores PBKDF2-SHA256 |
 | Proxy upstream fallback | Done | proxy config | Falls back to public IP for Docker bench HTTP |
 | Cross-server site routing | Done | proxy template | `hostnames;` directive fix for wildcard matching |
+| Site logins and sharing | Done (0.7.80) | `api/site_logins.py`, `SiteLogins.vue`, `SiteLoginsCodeDialog.vue` | Share login + Administrator login on the site Overview behind a 6-digit app or email code; every action in Site Activity ([page](../01-backend-development/site-logins-sharing.md)) |
 
 ## Operational Scripts
 

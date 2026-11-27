@@ -27,11 +27,15 @@ def run_hourly_watch_tower():
 
 
 def run_daily_watch_tower():
-	"""Daily Watch Tower rule evaluation + (Press-only) health report."""
+	"""Daily Watch Tower rule evaluation. The health report moved to run_morning_report (0.7.77)."""
 	from .engine import run_scheduled_rules
 	if licensing.is_allowed("watch_tower"):
 		run_scheduled_rules("Daily")
 
+
+def run_morning_report():
+	"""08:00: the (Press-only) health report with the day's kept alerts (alerts/digest.py). It ran at midnight inside
+	run_daily_watch_tower before 0.7.77."""
 	if _is_press_site():
 		from .health_report import send_health_report
 		send_health_report()

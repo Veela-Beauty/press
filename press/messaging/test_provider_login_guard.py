@@ -1,4 +1,4 @@
-"""press.overrides.get_password never reads back an SMS provider's login (0.7.80): the developers are System Managers on
+"""press.overrides.get_password never reads back an SMS provider's login (0.7.81): the developers are System Managers on
 Press, and a System Manager can otherwise decrypt any Password field. No site needed:
   /home/eslam/.venvs/press-tests/bin/python -m unittest press.messaging.test_provider_login_guard -v
 

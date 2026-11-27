@@ -62,7 +62,7 @@ def _get_smtp_config():
 	return _smtp_config
 
 
-def send_alert_email(recipients, subject, message, important=False, **kwargs):
+def send_alert_email(recipients, subject, message, important=False, immediate=False, **kwargs):
 	"""
 	Send email via direct SMTP -  no Frappe Email Queue involved. Returns True when the relay took it, False when
 	not (the reason is logged): a caller that marks records as alerted must mark them only on True (0.7.52).
@@ -71,8 +71,21 @@ def send_alert_email(recipients, subject, message, important=False, **kwargs):
 		important: If True, CC client stakeholders (IMPORTANT_ALERT_CC).
 		           Use for: backup failures, site down, deploy stuck, SSL expiry.
 		           Do NOT use for: error log spikes, worker queues, scheduler noise.
+		immediate: If True, send now without the CC. An alert that is neither important nor immediate is kept for
+		           the 08:00 health report (alerts/digest.py) and returns True (0.7.77).
 	"""
 	import frappe
+
+	if not (important or immediate):
+		try:
+			from frappe.utils import now_datetime
+
+			from .alerts import digest
+
+			digest.add(subject, now_datetime())
+			return True
+		except Exception as e:  # Redis unreachable: an alert sent now beats an alert lost
+			frappe.logger("watch_tower").error(f"Alert not kept for the digest ({type(e).__name__}), sent now: {subject}")
 
 	cc_list = IMPORTANT_ALERT_CC if important else []
 	all_recipients = list(set((recipients if isinstance(recipients, list) else [recipients]) + cc_list))
