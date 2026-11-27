@@ -29,32 +29,32 @@ WATCH_MODULE = "press.press.doctype.bench.bench_dev_watch"
 
 class TestHttpsUrl(unittest.TestCase):
 	def test_github_urls_become_https(self):
-		for url in (
-			"https://github.com/acme/demo",
-			"https://github.com/acme/demo.git",
-			"git@github.com:acme/demo.git",
-			"https://github.com/acme/demo/",
-		):
+		for url in ("https://github.com/acme/demo", "https://github.com/acme/demo.git", "git@github.com:acme/demo.git",
+			"https://github.com/acme/demo/"):
 			self.assertEqual(dg.https_url(url), "https://github.com/acme/demo.git")
+		self.assertEqual(dg.https_url("https://github.com/Acme-Co/my_app.v2"), "https://github.com/Acme-Co/my_app.v2.git")
 
 	def test_anything_else_is_none(self):
-		for url in (
-			None,
-			"",
-			"file:///home/frappe/context/apps/demo",
-			"https://gitlab.com/acme/demo",
-			"https://github.com/acme/demo;rm -rf ~",
-		):
+		for url in (None, "", "file:///home/frappe/context/apps/demo", "https://gitlab.com/acme/demo",
+			"https://github.com/acme/demo;rm -rf ~", "http://github.com/acme/demo", "https://github.com/acme/demo/tree/main",
+			"https://x:token@github.com/acme/demo.git", "https://github.com/../demo", "https://github.com/acmé/demo"):
 			self.assertIsNone(dg.https_url(url))
+
+	@patch(PATCH)
+	def test_a_bad_branch_is_skipped(self, mf):
+		mf.db.get_value.side_effect = [types.SimpleNamespace(repository_url="https://github.com/acme/a", branch=b)
+			for b in ("main", "-x", "a b", "release/1.2")]
+		bench = types.SimpleNamespace(apps=[types.SimpleNamespace(app=f"a{i}", source="s") for i in range(4)])
+		self.assertEqual([r[2] for r in dg.app_remotes(bench)], ["main", "release/1.2"])
 
 
 def _git(*args, cwd):
 	return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
 
 
-@unittest.skipUnless(shutil.which("git"), "git is not installed")
-class TestAppScript(unittest.TestCase):
-	"""A bench folder like the image's: apps/demo cloned from a local path, its remote renamed, a detached commit."""
+class _Bench(unittest.TestCase):
+	"""A bench folder like the image's: apps/demo cloned from a local path, its remote named upstream, a detached commit
+	and no local branch."""
 
 	def setUp(self):
 		self.tmp = Path(tempfile.mkdtemp())
@@ -81,6 +81,7 @@ class TestAppScript(unittest.TestCase):
 		self.app = self.bench / "apps" / "demo"
 		_git("remote", "rename", "origin", "upstream", cwd=self.app)
 		_git("checkout", "-q", "--detach", "HEAD", cwd=self.app)
+		_git("branch", "-q", "-D", "main", cwd=self.app)
 
 	def tearDown(self):
 		shutil.rmtree(self.tmp)
@@ -91,6 +92,9 @@ class TestAppScript(unittest.TestCase):
 			["bash", "-c", script], cwd=self.bench, check=True, capture_output=True, text=True
 		).stdout
 
+
+@unittest.skipUnless(shutil.which("git"), "git is not installed")
+class TestAppScript(_Bench):
 	def test_a_fresh_checkout_gets_origin_and_its_branch(self):
 		out = self.run_script()
 		self.assertEqual(out.strip(), "demo: https://github.com/acme/demo.git on main")
@@ -110,6 +114,50 @@ class TestAppScript(unittest.TestCase):
 		_git("checkout", "-q", "--detach", "main~1", cwd=self.app)
 		self.assertTrue(self.run_script().strip().endswith("on detached"))
 		self.assertEqual(_git("log", "-1", "--format=%s", "main", cwd=self.app), "two")
+
+
+	def test_the_build_upstream_remote_is_removed(self):
+		self.run_script()
+		self.assertEqual(_git("remote", cwd=self.app), "origin")
+
+	def test_an_origin_still_at_the_build_folder_is_replaced(self):
+		_git("remote", "rename", "upstream", "origin", cwd=self.app)
+		self.assertTrue(self.run_script().strip().startswith("demo: https://github.com/acme/demo.git"))
+
+	def test_an_origin_the_developer_set_is_kept(self):
+		_git("remote", "add", "origin", "https://github.com/dev/fork.git", cwd=self.app)
+		self.assertTrue(self.run_script().strip().startswith("demo: https://github.com/dev/fork.git"))
+
+	def test_a_branch_already_at_head_is_checked_out(self):
+		_git("branch", "main", "HEAD", cwd=self.app)
+		self.assertTrue(self.run_script().strip().endswith("on main"))
+
+	def test_tracking_the_developer_set_is_kept(self):
+		_git("checkout", "-q", "-b", "main", cwd=self.app)
+		_git("config", "branch.main.remote", "fork", cwd=self.app)
+		self.run_script()
+		self.assertEqual(_git("config", "branch.main.remote", cwd=self.app), "fork")
+
+
+@unittest.skipUnless(shutil.which("git"), "git is not installed")
+class TestConnectInAShell(_Bench):
+	"""The whole command as the agent runs it: `docker exec -w <bench> ... <command>` through a shell."""
+
+	@patch(PATCH)
+	def test_a_missing_app_is_logged_and_the_others_still_run(self, mf):
+		sources = {"src-gone": types.SimpleNamespace(repository_url="https://github.com/acme/gone", branch="main"),
+			"src-demo": types.SimpleNamespace(repository_url="https://github.com/acme/demo", branch="main")}
+		mf.db.get_value.side_effect = lambda _dt, name, _fields, as_dict: sources[name]
+
+		def docker_execute(cmd):
+			run = subprocess.run(cmd, shell=True, cwd=self.bench, capture_output=True, text=True)
+			return {"output": run.stdout + run.stderr, "returncode": run.returncode}
+
+		bench = types.SimpleNamespace(name="bench-1", docker_execute=docker_execute,
+			apps=[types.SimpleNamespace(app="gone", source="src-gone"), types.SimpleNamespace(app="demo", source="src-demo")])
+		output = dg.connect_app_remotes(bench)
+		self.assertIn("demo: https://github.com/acme/demo.git on main", output)
+		self.assertIn("gone", mf.log_error.call_args.kwargs["title"])
 
 
 class TestConnect(unittest.TestCase):
