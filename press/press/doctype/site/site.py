@@ -634,7 +634,7 @@ class Site(Document, TagHelpers):
 						"price_inr": ["!=", 0],
 					},
 					order_by="price_inr asc",
-				) or self.subscription_plan  # fork 27 Nov 2026: none found used to leave the site with no plan
+				) or self.subscription_plan  # fork 27 Nov 2026: keep the plan when none is found
 
 			# If site is on dedicated server, set unlimited plan
 			elif not plan.dedicated_server_plan and not is_site_on_public_server:

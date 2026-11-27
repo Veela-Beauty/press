@@ -46,7 +46,7 @@ class TestSiteOpsValidation(unittest.TestCase):
 		"""
 
 		def exists(doctype, name=None, *args, **kwargs):
-			return doctype == "Release Group"
+			return doctype in ("Release Group", "Site Plan")
 
 		with patch.object(frappe.db, "exists", side_effect=exists), patch.object(
 			frappe.db, "get_single_value", return_value="sandbox.mvpstorm.com"
@@ -69,6 +69,21 @@ class TestSiteOpsValidation(unittest.TestCase):
 				site_ops.site_create(new_subdomain="probe", release_group="bench-0020")
 		self.assertIn("plan is required", str(ctx.exception))
 		self.assertIn("USD 25", str(ctx.exception))
+		new.assert_not_called()
+
+	def test_create_refuses_an_unknown_plan(self):
+		def exists(doctype, name=None, *args, **kwargs):
+			return doctype != "Site Plan"
+
+		with patch.object(frappe.db, "exists", side_effect=exists), patch.object(
+			frappe, "get_all", return_value=["USD 10", "USD 25"]
+		) as get_all, patch.object(site_ops.site_api, "new") as new:
+			with self.assertRaises(frappe.ValidationError) as ctx:
+				site_ops.site_create(new_subdomain="probe", release_group="bench-0020", plan="USD25")
+		self.assertIn("'USD25' is not a Site Plan", str(ctx.exception))
+		get_all.assert_called_once_with(
+			"Site Plan", filters={"enabled": 1, "document_type": "Site"}, pluck="name"
+		)
 		new.assert_not_called()
 
 	def test_restore_requires_at_least_one_file(self):

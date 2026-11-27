@@ -28,6 +28,7 @@ import frappe
 from press.api import site as site_api
 
 
+
 def _assert_site(name: str) -> None:
 	if not frappe.db.exists("Site", name):
 		frappe.throw(f"Site {name!r} not found", frappe.DoesNotExistError)
@@ -90,9 +91,10 @@ def site_create(
 			f"Pass 'mysite' and let 'root_domain' supply the rest."
 		)
 
-	if not plan:
-		plans = frappe.get_all("Site Plan", {"enabled": 1, "document_type": "Site"}, pluck="name")
-		frappe.throw(f"plan is required: pass a Site Plan name, one of {plans}")
+	if not plan or not frappe.db.exists("Site Plan", plan):
+		plans = frappe.get_all("Site Plan", filters={"enabled": 1, "document_type": "Site"}, pluck="name")
+		why = f"plan {plan!r} is not a Site Plan" if plan else "plan is required"
+		frappe.throw(f"{why}: pass a Site Plan name, one of {plans}")
 
 	root_domain = root_domain or frappe.db.get_single_value("Press Settings", "domain")
 	fqdn = f"{subdomain}.{root_domain}"
