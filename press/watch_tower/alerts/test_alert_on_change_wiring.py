@@ -41,7 +41,8 @@ def _install_fakes():
 	frappe.utils = utils
 	mail = types.ModuleType("press.watch_tower.email_branding")
 	mail.wrap_email = lambda title, body, footer: body
-	mail.send_alert_email = lambda **kw: sent.append(kw) or True
+	mail.relay_ok = True  # False: the relay refuses (send_alert_email returns False)
+	mail.send_alert_email = lambda **kw: sent.append(kw) or mail.relay_ok
 	modules = {"frappe": frappe, "frappe.utils": utils, "press.watch_tower.email_branding": mail}
 	for name, path in (
 		("press", HERE.parent.parent),
@@ -83,34 +84,54 @@ class TestWiring(unittest.TestCase):
 		self.db["rows"] = [{"name": "s1", "ip": "10.0.0.1"}]
 		answers = {"r": (False, "", "timeout")}
 		self.infra.ssh_cmd = lambda ip, cmd, timeout=15: answers["r"]
+
 		def ssh():
 			return self.infra.check_ssh_connectivity({}, None)
+
+		mail = sys.modules["press.watch_tower.email_branding"]
+		mail.relay_ok = False  # the relay refuses the first email
 		self.assertEqual(self.step(ssh), ["email"])
+		mail.relay_ok = True
+		self.assertEqual(self.step(ssh), ["email"])  # tried again, not lost to the digest
 		answers["r"] = (False, "", "connection reset")  # new error text: no new email
 		self.assertEqual(self.step(ssh), ["digest"])
 		answers["r"] = (True, "OK", "")
 		self.assertEqual(self.step(ssh), ["cleared"])
 		self.assertEqual(self.step(ssh), [])
 
-	def test_disk_band_95_re_alerts_and_unreachable_is_not_cleared(self):
-		disk = {"pct": 90, "ok": True}
-		self.infra.get_all_servers = lambda: [{"name": "a", "ip": "10.0.0.2"}]
-		self.infra.ssh_cmd = lambda ip, cmd, timeout=15: (
-			(True, f"/dev/sda1 100G {disk['pct']}G 1G {disk['pct']}% /\n", "")
-			if disk["ok"]
-			else (False, "", "down")
-		)
+	def test_disk_95_holds_unread_is_not_cleared_and_recovery_clears(self):
+		disk = {"pct": 90, "mode": "ok", "servers": [{"name": "a", "ip": "10.0.0.2"}]}
+		self.infra.get_all_servers = lambda: disk["servers"]
+
+		def answer(ip, cmd, timeout=15):
+			if disk["mode"] == "down":
+				return (False, "", "down")
+			if disk["mode"] == "no df":
+				return (True, "---RECLAIMABLE---\n", "")
+			return (True, f"/dev/sda1 100G {disk['pct']}G 1G {disk['pct']}% /\n", "")
+
+		self.infra.ssh_cmd = answer
+
 		def run():
 			return self.infra.check_server_disk_usage({}, None)
+
 		self.assertEqual(self.step(run), ["email"])
 		disk["pct"] = 91
 		self.assertEqual(self.step(run), ["digest"])
 		disk["pct"] = 96
 		self.assertEqual(self.step(run), ["email"])
-		disk["ok"] = False  # no reading: not a recovery
+		disk["pct"] = 94  # 95% holds until below 85%: no new email on the way down
+		self.assertEqual(self.step(run), ["digest"])
+		disk["pct"] = 96
+		self.assertEqual(self.step(run), ["digest"])
+		for mode in ("down", "no df"):  # no reading: not a recovery
+			disk["mode"] = mode
+			self.assertEqual(self.step(run), [])
+		disk.update(mode="ok", servers=[])  # no server read at all: not a recovery
 		self.assertEqual(self.step(run), [])
-		disk.update(ok=True, pct=50)
+		disk.update(servers=[{"name": "a", "ip": "10.0.0.2"}], pct=50)
 		self.assertEqual(self.step(run), ["cleared"])
+		self.assertEqual(self.step(run), [])
 
 	def test_site_down_once_then_digest_then_cleared(self):
 		self.db["rows"] = [Row(name="x.example.com", bench="b1", status="Active")]
@@ -123,8 +144,10 @@ class TestWiring(unittest.TestCase):
 		)
 		req.get = lambda *a, **k: types.SimpleNamespace(status_code=state["code"])
 		sys.modules["requests"] = req
+
 		def run():
 			return self.site.check_site_reachability({}, None)
+
 		self.assertEqual(self.step(run), ["email"])
 		state["code"] = 503
 		self.assertEqual(self.step(run), ["digest"])

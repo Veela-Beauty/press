@@ -28,39 +28,48 @@ class FakeCache:
 		self.data.pop(key, None)
 
 
+class BrokenCache:
+	def get_value(self, *a, **k):
+		raise ConnectionError("redis down")
+
+	set_value = delete_value = get_value
+
+
 class TestAlertState(unittest.TestCase):
 	def setUp(self):
 		self.c = FakeCache()
 
-	def test_first_failure_is_new_and_the_same_set_is_not(self):
-		self.assertTrue(st.is_new("server_disk", ["press-ctrl:85"], self.c))
-		self.assertFalse(st.is_new("server_disk", ["press-ctrl:85"], self.c))
-		self.assertFalse(st.is_new("server_disk", ["press-ctrl:85"], self.c))
+	def test_new_until_remembered_then_the_same_set_is_not(self):
+		self.assertTrue(st.is_new("server_disk", ["press-ctrl"], self.c))
+		self.assertTrue(
+			st.is_new("server_disk", ["press-ctrl"], self.c)
+		)  # nothing remembered: a refused send retries
+		st.remember("server_disk", ["press-ctrl"], self.c)
+		self.assertFalse(st.is_new("server_disk", ["press-ctrl"], self.c))
 
-	def test_a_new_server_or_a_higher_band_is_new_a_shrinking_set_is_not(self):
-		st.is_new("server_disk", ["a:85", "b:85"], self.c)
-		self.assertFalse(st.is_new("server_disk", ["a:85"], self.c))
-		self.assertTrue(st.is_new("server_disk", ["a:95"], self.c))
-		self.assertTrue(st.is_new("server_disk", ["a:95", "c:85"], self.c))
+	def test_a_new_member_is_new_a_shrinking_set_is_not(self):
+		st.remember("site_reachability", ["x", "y"], self.c)
+		self.assertFalse(st.is_new("site_reachability", ["x"], self.c))
+		self.assertTrue(st.is_new("site_reachability", ["x", "z"], self.c))
 
-	def test_an_entity_that_recovered_and_fails_again_is_new(self):
-		st.is_new("site_reachability", ["x", "y"], self.c)
-		st.is_new("site_reachability", ["x"], self.c)
-		self.assertTrue(st.is_new("site_reachability", ["x", "y"], self.c))
-
-	def test_cleared_returns_the_failing_set_once_and_then_nothing(self):
-		st.is_new("ssh_connectivity", ["s2", "s1"], self.c)
-		self.assertEqual(st.cleared("ssh_connectivity", self.c), ["s1", "s2"])
-		self.assertEqual(st.cleared("ssh_connectivity", self.c), [])
+	def test_failing_and_forget(self):
+		st.remember("ssh_connectivity", ["s2", "s1"], self.c)
+		self.assertEqual(st.failing("ssh_connectivity", self.c), {"s1", "s2"})
+		st.forget("ssh_connectivity", self.c)
+		self.assertEqual(st.failing("ssh_connectivity", self.c), set())
 		self.assertTrue(st.is_new("ssh_connectivity", ["s1"], self.c))
 
-	def test_nothing_failing_before_means_nothing_cleared(self):
-		self.assertEqual(st.cleared("site_reachability", self.c), [])
-
 	def test_rules_do_not_share_state_and_the_key_expires(self):
-		st.is_new("server_disk", ["a:85"], self.c)
+		st.remember("server_disk", ["a"], self.c)
 		self.assertTrue(st.is_new("ssh_connectivity", ["a"], self.c))
 		self.assertEqual(self.c.ttl["wt:alert_set:server_disk"], st.TTL_SEC)
+
+	def test_redis_down_means_send_now_and_never_raise(self):
+		b = BrokenCache()
+		self.assertTrue(st.is_new("server_disk", ["a"], b))
+		self.assertEqual(st.failing("server_disk", b), set())
+		st.remember("server_disk", ["a"], b)
+		st.forget("server_disk", b)
 
 
 if __name__ == "__main__":
