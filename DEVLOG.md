@@ -1,5 +1,15 @@
 # Press Fork Dev Log
 
+### Session 28 - 2026-11-27: one morning email instead of an alert flood (0.7.77)
+
+**What we did:** `send_alert_email` keeps non-urgent alerts in a Redis digest (`alerts/digest.py`) listed in the health report, which moved to 08:00 (`run_morning_report`); urgent alerts (disk included, the owner's choice) are still sent at once. The GitHub check runs once per rule run. `wt:digest:*` is a persistent cache key. Live on press-ctrl 27 Nov 05:38 by file copy, PR #91 (stacked on #89).
+
+**Files:** press/watch_tower/alerts/digest.py and test_digest.py (new), email_branding.py, health_report.py, jobs.py, hooks.py, the alert modules that pass `immediate=True`.
+
+**Watch out:** Brevo holds our mail and releases one batch a day (26 and 27 Nov, about 1.5 days late), so an email's arrival time is not its send time. Press keeps `app_hooks` across clear-cache: after a hooks.py change, delete that key once web and workers have restarted, or the old hooks stay in Redis.
+
+**Open:** confirm the Brevo daily limit on the account; 3 failing app sources on bench-0041 (repos moved to accurate-systems).
+
 ### Session 27 - 2026-11-26: Exposure Watch rule, security rows on the dashboard, Infrastructure clean-up (0.7.74 to 0.7.76)
 
 **What we did:** after the Anwar test link showed a public route list, 0.7.74 adds the Exposure Watch rule (`exposure_alerts.py`): open ports on our servers seen from press-ctrl, public `/openapi.json`, admin routes that answer without a key, and Sanad Preview without its login. 0.7.75 (prototype PRS-SP-11) saves the findings to cache for 3 hours and shows them as a Security group in Needs attention on Infrastructure and a "Security risks" tile on the Watch Tower overview (`get_security_findings`, System Manager only). 0.7.76 (prototype PRS-SP-12) cleans the Infrastructure page: title once, no summary tiles, labelled filters with counts, the Gate-0 banner as a Setup row, aligned rows. All live on press-ctrl, PR #89.
