@@ -1,6 +1,7 @@
 """Infrastructure Watch Tower alerts -  disk, Docker, SSH, Redis, MariaDB."""
 import frappe
 from ._helpers import TABLE, esc, ts_now, ssh_cmd, get_all_servers, PRESS_CTRL_IP, should_send_alert
+from . import alert_state
 
 
 def check_server_disk_usage(doc_dict, rule):
@@ -101,11 +102,19 @@ def check_server_disk_usage(doc_dict, rule):
 			issues.append(entry)
 
 	if not issues:
+		unread = any(r.get("status") in ("unreachable", "timeout", "error") for r in all_results)
+		if not unread and alert_state.cleared("server_disk"):
+			send_alert_email(
+				recipients=["eng.elgogary@gmail.com"],
+				subject=f"Disk Alert cleared: every server below 85% \u00b7 {ts}",
+				immediate=True,
+				message=wrap_email("Disk usage back below 85%", "<p>Every server is below 85% again.</p>",
+					f"Press Infrastructure &bull; {ts}"),
+			)
 		return False
 
-	fingerprint = "|".join(sorted(f"{i.get('name')}={(i.get('pct', 0) // 5) * 5}" for i in issues))
-	if not should_send_alert("server_disk", fingerprint):
-		return True
+	# one email when a server first passes 85% or reaches 95%; while that holds, the hourly repeat goes to the digest
+	new = alert_state.is_new("server_disk", (f"{i['server']}:{95 if i.get('pct', 0) >= 95 else 85}" for i in issues))
 
 	# Build email
 	summary_rows = ""
@@ -163,7 +172,7 @@ find /tmp -type f -mtime +7 -delete
 	send_alert_email(
 		recipients=["eng.elgogary@gmail.com"],
 		subject=f"\U0001f4bf Disk Alert: {len(issues)} server(s) above 85% \u2014 {ts}",
-		immediate=True,
+		immediate=new,
 		message=wrap_email("\U0001f4bf Server Disk Usage Alert", body, f"Press Infrastructure &bull; {ts}"),
 	)
 	return True
@@ -248,11 +257,17 @@ def check_ssh_connectivity(doc_dict, rule):
 			})
 
 	if not issues:
+		if alert_state.cleared("ssh_connectivity"):
+			send_alert_email(
+				recipients=["eng.elgogary@gmail.com"],
+				subject=f"SSH Alert cleared: every server reachable \u00b7 {ts}",
+				immediate=True,
+				message=wrap_email("SSH connectivity back", "<p>Press-ctrl reaches every server by SSH again.</p>",
+					f"Press Infrastructure &bull; {ts}"),
+			)
 		return False
 
-	fingerprint = "|".join(sorted(f"{i['server']}={i['error']}" for i in issues))
-	if not should_send_alert("ssh_connectivity", fingerprint):
-		return True
+	new = alert_state.is_new("ssh_connectivity", (i["server"] for i in issues))  # error text no longer re-alerts
 
 	rows = "".join(
 		f"<tr><td>{esc(i['server'])}</td><td>{i['ip']}</td>"
@@ -271,7 +286,7 @@ Deploys, agent jobs, and monitoring will fail.</p>
 	send_alert_email(
 		recipients=["eng.elgogary@gmail.com"],
 		subject=f"\U0001f6a8 SSH Alert: {len(issues)} server(s) unreachable \u2014 {ts}",
-		immediate=True,
+		immediate=new,
 		message=wrap_email("\U0001f6a8 SSH Connectivity Alert", body, f"Press Infrastructure &bull; {ts}"),
 	)
 	return True
