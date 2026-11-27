@@ -25,6 +25,14 @@
               <span class="h-1.5 w-1.5 rounded-full bg-green-500" />
               updated {{ fresh }}
             </span>
+
+            <!-- Inventory: our NetBox (servers, clients, outside accounts, handbooks), staff only like this page -->
+            <a
+              :href="INVENTORY_URL"
+              target="_blank"
+              rel="noopener"
+              class="rounded-md bg-gray-100 px-2.5 py-1 text-sm text-gray-900 transition-colors hover:bg-gray-200"
+            >Inventory</a>
           </div>
         </template>
       </Header>
@@ -97,6 +105,9 @@ import ServerList from './ServerList.vue';
 import NeedsAttention from './NeedsAttention.vue';
 import UnitDrawer from './UnitDrawer.vue';
 import AddHostWizard from './AddHostWizard.vue';
+
+// Accurate Systems Infrastructure (NetBox on press-ctrl): sanadeoi-infra/press-ctrl/netbox
+const INVENTORY_URL = 'https://netbox.mvpstorm.com';
 
 // --- Data ---
 const tree = useInfraTree();
