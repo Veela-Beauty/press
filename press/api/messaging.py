@@ -52,6 +52,15 @@ def _country(e164):
 		return ""
 
 
+def _valid_number(e164):
+	"""A real number in full international form ("+9665..."): nothing else is logged, counted or sent."""
+	text = str(e164 or "")
+	try:
+		return text.startswith("+") and phonenumbers.is_valid_number(phonenumbers.parse(text))
+	except phonenumbers.NumberParseException:
+		return False
+
+
 def _month_range(month):
 	"""("YYYY-MM-01", first day of the next month) for "YYYY-MM"; the current month when empty."""
 	month = month or nowdate()[:7]
@@ -132,6 +141,11 @@ def request_sms(site, token, e164, code, lang="en", purpose="Basher activation")
 	code = str(code or "")
 	if not CODE_PATTERN.fullmatch(code):
 		frappe.throw(frappe._("The code must be 6 digits."), frappe.ValidationError)
+	if not _valid_number(e164):
+		frappe.throw(
+			frappe._("The mobile must be a full international number, for example +966551234567."),
+			frappe.ValidationError,
+		)
 	if _over_cap(row.name, e164):
 		return {"mode": "refused"}
 	text = (TEXT_AR if lang == "ar" else TEXT_EN).format(code=code)

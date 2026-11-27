@@ -135,6 +135,12 @@ class TestRequestSms(unittest.TestCase):
 				self.ask(code=bad)
 		self.log.assert_not_called()
 
+	def test_a_number_that_is_not_a_full_valid_number_is_refused(self):
+		for bad in ("0551234567", "+96655", "not a number", "", "+999123456789"):
+			with self.assertRaises(_frappe.ValidationError, msg=repr(bad)):
+				self.ask(e164=bad)
+		self.log.assert_not_called()
+
 	def test_a_wrong_key_is_refused_and_not_logged(self):
 		with self.assertRaises(_frappe.PermissionError):
 			m.request_sms(site="hr.example.com", token="nope", e164="+966551234567", code="123456")
