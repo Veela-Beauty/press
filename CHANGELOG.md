@@ -4,6 +4,17 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 27-11-2026: Infrastructure page tabs in one row with the page actions (0.7.88)
+
+### Changed
+- The Servers | Inventory tabs sit in the page's header row, with the open tab's actions at the right (List / Cards
+  and "updated" on Servers, "Open full screen" on Inventory). The empty band above the tabs and the second row are gone
+  (owner 27 Nov: two apps inside each other).
+- Inside the Inventory tab NetBox drops its own logo, title, menu and user menu and shows one row of links
+  (sanadeoi-infra press-ctrl/netbox brand v=8).
+
+---
+
 ## 27-11-2026: Inventory is a tab on the Infrastructure page (0.7.86)
 
 ### Changed
