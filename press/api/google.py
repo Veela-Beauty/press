@@ -4,14 +4,13 @@
 from __future__ import annotations
 
 import frappe
-from frappe import _
 from google.auth.transport.requests import Request
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
 from oauthlib.oauth2 import AccessDeniedError
 
+from press.api.oauth_finish import finish_oauth_login
 from press.utils import log_error
-from press.utils.telemetry import capture
 
 
 @frappe.whitelist(allow_guest=True)
@@ -27,7 +26,7 @@ def login(product=None):
 
 
 @frappe.whitelist(allow_guest=True)
-def callback(code=None, state=None):  # noqa: C901
+def callback(code=None, state=None):
 	cached_key = f"google_oauth_flow:{state}"
 	payload = frappe.cache().get_value(cached_key)
 	if not payload:
@@ -66,60 +65,9 @@ def callback(code=None, state=None):  # noqa: C901
 		audience=google_credentials["web"]["client_id"],
 	)
 
-	email = id_info.get("email")
-
-	team_name, team_enabled = frappe.db.get_value("Team", {"user": email}, ["name", "enabled"]) or [0, 0]
-
-	if team_name and not team_enabled:
-		frappe.throw(_("Account {0} has been deactivated").format(email))
-		return None
-
-	# if team exitst and  oauth is not using in saas login/signup flow
-	if team_name and not product_trial:
-		has_2fa = frappe.db.get_value("User 2FA", {"user": email, "enabled": 1})
-		if has_2fa:
-			# redirect to 2fa page
-			frappe.respond_as_web_page(
-				_("Two-Factor Authentication Required"),
-				_(
-					"Google OAuth login doesn't support 2FA. Please login using your email and verification code / password."
-				),
-				primary_action="/dashboard/login",
-				primary_label=_("Login with Email"),
-			)
-			return None
-
-		# login to existing account
-		frappe.local.login_manager.login_as(email)
-		frappe.local.response.type = "redirect"
-		frappe.local.response.location = "/dashboard"
-		return None
-
-	# create account request
-	account_request = frappe.get_doc(
-		doctype="Account Request",
-		email=email,
-		first_name=id_info.get("given_name"),
-		last_name=id_info.get("family_name"),
-		role="Press Admin",
-		oauth_signup=True,
-		product_trial=product_trial.name if product_trial else None,
+	finish_oauth_login(
+		id_info.get("email"), id_info.get("given_name"), id_info.get("family_name"), product_trial, "Google"
 	)
-	account_request.insert(ignore_permissions=True)
-	frappe.db.commit()
-
-	if product_trial:
-		# dummy event so that the stat in funnel won't break
-		capture("otp_verified", "fc_product_trial", account_request.name)
-
-	if team_name and product_trial:
-		frappe.local.login_manager.login_as(email)
-		frappe.local.response.type = "redirect"
-		frappe.local.response.location = f"/dashboard/create-site/{product_trial.name}/setup"
-	else:
-		# create/setup account
-		frappe.local.response.type = "redirect"
-		frappe.local.response.location = account_request.get_verification_url()
 	return None
 
 

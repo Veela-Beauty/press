@@ -471,3 +471,18 @@ def _construct_tree(tree, children, children_map):
 		else:
 			tree[file.name] = None
 	return tree
+
+
+# Sign-in with GitHub (the login page's GitHub button, LoginSignup.vue); the logic is in github_login.py.
+@frappe.whitelist(allow_guest=True)
+def login(product=None):
+	from press.api.github_login import login as start_github_login
+
+	return start_github_login(product)
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def login_callback(code=None, state=None, error=None, **kwargs):
+	from press.api.github_login import login_callback as finish_github_login
+
+	return finish_github_login(code=code, state=state, error=error)
