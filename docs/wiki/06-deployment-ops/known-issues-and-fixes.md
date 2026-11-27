@@ -12,6 +12,15 @@
 **Check:** press-ops `scripts/site-logins-2026-11-27/05_sites_without_plan.sql` (counts), `06` to `09` (plans, cause, limits, compute source), `10_empty_plan_probe.py`, `17_after_plan_fix.sql` (after: 0 Active or Inactive sites without a plan, 63 Initial Plan records, no agent job, no error).
 **Trap found on the way:** piping a script into `bench console` runs it line by line, so a blank line inside an `if` block ends the block; press-ops `run_on_console.sh` runs a script whole through `exec`.
 
+### press-ctrl disk fills with offsite backups and old uploads (MinIO press-uploads)
+**Status:** Cleaned 27 Nov 2026, disk 89% to 68% (95 GB free). The uploads part comes back (see Cause).
+**Symptom:** press-ctrl's root disk climbs toward the 90% alert; `/opt/minio/data/press-uploads` is most of it.
+**Cause, backups:** Press Settings `offsite_backups_count` 0 does not mean "keep all": `FIFO.__init__` falls back to 30, so the 04:00 `cleanup_offsite` kept 31 per site. Now 3 (owner). Press skips Archived sites, which keep their last copy.
+**Cause, uploads:** upstream's uploads bucket expires each object after 1 day (comment in `press/press/cleanup.py`). Our MinIO has no expiry rule, so every dashboard upload for a new site or a restore stays. On 27 Nov the hash-named folders held 173 objects, 14.3 GB.
+**What was done (press-ops `scripts/disk-2026-11-27/`, CHANGELOG 27 Nov):** bench images kept 3 days; Press's own `_cleanup_offsite` run once at 3 per site (`10`); 4 restore-test backups whose files were gone marked Unavailable (`14`); uploads deleted with `RemoteFile.delete_remote_object` only where a copy exists: a live site was built from it, or it is an older snapshot of such a source (`20`, 132 files). The 38 uploads with no other copy stay; the ones with a client project are listed on Projects Hub as Sensitive records.
+**Traps:** Remote File `file_size` totals overstate disk use about 3x (282 GB recorded, 99 GB on disk), so measure with `du`. MinIO frees a deleted object through `.minio.sys/tmp` a few minutes later. The bucket is un-versioned, so a delete is final.
+**Open:** a periodic rule that removes an upload once a live site holds its data (not built; owner to decide).
+
 ### Tenant site hangs (TLS OK, body times out) — wrong upstream IP
 **Status:** Recurring — `charity.sandbox.mvpstorm.com` hit it 2026-05-02 (silent for hours; surfaced via Watch Tower alert)
 **Symptom:** Site is `Active` in Press DB, bench is `Active`, gunicorn is healthy, OTHER sites in the same bench respond fine — but ONE site times out. nginx access log on the proxy shows `499 ... 7.9s` (client gave up); nginx error log has no upstream errors.
