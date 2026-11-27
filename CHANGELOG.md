@@ -4,6 +4,15 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 27-11-2026: A deploy keeps the development bench and its Code Server (0.7.75)
+
+### Fixed
+- After a deploy the new bench was a normal bench, so the development flag and Code Server stayed on the old bench
+  and the developer lost the editor (SSH certificates fell back to 6 hours). When a new bench becomes Active and the
+  bench it replaces (same release group and server) is a development bench, the new bench becomes one too, `bench
+  watch` starts, and a Code Server named "code-" plus the bench name is set up if the old bench had one. The old
+  bench's Code Server is archived when that bench archives. Code in `bench_dev_carry_over.py`.
+
 ## 26-11-2026: SSH docs for 30-day certificates and their revocation (0.7.74, docs only)
 
 ### Changed

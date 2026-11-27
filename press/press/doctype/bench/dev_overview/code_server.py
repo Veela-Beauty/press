@@ -81,6 +81,15 @@ def _ensure_code_server_role_access(bench_name):
 def setup_code_server(bench_name, subdomain):
 	"""Create and setup a Code Server for a bench."""
 	_ensure_code_server_role_access(bench_name)
+	return create_code_server(bench_name, subdomain)
+
+
+def create_code_server(bench_name, subdomain):
+	"""Create a Code Server for a bench, with no permission check.
+
+	setup_code_server calls this after its role check. The deploy carry-over
+	(bench_dev_carry_over.py) calls it from a background job.
+	"""
 	bench = frappe.get_doc("Bench", bench_name)
 	# Code Server is available for all benches in this Press instance.
 	# The Code Server doctype validate() requires Bench.is_code_server_enabled,

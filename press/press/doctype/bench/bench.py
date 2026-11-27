@@ -538,6 +538,9 @@ class Bench(Document):
 
 		self.check_unarchived_sites()
 
+		from press.press.doctype.bench.bench_dev_carry_over import archive_code_server_of_bench
+
+		archive_code_server_of_bench(self.name)
 		self._mark_applied_patch_as_archived()
 		agent = Agent(self.server)
 		agent.archive_bench(self, retry_new_bench)
@@ -1439,6 +1442,11 @@ def process_new_bench_job_update(job: AgentJob):  # noqa: C901
 		server=bench.server,
 	)
 	bench.add_ssh_user()
+	frappe.enqueue(
+		"press.press.doctype.bench.bench_dev_carry_over.carry_over_development_bench",
+		enqueue_after_commit=True,
+		bench_name=bench.name,
+	)
 
 	if frappe.get_value("Deploy Candidate Build", bench.build, "status") != "Success":
 		return
