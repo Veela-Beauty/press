@@ -4,6 +4,16 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 27-11-2026: a new site keeps its plan (0.7.81)
+
+### Fixed
+- A site made on a public server (press-f1, u4-default) lost the plan chosen for it and showed "No plan set" on its
+  Overview: 64 of 98 sites on 27 Nov. `Site.validate_site_plan` swaps a dedicated-server plan for the cheapest
+  public-server plan, and our four plans are all dedicated-server plans, so it found none and set the plan to empty.
+  It now keeps the chosen plan when there is nothing to swap it for (`site.py`, one line).
+- The MCP tool `site_create` refuses an empty plan with the list of plans to pick from; its help text said an empty
+  plan "lets Press pick", which was never true. Test `test_create_refuses_an_empty_plan`.
+
 ## 27-11-2026: site logins and sharing on the site Overview (0.7.80)
 
 ### Added

@@ -139,7 +139,7 @@ BENCH_CONTROL_TOOLS: dict[str, dict] = {
 					"items": {"type": "string"},
 					"description": "App names to install, e.g. ['frappe','erpnext']. Defaults to ['frappe'].",
 				},
-				"plan": {"type": "string", "description": "Site Plan docname ('' lets Press pick)"},
+				"plan": {"type": "string", "description": "Site Plan docname, required (e.g. 'USD 25'); an empty plan is refused"},
 				"cluster": None,
 				"server": None,
 				"root_domain": {
