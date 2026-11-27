@@ -4,6 +4,19 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 27-11-2026: site logins and sharing on the site Overview (0.7.78)
+
+### Added
+- A "Logins and sharing" card on each site's Overview (prototype PRS-SP-17): the share login (a normal user Press
+  creates on the site with a chosen Role Profile) and the Administrator login, each hidden until Show, and "Copy share
+  message" (site link, user, password). Team admins see the Administrator login, never on a confidential site; anyone
+  whose Press role covers the site sees the share login. Create and reset are for team admins.
+- Before every Show, copy, share, create or reset: a 6-digit code from the user's authenticator app, or an emailed
+  code; then no code for 10 minutes. A user without an app links one inside the same dialog (QR code, setup key,
+  recovery codes). Endpoints in `press/api/site_logins.py`, each checked for the team and the Press role.
+- Every action is recorded in Site Activity as "Share Login" (who, what, how verified); the last 5 show in the card.
+- Site fields `share_user`, `share_password` and the Site Activity option "Share Login": needs a migrate.
+
 ## 26-11-2026: one morning email instead of an alert flood (0.7.77)
 
 ### Changed

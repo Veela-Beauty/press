@@ -16,20 +16,24 @@ Site Activity ("Share Login") and the last 5 show in the card.
 - Backend in `press/api/site_logins.py` (site.py is 3466 lines). Each endpoint: `@protected("Site")` (team) and
   `@role_guard.document("Site")` (the role's sites). Administrator half: `account.user_permissions()["admin"]`.
 - Unlock is per user and site in Redis for 10 minutes (`site_logins:unlock:<user>:<site>`), value = how verified.
-- App code: `account.verify_2fa`. A user who links the app inside the dialog is unlocked by the link itself (enable_2fa
-  already verified a code) when User 2FA changed in the last 2 minutes.
+- App code: `account.verify_2fa`. A user who links the app inside the dialog types one code: the dialog sends it to
+  `enable_2fa`, then to `verify_code` (still valid in the same 30-second step). Supersedes the first idea (unlock when
+  User 2FA changed in the last 2 minutes): a recent change is not proof of a code. If the second check misses, the
+  recovery codes stay on screen and Done asks for the next code.
 - Email code: 6 digits, sha256 in Redis for 10 minutes, `frappe.sendmail`. Brevo delays our mail by about 1.5 days
   (27 Nov), so the app code is the working path until that is fixed.
 - Share user: created over the site's REST as Administrator (`Site.get_connection_as_admin`), `role_profile_name` from
   the site's Role Profiles, a random 18-character password, no welcome email.
 
 ## Tasks
-- [ ] Site fields + Site Activity option
-- [ ] `press/api/site_logins.py` + tests on fakes
-- [ ] `SiteLogins.vue` card + `SiteLoginsCodeDialog.vue`, placed after SiteDailyUsage in SiteOverview.vue
+- [x] Site fields + Site Activity option (9e38cd50c)
+- [x] `press/api/site_logins.py` + 11 offline tests (c7f839b40)
+- [x] `SiteLogins.vue` card + `SiteLoginsCodeDialog.vue`, placed after SiteDailyUsage in SiteOverview.vue; vite build passes (07cbdd10e)
 - [ ] Audits: layout re-score on the built card, the role jobs measured, code review, security review
 - [ ] Version 0.7.78, CHANGELOG, PR stacked on feat/watch-tower-digest
 - [ ] Deploy only when the owner says "deploy" (needs migrate on press-ctrl)
 
 ## Resume here (2026-11-27)
-- Branch `feat/site-logins` from `feat/watch-tower-digest` (live 0.7.77). Next: the Site fields.
+- Done: fields (9e38cd50c), backend + 11 tests (c7f839b40), card + dialog (07cbdd10e), version 0.7.78.
+- In progress: independent code and security review. Next: fixes, PR stacked on feat/watch-tower-digest.
+- Measured on the real screen after deploy (no Press dev site): layout score and the role jobs.
