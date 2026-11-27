@@ -164,8 +164,9 @@ bench-git-setup</code></pre>
 					<div class="font-medium text-gray-900">3.5. Make sure <code>origin</code> points to GitHub</div>
 					<pre class="mt-1 overflow-x-auto rounded bg-gray-900 px-3 py-2 text-[11px] text-gray-100"><code>git remote -v</code></pre>
 					<p class="mt-1 text-xs leading-relaxed">
-						Fresh bench containers sometimes only have an <code>upstream</code> remote pointing at
-						<code>file:///home/frappe/context/apps/&lt;app&gt;</code> — not GitHub. If you see <strong>no
+						On a Development Bench, AutoDeploy already points <code>origin</code> at the app's GitHub
+						repository. On any other bench the container may only have an <code>upstream</code> remote
+						pointing at <code>file:///home/frappe/context/apps/&lt;app&gt;</code>. If you see <strong>no
 						<code>origin</code></strong> line, add it:
 					</p>
 					<pre class="mt-1 overflow-x-auto rounded bg-gray-900 px-3 py-2 text-[11px] text-gray-100"><code>git remote add origin https://github.com/&lt;org&gt;/&lt;repo&gt;.git
@@ -181,9 +182,9 @@ git fetch origin</code></pre>
 git checkout &lt;branch&gt;                      # if branch exists locally
 git switch -c &lt;branch&gt; origin/&lt;branch&gt;     # if you just fetched it</code></pre>
 					<p class="mt-1 text-xs leading-relaxed">
-						Bench containers usually start in detached HEAD. <code>git pull</code> fails until you're on
-						a branch. Skip this step only if <code>git status</code> shows
-						<code>On branch &lt;name&gt;</code>.
+						On a Development Bench each app already sits on its branch. Other bench containers start in
+						detached HEAD, and <code>git pull</code> fails until you're on a branch. Skip this step when
+						<code>git status</code> shows <code>On branch &lt;name&gt;</code>.
 					</p>
 				</div>
 				<div>

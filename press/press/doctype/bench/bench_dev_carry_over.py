@@ -74,13 +74,19 @@ def carry_over_development_bench(bench_name: str):
 
 
 def finish_development_bench_carry_over(bench_name: str, with_code_server: bool):
-	"""Background step: start bench watch and, when the old bench had one, create the Code Server."""
+	"""Background step: start bench watch, point the apps at GitHub and, when the old bench had one, create the Code Server."""
 	try:
 		from press.press.doctype.bench.bench_dev_watch import start_watch
 
 		start_watch(frappe.get_doc("Bench", bench_name))
 	except Exception:
 		frappe.log_error(title="Dev bench carry-over: bench watch failed", message=bench_name)
+	try:
+		from press.press.doctype.bench.bench_dev_git import connect_app_remotes
+
+		connect_app_remotes(frappe.get_doc("Bench", bench_name))
+	except Exception:
+		frappe.log_error(title="Dev bench carry-over: app git remotes failed", message=bench_name)
 
 	if not with_code_server or _live_code_server(bench_name):
 		return

@@ -1263,8 +1263,8 @@ class Bench(Document):
 		on the bench's team (DevOps L2 / DevOps L1 / Platform Admin per ROLE_TO_FLAGS).
 
 		Side-effect: starts/stops `bench watch` inside the container so JS/CSS
-		edits auto-rebuild on save (only on dev benches). Failures here do not
-		fail the toggle — UI shows watch status separately and offers Restart.
+		edits auto-rebuild on save, and points the apps' git checkouts at GitHub
+		(bench_dev_git.apply_development_mode). Failures here do not fail the toggle.
 		"""
 		from press.press.doctype.team.press_role_bridge import require_team_role_flag
 
@@ -1272,12 +1272,9 @@ class Bench(Document):
 		self.is_development_bench = 1 if enable else 0
 		self.save(ignore_permissions=True)
 
-		from press.press.doctype.bench.bench_dev_watch import start_watch, stop_watch
+		from press.press.doctype.bench.bench_dev_git import apply_development_mode
 
-		try:
-			(start_watch if self.is_development_bench else stop_watch)(self)
-		except Exception as e:
-			frappe.logger().error(f"{self.name}: bench watch toggle failed: {e}")
+		apply_development_mode(self)
 
 		action = "Marked as Development Bench" if self.is_development_bench else "Marked as Production Bench"
 		frappe.logger().info(f"{self.name}: {action} by {frappe.session.user}")
