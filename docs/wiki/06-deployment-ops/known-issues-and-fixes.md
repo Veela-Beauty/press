@@ -2,6 +2,14 @@
 
 ## Active Known Issues
 
+### Sites with no plan ("No plan set", Compute 0 hours)
+**Status:** Open, found 27 Nov 2026 from the owner's screenshot. Waiting for the owner's decision; nothing changed.
+**Symptom:** the site's Overview shows "Current Plan: No plan set" and Compute "0 hours", while other sites show their plan and usage.
+**Size (press-ctrl, 27 Nov):** 64 of the 98 sites that are not archived have no plan (62 of 95 Active, 1 Inactive, 1 Broken). 55 were created by the owner's account, 7 by Administrator, 2 by another user; the newest is `basher-training`, made the same day.
+**Cause:** the Press MCP tool `site_create` (`press/mcp_server/site_ops.py`) takes `plan: str = ""` and passes `"plan": plan or ""`, so a site an agent creates without naming a plan gets none. The dashboard's New Site form asks for a plan; the MCP path does not.
+**Check:** press-ops `scripts/site-logins-2026-11-27/05_sites_without_plan.sql` (counts by status and creator, and the list).
+**Options for the owner:** (1) make `site_create` require a plan or default to one named team plan; (2) set a plan on the 64 existing sites (for example one plan for sandbox and dev sites); (3) a Watch Tower check that lists Active sites with no plan.
+
 ### Tenant site hangs (TLS OK, body times out) — wrong upstream IP
 **Status:** Recurring — `charity.sandbox.mvpstorm.com` hit it 2026-05-02 (silent for hours; surfaced via Watch Tower alert)
 **Symptom:** Site is `Active` in Press DB, bench is `Active`, gunicorn is healthy, OTHER sites in the same bench respond fine — but ONE site times out. nginx access log on the proxy shows `499 ... 7.9s` (client gave up); nginx error log has no upstream errors.

@@ -8,7 +8,7 @@
 
 **Watch out:** `frappe.rate_limiter.rate_limit` keys on the outer endpoint and the IP, so calling a rate-limited whitelisted function from your own endpoint spends your counter. `frappe.whitelist()` allows GET, and a GET request is rolled back, so an audit row written there disappears. `protected("Site")` lets every System User through. The dashboard build writes into `press/public/dashboard` (git-ignored) whatever `--outDir` says.
 
-**Open:** the layout score and each role's clicks on the live screen (needs a dashboard login: the MCP token cannot mint one while a confidential site is not unlocked); emailed codes wait on Brevo.
+**Open:** the layout score and each role's clicks on the live screen (needs a dashboard login: the MCP token cannot mint one while a confidential site is not unlocked); emailed codes wait on Brevo. Found the same day: 64 of 98 sites have no plan because MCP `site_create` defaults `plan` to empty (wiki: 06-deployment-ops/known-issues-and-fixes.md, Sites with no plan); owner to decide.
 
 ### Session 28 - 2026-11-27: one morning email instead of an alert flood (0.7.77)
 
