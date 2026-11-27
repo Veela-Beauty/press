@@ -535,6 +535,7 @@ __persistent_cache_keys = [
 	"one_time_login_key*",
 	"press-auth-logs",
 	"rl:*",
+	"wt:digest:*",  # Watch Tower alerts waiting for the morning report
 ]
 
 # `frappe.rename_doc` erases all caches, this hook preserves some of them.

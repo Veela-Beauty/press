@@ -18,6 +18,8 @@ This file documents changes (current commit level since, no tagged releases yet)
   finding, and every rule email to its configured recipients (`send_alert_email(immediate=True)`).
 - The health report moved from the midnight daily job to 08:00 (`run_morning_report`, cron `0 8 * * *`); the kept
   alerts are cleared only after the report was sent.
+- The kept alerts survive `bench clear-cache` and migrate: `wt:digest:*` is a persistent cache key (`hooks.py`).
+  Without it a clear-cache between two reports dropped them unseen.
 
 ### Fixed
 - The GitHub token check ran once per candidate record (203 a night; 5 emails got through the relay on 25 Nov): it now
