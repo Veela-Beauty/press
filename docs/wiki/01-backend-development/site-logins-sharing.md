@@ -151,8 +151,11 @@ Rollback: `02_deploy_0780.sh rollback` restores the code and the dashboard. The 
 - Covered: POST only, other team refused even for a System User, code first, app code once, 5 wrong codes lock,
   email code once and sends limited, admin-only parts, confidential site, safe role profiles, a down site, reset on
   both sides, no secret in `get_logins`.
-- Not yet measured on the live screen: the layout score and each role's click count (prototype: share 3 steps, first
-  share 5).
+- Live, 27 Nov 2026, as the team's dashboard test user (`dashboard-test@optiflowsys.com`, Press role Viewer, which
+  names basher-training): the member view on basher-training shows the share login only, "No share user yet. Ask a
+  team admin to create one.", no Administrator half, no console error. Pictures: `~/docs/prototypes/press-site-logins/live/`.
+- Not yet measured: each role's clicks (prototype: share 3 steps, first share 5). The share jobs need a share user,
+  and creating one needs a team admin's 6-digit code, so the owner's first use comes first.
 
 ---
 
