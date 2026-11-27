@@ -4,7 +4,7 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
-## 27-11-2026: site logins and sharing on the site Overview (0.7.78)
+## 27-11-2026: site logins and sharing on the site Overview (0.7.80)
 
 ### Added
 - A "Logins and sharing" card on each site's Overview (prototype PRS-SP-17): the share login (a normal user Press
@@ -16,6 +16,33 @@ This file documents changes (current commit level since, no tagged releases yet)
   recovery codes). Endpoints in `press/api/site_logins.py`, each checked for the team and the Press role.
 - Every action is recorded in Site Activity as "Share Login" (who, what, how verified); the last 5 show in the card.
 - Site fields `share_user`, `share_password` and the Site Activity option "Share Login": needs a migrate.
+
+## 27-11-2026: An archived bench's Code Server ends Archived, not Broken (0.7.79)
+
+### Fixed
+- A Code Server runs inside its bench's container, so once the bench is archived the editor is already gone, but the
+  agent's "Archive Code Server" route checks that the bench exists and always failed: the record ended Broken and its
+  name was never released. Since 0.7.78 the old bench's Code Server is archived only after that bench is Archived, so
+  every deploy hit this. Now archiving skips the agent call when the bench is Archived and counts that part as done:
+  the proxy upstream is removed, the record ends Archived and the name is released. The job callback reads the newest
+  job of each kind, and stops if the other callback already renamed the record. Code in `code_server_archive.py`.
+
+## 27-11-2026: A deploy keeps the development bench and its Code Server (0.7.78; 0.7.76 and 0.7.77 went to the Watch Tower PRs)
+
+### Fixed
+- After a deploy the new bench was a normal bench, so the development flag and Code Server stayed on the old bench
+  and the developer lost the editor (SSH certificates fell back to 6 hours). When a new bench becomes Active and the
+  bench it replaces (same release group and server) is a development bench, the new bench becomes one too, `bench
+  watch` starts, and a Code Server named "code-" plus the bench name is set up if the old bench had one. The old
+  bench's Code Server is archived once that bench is confirmed Archived, not before. The decision is made
+  before old benches are queued for archive, so the archive job cannot race it. The Code Server is skipped
+  when the team's roles have the feature off. Code in `bench_dev_carry_over.py`.
+
+## 26-11-2026: SSH docs for 30-day certificates and their revocation (0.7.74, docs only)
+
+### Changed
+- The Team SSH wiki page says certificates last 30 days on a development bench and 6 hours elsewhere, and how the
+  revoked-keys job ends access within a minute; lesson `docs/wiki/08-lessons/2026-11-26-a-long-certificate-needs-a-revocation-list.md`.
 
 ## 26-11-2026: one morning email instead of an alert flood (0.7.77)
 
