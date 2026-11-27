@@ -5,7 +5,7 @@
       <Header>
         <Breadcrumbs :items="crumbs" />
         <template #actions>
-          <div class="flex items-center gap-3">
+          <div v-if="tab === 'servers'" class="flex items-center gap-3">
             <!-- List / Cards toggle -->
             <div class="flex rounded-md bg-gray-100 p-0.5 text-sm">
               <button
@@ -25,21 +25,40 @@
               <span class="h-1.5 w-1.5 rounded-full bg-green-500" />
               updated {{ fresh }}
             </span>
-
-            <!-- Inventory: our NetBox (servers, clients, outside accounts, handbooks), staff only like this page -->
-            <a
-              :href="INVENTORY_URL"
-              target="_blank"
-              rel="noopener"
-              class="rounded-md bg-gray-100 px-2.5 py-1 text-sm text-gray-900 transition-colors hover:bg-gray-200"
-            >Inventory</a>
           </div>
         </template>
       </Header>
+      <!-- Servers = this page; Inventory = our NetBox (servers, clients, sites, handbooks) inside the page, signed in
+           through AutoDeploy. Staff only, like the page. -->
+      <div :class="[TAB_STRIP_PANEL_TOP, TAB_STRIP_DIVIDER, 'px-3']">
+        <button
+          v-for="t in TABS"
+          :key="t.id"
+          type="button"
+          :class="tabClass(tab === t.id)"
+          @click="setTab(t.id)"
+        >{{ t.label }}</button>
+        <a
+          v-if="tab === 'inventory'"
+          :href="INVENTORY_URL"
+          target="_blank"
+          rel="noopener"
+          class="ml-auto px-2 text-sm text-gray-500 hover:text-gray-900"
+        >Open full screen</a>
+      </div>
     </div>
 
+    <!-- Inventory: loaded on first open, then kept, so NetBox stays where you left it when you switch back -->
+    <iframe
+      v-if="inventoryOpened"
+      v-show="tab === 'inventory'"
+      :src="INVENTORY_URL"
+      title="Inventory"
+      class="w-full flex-1 border-0"
+    />
+
     <!-- Content area -->
-    <div class="flex-1 overflow-auto p-5">
+    <div v-show="tab === 'servers'" class="flex-1 overflow-auto p-5">
       <!-- Initial load -->
       <div v-if="tree.loading && !tree.data" class="text-base text-gray-600">
         Loading infrastructure...
@@ -97,8 +116,10 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import Header from '../../components/Header.vue';
+import { TAB_STRIP_PANEL_TOP, TAB_STRIP_DIVIDER, tabClass } from '../../components/_shared/tabClasses.js';
 import { useInfraTree, useGate0Status, useSecurityFindings } from './infra-api';
 import { isManaged } from './infra-derive';
 import ServerList from './ServerList.vue';
@@ -106,8 +127,20 @@ import NeedsAttention from './NeedsAttention.vue';
 import UnitDrawer from './UnitDrawer.vue';
 import AddHostWizard from './AddHostWizard.vue';
 
-// Accurate Systems Infrastructure (NetBox on press-ctrl): sanadeoi-infra/press-ctrl/netbox
-const INVENTORY_URL = 'https://netbox.mvpstorm.com';
+// Accurate Systems Infrastructure (NetBox on press-ctrl): sanadeoi-infra/press-ctrl/netbox. ?sso=autodeploy signs in
+// through AutoDeploy with no login screen; NetBox lets only this page frame it (frame-ancestors in its nginx).
+const INVENTORY_URL = 'https://netbox.mvpstorm.com/?sso=autodeploy';
+const TABS = [{ id: 'servers', label: 'Servers' }, { id: 'inventory', label: 'Inventory' }];
+
+// --- Tab, kept in the address (?tab=inventory) so a link or a reload opens the same tab ---
+const route = useRoute();
+const router = useRouter();
+const tab = computed(() => (route.query.tab === 'inventory' ? 'inventory' : 'servers'));
+const inventoryOpened = ref(tab.value === 'inventory');
+watch(tab, (t) => { if (t === 'inventory') inventoryOpened.value = true; });
+function setTab(id) {
+  router.replace({ query: { ...route.query, tab: id === 'servers' ? undefined : id } });
+}
 
 // --- Data ---
 const tree = useInfraTree();
