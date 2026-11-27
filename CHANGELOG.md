@@ -4,6 +4,16 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 27-11-2026: An archived bench's Code Server ends Archived, not Broken (0.7.79)
+
+### Fixed
+- A Code Server runs inside its bench's container, so once the bench is archived the editor is already gone, but the
+  agent's "Archive Code Server" route checks that the bench exists and always failed: the record ended Broken and its
+  name was never released. Since 0.7.78 the old bench's Code Server is archived only after that bench is Archived, so
+  every deploy hit this. Now archiving skips the agent call when the bench is Archived and counts that part as done:
+  the proxy upstream is removed, the record ends Archived and the name is released. The job callback reads the newest
+  job of each kind, and stops if the other callback already renamed the record. Code in `code_server_archive.py`.
+
 ## 27-11-2026: A deploy keeps the development bench and its Code Server (0.7.78; 0.7.76 and 0.7.77 went to the Watch Tower PRs)
 
 ### Fixed
