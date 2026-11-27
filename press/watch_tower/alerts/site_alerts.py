@@ -3,6 +3,7 @@ import frappe
 from .._hard_timeout import hard_timeout, HardTimeoutError
 from frappe.utils import get_datetime
 from ._helpers import TABLE, esc, ts_now, ssh_cmd, should_send_alert
+from . import alert_state
 from ._helpers import now_sql
 
 
@@ -58,11 +59,17 @@ def check_site_reachability(doc_dict, rule):
 			})
 
 	if not issues:
+		if sites and alert_state.failing("site_reachability") and send_alert_email(
+			recipients=["eng.elgogary@gmail.com"],
+			subject=f"Site Alert cleared: every site answers \u00b7 {ts}",
+			important=True,
+			message=wrap_email("Sites back up", "<p>Every active site answers again.</p>", f"Press &bull; {ts}"),
+		):
+			alert_state.forget("site_reachability")
 		return False
 
-	fingerprint = "|".join(sorted(f"{i['site']}={i['error']}" for i in issues))
-	if not should_send_alert("site_reachability", fingerprint):
-		return True
+	down = [i["site"] for i in issues]
+	new = alert_state.is_new("site_reachability", down)  # error text no longer re-alerts
 
 	rows = "".join(
 		f"<tr><td><a href='https://{esc(i['site'])}'>{esc(i['site'])}</a></td>"
@@ -78,12 +85,14 @@ def check_site_reachability(doc_dict, rule):
 {rows}
 </table>"""
 
-	send_alert_email(
+	sent = send_alert_email(
 		recipients=["eng.elgogary@gmail.com"],
 		subject=f"\U0001f310 Site Alert: {len(issues)} site(s) down \u2014 {ts}",
-		important=True,
+		important=new,
 		message=wrap_email("0001F310 SITE REACHABILITY ALERT", body, f"Press &bull; {ts}"),
 	)
+	if sent or not new:
+		alert_state.remember("site_reachability", down)
 	return True
 
 

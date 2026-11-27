@@ -4,6 +4,29 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 27-11-2026: disk, SSH and site-down alerts email when something starts or clears (0.7.85)
+
+### Changed
+- A disk, SSH or site-down alert emails when a server or site joins the failing set (disk: also when one reaches 95%).
+  While the same set keeps failing, the hourly repeat goes to the 08:00 report instead of an email. When nothing fails
+  any more, one "cleared" email goes out (site: to the same people as the site-down email). The set is kept in Redis
+  (`press/watch_tower/alerts/alert_state.py`, persistent key `wt:alert_set:*`).
+- Before, a new count of servers or a new error text started a new series of three emails: 62 of the 263 alerts Brevo
+  held on 27 Nov 2026. The disk fingerprint also never held the server name (it read a field the check does not set).
+- A refused first email is tried again at the next check: the set is kept only after the email went out, and the
+  "cleared" email forgets it only after it went out. When Redis cannot be read, the alert is sent now.
+- Disk: 95% holds until the server is below 85% again (no new email at each crossing of 95%). A server with no
+  reading (unreachable, or no `df` line) keeps its place and is never a recovery; nor is an empty server list. The SSH
+  and site checks send no "cleared" email when they had nothing to check.
+
+### Tests
+- `python3 -m unittest test_alert_state test_alert_on_change_wiring` (from `press/watch_tower/alerts`): 8 offline
+  tests; the 3 wiring tests fail on the 0.7.84 code (a repeat emails instead of going to the report).
+- Not covered: two overlapping runs of one check can both send (the read and the write are not atomic); the hourly
+  job runs the checks one after another.
+
+---
+
 ## 27-11-2026: sign in with GitHub and Google; 2FA holds on every sign-in path (0.7.84)
 
 ### Added

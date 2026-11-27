@@ -537,6 +537,7 @@ __persistent_cache_keys = [
 	"press-auth-logs",
 	"rl:*",
 	"wt:digest:*",  # Watch Tower alerts waiting for the morning report
+	"wt:alert_set:*",  # what disk/SSH/site alerts already emailed about (alert_state.py)
 ]
 
 # `frappe.rename_doc` erases all caches, this hook preserves some of them.
