@@ -16,12 +16,19 @@ PRESS = pathlib.Path(__file__).parents[1]  # this file's own tree (the press-ctr
 
 
 class TestRecoverToken(FrappeTestCase):
-	def _recover(self, caller, user_type="System User"):
+	def _recover(self, caller, user_type="System User", confirmed=True):
 		session = frappe._dict(user=caller, data=frappe._dict(user_type=user_type))
+		confirm = (
+			patch("press.mcp_server.token_confirm.confirmed_how", return_value="password")
+			if confirmed
+			else patch("press.mcp_server.token_confirm.confirmed_how", side_effect=frappe.PermissionError("confirm"))
+		)
 		with (
-			patch.object(auth.frappe, "get_doc", return_value=frappe._dict(user="owner@example.com")),
+			patch.object(auth.frappe, "get_doc", return_value=frappe._dict(user="owner@example.com", name="MCPT-1")),
 			patch.object(auth.frappe, "session", session),
 			patch("frappe.utils.password.get_decrypted_password", return_value="mcp_secret_value") as decrypt,
+			confirm,
+			patch("press.mcp_server.token_edit.log_token_action"),
 		):
 			try:
 				return auth.recover_token("MCPT-1"), decrypt
@@ -32,6 +39,12 @@ class TestRecoverToken(FrappeTestCase):
 		result, decrypt = self._recover("owner@example.com")
 		self.assertEqual(result.get("token"), "mcp_secret_value")
 		decrypt.assert_called_once()
+
+	def test_the_owner_without_a_recent_confirm_is_refused_before_decryption(self):
+		"""PRS-SP-22: an open session alone no longer copies a token."""
+		result, decrypt = self._recover("owner@example.com", confirmed=False)
+		self.assertEqual(result, "refused")
+		decrypt.assert_not_called()
 
 	def test_another_system_user_is_refused_before_decryption(self):
 		result, decrypt = self._recover("member@example.com", user_type="System User")

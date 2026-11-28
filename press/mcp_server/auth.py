@@ -122,6 +122,7 @@ def issue_token(
 	}).insert(ignore_permissions=True)
 
 	_log_attempt(username, ip, success=True)
+	_after_issue(doc.name, username, scope_list, "email code" if otp else "password")
 
 	return {
 		"token": plaintext,
@@ -324,6 +325,9 @@ def reissue_token(token_id: str, password: str | None = None, ttl_minutes: int =
 	is_system = frappe.session.data.user_type == "System User"
 	if old.user != user and not is_system:
 		raise frappe.PermissionError("you can only reissue your own tokens")
+	from press.mcp_server import token_confirm, token_edit
+
+	how = token_confirm.confirmed_how()
 
 	# Revoke old
 	frappe.db.set_value(
@@ -368,6 +372,7 @@ def reissue_token(token_id: str, password: str | None = None, ttl_minutes: int =
 		"expires_at": expires_at,
 	}).insert(ignore_permissions=True)
 
+	token_edit.log_token_action("Reissue", doc.name, f"reissued the token (replaced {token_id})", how, {"replaced": token_id})
 	return {
 		"token": plaintext,
 		"name": doc.name,
@@ -404,6 +409,9 @@ def recover_token(token_id: str, password: str | None = None) -> dict[str, str]:
 	doc = frappe.get_doc("Press MCP Token", token_id)
 	if doc.user != frappe.session.user:
 		raise frappe.PermissionError("you can only recover your own tokens")
+	from press.mcp_server import token_confirm, token_edit
+
+	how = token_confirm.confirmed_how()
 
 	from frappe.utils.password import get_decrypted_password
 	try:
@@ -419,6 +427,7 @@ def recover_token(token_id: str, password: str | None = None) -> dict[str, str]:
 			"Use Reissue to get a new token with the same scope."
 		)
 
+	token_edit.log_token_action("Copy Token", doc.name, "copied the token", how)
 	return {
 		"token": plaintext,
 		"name": doc.name,
@@ -453,6 +462,16 @@ def cleanup_expired_tokens(grace_hours: int = 24) -> dict[str, int]:
 		frappe.db.commit()
 	frappe.logger().info(f"cleanup_expired_tokens: deleted {len(expired)} tokens older than {grace_hours}h past expiry")
 	return {"deleted": len(expired), "grace_hours": grace_hours}
+
+
+def _after_issue(token: str, username: str, scope_list: list, how: str) -> None:
+	"""A token was issued: the issuer's re-check counts as a Confirm it's you, and the issue is recorded."""
+	from press.mcp_server import token_confirm, token_edit
+
+	if frappe.session.user == username:
+		token_confirm.mark_confirmed(how)
+	tools = f"{len(scope_list)} tools" if scope_list else "every tool"
+	token_edit.log_token_action("Issue", token, f"issued the token with {tools}", how)
 
 
 def _check_password(username: str, password: str) -> None:
@@ -540,7 +559,7 @@ def request_email_otp(username: str = "") -> dict[str, Any]:
 			subject="Your MCP token verification code",
 			message=(
 				f"<p>Hello,</p>"
-				f"<p>Your one-time code for issuing an MCP token is:</p>"
+				f"<p>Your one-time code for your MCP tokens is:</p>"
 				f"<p style='font-size:20px;font-weight:bold;letter-spacing:2px'>{code}</p>"
 				f"<p>This code expires in {OTP_TTL_MINUTES} minutes. If you didn't request it, ignore this email.</p>"
 			),
