@@ -209,12 +209,13 @@ def _backup_problem(backup) -> str | None:
 		return f"backup {backup.name} has no offsite copy"
 	if not (backup.with_files and backup.remote_public_file and backup.remote_private_file):
 		return f"backup {backup.name} has no public and private files"
+	stored = {}
 	for remote in (backup.remote_database_file, backup.remote_public_file, backup.remote_private_file):
 		row = remote and frappe.db.get_value("Remote File", remote, ["status", "file_size"], as_dict=True)
 		if not row or row.status == "Unavailable":
 			return f"backup {backup.name}: file {remote!r} is missing from storage"
-	size = frappe.db.get_value("Remote File", backup.remote_database_file, "file_size")
-	if not cint(size):
+		stored[remote] = row
+	if not cint(stored[backup.remote_database_file].file_size):
 		return f"backup {backup.name}: the database file is empty"
 	return None
 

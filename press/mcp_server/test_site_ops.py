@@ -426,13 +426,11 @@ class TestBackupHealth(unittest.TestCase):
 		}
 
 	def _problem(self, files=None, db_size="2048", **changes):
-		files = files or {}
+		files = {"rf-db": frappe._dict(status="Available", file_size=db_size), **(files or {})}
 		backup = frappe._dict({**self._good(), **changes})
 
 		def get_value(doctype, name, fields, *args, **kwargs):
-			if isinstance(fields, list):
-				return files.get(name, frappe._dict(status="Available", file_size="10"))
-			return db_size
+			return files.get(name, frappe._dict(status="Available", file_size="10"))
 
 		with patch.object(frappe.db, "get_value", side_effect=get_value):
 			return site_ops._backup_problem(backup)
@@ -461,3 +459,18 @@ class TestBackupHealth(unittest.TestCase):
 	def test_an_empty_database_file_is_unhealthy(self):
 		self.assertIn("database file is empty", self._problem(db_size="0"))
 		self.assertIn("database file is empty", self._problem(db_size=None))
+
+
+class TestDeactivatedAt(unittest.TestCase):
+	"""The backup must postdate the switch-off; this finds when that was."""
+
+	def test_uses_the_last_deactivate_site_activity(self):
+		with patch.object(frappe.db, "get_value", return_value="2026-11-28 06:00:00") as get_value:
+			self.assertEqual(site_ops._deactivated_at("probe.sandbox.mvpstorm.com"), "2026-11-28 06:00:00")
+		self.assertEqual(get_value.call_args.args[1]["action"], "Deactivate Site")
+		self.assertEqual(get_value.call_args.kwargs["order_by"], "creation desc")
+
+	def test_falls_back_to_the_site_last_change_when_no_activity_was_logged(self):
+		with patch.object(frappe.db, "get_value", side_effect=[None, "2026-11-27 09:00:00"]) as get_value:
+			self.assertEqual(site_ops._deactivated_at("probe.sandbox.mvpstorm.com"), "2026-11-27 09:00:00")
+		self.assertEqual(get_value.call_args.args[:3], ("Site", "probe.sandbox.mvpstorm.com", "modified"))
