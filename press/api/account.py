@@ -1257,23 +1257,15 @@ def verify_2fa(user, totp_code):
 
 @frappe.whitelist()
 def get_2fa_qr_code_url():
-	"""Get the QR code URL for 2FA provisioning"""
-
-	if frappe.db.exists("User 2FA", frappe.session.user):
-		user_totp_secret = get_decrypted_password("User 2FA", frappe.session.user, "totp_secret")
-	else:
-		user_totp_secret = pyotp.random_base32()
-		frappe.get_doc(
-			{
-				"doctype": "User 2FA",
-				"user": frappe.session.user,
-				"totp_secret": user_totp_secret,
-			}
-		).insert()
-
-	return pyotp.totp.TOTP(user_totp_secret).provisioning_uri(
-		name=frappe.session.user, issuer_name="Accurate Systems Cloud"
-	)
+	"""A fresh secret, only while 2FA is off: a session must never read the secret of an app in use."""
+	user = frappe.session.user
+	if frappe.db.get_value("User 2FA", user, "enabled"):
+		frappe.throw("Two-factor authentication is already on. Turn it off first to link another app.")
+	if frappe.db.exists("User 2FA", user):  # a new row: its creation is when this app was linked
+		frappe.delete_doc("User 2FA", user, ignore_permissions=True, force=True)
+	user_totp_secret = pyotp.random_base32()
+	frappe.get_doc({"doctype": "User 2FA", "user": user, "totp_secret": user_totp_secret}).insert()
+	return pyotp.totp.TOTP(user_totp_secret).provisioning_uri(name=user, issuer_name="Accurate Systems Cloud")
 
 
 @frappe.whitelist()
