@@ -82,102 +82,20 @@
 					</label>
 				</div>
 
-				<!-- Scope picker: search + presets + grouped categories -->
-				<div>
-					<div class="flex items-baseline justify-between gap-2 mb-2">
-						<label class="text-sm font-medium text-gray-700">
-							Scope (tools this token can call)
-						</label>
-						<div class="text-xs text-gray-500">
-							{{ scopeSummary }}
-						</div>
-					</div>
-
-					<div class="mb-2 flex flex-wrap items-center gap-2">
-						<input
-							type="text"
-							v-model="search"
-							placeholder="Search tools..."
-							class="flex-1 min-w-[180px] rounded border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
-						/>
-						<Button v-for="(_, presetName) in PRESETS" :key="presetName"
-							size="sm"
-							@click="applyPreset(presetName)"
-						>
-							{{ presetName }}
-						</Button>
-						<Button size="sm" theme="gray" @click="clearScope">Clear</Button>
-					</div>
-
-					<div
-						v-if="riskyMissingFlag"
-						class="mb-2 rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800"
-					>
-						<strong>Heads-up:</strong> you've selected high-risk tools
-						(<code class="rounded bg-red-100 px-1">{{ riskyMissingFlag.join(', ') }}</code>) but
-						<strong>Enable risky tools</strong> is unchecked. Calls to these tools will fail with
-						PermissionError until you enable risky tools above.
-					</div>
-					<div class="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+				<!-- Scope picker: search + presets + grouped categories (ToolScopePicker.vue) -->
+				<ToolScopePicker v-model="form.scope">
+					<template #notice>
 						<div
-							v-for="cat in TOOL_CATEGORIES"
-							:key="cat.id"
-							class="rounded border p-2"
-							:class="categoryBorderClass(cat.tone)"
+							v-if="riskyMissingFlag"
+							class="mb-2 rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800"
 						>
-							<div class="flex items-center justify-between mb-1.5">
-								<div class="flex items-center gap-2">
-									<span class="text-sm font-semibold text-gray-800">
-										{{ cat.label }}
-									</span>
-									<span class="text-xs text-gray-500">
-										({{ visibleToolsByCategory(cat.id).length }} visible · {{ selectedInCategory(cat.id) }} selected)
-									</span>
-								</div>
-								<button
-									type="button"
-									class="text-xs text-blue-600 hover:underline"
-									@click="toggleCategory(cat.id)"
-								>
-									{{ allCategorySelected(cat.id) ? 'Deselect all' : 'Select all' }}
-								</button>
-							</div>
-							<div class="grid grid-cols-1 gap-x-3 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
-								<label
-									v-for="tool in visibleToolsByCategory(cat.id)"
-									:key="tool"
-									class="flex items-start gap-2 cursor-pointer hover:bg-white/60 rounded px-1.5 py-1 min-w-0"
-									:title="TOOL_CATALOG[tool].desc"
-								>
-									<input
-										type="checkbox"
-										:value="tool"
-										v-model="form.scope"
-										class="mt-0.5 shrink-0"
-									/>
-									<span class="flex-1 min-w-0">
-										<span class="block text-sm text-gray-800 leading-tight">
-											{{ TOOL_CATALOG[tool].label || tool }}
-										</span>
-										<span class="block font-mono text-[10px] text-gray-400 leading-tight truncate">
-											{{ tool }}
-										</span>
-									</span>
-									<span :class="riskBadgeClass(TOOL_CATALOG[tool].risk)" class="shrink-0">
-										{{ TOOL_CATALOG[tool].risk }}
-									</span>
-								</label>
-							</div>
-							<div
-								v-if="visibleToolsByCategory(cat.id).length === 0"
-								class="text-xs text-gray-400 italic px-1 py-0.5"
-							>
-								No tools in this category match your search.
-							</div>
+							<strong>Heads-up:</strong> you've selected high-risk tools
+							(<code class="rounded bg-red-100 px-1">{{ riskyMissingFlag.join(', ') }}</code>) but
+							<strong>Enable risky tools</strong> is unchecked. Calls to these tools will fail with
+							PermissionError until you enable risky tools above.
 						</div>
-					</div>
-
-				</div>
+					</template>
+				</ToolScopePicker>
 
 				<!-- Resource scoping: 2-col multi-select chip pickers -->
 				<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -224,16 +142,10 @@
 import { ref, reactive, computed, watch } from 'vue';
 import { Dialog, FormControl, ErrorMessage, Button } from 'frappe-ui';
 import call from './teamCall.js';
-import {
-	TOOL_CATEGORIES,
-	TOOL_CATALOG,
-	ALL_TOOLS,
-	PRESETS,
-	riskBadgeClass,
-	categoryBorderClass,
-} from './_tool_catalog.js';
+import { TOOL_CATALOG, PRESETS } from './_tool_catalog.js';
 import MultiSelectChips from './MultiSelectChips.vue';
 import HandoverPanel from './HandoverPanel.vue';
+import ToolScopePicker from './ToolScopePicker.vue';
 
 // A new token opens on the deploy tools (owner, 25 Nov 2026); the member's role still limits what it reaches.
 const DEFAULT_PRESET = 'All deploy';
@@ -261,7 +173,6 @@ const form = reactive({
 const submitting = ref(false);
 const errorMsg = ref('');
 const newToken = ref('');
-const search = ref('');
 const sendingOtp = ref(false);
 const otpSent = ref(false);
 const otpCooldown = ref(0);
@@ -306,7 +217,6 @@ function resetState() {
 	form.allowedSites = [];
 	form.riskyToolsEnabled = false;
 	form.confidentialPin = '';
-	search.value = '';
 	otpSent.value = false;
 	otpCooldown.value = 0;
 	if (otpTimer) { clearInterval(otpTimer); otpTimer = null; }
@@ -377,48 +287,6 @@ watch(() => props.modelValue, (v) => {
 	}
 });
 
-// ---- Scope picker helpers ----
-
-function visibleToolsByCategory(catId) {
-	const q = search.value.trim().toLowerCase();
-	return ALL_TOOLS.filter((tool) => {
-		if (TOOL_CATALOG[tool].category !== catId) return false;
-		if (!q) return true;
-		return (
-			tool.toLowerCase().includes(q) ||
-			(TOOL_CATALOG[tool].desc || '').toLowerCase().includes(q)
-		);
-	});
-}
-
-function selectedInCategory(catId) {
-	return form.scope.filter((t) => TOOL_CATALOG[t]?.category === catId).length;
-}
-
-function allCategorySelected(catId) {
-	const visible = visibleToolsByCategory(catId);
-	if (visible.length === 0) return false;
-	return visible.every((t) => form.scope.includes(t));
-}
-
-function toggleCategory(catId) {
-	const visible = visibleToolsByCategory(catId);
-	if (allCategorySelected(catId)) {
-		form.scope = form.scope.filter((t) => !visible.includes(t));
-	} else {
-		const set = new Set(form.scope);
-		visible.forEach((t) => set.add(t));
-		form.scope = Array.from(set);
-	}
-}
-
-function applyPreset(presetName) {
-	form.scope = [...(PRESETS[presetName] || [])];
-}
-
-function clearScope() {
-	form.scope = [];
-}
 
 const riskyMissingFlag = computed(() => {
 	if (form.riskyToolsEnabled) return null;
@@ -436,17 +304,6 @@ function shortSite(name) {
 	return name.split('.')[0];
 }
 
-const scopeSummary = computed(() => {
-	if (form.scope.length === 0) return 'No tools selected';
-	const lows = form.scope.filter((t) => TOOL_CATALOG[t]?.risk === 'low').length;
-	const meds = form.scope.filter((t) => TOOL_CATALOG[t]?.risk === 'medium').length;
-	const highs = form.scope.filter((t) => TOOL_CATALOG[t]?.risk === 'high').length;
-	const parts = [];
-	if (lows) parts.push(`${lows} read-only`);
-	if (meds) parts.push(`${meds} state-changing`);
-	if (highs) parts.push(`${highs} high-risk`);
-	return `${form.scope.length} tools · ${parts.join(' · ')}`;
-});
 
 // ---- Submit ----
 
