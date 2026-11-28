@@ -43,7 +43,7 @@ class ConfirmCase(unittest.TestCase):
 		self.stack = ExitStack()
 		self.stack.enter_context(patch.object(frappe, "cache", self.cache))
 		session = frappe._dict(
-			user=OWNER, data=frappe._dict(creation="2026-11-28 08:00:00", user_type="Website User")
+			user=OWNER, sid="browser-a", data=frappe._dict(creation="2026-11-28 08:00:00", user_type="Website User")
 		)
 		self.stack.enter_context(patch.object(frappe, "session", session))
 
@@ -243,3 +243,87 @@ class TestHistory(ConfirmCase):
 				"how": "authenticator code",
 			},
 		)
+
+
+class TestReviewFixes(ConfirmCase):
+	"""Review of 28 Nov: reissue owner-only and confirmed, issue honours the lock, fail closed, per-session unlock."""
+
+	def _reissue(self, token, confirmed=True):
+		from press.mcp_server import auth
+
+		how = (
+			patch.object(token_confirm, "confirmed_how", return_value="password")
+			if confirmed
+			else patch.object(token_confirm, "confirmed_how", side_effect=frappe.PermissionError("confirm first"))
+		)
+		with (
+			patch.object(auth.frappe, "get_doc", return_value=token),
+			patch.object(frappe.db, "set_value") as setv,
+			how,
+		):
+			try:
+				auth.reissue_token("MCPT-1")
+			except (frappe.PermissionError, frappe.ValidationError) as e:
+				return e, setv
+		return None, setv
+
+	def test_a_system_user_cannot_reissue_someone_elses_token(self):
+		frappe.session.data.user_type = "System User"
+		err, setv = self._reissue(frappe._dict(user="someone@example.com", revoked=0))
+		self.assertIsInstance(err, frappe.PermissionError)
+		setv.assert_not_called()
+
+	def test_a_revoked_token_cannot_be_reissued(self):
+		err, setv = self._reissue(frappe._dict(user=OWNER, revoked=1))
+		self.assertIsInstance(err, frappe.ValidationError)
+		setv.assert_not_called()
+
+	def test_reissue_needs_a_recent_confirm(self):
+		err, setv = self._reissue(frappe._dict(user=OWNER, revoked=0), confirmed=False)
+		self.assertIsInstance(err, frappe.PermissionError)
+		setv.assert_not_called()
+
+	def test_issuing_does_not_unlock_while_confirming_is_locked(self):
+		self.cache.set_value(token_confirm._key("lock"), 1)
+		token_confirm.mark_confirmed("password")
+		with self.assertRaises(frappe.PermissionError):
+			token_confirm.confirmed_how()
+
+	def test_wrong_tries_counted_elsewhere_lock_confirming(self):
+		for _ in range(token_confirm.MAX_FAILURES - 1):
+			self.assertFalse(token_confirm.count_failure())
+		self.assertTrue(token_confirm.count_failure())
+		self.assertEqual(self.cache.get_value(token_confirm._key("lock")), 1)
+
+	def test_without_a_recorded_login_time_an_app_does_not_count(self):
+		frappe.session.data.creation = None
+		with patch.object(frappe.db, "get_value", return_value=frappe._dict(enabled=1, creation="2020-01-01 00:00:00")):
+			self.assertEqual(token_confirm._app_state(OWNER), "new")
+
+	def test_a_confirm_belongs_to_one_browser_session(self):
+		frappe.session.sid = "browser-a"
+		token_confirm.mark_confirmed("password")
+		frappe.session.sid = "browser-b"
+		with self.assertRaises(frappe.PermissionError):
+			token_confirm.confirmed_how()
+
+	def test_a_retired_tool_in_the_old_list_does_not_block_a_save(self):
+		token = frappe._dict(
+			name="MCPT-1",
+			user=OWNER,
+			label="agent",
+			scope=json.dumps(["site_status", "a_retired_tool"]),
+			revoked=0,
+			expires_at=frappe.utils.add_days(frappe.utils.now_datetime(), 10),
+			risky_tools_enabled=0,
+		)
+		with (
+			patch.object(frappe.db, "get_value", return_value=token),
+			patch.object(frappe.db, "set_value") as setv,
+			patch.object(frappe.db, "commit"),
+			patch.object(token_edit, "log_token_action"),
+		):
+			out = token_edit.update_token_tools("MCPT-1", ["site_status", "a_retired_tool"])
+		self.assertEqual(out["scope"], ["site_status"])
+		self.assertEqual((out["added"], out["removed"]), ([], []))
+		setv.assert_not_called()

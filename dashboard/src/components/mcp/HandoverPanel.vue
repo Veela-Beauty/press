@@ -242,7 +242,7 @@ async function writeClipboard(read, label, idle) {
 		await navigator.clipboard.writeText(text);
 		label.value = 'Copied!';
 	} catch {
-		label.value = 'Copy failed';
+		label.value = 'Press Copy again';
 	}
 	if (copyResetTimer) clearTimeout(copyResetTimer);
 	copyResetTimer = setTimeout(() => (label.value = idle), 1500);

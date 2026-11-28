@@ -63,13 +63,15 @@ def _label(tool: str) -> str:
 def update_token_tools(token_id: str, scope: list | str) -> dict[str, Any]:
 	"""Give a token a new list of tools. Same token; adding a tool needs a recent Confirm it's you."""
 	doc = _own_live_token(token_id)
+	old_saved = safe_parse_list(doc.scope)
 	new = list(dict.fromkeys(safe_parse_list(scope)))
-	unknown = [t for t in new if t not in TOOLS]
+	unknown = [t for t in new if t not in TOOLS and t not in old_saved]
 	if unknown:
 		frappe.throw(f"Unknown tools: {', '.join(unknown)}")
+	new = [t for t in new if t in TOOLS]  # a tool retired since the token was saved cannot be called anyway
 	if not new:
 		frappe.throw("Choose at least one tool: an empty list would let the token call every tool.")
-	old = safe_parse_list(doc.scope) or list(TOOLS)
+	old = [t for t in old_saved if t in TOOLS] or list(TOOLS)
 	added = [t for t in new if t not in old]
 	removed = [t for t in old if t not in new]
 	if not added and not removed:

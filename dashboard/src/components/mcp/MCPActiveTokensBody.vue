@@ -125,7 +125,7 @@
 							Edit tools
 						</Button>
 						<Button v-if="t.has_plaintext" size="sm" @click="onShowHandover(t)"
-							title="Show plaintext token + handover snippet">
+							title="Copy the token and its handover snippet (asks Confirm it's you)">
 							Copy token
 						</Button>
 						<Button v-else size="sm" @click="onReissue(t)"
@@ -148,6 +148,17 @@
 					/>
 				</div>
 
+				<div v-if="expandedTokens[t.name]" class="mt-3 rounded border border-gray-200 p-3">
+					<div class="mb-1 text-sm font-medium text-gray-700">Token history</div>
+					<div v-for="(h, i) in histories[t.name] || []" :key="i"
+						class="flex gap-3 border-b border-gray-100 py-1.5 text-xs last:border-0">
+						<span class="w-48 shrink-0 text-gray-600">{{ formatDate(h.when) }}</span>
+						<span class="text-gray-900">{{ h.who }} {{ h.what }}<span v-if="h.how" class="text-gray-500"> · {{ h.how }}</span></span>
+					</div>
+					<p v-if="histories[t.name] && !histories[t.name].length" class="text-xs text-gray-500">
+						No changes recorded yet.
+					</p>
+				</div>
 				<div v-if="expandedTokens[t.name] && (t.scope || []).length > 0"
 					class="mt-3 space-y-2 rounded border border-gray-200 bg-gray-50 p-3">
 					<div v-for="cat in TOOL_CATEGORIES" :key="cat.id">
@@ -169,17 +180,6 @@
 						</div>
 					</div>
 				</div>
-				<div v-if="expandedTokens[t.name]" class="mt-3 rounded border border-gray-200 p-3">
-					<div class="mb-1 text-sm font-medium text-gray-700">Token history</div>
-					<div v-for="(h, i) in histories[t.name] || []" :key="i"
-						class="flex gap-3 border-b border-gray-100 py-1.5 text-xs last:border-0">
-						<span class="w-36 shrink-0 text-gray-600">{{ formatDate(h.when) }}</span>
-						<span class="text-gray-900">{{ h.who }} {{ h.what }}<span v-if="h.how" class="text-gray-500"> · {{ h.how }}</span></span>
-					</div>
-					<p v-if="histories[t.name] && !histories[t.name].length" class="text-xs text-gray-500">
-						No changes recorded yet.
-					</p>
-				</div>
 			</li>
 		</ul>
 		<EditToolsDialog v-model="editToolsOpen" :token="editToolsToken" @saved="onToolsSaved" />
@@ -189,7 +189,8 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
-import { Button, FeatherIcon, toast } from 'frappe-ui';
+import { Button, FeatherIcon } from 'frappe-ui';
+import { toast } from 'vue-sonner';
 import call from './teamCall.js';
 import { confirmDialog } from '../../utils/components';
 import HandoverPanel from './HandoverPanel.vue';

@@ -84,6 +84,10 @@ def issue_token(
 			_check_password(username, password)
 	except Exception:
 		_log_attempt(username, ip, success=False)
+		if username == frappe.session.user:
+			from press.mcp_server import token_confirm
+
+			token_confirm.count_failure()
 		raise
 	if not frappe.db.get_value("User", username, "enabled"):
 		_log_attempt(username, ip, success=False)
@@ -305,7 +309,7 @@ def revoke_token(token_id: str) -> dict[str, str]:
 	return {"status": "revoked", "name": token_id}
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def reissue_token(token_id: str, password: str | None = None, ttl_minutes: int = 60) -> dict[str, Any]:
 	"""Revoke an existing token and issue a NEW one with identical scope,
 	resource limits, label, and risky-tools flag.
@@ -322,9 +326,11 @@ def reissue_token(token_id: str, password: str | None = None, ttl_minutes: int =
 	"""
 	old = frappe.get_doc("Press MCP Token", token_id)
 	user = frappe.session.user
-	is_system = frappe.session.data.user_type == "System User"
-	if old.user != user and not is_system:
+	# Only the token's own user (0.7.90): the new plaintext acts as them, so an admin revokes instead.
+	if old.user != user:
 		raise frappe.PermissionError("you can only reissue your own tokens")
+	if old.revoked:
+		raise frappe.ValidationError("This token is revoked: issue a new one instead.")
 	from press.mcp_server import token_confirm, token_edit
 
 	how = token_confirm.confirmed_how()
@@ -387,7 +393,7 @@ def reissue_token(token_id: str, password: str | None = None, ttl_minutes: int =
 	}
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def recover_token(token_id: str, password: str | None = None) -> dict[str, str]:
 	"""Recover the plaintext token for an existing Press MCP Token.
 

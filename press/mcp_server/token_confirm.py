@@ -28,6 +28,9 @@ HOW = {"app": "authenticator code", "email": "email code", "password": "password
 
 
 def _key(kind: str) -> str:
+	"""The unlock is this browser session's; the wrong-try count and the lock are the user's."""
+	if kind == "unlock":
+		return f"mcp_confirm:unlock:{frappe.session.user}:{frappe.session.sid}"
 	return f"mcp_confirm:{kind}:{frappe.session.user}"
 
 
@@ -37,7 +40,7 @@ def _app_state(user: str) -> str:
 	if not row or not row.enabled:
 		return "none"
 	login = (frappe.session.data or {}).get("creation")
-	if login and get_datetime(row.creation) >= get_datetime(login):
+	if not login or get_datetime(row.creation) >= get_datetime(login):
 		return "new"
 	return "ready"
 
@@ -49,6 +52,8 @@ def unlocked_seconds() -> int:
 
 def mark_confirmed(how: str) -> None:
 	"""A successful confirm, or an issue (which re-checks the password or an email code)."""
+	if frappe.cache.get_value(_key("lock")):
+		return
 	frappe.cache.set_value(_key("unlock"), how, expires_in_sec=UNLOCK_SECONDS)
 	frappe.cache.delete_value(_key("fail"))
 
@@ -63,13 +68,20 @@ def confirmed_how() -> str:
 	return how
 
 
-def _fail(message: str) -> None:
+def count_failure() -> bool:
+	"""One more wrong try; True when it locks confirming."""
 	count = (frappe.cache.get_value(_key("fail")) or 0) + 1
 	if count >= MAX_FAILURES:
 		frappe.cache.set_value(_key("lock"), 1, expires_in_sec=LOCK_SECONDS)
 		frappe.cache.delete_value(_key("fail"))
-		frappe.throw("Too many wrong tries. Try again in 10 minutes.", frappe.ValidationError)
+		return True
 	frappe.cache.set_value(_key("fail"), count, expires_in_sec=LOCK_SECONDS)
+	return False
+
+
+def _fail(message: str) -> None:
+	if count_failure():
+		frappe.throw("Too many wrong tries. Try again in 10 minutes.", frappe.ValidationError)
 	frappe.throw(message, frappe.ValidationError)
 
 

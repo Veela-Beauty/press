@@ -31,7 +31,8 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
-import { Dialog, ErrorMessage, toast } from 'frappe-ui';
+import { Dialog, ErrorMessage } from 'frappe-ui';
+import { toast } from 'vue-sonner';
 import call from './teamCall.js';
 import { TOOL_CATALOG, ALL_TOOLS } from './_tool_catalog.js';
 import ToolScopePicker from './ToolScopePicker.vue';
