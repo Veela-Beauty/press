@@ -1914,5 +1914,20 @@
     "site"
    ]
   }
+ },
+ "site_archive": {
+  "description": "Archive a site : Press drops its database and files (after a final offsite backup when offsite backups are set up). Refuses any site that is not Inactive, so run site_deactivate first. Runs as an agent job; poll site_status until Archived.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
  }
 }

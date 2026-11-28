@@ -295,3 +295,65 @@ class TestResourceScopingRegistry(unittest.TestCase):
 				msg.index("_extract_target"),
 				"the caller-side hint must come before the server-side one",
 			)
+
+
+class TestSiteArchive(unittest.TestCase):
+	"""site_archive drops a site, so its guard is the point: only a deactivated site goes."""
+
+	SITE = "probe.sandbox.mvpstorm.com"
+
+	def test_archive_rejects_unknown_site(self):
+		with (
+			patch.object(frappe.db, "exists", return_value=False),
+			patch.object(site_ops.site_api, "archive") as archive,
+			self.assertRaises(frappe.DoesNotExistError),
+		):
+			site_ops.site_archive(name="ghost.sandbox.mvpstorm.com")
+		archive.assert_not_called()
+
+	def test_archive_refuses_a_site_that_is_not_inactive(self):
+		"""One wrong call must never drop a live site: Active, Broken, Suspended all refused."""
+		for status in ("Active", "Broken", "Suspended", "Pending"):
+			with (
+				patch.object(frappe.db, "exists", return_value=True),
+				patch.object(frappe.db, "get_value", return_value=status),
+				patch.object(site_ops.site_api, "archive") as archive,
+				self.assertRaises(frappe.ValidationError) as ctx,
+			):
+				site_ops.site_archive(name=self.SITE)
+			archive.assert_not_called()
+			self.assertIn("site_deactivate", str(ctx.exception), "must tell the caller the first step")
+
+	def test_archive_passes_an_inactive_site_to_press_without_force(self):
+		job = frappe._dict({"name": "job-9", "status": "Pending"})
+		with patch.object(frappe.db, "exists", return_value=True), patch.object(
+			frappe.db, "get_value", side_effect=["Inactive", "Pending"]
+		), patch.object(frappe.db, "commit") as commit, patch.object(
+			frappe, "get_all", return_value=[job]
+		), patch.object(site_ops.site_api, "archive") as archive:
+			out = site_ops.site_archive(name=self.SITE)
+
+		archive.assert_called_once_with(name=self.SITE, force=False)
+		commit.assert_called_once()
+		self.assertEqual(out["site_status"], "Pending")
+		self.assertEqual(out["agent_job"], "job-9")
+
+	def test_archive_reports_null_job_when_nothing_was_queued(self):
+		with patch.object(frappe.db, "exists", return_value=True), patch.object(
+			frappe.db, "get_value", side_effect=["Inactive", "Inactive"]
+		), patch.object(frappe.db, "commit"), patch.object(frappe, "get_all", return_value=[]), patch.object(
+			site_ops.site_api, "archive"
+		):
+			out = site_ops.site_archive(name=self.SITE)
+
+		self.assertIsNone(out["agent_job"])
+		self.assertIsNone(out["agent_job_status"])
+
+	def test_archive_is_scoped_to_its_site_high_risk_and_listed(self):
+		from press.mcp_server.help import TOOL_CATEGORY
+		from press.mcp_server.server import _extract_target
+		from press.mcp_server.tools import TOOLS
+
+		self.assertEqual(_extract_target("site_archive", {"name": self.SITE}), ("Site", self.SITE))
+		self.assertEqual(TOOLS["site_archive"]["risk"], "high")
+		self.assertEqual(TOOL_CATEGORY["site_archive"], "dangerous")

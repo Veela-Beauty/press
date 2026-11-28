@@ -137,6 +137,7 @@ def _extract_target(tool: str, args: dict) -> tuple[str | None, str | None]:
 		# Restores INTO an existing site, so the site is the written resource.
 		# site_create is RG-scoped instead: its site does not exist yet.
 		"site_restore",
+		"site_archive",
 	}:
 		# api/site.py methods take 'name'; bench_dev_overview methods take 'site_name'
 		site = site or args.get("name")

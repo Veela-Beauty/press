@@ -4,6 +4,17 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 28-11-2026: MCP site_archive tool (0.7.89)
+
+### Added
+- `site_archive` (high risk): archives a site through Press's own `api.site.archive`, so the team check, the final
+  offsite backup and the upstream removal all stay the dashboard's. It refuses any site that is not Inactive, so
+  dropping a site always takes two calls (`site_deactivate`, then `site_archive`). Scoped to its site, listed under
+  Dangerous in help and in the Issue Token dialog, added to the dev-box proxy catalog. Asked for by the owner on
+  28 Nov after two throwaway test sites could only be switched off, not archived.
+
+---
+
 ## 27-11-2026: Infrastructure page tabs in one row with the page actions (0.7.88)
 
 ### Changed

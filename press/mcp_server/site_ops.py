@@ -186,3 +186,41 @@ def site_restore(
 			"null, nothing was queued. Poll agent_job_progress or site_status for progress."
 		),
 	}
+
+
+def site_archive(name: str) -> dict[str, Any]:
+	"""Archive a site that was switched off first : Press drops its database and files.
+
+	Only an Inactive site is accepted, so dropping a site always takes two calls
+	(site_deactivate, then this) and one wrong call can never drop a live site. Press
+	asks the agent for a final offsite backup before the drop, as the dashboard does.
+	"""
+	_assert_site(name)
+	status = frappe.db.get_value("Site", name, "status")
+	if status != "Inactive":
+		frappe.throw(
+			f"Site {name!r} is {status}. Only a deactivated (Inactive) site can be archived : "
+			"run site_deactivate first, once you are sure nobody uses it.",
+			frappe.ValidationError,
+		)
+
+	site_api.archive(name=name, force=False)
+	frappe.db.commit()
+
+	job = frappe.get_all(
+		"Agent Job",
+		filters={"site": name, "job_type": "Archive Site"},
+		fields=["name", "status"],
+		order_by="creation desc",
+		limit=1,
+	)
+	return {
+		"site": name,
+		"site_status": frappe.db.get_value("Site", name, "status"),
+		"agent_job": job[0].name if job else None,
+		"agent_job_status": job[0].status if job else None,
+		"note": (
+			"Archive runs as an agent job and the site ends Archived. agent_job is the job "
+			"Press created : if it is null, nothing was queued. Poll site_status."
+		),
+	}
