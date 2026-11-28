@@ -4,6 +4,28 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 28-11-2026: MCP tokens: Edit tools, Confirm it's you, the token kept off the screen (0.7.90)
+
+### Added
+- **Edit tools** on each active token: the Issue Token picker with this token's tools ticked, each change marked
+  Added or Removed. The token stays the same, so there is nothing to copy again. Adding a tool needs Confirm it's
+  you; removing only does not. A high-risk tool turns risky tools on for the token (pending approval for a user who
+  is not a System User, as at issue).
+- **Confirm it's you** with three ways, any one enough: the authenticator app (an app linked during this login does
+  not count, as linking needs no password), an email code, or the password. A confirm holds 10 minutes, as the site
+  logins' does; issuing a token counts as one. 5 wrong tries lock it for 10 minutes.
+- **Token history** under Show details: who issued, reissued, copied or changed the token, when, and how they
+  confirmed. Kept in Press MCP Admin Action (new types Issue, Reissue, Edit Tools, Copy Token: needs a migrate).
+
+### Changed
+- The token is masked on screen after Issue, Reissue or Copy token (first 8 characters, then dots) in all four tabs
+  and the raw row. **Show** and **Copy** ask Confirm it's you; Copy still puts the full token in what is pasted.
+- **Copy token** (`recover_token`) and **Reissue** need a recent Confirm it's you. Until now an open dashboard
+  session alone handed out a token's plaintext (owner, 28 Nov: "easy copy").
+- The Issue Token picker lives in `ToolScopePicker.vue`, shared with Edit tools; its search also matches tool labels.
+
+---
+
 ## 28-11-2026: MCP site_archive tool (0.7.89)
 
 ### Added
