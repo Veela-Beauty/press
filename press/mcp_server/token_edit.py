@@ -119,12 +119,17 @@ def token_history(token_id: str) -> list[dict[str, str]]:
 		limit=HISTORY_ROWS,
 	)
 	names = {r.actor: get_fullname(r.actor) for r in rows if r.actor}
-	return [
-		{
-			"when": str(r.creation),
-			"who": names.get(r.actor, r.actor or ""),
-			"what": r.reason or r.action_type,
-			"how": (json.loads(r.context_json or "{}") or {}).get("how", ""),
-		}
-		for r in rows
-	]
+	return [_history_row(r, names) for r in rows]
+
+
+def _history_row(r, names: dict) -> dict[str, Any]:
+	"""One history line. added/removed are tool ids: the dashboard shows their labels (TOOLS has none)."""
+	context = json.loads(r.context_json or "{}") or {}
+	return {
+		"when": str(r.creation),
+		"who": names.get(r.actor, r.actor or ""),
+		"what": r.reason or r.action_type,
+		"how": context.get("how", ""),
+		"added": context.get("added", []),
+		"removed": context.get("removed", []),
+	}
