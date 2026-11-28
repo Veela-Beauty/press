@@ -179,7 +179,7 @@ BENCH_CONTROL_TOOLS: dict[str, dict] = {
 	},
 	"site_archive": {
 		"method": "press.mcp_server.site_ops.site_archive",
-		"description": "Archive a site : Press drops its database and files (after a final offsite backup when offsite backups are set up). Refuses any site that is not Inactive, so run site_deactivate first. Runs as an agent job; poll site_status until Archived.",
+		"description": "Archive a site, only after a healthy offsite backup of it. Refuses any site that is not Inactive (run site_deactivate first). When the site has no healthy offsite backup with files taken after it was switched off, starts one and returns stage 'backup_started' or 'backup_running': call again until stage is 'archive_queued'. Press then drops the database and files as an agent job; poll site_status until Archived.",
 		"required_args": ["name"],
 		"args_schema": _schema(["name"]),
 		"risk": "high",

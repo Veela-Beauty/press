@@ -9,7 +9,10 @@ This file documents changes (current commit level since, no tagged releases yet)
 ### Added
 - `site_archive` (high risk): archives a site through Press's own `api.site.archive`, so the team check, the final
   offsite backup and the upstream removal all stay the dashboard's. It refuses any site that is not Inactive, so
-  dropping a site always takes two calls (`site_deactivate`, then `site_archive`). Scoped to its site, listed under
+  dropping a site always takes two calls (`site_deactivate`, then `site_archive`). It also archives only once a
+  healthy offsite backup with files exists from after the switch-off (Success, offsite, all three files in storage,
+  database file not empty): when there is none it starts one and answers `backup_started`, so the caller calls
+  again until `archive_queued` (owner: a backup before every drop, and make sure it is healthy). Scoped to its site, listed under
   Dangerous in help and in the Issue Token dialog, added to the dev-box proxy catalog. Asked for by the owner on
   28 Nov after two throwaway test sites could only be switched off, not archived.
 
