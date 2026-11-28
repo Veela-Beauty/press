@@ -4,6 +4,16 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 28-11-2026: Token history names tools; its tests run on press-ctrl (0.7.91)
+
+### Fixed
+- The 0.7.90 deploy stopped before any restart: 10 of the new tests failed on press-ctrl, because `now_datetime()` reads
+  the system timezone through the cache that the tests replace. The tests now freeze the clock; 27 of 27 pass there.
+- The token history said "added site_archive": the server's tool list has no labels. The history now returns the tool
+  ids added and removed, and the dashboard shows their labels ("added Site — Archive").
+
+---
+
 ## 28-11-2026: MCP tokens: Edit tools, Confirm it's you, the token kept off the screen (0.7.90)
 
 ### Added

@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import unittest
 from contextlib import ExitStack
+from datetime import datetime
 from unittest.mock import patch
 
 import frappe
@@ -15,6 +16,8 @@ import frappe
 from press.mcp_server import token_confirm, token_edit
 
 OWNER = "owner@example.com"
+NOW = datetime(2026, 11, 28, 12, 0)
+LATER = datetime(2027, 2, 26, 9, 26)
 
 
 class FakeCache:
@@ -43,9 +46,13 @@ class ConfirmCase(unittest.TestCase):
 		self.stack = ExitStack()
 		self.stack.enter_context(patch.object(frappe, "cache", self.cache))
 		session = frappe._dict(
-			user=OWNER, sid="browser-a", data=frappe._dict(creation="2026-11-28 08:00:00", user_type="Website User")
+			user=OWNER,
+			sid="browser-a",
+			data=frappe._dict(creation="2026-11-28 08:00:00", user_type="Website User"),
 		)
 		self.stack.enter_context(patch.object(frappe, "session", session))
+		# now_datetime reads the system timezone through frappe.cache, which FakeCache stands in for: freeze the clock
+		self.stack.enter_context(patch.object(token_edit, "now_datetime", return_value=NOW))
 
 	def tearDown(self):
 		self.stack.close()
@@ -127,7 +134,7 @@ class TestEditTools(ConfirmCase):
 				"label": "agent",
 				"scope": json.dumps(["site_status", "list_sites"]),
 				"revoked": 0,
-				"expires_at": frappe.utils.add_days(frappe.utils.now_datetime(), 10),
+				"expires_at": LATER,
 				"risky_tools_enabled": 0,
 				**over,
 			}
@@ -190,7 +197,8 @@ class TestEditTools(ConfirmCase):
 		values = setv.call_args.args[2]
 		self.assertEqual((values["risky_tools_enabled"], values["approval_status"]), (1, "pending"))
 		self.assertEqual(out["added"], ["site_archive"])
-		self.assertIn("Site — Archive", log.call_args.args[2])
+		self.assertIn("site_archive", log.call_args.args[2])
+		self.assertEqual(log.call_args.args[4]["added"], ["site_archive"])
 
 	def test_a_system_user_gets_risky_tools_approved(self):
 		_, setv, _, _ = self._update(["site_status", "list_sites", "site_archive"], system=True)
@@ -241,6 +249,8 @@ class TestHistory(ConfirmCase):
 				"who": "Eslam",
 				"what": "added Site — Archive",
 				"how": "authenticator code",
+				"added": [],
+				"removed": [],
 			},
 		)
 
@@ -254,7 +264,9 @@ class TestReviewFixes(ConfirmCase):
 		how = (
 			patch.object(token_confirm, "confirmed_how", return_value="password")
 			if confirmed
-			else patch.object(token_confirm, "confirmed_how", side_effect=frappe.PermissionError("confirm first"))
+			else patch.object(
+				token_confirm, "confirmed_how", side_effect=frappe.PermissionError("confirm first")
+			)
 		)
 		with (
 			patch.object(auth.frappe, "get_doc", return_value=token),
@@ -297,7 +309,9 @@ class TestReviewFixes(ConfirmCase):
 
 	def test_without_a_recorded_login_time_an_app_does_not_count(self):
 		frappe.session.data.creation = None
-		with patch.object(frappe.db, "get_value", return_value=frappe._dict(enabled=1, creation="2020-01-01 00:00:00")):
+		with patch.object(
+			frappe.db, "get_value", return_value=frappe._dict(enabled=1, creation="2020-01-01 00:00:00")
+		):
 			self.assertEqual(token_confirm._app_state(OWNER), "new")
 
 	def test_a_confirm_belongs_to_one_browser_session(self):
@@ -314,7 +328,7 @@ class TestReviewFixes(ConfirmCase):
 			label="agent",
 			scope=json.dumps(["site_status", "a_retired_tool"]),
 			revoked=0,
-			expires_at=frappe.utils.add_days(frappe.utils.now_datetime(), 10),
+			expires_at=LATER,
 			risky_tools_enabled=0,
 		)
 		with (

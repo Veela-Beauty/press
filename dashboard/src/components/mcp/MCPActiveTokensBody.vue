@@ -153,7 +153,7 @@
 					<div v-for="(h, i) in histories[t.name] || []" :key="i"
 						class="flex gap-3 border-b border-gray-100 py-1.5 text-xs last:border-0">
 						<span class="w-48 shrink-0 text-gray-600">{{ formatDate(h.when) }}</span>
-						<span class="text-gray-900">{{ h.who }} {{ h.what }}<span v-if="h.how" class="text-gray-500"> · {{ h.how }}</span></span>
+						<span class="text-gray-900">{{ h.who }} {{ historyWhat(h) }}<span v-if="h.how" class="text-gray-500"> · {{ h.how }}</span></span>
 					</div>
 					<p v-if="histories[t.name] && !histories[t.name].length" class="text-xs text-gray-500">
 						No changes recorded yet.
@@ -252,6 +252,16 @@ async function loadHistory(name) {
 	} catch (e) {
 		toast.error('Could not load the token history: ' + (e?.messages?.[0] || e?.message || e));
 	}
+}
+
+// A history line names tools by their dashboard labels (the server keeps only tool ids).
+function historyWhat(h) {
+	const name = (t) => TOOL_CATALOG[t]?.label || t;
+	if (!h.added?.length && !h.removed?.length) return h.what;
+	const parts = [];
+	if (h.added?.length) parts.push('added ' + h.added.map(name).join(', '));
+	if (h.removed?.length) parts.push('removed ' + h.removed.map(name).join(', '));
+	return parts.join('; ');
 }
 
 function onEditTools(token) {
