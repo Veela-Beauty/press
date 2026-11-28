@@ -24,6 +24,7 @@ from __future__ import annotations
 from typing import Any
 
 import frappe
+from frappe.utils import cint
 
 from press.api import site as site_api
 
@@ -184,5 +185,115 @@ def site_restore(
 		"note": (
 			"Restore runs as an agent job. agent_job is the job Press created : if it is "
 			"null, nothing was queued. Poll agent_job_progress or site_status for progress."
+		),
+	}
+
+
+def _deactivated_at(name: str):
+	"""When the site was switched off: its last Deactivate Site activity, else its last change."""
+	at = frappe.db.get_value(
+		"Site Activity", {"site": name, "action": "Deactivate Site"}, "creation", order_by="creation desc"
+	)
+	return at or frappe.db.get_value("Site", name, "modified")
+
+
+def _backup_problem(backup) -> str | None:
+	"""Why this Site Backup cannot be trusted to bring the site back, or None when it can.
+
+	Only an offsite copy survives the archive (a local backup lives in the site folder the
+	archive deletes), and a backup is only as good as its database file in storage.
+	"""
+	if backup.status != "Success":
+		return f"backup {backup.name} is {backup.status}"
+	if not backup.offsite or backup.files_availability == "Unavailable":
+		return f"backup {backup.name} has no offsite copy"
+	if not (backup.with_files and backup.remote_public_file and backup.remote_private_file):
+		return f"backup {backup.name} has no public and private files"
+	stored = {}
+	for remote in (backup.remote_database_file, backup.remote_public_file, backup.remote_private_file):
+		row = remote and frappe.db.get_value("Remote File", remote, ["status", "file_size"], as_dict=True)
+		if not row or row.status == "Unavailable":
+			return f"backup {backup.name}: file {remote!r} is missing from storage"
+		stored[remote] = row
+	if not cint(stored[backup.remote_database_file].file_size):
+		return f"backup {backup.name}: the database file is empty"
+	return None
+
+
+def _backup_since(name: str, since):
+	rows = frappe.get_all(
+		"Site Backup",
+		filters={"site": name, "creation": (">=", since)},
+		fields=[
+			"name", "status", "offsite", "with_files", "files_availability",
+			"remote_database_file", "remote_public_file", "remote_private_file",
+		],
+		order_by="creation desc",
+		limit=1,
+	)
+	return rows[0] if rows else None
+
+
+def site_archive(name: str) -> dict[str, Any]:
+	"""Archive a switched-off site, only once a healthy offsite backup of it exists.
+
+	Only an Inactive site is accepted, so dropping a site always takes site_deactivate
+	first and one wrong call can never drop a live site. The site must also have a
+	healthy offsite backup (with files) taken after it was switched off: when it has
+	none, this call starts one and returns; call again until it reports the archive.
+	"""
+	_assert_site(name)
+	status = frappe.db.get_value("Site", name, "status", for_update=True)
+	if status != "Inactive":
+		frappe.throw(
+			f"Site {name!r} is {status}. Only a deactivated (Inactive) site can be archived : "
+			"run site_deactivate first, once you are sure nobody uses it.",
+			frappe.ValidationError,
+		)
+
+	backup = _backup_since(name, _deactivated_at(name))
+	if backup and backup.status in ("Pending", "Running"):
+		return {"site": name, "stage": "backup_running", "backup": backup.name,
+			"note": "The backup taken before the archive is still running. Call site_archive again."}
+	problem = _backup_problem(backup) if backup else "no backup since the site was switched off"
+	if problem:
+		new = frappe.get_doc("Site", name).backup(with_files=True, offsite=True)
+		frappe.db.commit()
+		return {"site": name, "stage": "backup_started", "backup": new.name, "reason": problem,
+			"note": "A backup with files, offsite, was started first. Call site_archive again once it ends."}
+
+	return _archive_now(name, backup.name)
+
+
+def _archive_now(name: str, backup_name: str) -> dict[str, Any]:
+	"""Hand the site to Press's archive; roll back a half-done one; report the job it made."""
+	started = frappe.utils.now_datetime()
+	try:
+		site_api.archive(name=name, force=False)
+	except Exception:
+		# Site.archive saves the site as Pending before its later steps; a half-done
+		# archive must not be committed, or the site is stuck Pending and cannot retry.
+		frappe.db.rollback()
+		raise
+	frappe.db.commit()
+
+	job = frappe.get_all(
+		"Agent Job",
+		filters={"site": name, "job_type": "Archive Site", "creation": (">=", started)},
+		fields=["name", "status"],
+		order_by="creation desc",
+		limit=1,
+	)
+	return {
+		"site": name,
+		"stage": "archive_queued",
+		"backup": backup_name,
+		"site_status": frappe.db.get_value("Site", name, "status"),
+		"agent_job": job[0].name if job else None,
+		"agent_job_status": job[0].status if job else None,
+		"note": (
+			f"Archive runs as an agent job; on success the site ends Archived. Backup {backup_name} "
+			"(offsite, checked) restores it. agent_job is the job this call created : if it is null, "
+			"nothing was queued. Poll site_status."
 		),
 	}

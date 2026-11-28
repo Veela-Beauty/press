@@ -98,6 +98,7 @@ export const TOOL_CATALOG = {
 	site_uninstall_app:        { category: 'dangerous', risk: 'high', label: 'Site — Uninstall App',            desc: 'Uninstall an app from a site' },
 	site_deactivate:           { category: 'dangerous', risk: 'high', label: 'Site — Deactivate',               desc: 'Deactivate a site (maintenance mode)' },
 	site_restore:              { category: 'dangerous', risk: 'high', label: 'Site — Restore Backup',           desc: 'Restore uploaded backup files into an existing site (overwrites its database, no undo)' },
+	site_archive:              { category: 'dangerous', risk: 'high', label: 'Site — Archive',                  desc: 'Archive a deactivated site after a checked offsite backup (drops its database and files)' },
 	bench_update:              { category: 'dangerous', risk: 'high', label: 'Bench — Update',                  desc: 'Update a Bench to the latest deploy' },
 	site_update:               { category: 'dangerous', risk: 'high', label: 'Site — Update',                   desc: 'Update a site to the latest bench deploy' },
 	bench_ssh_cert_generate:   { category: 'dangerous', risk: 'high', label: 'Bench — Generate SSH Certificate', desc: 'Generate SSH cert (grants shell access to bench)' },

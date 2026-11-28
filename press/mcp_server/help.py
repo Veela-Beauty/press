@@ -292,6 +292,7 @@ TOOL_CATEGORY: dict[str, str] = {
 	"app_git_push": "dangerous",
 	"site_uninstall_app": "dangerous",
 	"site_deactivate": "dangerous",
+	"site_archive": "dangerous",
 	"bench_update": "dangerous",
 	"site_update": "dangerous",
 	"bench_ssh_cert_generate": "dangerous",

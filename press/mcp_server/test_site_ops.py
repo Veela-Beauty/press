@@ -10,6 +10,7 @@ guards, not the underlying Press flow.
 from __future__ import annotations
 
 import unittest
+from contextlib import ExitStack
 from unittest.mock import patch
 
 import frappe
@@ -295,3 +296,181 @@ class TestResourceScopingRegistry(unittest.TestCase):
 				msg.index("_extract_target"),
 				"the caller-side hint must come before the server-side one",
 			)
+
+
+class TestSiteArchive(unittest.TestCase):
+	"""site_archive drops a site, so its guards are the point: only a deactivated site, and
+	only once a healthy offsite backup taken after the switch-off exists."""
+
+	SITE = "probe.sandbox.mvpstorm.com"
+
+	def _flow(self, stack, status="Inactive", backup=None, problem=None):
+		"""Patch the reads site_archive makes; return the mocks a test asserts on."""
+		stack.enter_context(patch.object(frappe.db, "exists", return_value=True))
+		stack.enter_context(patch.object(frappe.db, "get_value", side_effect=[status, "Pending"]))
+		stack.enter_context(patch.object(site_ops, "_deactivated_at", return_value="2026-11-28 06:00:00"))
+		stack.enter_context(patch.object(site_ops, "_backup_since", return_value=backup))
+		stack.enter_context(patch.object(site_ops, "_backup_problem", return_value=problem))
+		site_doc = frappe._dict(backup=lambda **kw: frappe._dict(name="backup-new", kwargs=kw))
+		return {
+			"get_doc": stack.enter_context(patch.object(frappe, "get_doc", return_value=site_doc)),
+			"commit": stack.enter_context(patch.object(frappe.db, "commit")),
+			"rollback": stack.enter_context(patch.object(frappe.db, "rollback")),
+			"get_all": stack.enter_context(patch.object(frappe, "get_all", return_value=[])),
+			"archive": stack.enter_context(patch.object(site_ops.site_api, "archive")),
+		}
+
+	def test_archive_rejects_unknown_site(self):
+		with (
+			patch.object(frappe.db, "exists", return_value=False),
+			patch.object(site_ops.site_api, "archive") as archive,
+			self.assertRaises(frappe.DoesNotExistError),
+		):
+			site_ops.site_archive(name="ghost.sandbox.mvpstorm.com")
+		archive.assert_not_called()
+
+	def test_archive_refuses_a_site_that_is_not_inactive(self):
+		"""One wrong call must never drop a live site, nor touch one already archived."""
+		for status in ("Active", "Broken", "Suspended", "Pending", "Archived", None):
+			with ExitStack() as stack:
+				mocks = self._flow(stack, status=status)
+				with self.assertRaises(frappe.ValidationError) as ctx:
+					site_ops.site_archive(name=self.SITE)
+			mocks["archive"].assert_not_called()
+			mocks["get_doc"].assert_not_called()
+			self.assertIn("site_deactivate", str(ctx.exception), "must tell the caller the first step")
+
+	def test_no_backup_since_switch_off_starts_an_offsite_backup_with_files(self):
+		with ExitStack() as stack:
+			mocks = self._flow(stack, backup=None)
+			out = site_ops.site_archive(name=self.SITE)
+		mocks["archive"].assert_not_called()
+		self.assertEqual(out["stage"], "backup_started")
+		self.assertEqual(out["backup"], "backup-new")
+		mocks["commit"].assert_called_once()
+
+	def test_backup_started_is_offsite_with_files(self):
+		calls = {}
+
+		def fake_backup(**kwargs):
+			calls.update(kwargs)
+			return frappe._dict(name="backup-new")
+
+		with ExitStack() as stack:
+			mocks = self._flow(stack, backup=None)
+			mocks["get_doc"].return_value = frappe._dict(backup=fake_backup)
+			site_ops.site_archive(name=self.SITE)
+		self.assertEqual(calls, {"with_files": True, "offsite": True})
+
+	def test_a_running_backup_is_waited_for_not_doubled(self):
+		running = frappe._dict(name="backup-1", status="Running")
+		with ExitStack() as stack:
+			mocks = self._flow(stack, backup=running)
+			out = site_ops.site_archive(name=self.SITE)
+		self.assertEqual(out["stage"], "backup_running")
+		mocks["get_doc"].assert_not_called()
+		mocks["archive"].assert_not_called()
+
+	def test_an_unhealthy_backup_starts_a_new_one_and_never_archives(self):
+		failed = frappe._dict(name="backup-1", status="Failure")
+		with ExitStack() as stack:
+			mocks = self._flow(stack, backup=failed, problem="backup backup-1 is Failure")
+			out = site_ops.site_archive(name=self.SITE)
+		self.assertEqual(out["stage"], "backup_started")
+		self.assertEqual(out["reason"], "backup backup-1 is Failure")
+		mocks["archive"].assert_not_called()
+
+	def test_a_healthy_backup_lets_the_archive_go_without_force(self):
+		good = frappe._dict(name="backup-ok", status="Success")
+		job = frappe._dict({"name": "job-9", "status": "Pending"})
+		with ExitStack() as stack:
+			mocks = self._flow(stack, backup=good, problem=None)
+			mocks["get_all"].return_value = [job]
+			out = site_ops.site_archive(name=self.SITE)
+		mocks["archive"].assert_called_once_with(name=self.SITE, force=False)
+		mocks["commit"].assert_called_once()
+		filters = mocks["get_all"].call_args.kwargs["filters"]
+		self.assertEqual((filters["site"], filters["job_type"]), (self.SITE, "Archive Site"))
+		self.assertEqual(filters["creation"][0], ">=", "only a job this call created may be reported")
+		self.assertEqual((out["stage"], out["backup"], out["agent_job"]), ("archive_queued", "backup-ok", "job-9"))
+
+	def test_archive_rolls_back_when_press_fails_half_way(self):
+		"""Site.archive saves Pending before its later steps : a failure must not be committed."""
+		good = frappe._dict(name="backup-ok", status="Success")
+		with ExitStack() as stack:
+			mocks = self._flow(stack, backup=good, problem=None)
+			mocks["archive"].side_effect = RuntimeError("agent down")
+			with self.assertRaises(RuntimeError):
+				site_ops.site_archive(name=self.SITE)
+		mocks["rollback"].assert_called_once()
+		mocks["commit"].assert_not_called()
+
+	def test_archive_is_scoped_to_its_site_high_risk_and_listed(self):
+		from press.mcp_server.help import TOOL_CATEGORY
+		from press.mcp_server.server import _extract_target
+		from press.mcp_server.tools import TOOLS
+
+		self.assertEqual(_extract_target("site_archive", {"name": self.SITE}), ("Site", self.SITE))
+		self.assertEqual(TOOLS["site_archive"]["risk"], "high")
+		self.assertEqual(TOOL_CATEGORY["site_archive"], "dangerous")
+
+
+class TestBackupHealth(unittest.TestCase):
+	"""_backup_problem decides whether a backup can bring a dropped site back."""
+
+	@staticmethod
+	def _good():
+		return {
+			"name": "b1", "status": "Success", "offsite": 1, "with_files": 1, "files_availability": "Available",
+			"remote_database_file": "rf-db", "remote_public_file": "rf-pub", "remote_private_file": "rf-priv",
+		}
+
+	def _problem(self, files=None, db_size="2048", **changes):
+		files = {"rf-db": frappe._dict(status="Available", file_size=db_size), **(files or {})}
+		backup = frappe._dict({**self._good(), **changes})
+
+		def get_value(doctype, name, fields, *args, **kwargs):
+			return files.get(name, frappe._dict(status="Available", file_size="10"))
+
+		with patch.object(frappe.db, "get_value", side_effect=get_value):
+			return site_ops._backup_problem(backup)
+
+	def test_a_complete_offsite_backup_is_healthy(self):
+		self.assertIsNone(self._problem())
+
+	def test_each_unhealthy_shape_is_named(self):
+		cases = {
+			"is Pending": {"status": "Pending"},
+			"is Failure": {"status": "Failure"},
+			"no offsite copy": {"offsite": 0},
+			"no offsite copy ": {"files_availability": "Unavailable"},
+			"no public and private files": {"with_files": 0},
+			"no public and private files ": {"remote_private_file": None},
+		}
+		for expected, change in cases.items():
+			with self.subTest(change=change):
+				self.assertIn(expected.strip(), self._problem(**change))
+
+	def test_a_file_missing_from_storage_is_unhealthy(self):
+		self.assertIn("missing from storage", self._problem(files={"rf-pub": None}))
+		gone = frappe._dict(status="Unavailable", file_size="10")
+		self.assertIn("missing from storage", self._problem(files={"rf-db": gone}))
+
+	def test_an_empty_database_file_is_unhealthy(self):
+		self.assertIn("database file is empty", self._problem(db_size="0"))
+		self.assertIn("database file is empty", self._problem(db_size=None))
+
+
+class TestDeactivatedAt(unittest.TestCase):
+	"""The backup must postdate the switch-off; this finds when that was."""
+
+	def test_uses_the_last_deactivate_site_activity(self):
+		with patch.object(frappe.db, "get_value", return_value="2026-11-28 06:00:00") as get_value:
+			self.assertEqual(site_ops._deactivated_at("probe.sandbox.mvpstorm.com"), "2026-11-28 06:00:00")
+		self.assertEqual(get_value.call_args.args[1]["action"], "Deactivate Site")
+		self.assertEqual(get_value.call_args.kwargs["order_by"], "creation desc")
+
+	def test_falls_back_to_the_site_last_change_when_no_activity_was_logged(self):
+		with patch.object(frappe.db, "get_value", side_effect=[None, "2026-11-27 09:00:00"]) as get_value:
+			self.assertEqual(site_ops._deactivated_at("probe.sandbox.mvpstorm.com"), "2026-11-27 09:00:00")
+		self.assertEqual(get_value.call_args.args[:3], ("Site", "probe.sandbox.mvpstorm.com", "modified"))

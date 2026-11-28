@@ -1914,5 +1914,20 @@
     "site"
    ]
   }
+ },
+ "site_archive": {
+  "description": "Archive a site, only after a healthy offsite backup of it. Refuses any site that is not Inactive (run site_deactivate first). When the site has no healthy offsite backup with files taken after it was switched off, starts one and returns stage 'backup_started' or 'backup_running': call again until stage is 'archive_queued'. Press then drops the database and files as an agent job; poll site_status until Archived.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Primary docname for the target object"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
  }
 }
