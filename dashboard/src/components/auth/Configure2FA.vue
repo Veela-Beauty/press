@@ -222,7 +222,8 @@ export default {
 		qrUrl() {
 			return {
 				url: 'press.api.account.get_2fa_qr_code_url',
-				auto: true,
+				// only to link an app: once 2FA is on the server refuses to hand out the secret (0.7.92)
+				auto: !this.is2FAEnabled,
 				onSuccess(qr_code_url) {
 					this.qrUrl = qr_code_url;
 				},

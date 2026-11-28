@@ -4,6 +4,19 @@ This file documents changes (current commit level since, no tagged releases yet)
 
 ---
 
+## 28-11-2026: The 2FA secret is never handed out once 2FA is on (0.7.92)
+
+### Fixed (security)
+- `press.api.account.get_2fa_qr_code_url` gave the user's TOTP secret to any open session, even with 2FA already
+  on. Anyone at an unlocked dashboard could make valid authenticator codes, which defeated the authenticator way of
+  Confirm it's you (MCP tokens) and of the site logins. It now refuses once 2FA is on ("Turn it off first to link
+  another app"), and while 2FA is off it makes a fresh secret on a new User 2FA record every time. A record switched
+  off long ago therefore cannot be switched back on with its old date, to pass for an app linked before this login.
+- The profile's Configure 2FA dialog fetches the QR only while 2FA is off (it shows no QR when 2FA is on).
+- `account.py` is 8 lines shorter. Offline tests: `press/api/tests/test_2fa_secret_offline.py` (4, run without a bench).
+
+---
+
 ## 28-11-2026: Token history names tools; its tests run on press-ctrl (0.7.91)
 
 ### Fixed
