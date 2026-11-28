@@ -121,8 +121,11 @@
 						</div>
 					</div>
 					<div v-if="t.status === 'active'" class="flex shrink-0 gap-1">
+						<Button size="sm" @click="onEditTools(t)" title="Change which tools this token can call; the token stays the same">
+							Edit tools
+						</Button>
 						<Button v-if="t.has_plaintext" size="sm" @click="onShowHandover(t)"
-							title="Show plaintext token + handover snippet">
+							title="Copy the token and its handover snippet (asks Confirm it's you)">
 							Copy token
 						</Button>
 						<Button v-else size="sm" @click="onReissue(t)"
@@ -145,6 +148,17 @@
 					/>
 				</div>
 
+				<div v-if="expandedTokens[t.name]" class="mt-3 rounded border border-gray-200 p-3">
+					<div class="mb-1 text-sm font-medium text-gray-700">Token history</div>
+					<div v-for="(h, i) in histories[t.name] || []" :key="i"
+						class="flex gap-3 border-b border-gray-100 py-1.5 text-xs last:border-0">
+						<span class="w-48 shrink-0 text-gray-600">{{ formatDate(h.when) }}</span>
+						<span class="text-gray-900">{{ h.who }} {{ h.what }}<span v-if="h.how" class="text-gray-500"> · {{ h.how }}</span></span>
+					</div>
+					<p v-if="histories[t.name] && !histories[t.name].length" class="text-xs text-gray-500">
+						No changes recorded yet.
+					</p>
+				</div>
 				<div v-if="expandedTokens[t.name] && (t.scope || []).length > 0"
 					class="mt-3 space-y-2 rounded border border-gray-200 bg-gray-50 p-3">
 					<div v-for="cat in TOOL_CATEGORIES" :key="cat.id">
@@ -168,15 +182,21 @@
 				</div>
 			</li>
 		</ul>
+		<EditToolsDialog v-model="editToolsOpen" :token="editToolsToken" @saved="onToolsSaved" />
+		<ConfirmItsYouDialog v-model="confirmOpen" :reason="confirmReason" @confirmed="onConfirmed" />
 	</div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
-import { Button, FeatherIcon, toast } from 'frappe-ui';
+import { Button, FeatherIcon } from 'frappe-ui';
+import { toast } from 'vue-sonner';
 import call from './teamCall.js';
 import { confirmDialog } from '../../utils/components';
 import HandoverPanel from './HandoverPanel.vue';
+import EditToolsDialog from './EditToolsDialog.vue';
+import ConfirmItsYouDialog from './ConfirmItsYouDialog.vue';
+import { useConfirm } from './useConfirm.js';
 import { TOOL_CATALOG, TOOL_CATEGORIES, riskBadgeClass } from './_tool_catalog.js';
 
 defineEmits(['issue']);
@@ -193,6 +213,10 @@ const statusTab = ref('active');
 const expandedTokens = reactive({});
 const handoverFor = ref(null);
 const handoverToken = ref(null);
+const histories = reactive({});
+const editToolsOpen = ref(false);
+const editToolsToken = ref(null);
+const { confirmOpen, confirmReason, withConfirm, onConfirmed } = useConfirm();
 
 function tokenRiskCount(token, risk) {
 	const scope = token.scope || [];
@@ -219,6 +243,26 @@ function toolsInCategory(token, catId) {
 
 function toggleScopeDetail(name) {
 	expandedTokens[name] = !expandedTokens[name];
+	if (expandedTokens[name]) loadHistory(name);
+}
+
+async function loadHistory(name) {
+	try {
+		histories[name] = await call('press.mcp_server.token_edit.token_history', { token_id: name });
+	} catch (e) {
+		toast.error('Could not load the token history: ' + (e?.messages?.[0] || e?.message || e));
+	}
+}
+
+function onEditTools(token) {
+	editToolsToken.value = token;
+	editToolsOpen.value = true;
+}
+
+async function onToolsSaved() {
+	const name = editToolsToken.value?.name;
+	await loadTokens();
+	if (name && expandedTokens[name]) loadHistory(name);
 }
 
 const statusCounts = computed(() =>
@@ -305,16 +349,23 @@ async function onShowHandover(token) {
 		handoverToken.value = null;
 		return;
 	}
-	try {
-		const r = await call('press.mcp_server.auth.recover_token', { token_id: token.name });
-		handoverFor.value = token.name;
-		handoverToken.value = r.token;
-	} catch (e) {
-		toast.error(e?.messages?.[0] || e?.message || 'Recover failed');
-	}
+	return withConfirm(`to copy the token of ${token.label}`, async () => {
+		try {
+			const r = await call('press.mcp_server.auth.recover_token', { token_id: token.name });
+			handoverFor.value = token.name;
+			handoverToken.value = r.token;
+			if (expandedTokens[token.name]) loadHistory(token.name);
+		} catch (e) {
+			toast.error(e?.messages?.[0] || e?.message || 'Recover failed');
+		}
+	});
 }
 
 function onReissue(token) {
+	return withConfirm(`to reissue ${token.label}`, () => askReissue(token));
+}
+
+function askReissue(token) {
 	confirmDialog({
 		title: 'Reissue token?',
 		message: `This will <strong>revoke</strong> <code>${token.label}</code> and create a new token with the same scope. Any agent using the old token will lose access immediately.`,

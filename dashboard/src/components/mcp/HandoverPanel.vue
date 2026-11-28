@@ -35,6 +35,14 @@
 		<!-- Tab body -->
 		<div class="relative">
 			<button
+				v-if="mode === 'issued'"
+				type="button"
+				class="absolute right-14 top-1 rounded border border-amber-300 bg-white px-2 py-0.5 text-xs font-medium text-amber-900 hover:opacity-80"
+				@click="onShow"
+			>
+				{{ revealed ? 'Hide' : 'Show' }}
+			</button>
+			<button
 				type="button"
 				class="absolute right-1 top-1 rounded border bg-white px-2 py-0.5 text-xs font-medium hover:opacity-80"
 				:class="mode === 'issued' ? 'border-amber-300 text-amber-900' : 'border-blue-300 text-blue-900'"
@@ -42,20 +50,31 @@
 			>
 				{{ copyLabel }}
 			</button>
-			<pre class="max-h-[260px] overflow-auto rounded bg-white/70 p-3 pr-16 text-[11px] leading-snug whitespace-pre-wrap break-all"
+			<pre class="max-h-[260px] overflow-auto rounded bg-white/70 p-3 pr-28 text-[11px] leading-snug whitespace-pre-wrap break-all"
 				:class="mode === 'issued' ? 'text-amber-900' : 'text-blue-900'">{{ activeSnippet }}</pre>
 		</div>
 
+		<p v-if="mode === 'issued'" class="text-xs text-amber-800">
+			Show and Copy ask you to confirm it is you. Copy puts the full token in what you paste.
+		</p>
 		<details v-if="mode === 'issued'" class="text-xs text-amber-800">
 			<summary class="cursor-pointer font-medium">Just the raw token</summary>
-			<code class="mt-1 block break-all rounded bg-white/70 p-2">{{ token }}</code>
+			<div class="mt-1 flex items-center gap-2">
+				<code class="block flex-1 break-all rounded bg-white/70 p-2">{{ tok }}</code>
+				<button type="button" class="rounded border border-amber-300 bg-white px-2 py-0.5 font-medium text-amber-900 hover:opacity-80" @click="copyRaw">
+					{{ rawCopyLabel }}
+				</button>
+			</div>
 		</details>
+		<ConfirmItsYouDialog v-model="confirmOpen" :reason="confirmReason" @confirmed="onConfirmed" />
 	</div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue';
 import { TOOL_CATALOG, TOOL_CATEGORIES } from './_tool_catalog.js';
+import ConfirmItsYouDialog from './ConfirmItsYouDialog.vue';
+import { useConfirm } from './useConfirm.js';
 
 const props = defineProps({
 	token: { type: String, required: true },
@@ -66,22 +85,33 @@ const props = defineProps({
 
 const activeTab = ref('Markdown');
 const copyLabel = ref('Copy');
+const rawCopyLabel = ref('Copy token');
 let copyResetTimer = null;
+
+// PRS-SP-22: the token stays masked on screen. Show reveals it, Copy reads it for one synchronous moment (never
+// drawn); both ask Confirm it's you unless one still holds (issuing counts as one).
+const { confirmOpen, confirmReason, withConfirm, onConfirmed } = useConfirm();
+const revealed = ref(false);
+const copying = ref(false);
+const tok = computed(() => {
+	if (props.mode !== 'issued' || revealed.value || copying.value) return props.token;
+	return props.token.slice(0, 8) + '•'.repeat(Math.max(props.token.length - 8, 8));
+});
 
 const mcpUrl = computed(() => `${window.location.origin}/api/method/press.mcp_server.server.handle`);
 
 const envSnippet = computed(() => `export PRESS_MCP_URL='${mcpUrl.value}'
-export PRESS_MCP_TOKEN='${props.token}'`);
+export PRESS_MCP_TOKEN='${tok.value}'`);
 
 const curlSnippet = computed(() => `# Quick connectivity test (returns help text)
 curl -X POST '${mcpUrl.value}' \\
   --data-urlencode 'tool=help' \\
-  --data-urlencode 'token=${props.token}'
+  --data-urlencode 'token=${tok.value}'
 
 # List available tools for this token
 curl -X POST '${mcpUrl.value}' \\
   --data-urlencode 'tool=list_tools' \\
-  --data-urlencode 'token=${props.token}'`);
+  --data-urlencode 'token=${tok.value}'`);
 
 const configSnippet = computed(() => JSON.stringify({
 	mcpServers: {
@@ -89,7 +119,7 @@ const configSnippet = computed(() => JSON.stringify({
 			url: mcpUrl.value,
 			transport: 'http',
 			headers: {},
-			env: { PRESS_MCP_TOKEN: props.token },
+			env: { PRESS_MCP_TOKEN: tok.value },
 			description: `Press MCP — ${props.label}`,
 		},
 	},
@@ -126,7 +156,7 @@ const scopedCatalog = computed(() => {
 const markdownSnippet = computed(() => `## Press MCP handover
 
 **Server**: \`${mcpUrl.value}\`
-**Token**: \`${props.token}\`
+**Token**: \`${tok.value}\`
 **Label**: ${props.label}
 
 ### How to call
@@ -158,13 +188,13 @@ ${scopedCatalog.value}
 curl -X POST '${mcpUrl.value}' \\
   --data-urlencode 'tool=release_group_get' \\
   --data-urlencode 'args={"name":"bench-0011"}' \\
-  --data-urlencode 'token=${props.token}'
+  --data-urlencode 'token=${tok.value}'
 
 # Install an app on a site
 curl -X POST '${mcpUrl.value}' \\
   --data-urlencode 'tool=site_install_app' \\
   --data-urlencode 'args={"site":"my-site.example.com","app":"erpnext"}' \\
-  --data-urlencode 'token=${props.token}'
+  --data-urlencode 'token=${tok.value}'
 \`\`\`
 
 ### Response shape
@@ -199,14 +229,40 @@ function tabClass(tab) {
 		: 'text-blue-700 hover:text-blue-900';
 }
 
-async function copyActive() {
+function guarded(action) {
+	if (props.mode !== 'issued') return action();
+	return withConfirm(`to copy or show the token of ${props.label}`, action);
+}
+
+async function writeClipboard(read, label, idle) {
+	copying.value = true;
+	const text = read();
+	copying.value = false;
 	try {
-		await navigator.clipboard.writeText(activeSnippet.value);
-		copyLabel.value = 'Copied!';
+		await navigator.clipboard.writeText(text);
+		label.value = 'Copied!';
 	} catch {
-		copyLabel.value = 'Copy failed';
+		label.value = 'Press Copy again';
 	}
 	if (copyResetTimer) clearTimeout(copyResetTimer);
-	copyResetTimer = setTimeout(() => (copyLabel.value = 'Copy'), 1500);
+	copyResetTimer = setTimeout(() => (label.value = idle), 1500);
+}
+
+function copyActive() {
+	return guarded(() => writeClipboard(() => activeSnippet.value, copyLabel, 'Copy'));
+}
+
+function copyRaw() {
+	return guarded(() => writeClipboard(() => props.token, rawCopyLabel, 'Copy token'));
+}
+
+function onShow() {
+	if (revealed.value) {
+		revealed.value = false;
+		return;
+	}
+	return guarded(() => {
+		revealed.value = true;
+	});
 }
 </script>

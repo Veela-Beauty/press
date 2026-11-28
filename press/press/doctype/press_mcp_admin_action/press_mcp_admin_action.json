@@ -15,7 +15,7 @@
   "context_json"
  ],
  "fields": [
-  {"fieldname": "action_type", "fieldtype": "Select", "in_list_view": 1, "label": "Action Type", "options": "Revoke\nBulk Revoke\nApprove Risky Token\nReject Risky Token", "reqd": 1, "search_index": 1},
+  {"fieldname": "action_type", "fieldtype": "Select", "in_list_view": 1, "label": "Action Type", "options": "Revoke\nBulk Revoke\nApprove Risky Token\nReject Risky Token\nIssue\nReissue\nEdit Tools\nCopy Token", "reqd": 1, "search_index": 1},
   {"fieldname": "actor", "fieldtype": "Link", "in_list_view": 1, "label": "Actor", "options": "User", "reqd": 1, "search_index": 1},
   {"fieldname": "column_break_1", "fieldtype": "Column Break"},
   {"fieldname": "target_token", "fieldtype": "Link", "in_list_view": 1, "label": "Target Token", "options": "Press MCP Token"},
@@ -23,7 +23,7 @@
   {"fieldname": "reason", "fieldtype": "Small Text", "label": "Reason", "reqd": 1},
   {"fieldname": "context_json", "fieldtype": "Code", "label": "Context (JSON)"}
  ],
- "modified": "2026-05-07 00:00:00.000000",
+ "modified": "2026-11-28 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Press",
  "name": "Press MCP Admin Action",
