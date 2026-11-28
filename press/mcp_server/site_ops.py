@@ -193,10 +193,11 @@ def site_archive(name: str) -> dict[str, Any]:
 
 	Only an Inactive site is accepted, so dropping a site always takes two calls
 	(site_deactivate, then this) and one wrong call can never drop a live site. Press
-	asks the agent for a final offsite backup before the drop, as the dashboard does.
+	takes a final offsite backup first only when offsite backups are set up for the
+	cluster; otherwise the site is dropped with no backup, as from the dashboard.
 	"""
 	_assert_site(name)
-	status = frappe.db.get_value("Site", name, "status")
+	status = frappe.db.get_value("Site", name, "status", for_update=True)
 	if status != "Inactive":
 		frappe.throw(
 			f"Site {name!r} is {status}. Only a deactivated (Inactive) site can be archived : "
@@ -204,12 +205,19 @@ def site_archive(name: str) -> dict[str, Any]:
 			frappe.ValidationError,
 		)
 
-	site_api.archive(name=name, force=False)
+	started = frappe.utils.now_datetime()
+	try:
+		site_api.archive(name=name, force=False)
+	except Exception:
+		# Site.archive saves the site as Pending before its later steps; a half-done
+		# archive must not be committed, or the site is stuck Pending and cannot retry.
+		frappe.db.rollback()
+		raise
 	frappe.db.commit()
 
 	job = frappe.get_all(
 		"Agent Job",
-		filters={"site": name, "job_type": "Archive Site"},
+		filters={"site": name, "job_type": "Archive Site", "creation": (">=", started)},
 		fields=["name", "status"],
 		order_by="creation desc",
 		limit=1,
@@ -220,7 +228,7 @@ def site_archive(name: str) -> dict[str, Any]:
 		"agent_job": job[0].name if job else None,
 		"agent_job_status": job[0].status if job else None,
 		"note": (
-			"Archive runs as an agent job and the site ends Archived. agent_job is the job "
-			"Press created : if it is null, nothing was queued. Poll site_status."
+			"Archive runs as an agent job; on success the site ends Archived. agent_job is the "
+			"job this call created : if it is null, nothing was queued. Poll site_status."
 		),
 	}

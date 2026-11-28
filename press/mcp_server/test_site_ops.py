@@ -312,8 +312,8 @@ class TestSiteArchive(unittest.TestCase):
 		archive.assert_not_called()
 
 	def test_archive_refuses_a_site_that_is_not_inactive(self):
-		"""One wrong call must never drop a live site: Active, Broken, Suspended all refused."""
-		for status in ("Active", "Broken", "Suspended", "Pending"):
+		"""One wrong call must never drop a live site, nor touch one already archived."""
+		for status in ("Active", "Broken", "Suspended", "Pending", "Archived", None):
 			with (
 				patch.object(frappe.db, "exists", return_value=True),
 				patch.object(frappe.db, "get_value", return_value=status),
@@ -326,23 +326,45 @@ class TestSiteArchive(unittest.TestCase):
 
 	def test_archive_passes_an_inactive_site_to_press_without_force(self):
 		job = frappe._dict({"name": "job-9", "status": "Pending"})
-		with patch.object(frappe.db, "exists", return_value=True), patch.object(
-			frappe.db, "get_value", side_effect=["Inactive", "Pending"]
-		), patch.object(frappe.db, "commit") as commit, patch.object(
-			frappe, "get_all", return_value=[job]
-		), patch.object(site_ops.site_api, "archive") as archive:
+		with (
+			patch.object(frappe.db, "exists", return_value=True),
+			patch.object(frappe.db, "get_value", side_effect=["Inactive", "Pending"]),
+			patch.object(frappe.db, "commit") as commit,
+			patch.object(frappe, "get_all", return_value=[job]) as get_all,
+			patch.object(site_ops.site_api, "archive") as archive,
+		):
 			out = site_ops.site_archive(name=self.SITE)
 
 		archive.assert_called_once_with(name=self.SITE, force=False)
 		commit.assert_called_once()
+		filters = get_all.call_args.kwargs["filters"]
+		self.assertEqual(filters["site"], self.SITE)
+		self.assertEqual(filters["job_type"], "Archive Site")
+		self.assertEqual(filters["creation"][0], ">=", "only a job this call created may be reported")
 		self.assertEqual(out["site_status"], "Pending")
 		self.assertEqual(out["agent_job"], "job-9")
 
+	def test_archive_rolls_back_when_press_fails_half_way(self):
+		"""Site.archive saves Pending before its later steps : a failure must not be committed."""
+		with (
+			patch.object(frappe.db, "exists", return_value=True),
+			patch.object(frappe.db, "get_value", return_value="Inactive"),
+			patch.object(frappe.db, "commit") as commit,
+			patch.object(frappe.db, "rollback") as rollback,
+			patch.object(site_ops.site_api, "archive", side_effect=RuntimeError("agent down")),
+			self.assertRaises(RuntimeError),
+		):
+			site_ops.site_archive(name=self.SITE)
+		rollback.assert_called_once()
+		commit.assert_not_called()
+
 	def test_archive_reports_null_job_when_nothing_was_queued(self):
-		with patch.object(frappe.db, "exists", return_value=True), patch.object(
-			frappe.db, "get_value", side_effect=["Inactive", "Inactive"]
-		), patch.object(frappe.db, "commit"), patch.object(frappe, "get_all", return_value=[]), patch.object(
-			site_ops.site_api, "archive"
+		with (
+			patch.object(frappe.db, "exists", return_value=True),
+			patch.object(frappe.db, "get_value", side_effect=["Inactive", "Inactive"]),
+			patch.object(frappe.db, "commit"),
+			patch.object(frappe, "get_all", return_value=[]),
+			patch.object(site_ops.site_api, "archive"),
 		):
 			out = site_ops.site_archive(name=self.SITE)
 
