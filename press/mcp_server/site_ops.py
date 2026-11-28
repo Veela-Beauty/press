@@ -261,6 +261,11 @@ def site_archive(name: str) -> dict[str, Any]:
 		return {"site": name, "stage": "backup_started", "backup": new.name, "reason": problem,
 			"note": "A backup with files, offsite, was started first. Call site_archive again once it ends."}
 
+	return _archive_now(name, backup.name)
+
+
+def _archive_now(name: str, backup_name: str) -> dict[str, Any]:
+	"""Hand the site to Press's archive; roll back a half-done one; report the job it made."""
 	started = frappe.utils.now_datetime()
 	try:
 		site_api.archive(name=name, force=False)
@@ -281,12 +286,12 @@ def site_archive(name: str) -> dict[str, Any]:
 	return {
 		"site": name,
 		"stage": "archive_queued",
-		"backup": backup.name,
+		"backup": backup_name,
 		"site_status": frappe.db.get_value("Site", name, "status"),
 		"agent_job": job[0].name if job else None,
 		"agent_job_status": job[0].status if job else None,
 		"note": (
-			f"Archive runs as an agent job; on success the site ends Archived. Backup {backup.name} "
+			f"Archive runs as an agent job; on success the site ends Archived. Backup {backup_name} "
 			"(offsite, checked) restores it. agent_job is the job this call created : if it is null, "
 			"nothing was queued. Poll site_status."
 		),
